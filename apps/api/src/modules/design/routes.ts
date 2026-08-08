@@ -1,13 +1,13 @@
 /**
- * Design Kit + logo presign HTTP routes (section 2.4).
+ * Design Kit HTTP routes (section 2.4).
  *
  * GET  /api/events/:eventId/design           → Design.Get
  * PUT  /api/events/:eventId/design           → Design.SetDraft
  * POST /api/events/:eventId/design/publish   → Design.Publish
  * GET  /api/public/design/:slug              → public published tokens only
- * POST /api/files/presign                    → File.PresignUpload (logo PNG)
- * PUT  /api/files/:fileId/upload             → File.Upload
- * GET  /api/public/files/:fileId             → File.GetPublic
+ * GET  /api/public/files/:fileId             → File.GetPublic (logo published only)
+ *
+ * File.PresignUpload / Upload / CompleteUpload live in modules/files (2.4 + 4.2).
  *
  * Canonical registry: KMS-competition/initiative/contracts/COMMANDS.md
  */
@@ -19,10 +19,6 @@ import {
   DesignPublishBodySchema,
   DesignPublishResponseSchema,
   PublicDesignResponseSchema,
-  FilePresignBodySchema,
-  FilePresignResponseSchema,
-  FileUploadResponseSchema,
-  FILE_UPLOAD_MAX_BYTES,
   errorEnvelope,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
@@ -40,10 +36,11 @@ import {
   setDesignDraft,
   publishDesign,
   getPublicDesign,
-  presignFileUpload,
-  uploadFileBytes,
   getPublicFileBytes,
 } from "./commands.js";
+
+/** Re-export file routes from 4.2 module so composition root can stay stable. */
+export { createFileRoutes } from "../files/routes.js";
 
 export type DesignRouteOptions = {
   store: AuthStore;
@@ -300,193 +297,4 @@ export function createPublicDesignRoutes(
   });
 
   return pub;
-}
-
-/**
- * File routes — File.PresignUpload for logo.
- * Mounted at /api/files
- */
-export function createFileRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
-  const files = new Hono<ApiEnv>();
-  const { store, events, design: designStore } = options;
-  const deps = { design: designStore, events, auth: store };
-
-  /**
-   * POST /presign — File.PresignUpload
-   * Session required; event membership checked against body.eventId (E2).
-   */
-  files.post(
-    "/presign",
-    requireRole(store, ["admin"], { eventIdFrom: "none" }),
-    async (c) => {
-      const user = c.get("user");
-      if (!user) {
-        return c.json(
-          errorEnvelope("Authentication required", "UNAUTHORIZED"),
-          401,
-        );
-      }
-
-      let raw: unknown;
-      try {
-        raw = await c.req.json();
-      } catch {
-        return c.json(
-          errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
-          400,
-        );
-      }
-
-      const parsed = FilePresignBodySchema.safeParse(raw);
-      if (!parsed.success) {
-        return c.json(
-          errorEnvelope("Validation failed", VALIDATION_ERROR, {
-            issues: parsed.error.flatten(),
-          }),
-          400,
-        );
-      }
-
-      // Event-scoped membership for body.eventId (cross-event → 404)
-      const membership = await store.findMembership(
-        parsed.data.eventId,
-        user.id,
-      );
-      if (!membership) {
-        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
-      }
-      if (membership.role !== "admin") {
-        return c.json(
-          errorEnvelope("Insufficient role", "FORBIDDEN", {
-            required: ["admin"],
-            role: membership.role,
-          }),
-          403,
-        );
-      }
-
-      const result = await presignFileUpload(deps, {
-        ...parsed.data,
-        actorUserId: user.id,
-        correlationId: c.get("correlationId"),
-      });
-
-      if (!result.ok) {
-        return commandError(c, result);
-      }
-
-      const out = FilePresignResponseSchema.safeParse(result.value);
-      if (!out.success) {
-        return c.json(
-          errorEnvelope("Response validation failed", INTERNAL_ERROR),
-          500,
-        );
-      }
-      return c.json(out.data, 200);
-    },
-  );
-
-  /**
-   * PUT /:fileId/upload?eventId= — File.Upload
-   * Accept PNG body for a prior File.PresignUpload (session + admin on eventId).
-   * Rejects oversized Content-Length before buffering the body (Worker memory).
-   */
-  files.put(
-    "/:fileId/upload",
-    requireRole(store, ["admin"], { eventIdFrom: "none" }),
-    async (c) => {
-      const user = c.get("user");
-      if (!user) {
-        return c.json(
-          errorEnvelope("Authentication required", "UNAUTHORIZED"),
-          401,
-        );
-      }
-
-      const fileId = c.req.param("fileId");
-      const eventId = c.req.query("eventId");
-      if (!eventId || eventId.trim().length === 0) {
-        return c.json(
-          errorEnvelope("eventId query parameter is required", VALIDATION_ERROR),
-          400,
-        );
-      }
-
-      const membership = await store.findMembership(eventId, user.id);
-      if (!membership) {
-        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
-      }
-      if (membership.role !== "admin") {
-        return c.json(
-          errorEnvelope("Insufficient role", "FORBIDDEN", {
-            required: ["admin"],
-            role: membership.role,
-          }),
-          403,
-        );
-      }
-
-      // Bound memory: refuse Content-Length above global max before arrayBuffer().
-      const contentLengthHeader = c.req.header("content-length");
-      if (contentLengthHeader !== undefined && contentLengthHeader !== "") {
-        const contentLength = Number(contentLengthHeader);
-        if (!Number.isFinite(contentLength) || contentLength < 0) {
-          return c.json(
-            errorEnvelope("Invalid Content-Length", VALIDATION_ERROR),
-            400,
-          );
-        }
-        if (contentLength > FILE_UPLOAD_MAX_BYTES) {
-          return c.json(
-            errorEnvelope("Upload exceeds maximum size", VALIDATION_ERROR, {
-              max: FILE_UPLOAD_MAX_BYTES,
-              contentLength,
-            }),
-            400,
-          );
-        }
-        if (contentLength === 0) {
-          return c.json(
-            errorEnvelope("Empty upload body", VALIDATION_ERROR),
-            400,
-          );
-        }
-      }
-
-      const body = await c.req.arrayBuffer();
-      // Post-read guard when Content-Length was absent or lying.
-      if (body.byteLength > FILE_UPLOAD_MAX_BYTES) {
-        return c.json(
-          errorEnvelope("Upload exceeds maximum size", VALIDATION_ERROR, {
-            max: FILE_UPLOAD_MAX_BYTES,
-            actual: body.byteLength,
-          }),
-          400,
-        );
-      }
-
-      const result = await uploadFileBytes(deps, {
-        eventId,
-        fileId,
-        body,
-        contentType: c.req.header("content-type") ?? undefined,
-        actorUserId: user.id,
-        correlationId: c.get("correlationId"),
-      });
-
-      if (!result.ok) {
-        return commandError(c, result);
-      }
-      const out = FileUploadResponseSchema.safeParse(result.value);
-      if (!out.success) {
-        return c.json(
-          errorEnvelope("Response validation failed", INTERNAL_ERROR),
-          500,
-        );
-      }
-      return c.json(out.data, 200);
-    },
-  );
-
-  return files;
 }

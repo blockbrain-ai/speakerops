@@ -12,6 +12,7 @@
  * Section 3.5: Decision.Record accept/reject/waitlist + direct session (S-EVAL)
  * Section 4.1: Portal.GetHome / Task.Complete / Participation.UpdateProfile
  *             + admin speakers list/detail + task templates O05 (S-PORTAL)
+ * Section 4.2: File.PresignUpload headshot/slides + File.CompleteUpload + R2 metadata
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -235,7 +236,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
-  // Section 2.4 — File.PresignUpload + upload body (logo PNG only)
+  // Section 2.4 + 4.2 — File.PresignUpload / Upload / CompleteUpload (logo + headshot/slides)
   app.route(
     "/api/files",
     createFileRoutes({

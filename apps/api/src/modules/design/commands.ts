@@ -10,15 +10,18 @@
 import {
   uuidv7,
   DEFAULT_DESIGN_TOKENS,
-  LOGO_MIME_ALLOWLIST,
   FILE_UPLOAD_MAX_BYTES,
   FILE_PRESIGN_TTL_MS,
   validateContrastGate,
   designTokensToCssVariables,
   softTintFromBrand,
+  mimeAllowlistForPurpose,
+  isBlockedUploadMime,
+  VIRUS_SCAN_UNSCANNED,
   type DesignTokens,
   type DesignSetDraftBody,
   type FilePresignBody,
+  type FilePurpose,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
@@ -387,8 +390,20 @@ export type PresignInput = FilePresignBody & {
   correlationId: string;
 };
 
+function extensionForMime(mime: string, purpose: FilePurpose): string {
+  if (mime === "image/png") return "png";
+  if (mime === "image/jpeg") return "jpg";
+  if (mime === "application/pdf") return "pdf";
+  if (purpose === "logo") return "png";
+  if (purpose === "headshot") return "jpg";
+  if (purpose === "slides") return "pdf";
+  return "bin";
+}
+
 /**
- * File.PresignUpload — purpose=logo requires image/png only (SVG rejected).
+ * File.PresignUpload — signed upload metadata (D1 only; bytes go to R2 via File.Upload).
+ * purpose=logo: PNG only (2.4). purpose=headshot|slides: portal mime allowlists (4.2).
+ * Executables (application/x-msdownload etc.) always rejected.
  */
 export async function presignFileUpload(
   deps: DesignCommandDeps,
@@ -408,48 +423,44 @@ export async function presignFileUpload(
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
+  const purpose = input.purpose as FilePurpose;
   const mime = input.mime.trim().toLowerCase();
 
-  if (input.purpose === "logo") {
-    // Explicit SVG / scripty rejection (C09)
-    if (
-      mime === "image/svg+xml" ||
-      mime.includes("svg") ||
-      mime === "text/html" ||
-      mime === "application/javascript" ||
-      mime === "text/javascript"
-    ) {
-      return {
-        ok: false,
-        status: 400,
-        error: "SVG and executable logo types are not allowed",
-        code: "VALIDATION_ERROR",
-        details: {
-          mime: input.mime,
-          allowlist: [...LOGO_MIME_ALLOWLIST],
-        },
-      };
-    }
-    if (!(LOGO_MIME_ALLOWLIST as readonly string[]).includes(mime)) {
-      return {
-        ok: false,
-        status: 400,
-        error: "Logo upload allows image/png only",
-        code: "VALIDATION_ERROR",
-        details: {
-          mime: input.mime,
-          allowlist: [...LOGO_MIME_ALLOWLIST],
-        },
-      };
-    }
-  } else {
-    // Other purposes reserved for later sections; deny for now
+  // Hard block executables / scripty types (AC: exe rejected)
+  if (isBlockedUploadMime(mime) || mime.includes("svg")) {
     return {
       ok: false,
       status: 400,
-      error: "Only purpose=logo is supported in this section",
+      error: "Executable or unsafe mime type is not allowed",
       code: "VALIDATION_ERROR",
-      details: { purpose: input.purpose },
+      details: {
+        mime: input.mime,
+        purpose,
+        allowlist: [...mimeAllowlistForPurpose(purpose)],
+      },
+    };
+  }
+
+  const allowlist = mimeAllowlistForPurpose(purpose);
+  if (!allowlist.includes(mime)) {
+    const purposeLabel =
+      purpose === "logo"
+        ? "Logo upload allows image/png only"
+        : purpose === "headshot"
+          ? "Headshot upload allows image/jpeg or image/png only"
+          : purpose === "slides"
+            ? "Slides upload allows application/pdf only"
+            : "Mime type not allowed for purpose";
+    return {
+      ok: false,
+      status: 400,
+      error: purposeLabel,
+      code: "VALIDATION_ERROR",
+      details: {
+        mime: input.mime,
+        purpose,
+        allowlist: [...allowlist],
+      },
     };
   }
 
@@ -466,8 +477,18 @@ export async function presignFileUpload(
   const nowMs = Date.now();
   const now = new Date(nowMs).toISOString();
   const fileId = newFileId();
-  const filename = input.filename?.trim() || `logo-${fileId}.png`;
-  const r2Key = `events/${input.eventId}/logo/${fileId}.png`;
+  const ext = extensionForMime(mime, purpose);
+  const defaultName =
+    purpose === "logo"
+      ? `logo-${fileId}.${ext}`
+      : purpose === "headshot"
+        ? `headshot-${fileId}.${ext}`
+        : purpose === "slides"
+          ? `slides-${fileId}.${ext}`
+          : `file-${fileId}.${ext}`;
+  const filename = input.filename?.trim() || defaultName;
+  // R2 object key only — never store bytes in D1 (AC: metadata in D1 not bytes)
+  const r2Key = `events/${input.eventId}/${purpose}/${fileId}.${ext}`;
   // expiresAt is created_at + FILE_PRESIGN_TTL_MS (File.Upload enforces the same deadline).
   const expiresAt = new Date(nowMs + FILE_PRESIGN_TTL_MS).toISOString();
 
@@ -481,9 +502,10 @@ export async function presignFileUpload(
     mime,
     size: input.size,
     checksum: null,
-    purpose: "logo",
+    purpose,
     createdAt: now,
     uploaded: false,
+    virusScanStatus: VIRUS_SCAN_UNSCANNED,
   };
   await deps.design.insertFile(row);
 
@@ -499,11 +521,12 @@ export async function presignFileUpload(
     entityType: "file_asset",
     entityId: fileId,
     afterJson: JSON.stringify({
-      purpose: "logo",
+      purpose,
       mime,
       size: input.size,
       r2Key,
       uploaded: false,
+      virusScanStatus: VIRUS_SCAN_UNSCANNED,
     }),
     correlationId: input.correlationId,
     createdAt: now,
@@ -515,7 +538,7 @@ export async function presignFileUpload(
       fileId,
       url,
       mime,
-      purpose: "logo",
+      purpose,
       expiresAt,
     },
   };
@@ -553,7 +576,7 @@ export async function uploadFileBytes(
   }
 
   const file = await deps.design.findFile(input.eventId, input.fileId);
-  if (!file || file.purpose !== "logo") {
+  if (!file) {
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
@@ -585,16 +608,29 @@ export async function uploadFileBytes(
     };
   }
 
+  const purpose = file.purpose as FilePurpose;
   const mime = (input.contentType ?? file.mime).trim().toLowerCase();
-  if (!(LOGO_MIME_ALLOWLIST as readonly string[]).includes(mime)) {
+  if (isBlockedUploadMime(mime)) {
     return {
       ok: false,
       status: 400,
-      error: "Logo upload allows image/png only",
+      error: "Executable or unsafe mime type is not allowed",
       code: "VALIDATION_ERROR",
-      details: { mime, allowlist: [...LOGO_MIME_ALLOWLIST] },
+      details: { mime },
     };
   }
+  const allowlist = mimeAllowlistForPurpose(purpose);
+  if (!allowlist.includes(mime) && mime !== file.mime) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Content-Type does not match presigned mime allowlist",
+      code: "VALIDATION_ERROR",
+      details: { mime, allowlist: [...allowlist], declared: file.mime },
+    };
+  }
+  // Prefer declared presign mime for storage
+  const storeMime = file.mime;
 
   // Size budget: never exceed declared presign size or global 10 MiB cap.
   const declaredSize = file.size;
@@ -637,21 +673,55 @@ export async function uploadFileBytes(
     };
   }
 
-  // PNG magic bytes check (defense in depth against content-type spoof)
+  // Magic-byte checks for known purposes (defense in depth against content-type spoof)
   const bytes = new Uint8Array(input.body);
-  const isPng =
-    bytes.length >= 8 &&
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47;
-  if (!isPng) {
-    return {
-      ok: false,
-      status: 400,
-      error: "Logo body must be a PNG image",
-      code: "VALIDATION_ERROR",
-    };
+  if (storeMime === "image/png" || purpose === "logo") {
+    const isPng =
+      bytes.length >= 8 &&
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47;
+    if (!isPng) {
+      return {
+        ok: false,
+        status: 400,
+        error:
+          purpose === "logo"
+            ? "Logo body must be a PNG image"
+            : "PNG body signature invalid",
+        code: "VALIDATION_ERROR",
+      };
+    }
+  } else if (storeMime === "image/jpeg") {
+    const isJpeg =
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff;
+    if (!isJpeg) {
+      return {
+        ok: false,
+        status: 400,
+        error: "JPEG body signature invalid",
+        code: "VALIDATION_ERROR",
+      };
+    }
+  } else if (storeMime === "application/pdf") {
+    const isPdf =
+      bytes.length >= 4 &&
+      bytes[0] === 0x25 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x44 &&
+      bytes[3] === 0x46;
+    if (!isPdf) {
+      return {
+        ok: false,
+        status: 400,
+        error: "PDF body signature invalid",
+        code: "VALIDATION_ERROR",
+      };
+    }
   }
 
   // Claim ownership (pending→claimed) before writing bytes so concurrent PUTs
@@ -674,7 +744,7 @@ export async function uploadFileBytes(
   try {
     await deps.design.putFileBytes(input.eventId, input.fileId, {
       bytes: input.body,
-      mime: "image/png",
+      mime: storeMime,
     });
     // Mark stored only after bytes are durable. Worker death between claim and
     // here leaves uploadState=claimed (not ready), not a false uploaded=1.
@@ -718,10 +788,11 @@ export async function uploadFileBytes(
     entityType: "file_asset",
     entityId: input.fileId,
     afterJson: JSON.stringify({
-      purpose: "logo",
-      mime: "image/png",
+      purpose,
+      mime: storeMime,
       size: byteLength,
       uploaded: true,
+      virusScanStatus: file.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
     }),
     correlationId: input.correlationId,
     createdAt: now,

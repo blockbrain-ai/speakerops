@@ -55,6 +55,9 @@ export type DesignPublishedRow = {
   publishedBy: string | null;
 };
 
+/** Default virus scan stub (section 4.2). */
+export const VIRUS_SCAN_UNSCANNED = "unscanned" as const;
+
 export type FileAssetRow = {
   id: string;
   eventId: string;
@@ -76,6 +79,11 @@ export type FileAssetRow = {
    * Optional on insert (derived from `uploaded` when omitted).
    */
   uploadState?: FileUploadDbState;
+  /**
+   * Virus scan stub (4.2): unscanned | clean | infected | error.
+   * Defaults to unscanned on insert; no scanner worker in dogfood.
+   */
+  virusScanStatus?: string;
 };
 
 export type FileBlob = {
@@ -124,6 +132,15 @@ export type DesignStore = {
     fileId: string,
     patch: { size: number },
   ): Promise<void>;
+  /**
+   * File.CompleteUpload — set content checksum (+ optional filename).
+   * Does not write bytes; metadata only. Returns null if file missing.
+   */
+  completeFileChecksum(
+    eventId: string,
+    fileId: string,
+    patch: { checksum: string; filename?: string },
+  ): Promise<FileAssetRow | null>;
   putFileBytes(
     eventId: string,
     fileId: string,
@@ -141,6 +158,7 @@ function rowFromUploadState(
 ): FileAssetRow {
   return {
     ...base,
+    virusScanStatus: base.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
     uploadState,
     uploaded: uploadState === FILE_UPLOAD_STORED,
   };
@@ -207,6 +225,7 @@ export class MemoryDesignStore implements DesignStore {
         checksum: row.checksum ?? null,
         purpose: row.purpose,
         createdAt: row.createdAt,
+        virusScanStatus: row.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
       },
       uploadState,
     );
@@ -247,6 +266,7 @@ export class MemoryDesignStore implements DesignStore {
         checksum: existing.checksum,
         purpose: existing.purpose,
         createdAt: existing.createdAt,
+        virusScanStatus: existing.virusScanStatus,
       },
       FILE_UPLOAD_CLAIMED,
     );
@@ -273,6 +293,7 @@ export class MemoryDesignStore implements DesignStore {
         checksum: existing.checksum,
         purpose: existing.purpose,
         createdAt: existing.createdAt,
+        virusScanStatus: existing.virusScanStatus,
       },
       FILE_UPLOAD_STORED,
     );
@@ -300,11 +321,43 @@ export class MemoryDesignStore implements DesignStore {
         checksum: existing.checksum,
         purpose: existing.purpose,
         createdAt: existing.createdAt,
+        virusScanStatus: existing.virusScanStatus,
       },
       FILE_UPLOAD_PENDING,
     );
     this.files.set(this.fileKey(eventId, fileId), updated);
     this.filesById.set(fileId, updated);
+  }
+
+  async completeFileChecksum(
+    eventId: string,
+    fileId: string,
+    patch: { checksum: string; filename?: string },
+  ): Promise<FileAssetRow | null> {
+    const existing = this.files.get(this.fileKey(eventId, fileId));
+    if (!existing) return null;
+    const uploadState =
+      existing.uploadState ??
+      (existing.uploaded ? FILE_UPLOAD_STORED : FILE_UPLOAD_PENDING);
+    const updated = rowFromUploadState(
+      {
+        id: existing.id,
+        eventId: existing.eventId,
+        ownerParticipationId: existing.ownerParticipationId,
+        r2Key: existing.r2Key,
+        filename: patch.filename?.trim() || existing.filename,
+        mime: existing.mime,
+        size: existing.size,
+        checksum: patch.checksum,
+        purpose: existing.purpose,
+        createdAt: existing.createdAt,
+        virusScanStatus: existing.virusScanStatus,
+      },
+      uploadState,
+    );
+    this.files.set(this.fileKey(eventId, fileId), updated);
+    this.filesById.set(fileId, updated);
+    return updated;
   }
 
   async putFileBytes(
@@ -455,6 +508,7 @@ export class D1DesignStore implements DesignStore {
         checksum: row.checksum ?? null,
         purpose: row.purpose,
         createdAt: row.createdAt,
+        virusScanStatus: row.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
       },
       uploadState,
     );
@@ -470,6 +524,7 @@ export class D1DesignStore implements DesignStore {
       purpose: full.purpose,
       createdAt: full.createdAt,
       uploaded: full.uploadState,
+      virusScanStatus: full.virusScanStatus,
     });
     return full;
   }
@@ -486,6 +541,7 @@ export class D1DesignStore implements DesignStore {
     purpose: string;
     createdAt: string;
     uploaded?: number | null;
+    virusScanStatus?: string | null;
   }): FileAssetRow {
     const raw = row.uploaded ?? FILE_UPLOAD_PENDING;
     const uploadState: FileUploadDbState =
@@ -506,6 +562,7 @@ export class D1DesignStore implements DesignStore {
         checksum: row.checksum ?? null,
         purpose: row.purpose,
         createdAt: row.createdAt,
+        virusScanStatus: row.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
       },
       uploadState,
     );
@@ -600,6 +657,27 @@ export class D1DesignStore implements DesignStore {
           eq(fileAssets.uploaded, FILE_UPLOAD_CLAIMED),
         ),
       );
+  }
+
+  async completeFileChecksum(
+    eventId: string,
+    fileId: string,
+    patch: { checksum: string; filename?: string },
+  ): Promise<FileAssetRow | null> {
+    const set: { checksum: string; filename?: string } = {
+      checksum: patch.checksum,
+    };
+    if (patch.filename !== undefined && patch.filename.trim().length > 0) {
+      set.filename = patch.filename.trim();
+    }
+    const result = await this.db
+      .update(fileAssets)
+      .set(set)
+      .where(
+        and(eq(fileAssets.eventId, eventId), eq(fileAssets.id, fileId)),
+      );
+    if (d1Changes(result) === 0) return null;
+    return this.findFile(eventId, fileId);
   }
 
   async putFileBytes(

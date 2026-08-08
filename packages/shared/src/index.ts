@@ -128,6 +128,25 @@ export {
 } from "./design.js";
 
 export {
+  VirusScanStatusSchema,
+  type VirusScanStatus,
+  VIRUS_SCAN_UNSCANNED,
+  HEADSHOT_MIME_ALLOWLIST,
+  type HeadshotMime,
+  SLIDES_MIME_ALLOWLIST,
+  type SlidesMime,
+  BLOCKED_UPLOAD_MIMES,
+  mimeAllowlistForPurpose,
+  isBlockedUploadMime,
+  FileCompleteBodySchema,
+  type FileCompleteBody,
+  FileAssetDtoSchema,
+  type FileAssetDto,
+  FileCompleteResponseSchema,
+  type FileCompleteResponse,
+} from "./files.js";
+
+export {
   FieldKeySchema,
   type FieldKey,
   FormFieldTypeSchema,

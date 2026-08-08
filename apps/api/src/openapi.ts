@@ -918,6 +918,139 @@ export const PORTAL_OPENAPI_PATHS = {
   },
 } as const;
 
+/** File.* OpenAPI paths (section 2.4 logo + 4.2 portal headshot/slides). */
+export const FILE_OPENAPI_PATHS = {
+  "/api/files/presign": {
+    post: {
+      operationId: "File.PresignUpload",
+      summary: "File.PresignUpload",
+      description:
+        "Create file_assets metadata + signed upload URL. Mime allowlist by purpose (logo PNG; headshot jpeg/png; slides pdf). Executables rejected. Metadata only — bytes via File.Upload to R2.",
+      tags: ["File"],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["eventId", "purpose", "mime", "size"],
+              properties: {
+                eventId: { type: "string" },
+                purpose: {
+                  type: "string",
+                  enum: ["logo", "headshot", "slides", "other"],
+                },
+                mime: { type: "string" },
+                size: { type: "integer", maximum: 10485760 },
+                filename: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Presign URL + fileId" },
+        "400": { description: "Validation / mime reject (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+  "/api/files/{fileId}/upload": {
+    put: {
+      operationId: "File.Upload",
+      summary: "File.Upload",
+      description:
+        "Worker-hosted body transfer for a prior File.PresignUpload (R2 binding FILES). Single-use; max 10 MiB.",
+      tags: ["File"],
+      parameters: [
+        {
+          name: "fileId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "eventId",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Bytes stored" },
+        "400": { description: "Validation / expired / size" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Not found" },
+        "409": { description: "Already uploaded" },
+      },
+    },
+  },
+  "/api/files/{fileId}/complete": {
+    post: {
+      operationId: "File.CompleteUpload",
+      summary: "File.CompleteUpload",
+      description:
+        "Set content checksum (+ optional filename) on a prior presign. Metadata only; virus_scan_status remains unscanned stub.",
+      tags: ["File"],
+      parameters: [
+        {
+          name: "fileId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["checksum"],
+              properties: {
+                checksum: { type: "string" },
+                eventId: { type: "string" },
+                filename: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "file_asset metadata" },
+        "400": { description: "No prior presign / validation" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Not found" },
+      },
+    },
+  },
+  "/api/public/files/{fileId}": {
+    get: {
+      operationId: "File.GetPublic",
+      summary: "File.GetPublic",
+      description:
+        "Public image bytes only for purpose=logo referenced by published design. Headshot/slides always private (auth required).",
+      tags: ["File"],
+      parameters: [
+        {
+          name: "fileId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Image bytes" },
+        "404": { description: "Not public / not found" },
+      },
+    },
+  },
+} as const;
+
 /** Commands registered in the OpenAPI document (expand per section). */
 export const OPENAPI_COMMANDS = [
   "Form.Create",
@@ -946,6 +1079,10 @@ export const OPENAPI_COMMANDS = [
   "TaskTemplate.Create",
   "TaskTemplate.Update",
   "TaskTemplate.Delete",
+  "File.PresignUpload",
+  "File.Upload",
+  "File.CompleteUpload",
+  "File.GetPublic",
 ] as const;
 
 export function buildOpenApiDocument(): Record<string, unknown> {
@@ -955,13 +1092,14 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
       ...EVAL_OPENAPI_PATHS,
       ...DECISION_OPENAPI_PATHS,
       ...PORTAL_OPENAPI_PATHS,
+      ...FILE_OPENAPI_PATHS,
     },
     tags: [
       { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },

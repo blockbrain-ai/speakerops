@@ -258,6 +258,19 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
     }
   });
 
+  it("0013 adds virus_scan_status stub on file_assets (section 4.2)", async () => {
+    const { dir, dbPath } = tempDbPath();
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0013_file_assets_virus_scan.sql");
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.file_assets).toContain("virus_scan_status");
+      expect(columns.file_assets).toContain("r2_key");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("3.1 migration creates forms, form_versions, form_fields, form_rules", async () => {
     const { dir, dbPath } = tempDbPath();
     try {

@@ -61,6 +61,7 @@ function designStoreWithFlakyPut(): {
     findFileById: (id) => inner.findFileById(id),
     claimFileUpload: (e, id, p) => inner.claimFileUpload(e, id, p),
     completeFileUpload: (e, id) => inner.completeFileUpload(e, id),
+    completeFileChecksum: (e, id, p) => inner.completeFileChecksum(e, id, p),
     releaseFileUploadClaim: (e, id, p) =>
       inner.releaseFileUploadClaim(e, id, p),
     async putFileBytes(eventId: string, fileId: string, blob: FileBlob) {

@@ -24,6 +24,11 @@
 ## Non-secret local DB path (section 1.3)
 - `SPEAKEROPS_DB_PATH` — optional path for `pnpm db:migrate` local SQLite (default `.data/speakerops.local.sqlite`). Not a secret; gitignored via `.data/`.
 
+## R2 / files (section 4.2) — binding names only
+- Worker R2 binding name: `FILES` (wrangler.toml) — object bytes for logo/headshot/slides.
+- D1 holds `file_assets` metadata only (`r2_key`, mime, size, checksum, `virus_scan_status`); never file bodies.
+- No R2 API tokens in repo; Cloudflare credentials for deploy stay in secrets.env (CLOUDFLARE_*).
+
 ## Auth (section 2.1) — names only
 - `AUTH_DEV_OUTBOX` — when `"1"`, local e2e API may expose `GET /api/auth/dev/outbox` for Playwright (never enable as a production dogfood default).
 - `BOOTSTRAP_ADMIN_EMAIL` — required for controlled first-admin bootstrap on an empty D1 (production Worker). Not a secret token; email of the intended first admin. When unset, first-admin self-provision is default-deny (no public caller can claim admin). When set, only that email may create the first admin membership once; subsequent self-provision is denied.

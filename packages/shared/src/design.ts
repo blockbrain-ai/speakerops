@@ -94,7 +94,7 @@ export const PublicDesignResponseSchema = z.object({
 });
 export type PublicDesignResponse = z.infer<typeof PublicDesignResponseSchema>;
 
-/** File purpose allowlist for dogfood (logo in 2.4; headshot/slides later). */
+/** File purpose allowlist (logo 2.4; headshot/slides 4.2; other CFP). */
 export const FilePurposeSchema = z.enum(["logo", "headshot", "slides", "other"]);
 export type FilePurpose = z.infer<typeof FilePurposeSchema>;
 

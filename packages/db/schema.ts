@@ -281,10 +281,11 @@ export const designTokenPublished = sqliteTable("design_token_published", {
 });
 
 /**
- * file_assets — logo presign metadata (section 2.4 logo; portal files expand in 4.2).
- * SCHEMA.md: purpose headshot|slides|other — dogfood also uses purpose=logo.
+ * file_assets — logo (2.4) + portal headshot/slides (4.2) metadata only.
+ * SCHEMA.md: purpose logo|headshot|slides|other; bytes live in R2 (FILES), not D1.
  * `uploaded` is a dedicated readiness flag (0 pending / 2 claim / 1 stored);
- * `checksum` is for content digests only.
+ * `checksum` is for content digests only (File.CompleteUpload).
+ * `virus_scan_status` stub defaults unscanned (no scanner in 4.2).
  */
 export const fileAssets = sqliteTable(
   "file_assets",
@@ -304,6 +305,8 @@ export const fileAssets = sqliteTable(
      * 1 = bytes stored. Only 1 is readiness for Design.SetDraft / public serve.
      */
     uploaded: integer("uploaded").notNull().default(0),
+    /** Virus scan stub: unscanned | clean | infected | error (default unscanned). */
+    virusScanStatus: text("virus_scan_status").notNull().default("unscanned"),
   },
   (t) => [index("idx_file_assets_event_id").on(t.eventId)],
 );
