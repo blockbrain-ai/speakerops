@@ -688,6 +688,32 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 
+  
+  it("Phase 8 rejects stringified test() decoy calls when real import present", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    const decoys =
+      "import { test } from '@playwright/test';\n" +
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          const call = `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+          return `const s_${id} = ${JSON.stringify(call)};`;
+        })
+        .join("\n") +
+      "\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "stringified-decoy.spec.ts": decoys },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `stringified test() decoys must not satisfy phase8:\n${fmtResult(r)}`,
+    );
+  });
+
   it("Phase 8 gate rejects string-literal import spoof + local test rebinding", () => {
     // Auditor regression: decoy string containing import text must not count
     // as a Playwright binding. Uses identifier RHS (`noop`) so shadow-via-paren

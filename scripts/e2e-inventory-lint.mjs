@@ -23,13 +23,20 @@
  *   E2E_INVENTORY_GATE=phase8  pnpm test:e2e:inventory
  *   node scripts/e2e-inventory-lint.mjs --phase8
  *
+ * DEFER exemption (anti-shrinkage / Phase 8 PASS set):
+ *   Status DEFER removes a row from the required PASS set only when an
+ *   authoritative owner amendment records that inventory ID in the
+ *   constitution DEFER table (`00_CONSTITUTION.md` Article 0) with non-empty
+ *   Reason, Date, and Owner. Bare inventory Status=DEFER without that
+ *   record is rejected (cannot green-wash dogfood_ready by mass-DEFER).
+ *
  * @inv must appear on a real Playwright `test(...)` / `test.only(...)`
  * title whose callee is bound to the Playwright `test` export (import from
- * `@playwright/test`, optionally rebound via `.extend()`). Local no-op
- * `const test = (...) => {}` without a Playwright binding does not count.
- * Structural matching (imports, rebinds, shadows, call sites) ignores
- * string/template interiors — decoy strings cannot spoof an import or a
- * `test(...)` declaration. Title text is read only from real call sites.
+ * `@playwright/test`, optionally rebound via `.extend()` / `.extend<T>()`).
+ * Local no-op `const test = (...) => {}` without a Playwright binding does
+ * not count. Structural matching (imports, rebinds, shadows, call sites)
+ * ignores string/template interiors — decoy strings cannot spoof an import
+ * or a `test(...)` declaration. Title text is read only from real call sites.
  * Strict 1:1 inventory map: exactly one `@inv:ID` per test title.
  * Comments, bare strings, multi-tag titles, skipped/fixme/fail-only
  * coverage (test.fail is expected-failure, not dogfood proof), duplicate
