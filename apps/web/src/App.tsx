@@ -1,9 +1,11 @@
 /**
- * App router + shared admin layout (section 1.4) + auth login (section 2.1).
+ * App router + shared admin layout (section 1.4) + auth login (section 2.1)
+ * + RequireRole admin guards (section 2.2).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminShell } from "./layout/AdminShell.js";
+import { RequireRole } from "./auth/RequireRole.js";
 import { LoginPage } from "./pages/Login.js";
 import { PortalHomePage } from "./pages/PortalHome.js";
 import {
@@ -19,6 +21,16 @@ import {
   SpeakersPage,
   SubmissionsPage,
 } from "./routes/placeholders.js";
+import type { ReactNode } from "react";
+
+/** Wrap admin chrome with server-backed admin role guard (B04/B05). */
+function AdminGuard({ children }: { children: ReactNode }) {
+  return (
+    <RequireRole roles={["admin"]}>
+      <AdminShell>{children}</AdminShell>
+    </RequireRole>
+  );
+}
 
 export function AppRoutes() {
   return (
@@ -43,65 +55,65 @@ export function AppRoutes() {
       <Route
         path="/admin"
         element={
-          <AdminShell>
+          <AdminGuard>
             <OverviewPage />
-          </AdminShell>
+          </AdminGuard>
         }
       />
       <Route
         path="/admin/cfp"
         element={
-          <AdminShell>
+          <AdminGuard>
             <CfpFormsPage />
-          </AdminShell>
+          </AdminGuard>
         }
       />
       <Route
         path="/admin/submissions"
         element={
-          <AdminShell>
+          <AdminGuard>
             <SubmissionsPage />
-          </AdminShell>
+          </AdminGuard>
         }
       />
       <Route
         path="/admin/evaluations"
         element={
-          <AdminShell>
+          <AdminGuard>
             <EvaluationsPage />
-          </AdminShell>
+          </AdminGuard>
         }
       />
       <Route
         path="/admin/speakers"
         element={
-          <AdminShell>
+          <AdminGuard>
             <SpeakersPage />
-          </AdminShell>
+          </AdminGuard>
         }
       />
       <Route
         path="/admin/schedule"
         element={
-          <AdminShell>
+          <AdminGuard>
             <SchedulePage />
-          </AdminShell>
+          </AdminGuard>
         }
       />
       <Route
         path="/admin/comms"
         element={
-          <AdminShell>
+          <AdminGuard>
             <CommsPage />
-          </AdminShell>
+          </AdminGuard>
         }
       />
       <Route
         path="/admin/settings"
         element={
-          <AdminShell>
+          <AdminGuard>
             <SettingsPage />
-          </AdminShell>
+          </AdminGuard>
         }
       />
       <Route
@@ -127,7 +139,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <BrowserRouter>
-      <div id="speakerops-root" data-section="2.1" data-testid="app-root">
+      <div id="speakerops-root" data-section="2.2" data-testid="app-root">
         <AppRoutes />
       </div>
     </BrowserRouter>

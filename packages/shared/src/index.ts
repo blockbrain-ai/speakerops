@@ -20,6 +20,8 @@ export { HEALTH_OK, type HealthResponse, HealthResponseSchema } from "./health.j
 export { uuidv7, isUuidv7 } from "./uuid.js";
 
 export {
+  EventRoleSchema,
+  type EventRole,
   MagicLinkPurposeSchema,
   type MagicLinkPurpose,
   RequestMagicLinkBodySchema,
@@ -33,4 +35,13 @@ export {
   SESSION_COOKIE_NAME,
   MAGIC_LINK_TTL_MINUTES,
   SESSION_TTL_DAYS,
+  DEFAULT_BOOTSTRAP_EVENT_ID,
+  EventListItemSchema,
+  type EventListItem,
+  EventListResponseSchema,
+  type EventListResponse,
+  SchedulePlaceBodySchema,
+  type SchedulePlaceBody,
+  SchedulePlaceResponseSchema,
+  type SchedulePlaceResponse,
 } from "./auth.js";

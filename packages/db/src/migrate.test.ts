@@ -15,6 +15,7 @@ import {
   inspectSchema,
   BASELINE_TABLES,
   AUTH_TABLES,
+  MEMBERSHIP_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -33,6 +34,7 @@ import {
   users,
   authSessions,
   magicLinks,
+  eventMemberships,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -138,6 +140,25 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(tables).toContain("outbox_events");
       expect(columns.audit_events).toContain("correlation_id");
       expect(columns.outbox_events).toContain("payload_json");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("2.2 migration creates event_memberships with role", async () => {
+    const { dir, dbPath } = tempDbPath();
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0003_event_memberships.sql");
+      for (const table of MEMBERSHIP_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.event_memberships).toContain("event_id");
+      expect(columns.event_memberships).toContain("user_id");
+      expect(columns.event_memberships).toContain("role");
+      expect(eventMemberships).toBeDefined();
+      expect(schema.eventMemberships).toBe(eventMemberships);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

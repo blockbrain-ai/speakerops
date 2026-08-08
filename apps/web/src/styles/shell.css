@@ -292,3 +292,65 @@
   color: var(--lumen-brand);
   border-color: var(--lumen-brand);
 }
+
+/* Section 2.2 — access denied / RequireRole (Lumen tokens only) */
+.access-denied {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lumen-space-6);
+  background: var(--lumen-bg);
+  color: var(--lumen-text);
+  font-family: var(--lumen-font);
+}
+
+.access-denied--loading {
+  min-height: 40vh;
+}
+
+.access-denied__card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius);
+  box-shadow: var(--lumen-shadow-sm);
+  padding: var(--lumen-space-6);
+}
+
+.access-denied__overline {
+  margin: 0 0 var(--lumen-space-2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lumen-text-secondary);
+}
+
+.access-denied__title {
+  margin: 0 0 var(--lumen-space-3);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--lumen-text);
+}
+
+.access-denied__body {
+  margin: 0 0 var(--lumen-space-4);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--lumen-text-secondary);
+}
+
+.access-denied__link {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lumen-brand);
+  text-decoration: none;
+}
+
+.access-denied__link:hover {
+  text-decoration: underline;
+}

@@ -97,12 +97,20 @@ describe("1.2 Worker API health", () => {
 
   it("unregistered domain routes remain 404 (scope guard)", async () => {
     const app = createApp();
-    // Domain routes beyond health + 2.1 auth must remain 404 until their sections
-    for (const path of ["/api/events", "/api/public/cfp/demo"]) {
+    // Domain routes beyond health + 2.1 auth + 2.2 events/schedule remain 404 until their sections
+    for (const path of ["/api/public/cfp/demo", "/api/keys"]) {
       const res = await app.request(`http://localhost${path}`, { method: "GET" });
       expect(res.status).toBe(404);
       const body = (await res.json()) as { code?: string };
       expect(body.code).toBe(NOT_FOUND);
     }
+  });
+
+  it("GET /api/events without session returns 401 (2.2 role gate registered)", async () => {
+    const app = createApp();
+    const res = await app.request("http://localhost/api/events", { method: "GET" });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("UNAUTHORIZED");
   });
 });

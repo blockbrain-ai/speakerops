@@ -243,3 +243,6 @@ export const BASELINE_TABLES = [
 
 /** Auth table names required by section 2.1 AC. */
 export const AUTH_TABLES = ["users", "auth_sessions", "magic_links"] as const;
+
+/** Membership table names required by section 2.2 AC. */
+export const MEMBERSHIP_TABLES = ["event_memberships"] as const;

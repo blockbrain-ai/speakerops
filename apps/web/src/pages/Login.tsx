@@ -63,8 +63,8 @@ export function LoginPage() {
         }
         setSessionEmail(parsed.data.email);
         setState("idle");
-        // Admin → shell; speaker → portal placeholder until 4.x
-        if (parsed.data.purpose === "speaker") {
+        // Admin → shell; speaker → portal; evaluator → eval queue lands later (portal-ish)
+        if (parsed.data.purpose === "speaker" || parsed.data.purpose === "evaluator") {
           navigate("/portal", { replace: true });
         } else {
           navigate("/admin", { replace: true });

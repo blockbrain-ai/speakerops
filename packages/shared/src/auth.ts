@@ -1,13 +1,23 @@
 import { z } from "zod";
 
 /**
- * Auth magic-link DTOs (section 2.1).
+ * Auth magic-link DTOs (section 2.1) + event roles (section 2.2).
  * Commands: Auth.RequestMagicLink / Auth.ExchangeMagicLink / Auth.Logout
  * HTTP: POST /api/auth/magic-link | /api/auth/exchange | /api/auth/logout
  */
 
-/** Magic-link purposes for admin and speaker sessions (evaluator invite is 2.2+). */
-export const MagicLinkPurposeSchema = z.enum(["admin", "speaker"]);
+/**
+ * event_memberships.role — SCHEMA.md (section 2.2).
+ * Browser map: admin ⊂ most scopes; evaluator ⊂ score only; speaker ⊂ portal.
+ */
+export const EventRoleSchema = z.enum(["admin", "evaluator", "speaker"]);
+export type EventRole = z.infer<typeof EventRoleSchema>;
+
+/**
+ * Magic-link purposes map 1:1 to membership roles for bootstrap invites.
+ * evaluator added in 2.2 for role-guard journeys (B06).
+ */
+export const MagicLinkPurposeSchema = z.enum(["admin", "speaker", "evaluator"]);
 export type MagicLinkPurpose = z.infer<typeof MagicLinkPurposeSchema>;
 
 /** Auth.RequestMagicLink input */
@@ -50,3 +60,50 @@ export const MAGIC_LINK_TTL_MINUTES = 30 as const;
 
 /** Session TTL (days). */
 export const SESSION_TTL_DAYS = 14 as const;
+
+/**
+ * Dogfood default event id when magic-link purpose needs a membership
+ * but no eventId was supplied (admin bootstrap / local e2e).
+ */
+export const DEFAULT_BOOTSTRAP_EVENT_ID = "evt_dogfood" as const;
+
+/** Event.List item (minimal until full events module). */
+export const EventListItemSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+});
+export type EventListItem = z.infer<typeof EventListItemSchema>;
+
+/** Event.List response — GET /api/events (admin). */
+export const EventListResponseSchema = z.object({
+  events: z.array(EventListItemSchema),
+});
+export type EventListResponse = z.infer<typeof EventListResponseSchema>;
+
+/**
+ * Schedule.Place input — POST /api/events/:eventId/schedule/place
+ * Full conflict engine is section 6.1; 2.2 enforces role gate + Zod.
+ */
+export const SchedulePlaceBodySchema = z.object({
+  sessionId: z.string().min(1).max(128),
+  roomId: z.string().min(1).max(128),
+  startsAt: z.string().min(1).max(64),
+  endsAt: z.string().min(1).max(64),
+  expectedVersion: z.number().int().positive().optional(),
+});
+export type SchedulePlaceBody = z.infer<typeof SchedulePlaceBodySchema>;
+
+/** Schedule.Place success stub (placement id reserved; engine lands in 6.1). */
+export const SchedulePlaceResponseSchema = z.object({
+  ok: z.literal(true),
+  placement: z.object({
+    id: z.string().min(1),
+    eventId: z.string().min(1),
+    sessionId: z.string().min(1),
+    roomId: z.string().min(1),
+    startsAt: z.string().min(1),
+    endsAt: z.string().min(1),
+    version: z.number().int().positive(),
+  }),
+});
+export type SchedulePlaceResponse = z.infer<typeof SchedulePlaceResponseSchema>;

@@ -1,8 +1,8 @@
 /**
- * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth.
+ * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1 / 2.2. Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
@@ -169,11 +169,38 @@ export const baselineTables = {
   idempotencyKeys,
 } as const;
 
+/**
+ * event_memberships — event-scoped roles admin|evaluator|speaker (section 2.2).
+ * UNIQUE(event_id, user_id). Server-side requireRole reads this table (E2).
+ */
+export const eventMemberships = sqliteTable(
+  "event_memberships",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    role: text("role").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_event_memberships_event_user").on(t.eventId, t.userId),
+    index("idx_event_memberships_user_id").on(t.userId),
+    index("idx_event_memberships_event_id").on(t.eventId),
+  ],
+);
+
 /** Auth tables owned by section 2.1. */
 export const authTables = {
   users,
   authSessions,
   magicLinks,
+} as const;
+
+/** Membership tables owned by section 2.2. */
+export const membershipTables = {
+  eventMemberships,
 } as const;
 
 export type Organization = typeof organizations.$inferSelect;
@@ -192,6 +219,8 @@ export type AuthSession = typeof authSessions.$inferSelect;
 export type NewAuthSession = typeof authSessions.$inferInsert;
 export type MagicLink = typeof magicLinks.$inferSelect;
 export type NewMagicLink = typeof magicLinks.$inferInsert;
+export type EventMembership = typeof eventMemberships.$inferSelect;
+export type NewEventMembership = typeof eventMemberships.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -203,4 +232,5 @@ export const schema = {
   users,
   authSessions,
   magicLinks,
+  eventMemberships,
 } as const;

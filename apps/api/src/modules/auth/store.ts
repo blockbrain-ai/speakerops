@@ -1,5 +1,6 @@
 /**
- * Auth persistence — users, magic_links, auth_sessions, audit (section 2.1).
+ * Auth persistence — users, magic_links, auth_sessions, audit (section 2.1)
+ * + event_memberships (section 2.2).
  *
  * MemoryAuthStore is the test / local e2e default (no D1 required).
  * D1AuthStore wraps the Worker DB binding for production.
@@ -7,7 +8,7 @@
  * Tokens are stored only as hashes — callers must hash before insert.
  */
 import { uuidv7 } from "@speakerops/shared";
-import type { MagicLinkPurpose } from "@speakerops/shared";
+import type { EventRole, MagicLinkPurpose } from "@speakerops/shared";
 import { buildAuditEventRow, type AuditWriteInput } from "@speakerops/db";
 
 export type UserRow = {
@@ -34,6 +35,14 @@ export type SessionRow = {
   userId: string;
   tokenHash: string;
   expiresAt: string;
+  createdAt: string;
+};
+
+export type MembershipRow = {
+  id: string;
+  eventId: string;
+  userId: string;
+  role: EventRole;
   createdAt: string;
 };
 
@@ -69,6 +78,18 @@ export type AuthStore = {
   /** All magic link rows (tests: assert hash-only storage). */
   listMagicLinks(): Promise<MagicLinkRow[]>;
   listSessions(): Promise<SessionRow[]>;
+  /** event_memberships (section 2.2) */
+  upsertMembership(input: {
+    eventId: string;
+    userId: string;
+    role: EventRole;
+  }): Promise<MembershipRow>;
+  findMembership(
+    eventId: string,
+    userId: string,
+  ): Promise<MembershipRow | null>;
+  listMembershipsForUser(userId: string): Promise<MembershipRow[]>;
+  listMemberships(): Promise<MembershipRow[]>;
 };
 
 /**
@@ -82,6 +103,7 @@ export class MemoryAuthStore implements AuthStore {
   private magicByHash = new Map<string, string>();
   private sessions = new Map<string, SessionRow>();
   private sessionsByHash = new Map<string, string>();
+  private memberships = new Map<string, MembershipRow>();
   private audits: AuditRow[] = [];
 
   async findUserByEmail(email: string): Promise<UserRow | null> {
@@ -173,6 +195,48 @@ export class MemoryAuthStore implements AuthStore {
 
   async listSessions(): Promise<SessionRow[]> {
     return [...this.sessions.values()];
+  }
+
+  private membershipKey(eventId: string, userId: string): string {
+    return `${eventId}\0${userId}`;
+  }
+
+  async upsertMembership(input: {
+    eventId: string;
+    userId: string;
+    role: EventRole;
+  }): Promise<MembershipRow> {
+    const key = this.membershipKey(input.eventId, input.userId);
+    const existing = this.memberships.get(key);
+    if (existing) {
+      const updated: MembershipRow = { ...existing, role: input.role };
+      this.memberships.set(key, updated);
+      return updated;
+    }
+    const row: MembershipRow = {
+      id: uuidv7(),
+      eventId: input.eventId,
+      userId: input.userId,
+      role: input.role,
+      createdAt: new Date().toISOString(),
+    };
+    this.memberships.set(key, row);
+    return row;
+  }
+
+  async findMembership(
+    eventId: string,
+    userId: string,
+  ): Promise<MembershipRow | null> {
+    return this.memberships.get(this.membershipKey(eventId, userId)) ?? null;
+  }
+
+  async listMembershipsForUser(userId: string): Promise<MembershipRow[]> {
+    return [...this.memberships.values()].filter((m) => m.userId === userId);
+  }
+
+  async listMemberships(): Promise<MembershipRow[]> {
+    return [...this.memberships.values()];
   }
 }
 

@@ -104,6 +104,22 @@ if (existsSync(authSql)) {
   console.log("[db:generate] 0002_auth.sql present (users, auth_sessions, magic_links)");
 }
 
+// Section 2.2 event_memberships (additive)
+const membershipSql = join(migrationsDir, "0003_event_memberships.sql");
+if (existsSync(membershipSql)) {
+  const mSrc = readFileSync(membershipSql, "utf8");
+  if (!/CREATE TABLE IF NOT EXISTS event_memberships\b/i.test(mSrc)) {
+    fail("0003_event_memberships.sql must CREATE TABLE event_memberships");
+  }
+  if (!/\brole\b/i.test(mSrc)) {
+    fail("0003_event_memberships.sql must include role column");
+  }
+  if (!/export const eventMemberships/.test(schemaSrc)) {
+    fail("schema.ts must export eventMemberships");
+  }
+  console.log("[db:generate] 0003_event_memberships.sql present (event_memberships)");
+}
+
 console.log("[db:generate] schema.ts exports baseline tables");
 console.log("[db:generate] 0001_baseline.sql present and lists required tables");
 console.log(`[db:generate] migrations: ${files.sort().join(", ")}`);

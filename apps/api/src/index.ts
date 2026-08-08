@@ -3,6 +3,7 @@
  *
  * Section 1.2: GET /health, E4 errors, correlation
  * Section 2.1: Auth magic-link routes (session cookies)
+ * Section 2.2: requireRole + Event.List / Schedule.Place role gates
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -23,6 +24,8 @@ import {
 } from "./middleware/errors.js";
 import type { ApiEnv } from "./env.js";
 import { createAuthRoutes } from "./modules/auth/routes.js";
+import { createEventsRoutes } from "./modules/events/routes.js";
+import { createScheduleRoutes } from "./modules/schedule/routes.js";
 import {
   MemoryAuthStore,
   MagicLinkTestOutbox,
@@ -96,6 +99,13 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       enableDevOutbox,
     }),
   );
+
+  // Section 2.2 — Event.List (admin role gate)
+  app.route("/api/events", createEventsRoutes({ store: authStore }));
+
+  // Section 2.2 — Schedule.Place under /api/events/:eventId/... (admin role gate)
+  // Mounted at /api/events so path is /:eventId/schedule/place
+  app.route("/api/events", createScheduleRoutes({ store: authStore }));
 
   app.notFound(notFoundHandler);
   app.onError(onErrorHandler);

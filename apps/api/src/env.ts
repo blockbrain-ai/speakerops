@@ -23,9 +23,15 @@ export type WorkerBindings = {
   AUTH_DEV_OUTBOX?: string;
 };
 
+import type { MembershipRow } from "./modules/auth/store.js";
+
 export type ApiEnv = {
   Bindings: WorkerBindings;
   Variables: {
     correlationId: string;
+    /** Set by requireSession / requireRole (section 2.2). */
+    user?: { id: string; email: string };
+    sessionId?: string;
+    membership?: MembershipRow;
   };
 };

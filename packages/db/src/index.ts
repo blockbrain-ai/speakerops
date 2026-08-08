@@ -14,8 +14,10 @@ export {
   users,
   authSessions,
   magicLinks,
+  eventMemberships,
   baselineTables,
   authTables,
+  membershipTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -33,6 +35,8 @@ export {
   type NewAuthSession,
   type MagicLink,
   type NewMagicLink,
+  type EventMembership,
+  type NewEventMembership,
 } from "../schema.js";
 
 export {
@@ -60,6 +64,7 @@ export {
   resolveDbPackageRoot,
   BASELINE_TABLES,
   AUTH_TABLES,
+  MEMBERSHIP_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

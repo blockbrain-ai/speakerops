@@ -11,6 +11,8 @@ import {
   uuidv7,
   MAGIC_LINK_TTL_MINUTES,
   SESSION_TTL_DAYS,
+  DEFAULT_BOOTSTRAP_EVENT_ID,
+  type EventRole,
   type MagicLinkPurpose,
   type RequestMagicLinkResponse,
   type ExchangeMagicLinkResponse,
@@ -28,6 +30,11 @@ import type {
   CapturedMagicLink,
 } from "./store.js";
 import { normalizeEmail } from "./store.js";
+
+/** Map magic-link purpose → event_memberships.role (section 2.2). */
+export function purposeToRole(purpose: MagicLinkPurpose): EventRole {
+  return purpose;
+}
 
 export type RequestMagicLinkInput = {
   email: string;
@@ -75,13 +82,15 @@ export async function requestMagicLink(
   const response: RequestMagicLinkResponse = { sent: true };
 
   // Always same shape — timing: still do work only when we can issue a link.
-  // For admin bootstrap + speaker login we create the user if absent so dogfood works.
+  // For admin bootstrap + speaker/evaluator login we create the user if absent so dogfood works.
   const user = await deps.store.createUser({ email });
   const plaintext = generateToken(32);
   const tokenHash = await hashToken(plaintext);
   const now = new Date();
   const magicId = uuidv7();
   const createdAt = now.toISOString();
+  // Membership event: explicit eventId, or dogfood bootstrap for role grants
+  const membershipEventId = input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
 
   await deps.store.insertMagicLink({
     id: magicId,
@@ -92,6 +101,14 @@ export async function requestMagicLink(
     expiresAt: expiresAtMinutesFromNow(MAGIC_LINK_TTL_MINUTES, now),
     usedAt: null,
     createdAt,
+  });
+
+  // Section 2.2: purpose maps to event_memberships.role for requireRole checks
+  const role = purposeToRole(input.purpose);
+  const membership = await deps.store.upsertMembership({
+    eventId: membershipEventId,
+    userId: user.id,
+    role,
   });
 
   const captured: CapturedMagicLink = {
@@ -108,7 +125,7 @@ export async function requestMagicLink(
 
   await deps.store.insertAudit({
     id: uuidv7(),
-    eventId: input.eventId ?? null,
+    eventId: membershipEventId,
     actorType: "system",
     actorId: "auth",
     action: "Auth.RequestMagicLink",
@@ -119,6 +136,8 @@ export async function requestMagicLink(
       email,
       purpose: input.purpose,
       userId: user.id,
+      membershipId: membership.id,
+      role,
     }),
     correlationId: input.correlationId,
     createdAt,
