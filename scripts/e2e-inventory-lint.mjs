@@ -42,10 +42,23 @@
  * coverage (test.fail is expected-failure, not dogfood proof), duplicate
  * active owners, and missing `test_id` path anchors do not satisfy the gate.
  *
+ * Playwright suite reconciliation (S-E2E-RUN alignment):
+ *   Static files under hard-coded e2e roots are not enough when a Playwright
+ *   config exists. Coverage is reconciled with the config-selected suite
+ *   (`playwright test --list` / suite report / injected suite): tests excluded
+ *   by testIgnore/testMatch/projects, or titles not listed as executable, do
+ *   not satisfy @inv coverage. Pre-scaffold (no config) keeps static roots.
+ *
+ * Anti-shrinkage / growth:
+ *   Every inventory REQUIRED row must be present in the persistent baseline
+ *   with fingerprints — growth is allowed only by ratifying new IDs into
+ *   `e2e-inventory-required-baseline.json` so later deletion/rename fails.
+ *
  * Does not claim S-E2E-RUN (full browser run) — that is Phase 8 Playwright.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, dirname, relative, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { join, dirname, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const defaultRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -89,6 +102,405 @@ export function collectFiles(dir, acc = []) {
     else if (/\.(ts|js|mjs|tsx)$/.test(name)) acc.push(p);
   }
   return acc;
+}
+
+/** Default Playwright config locations (aligned with scripts/e2e-run.mjs). */
+export function playwrightConfigCandidates(root) {
+  return [
+    join(root, "playwright.config.ts"),
+    join(root, "playwright.config.mjs"),
+    join(root, "playwright.config.js"),
+    join(root, "apps", "web", "playwright.config.ts"),
+  ];
+}
+
+/** First existing Playwright config under root, or null. */
+export function findPlaywrightConfig(root) {
+  return playwrightConfigCandidates(root).find((p) => existsSync(p)) ?? null;
+}
+
+/**
+ * Normalize path for suite/file comparisons (absolute, forward slashes).
+ * @param {string} p
+ * @param {string} [root]
+ */
+export function normalizePathKey(p, root = "") {
+  const raw = (p ?? "").trim();
+  if (!raw) return "";
+  const abs = isAbsolute(raw)
+    ? resolve(raw)
+    : resolve(root || process.cwd(), raw);
+  return abs.replace(/\\/g, "/");
+}
+
+/**
+ * Whether two file paths refer to the same file under root.
+ * @param {string} a
+ * @param {string} b
+ * @param {string} [root]
+ */
+export function pathsReferToSameFile(a, b, root = "") {
+  const na = normalizePathKey(a, root);
+  const nb = normalizePathKey(b, root);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  // Relative fragment vs absolute (suite report may store repo-relative paths)
+  if (na.endsWith(`/${nb}`) || nb.endsWith(`/${na}`)) return true;
+  const baseA = na.split("/").pop();
+  const baseB = nb.split("/").pop();
+  if (baseA && baseA === baseB && (na.endsWith(nb) || nb.endsWith(na))) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Normalize a Playwright suite listing / report into a common shape.
+ *
+ * Accepted forms:
+ * - Injected / project report: `{ entries: [{ file, title }] }` or `{ tests: [...] }`
+ * - Playwright JSON reporter tree: `{ suites: [...] }` with nested `specs` / `tests`
+ * - Flat array of `{ file, title }` / `{ file, titlePath }`
+ *
+ * @param {unknown} input
+ * @param {string} [root]
+ * @returns {{ files: string[], entries: { file: string, title: string }[], source: string } | null}
+ */
+export function normalizePlaywrightSuite(input, root = "") {
+  if (input == null) return null;
+
+  /** @type {{ file: string, title: string }[]} */
+  const entries = [];
+
+  const pushEntry = (file, title) => {
+    const f = typeof file === "string" ? file.trim() : "";
+    if (!f) return;
+    const t = typeof title === "string" ? title : Array.isArray(title) ? title.join(" › ") : "";
+    entries.push({ file: f, title: t });
+  };
+
+  const walkSuites = (suites, inheritedFile = "") => {
+    if (!Array.isArray(suites)) return;
+    for (const suite of suites) {
+      if (!suite || typeof suite !== "object") continue;
+      const file =
+        (typeof suite.file === "string" && suite.file) ||
+        (typeof suite.location?.file === "string" && suite.location.file) ||
+        inheritedFile;
+      if (Array.isArray(suite.specs)) {
+        for (const spec of suite.specs) {
+          if (!spec || typeof spec !== "object") continue;
+          const specFile =
+            (typeof spec.file === "string" && spec.file) ||
+            (typeof spec.location?.file === "string" && spec.location.file) ||
+            file;
+          const title =
+            typeof spec.title === "string"
+              ? spec.title
+              : Array.isArray(spec.titlePath)
+                ? spec.titlePath.join(" › ")
+                : "";
+          // Prefer individual tests when present (project / retry rows)
+          if (Array.isArray(spec.tests) && spec.tests.length > 0) {
+            for (const t of spec.tests) {
+              const tTitle =
+                (typeof t?.title === "string" && t.title) ||
+                (Array.isArray(t?.titlePath) && t.titlePath.join(" › ")) ||
+                title;
+              const tFile =
+                (typeof t?.location?.file === "string" && t.location.file) ||
+                specFile;
+              pushEntry(tFile, tTitle);
+            }
+          } else {
+            pushEntry(specFile, title);
+          }
+        }
+      }
+      if (Array.isArray(suite.suites)) walkSuites(suite.suites, file);
+    }
+  };
+
+  if (Array.isArray(input)) {
+    for (const row of input) {
+      if (!row || typeof row !== "object") continue;
+      pushEntry(
+        row.file ?? row.location?.file ?? "",
+        row.title ??
+          (Array.isArray(row.titlePath) ? row.titlePath.join(" › ") : "") ??
+          "",
+      );
+    }
+  } else if (typeof input === "object") {
+    const obj = /** @type {Record<string, unknown>} */ (input);
+    if (Array.isArray(obj.entries)) {
+      for (const row of obj.entries) {
+        if (!row || typeof row !== "object") continue;
+        const r = /** @type {Record<string, unknown>} */ (row);
+        pushEntry(
+          typeof r.file === "string" ? r.file : "",
+          typeof r.title === "string"
+            ? r.title
+            : Array.isArray(r.titlePath)
+              ? r.titlePath.join(" › ")
+              : "",
+        );
+      }
+    } else if (Array.isArray(obj.tests)) {
+      for (const row of obj.tests) {
+        if (!row || typeof row !== "object") continue;
+        const r = /** @type {Record<string, unknown>} */ (row);
+        pushEntry(
+          typeof r.file === "string"
+            ? r.file
+            : typeof r.location === "object" &&
+                r.location &&
+                typeof /** @type {any} */ (r.location).file === "string"
+              ? /** @type {any} */ (r.location).file
+              : "",
+          typeof r.title === "string"
+            ? r.title
+            : Array.isArray(r.titlePath)
+              ? r.titlePath.join(" › ")
+              : "",
+        );
+      }
+    } else if (Array.isArray(obj.suites)) {
+      walkSuites(obj.suites);
+    }
+  }
+
+  if (entries.length === 0) return null;
+
+  const files = [
+    ...new Set(
+      entries.map((e) => normalizePathKey(e.file, root)).filter(Boolean),
+    ),
+  ];
+  return {
+    files,
+    entries: entries.map((e) => ({
+      file: normalizePathKey(e.file, root) || e.file,
+      title: e.title,
+    })),
+    source:
+      typeof input === "object" &&
+      input &&
+      typeof /** @type {any} */ (input).source === "string"
+        ? /** @type {any} */ (input).source
+        : "normalized",
+  };
+}
+
+/**
+ * Load a suite report JSON from disk (Playwright list/report or project form).
+ * @param {string} reportPath
+ * @param {string} [root]
+ */
+export function loadPlaywrightSuiteReport(reportPath, root = "") {
+  if (!reportPath || !existsSync(reportPath)) return null;
+  const raw = readFileSync(reportPath, "utf8");
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const suite = normalizePlaywrightSuite(data, root || dirname(reportPath));
+  if (suite) suite.source = suite.source === "normalized" ? reportPath : suite.source;
+  return suite;
+}
+
+/**
+ * Parse default `playwright test --list` text output into a suite.
+ * Lines look like: `  [chromium] › path/to.spec.ts:3:1 › describe › title`
+ * @param {string} text
+ * @param {string} [root]
+ */
+export function parsePlaywrightListText(text, root = "") {
+  /** @type {{ file: string, title: string }[]} */
+  const entries = [];
+  const lineRe =
+    /^\s*(?:\[[^\]]+\]\s*)?›\s*([^:]+?\.(?:spec|test)\.[a-z]+):\d+:\d+\s*›\s*(.+?)\s*$/i;
+  // Alternate: `  path/to.spec.ts:3:1 › title` without project bracket
+  const lineRe2 =
+    /^\s*([^:]+?\.(?:spec|test)\.[a-z]+):\d+:\d+\s*›\s*(.+?)\s*$/i;
+  for (const line of (text ?? "").split(/\r?\n/)) {
+    let m = line.match(lineRe);
+    if (!m) m = line.match(lineRe2);
+    if (!m) continue;
+    const file = m[1].trim();
+    const titlePath = m[2].trim();
+    // Leaf title is the last › segment (describes nest with ›)
+    const leaf = titlePath.split(/\s*›\s*/).pop()?.trim() || titlePath;
+    entries.push({ file, title: leaf });
+    // Also keep full path title for matching describe › leaf forms
+    if (leaf !== titlePath) {
+      entries.push({ file, title: titlePath });
+    }
+  }
+  return normalizePlaywrightSuite({ entries, source: "playwright-list-text" }, root);
+}
+
+/**
+ * Discover the Playwright config-selected suite (files + titles).
+ *
+ * Resolution order:
+ * 1. Injected `playwrightSuite` object (tests / programmatic)
+ * 2. Suite report path (options / E2E_PLAYWRIGHT_SUITE_REPORT)
+ * 3. Live `playwright test --list` when a config exists and CLI is available
+ *
+ * @param {object} [options]
+ * @param {string} [options.root]
+ * @param {string | null} [options.configPath]
+ * @param {unknown} [options.playwrightSuite]
+ * @param {string} [options.suiteReportPath]
+ * @param {NodeJS.ProcessEnv} [options.env]
+ * @param {typeof spawnSync} [options.spawnSyncImpl]
+ * @param {boolean} [options.allowCli=true]
+ * @returns {{ files: string[], entries: { file: string, title: string }[], source: string } | null}
+ */
+export function resolvePlaywrightSelectedSuite(options = {}) {
+  const root = options.root ?? defaultRoot;
+  const env = options.env ?? process.env;
+
+  if (options.playwrightSuite != null) {
+    const suite = normalizePlaywrightSuite(options.playwrightSuite, root);
+    if (suite) {
+      suite.source =
+        typeof options.playwrightSuite === "object" &&
+        options.playwrightSuite &&
+        typeof /** @type {any} */ (options.playwrightSuite).source === "string"
+          ? /** @type {any} */ (options.playwrightSuite).source
+          : "injected";
+    }
+    return suite;
+  }
+
+  const reportPath =
+    options.suiteReportPath ||
+    env.E2E_PLAYWRIGHT_SUITE_REPORT ||
+    env.E2E_PLAYWRIGHT_LIST_REPORT ||
+    "";
+  if (reportPath) {
+    const fromReport = loadPlaywrightSuiteReport(reportPath, root);
+    if (fromReport) return fromReport;
+  }
+
+  if (options.allowCli === false) return null;
+
+  const configPath = options.configPath ?? findPlaywrightConfig(root);
+  if (!configPath) return null;
+
+  const spawn = options.spawnSyncImpl ?? spawnSync;
+  // Prefer JSON reporter; fall back to parsing default list text.
+  const attempts = [
+    {
+      args: [
+        "exec",
+        "playwright",
+        "test",
+        "--list",
+        "--config",
+        configPath,
+        "--reporter=json",
+      ],
+      parse: "json",
+    },
+    {
+      args: [
+        "exec",
+        "playwright",
+        "test",
+        "--list",
+        "--config",
+        configPath,
+      ],
+      parse: "text",
+    },
+  ];
+
+  for (const attempt of attempts) {
+    let result;
+    try {
+      result = spawn("pnpm", attempt.args, {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...env, CI: env.CI || "1" },
+        timeout: 120_000,
+        maxBuffer: 32 * 1024 * 1024,
+      });
+    } catch {
+      continue;
+    }
+    if (!result || result.error) continue;
+    const out = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+    if (attempt.parse === "json") {
+      // JSON reporter may emit a single object or trailing noise — take last {...}
+      const start = out.indexOf("{");
+      const end = out.lastIndexOf("}");
+      if (start >= 0 && end > start) {
+        try {
+          const data = JSON.parse(out.slice(start, end + 1));
+          const suite = normalizePlaywrightSuite(data, root);
+          if (suite) {
+            suite.source = "playwright-list-json";
+            return suite;
+          }
+        } catch {
+          // try text parse below
+        }
+      }
+    }
+    const textSuite = parsePlaywrightListText(out, root);
+    if (textSuite) {
+      textSuite.source = "playwright-list-text";
+      return textSuite;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Whether a static @inv finding is part of the Playwright-selected suite.
+ * When suite is null, all findings pass (static-root mode).
+ *
+ * Title matching: leaf title equality, full path suffix, or suite title ends
+ * with the finding title (Playwright prints `describe › leaf`).
+ *
+ * @param {{ file: string, title: string, id?: string }} finding
+ * @param {{ entries: { file: string, title: string }[] } | null} suite
+ * @param {string} [root]
+ */
+export function isFindingInPlaywrightSuite(finding, suite, root = "") {
+  if (!suite || !Array.isArray(suite.entries) || suite.entries.length === 0) {
+    return true;
+  }
+  const fileMatches = suite.entries.filter((e) =>
+    pathsReferToSameFile(finding.file, e.file, root),
+  );
+  if (fileMatches.length === 0) return false;
+
+  // File-only selection: if every matching entry has empty title, file is enough
+  const titled = fileMatches.filter((e) => (e.title ?? "").trim() !== "");
+  if (titled.length === 0) return true;
+
+  const ft = (finding.title ?? "").trim();
+  if (!ft) return false;
+
+  return titled.some((e) => {
+    const st = e.title.trim();
+    if (st === ft) return true;
+    if (st.endsWith(ft)) return true;
+    // Leaf of suite title path
+    const leaf = st.split(/\s*›\s*/).pop()?.trim() || st;
+    if (leaf === ft) return true;
+    // Finding title is last segment of a longer static title path
+    const fLeaf = ft.split(/\s*›\s*/).pop()?.trim() || ft;
+    if (leaf === fLeaf) return true;
+    return false;
+  });
 }
 
 /**
@@ -1000,6 +1412,10 @@ export function extractOwnerDeferInventoryIds(constitutionBody) {
  * @param {string[]} [options.e2eRoots]
  * @param {boolean} [options.fullGate]
  * @param {string} [options.constitutionPath] owner DEFER table (Article 0)
+ * @param {unknown} [options.playwrightSuite] injected config-selected suite
+ * @param {string} [options.suiteReportPath] Playwright list/report JSON path
+ * @param {boolean} [options.allowPlaywrightCli] default true; false skips live --list
+ * @param {typeof spawnSync} [options.spawnSyncImpl] test override for CLI list
  * @param {string[]} [options.argv] defaults to process.argv
  * @param {NodeJS.ProcessEnv} [options.env] defaults to process.env
  * @param {boolean} [options.silent] suppress console I/O (tests)
@@ -1216,11 +1632,21 @@ export function runInventoryLint(options = {}) {
       fail("REQUIRED set is empty — forbidden (would green-wash dogfood gate)");
     }
 
-    // --- Anti-shrinkage: exact ratified baseline ID set ---
+    // --- Anti-shrinkage: exact ratified baseline ID set (including growth) ---
+    // Every baseline ID must remain in inventory; every inventory REQUIRED ID
+    // must be ratified into the persistent baseline with fingerprints so new
+    // journeys cannot later shrink without a gate failure.
     const missingFromInventory = baselineIds.filter((id) => !byId.has(id));
     if (missingFromInventory.length > 0) {
       fail(
         `baseline IDs deleted or renamed (anti-shrinkage; owner DEFER row required, not deletion): ${idList(missingFromInventory)}`,
+      );
+    }
+
+    const missingFromBaseline = requiredIds.filter((id) => !baselineSet.has(id));
+    if (missingFromBaseline.length > 0) {
+      fail(
+        `new REQUIRED IDs missing from persistent baseline (ratify into e2e-inventory-required-baseline.json with fingerprints so growth is protected from later shrinkage): ${idList(missingFromBaseline)}`,
       );
     }
 
@@ -1252,6 +1678,8 @@ export function runInventoryLint(options = {}) {
     }
 
     // --- Anti-reuse: baseline ID must keep stable test_id + journey fingerprint ---
+    // Fingerprints cover the full baseline set; because every REQUIRED inventory
+    // ID must be in the baseline, growth is fingerprint-locked too.
     const fingerprintMismatches = [];
     for (const id of baselineIds) {
       const row = byId.get(id);
@@ -1327,15 +1755,90 @@ export function runInventoryLint(options = {}) {
     }
 
     // --- @inv tag coverage on real Playwright tests (decision table) ---
-    const e2eRoots =
-      options.e2eRoots ??
-      [
-        join(root, "playwright", "e2e"),
-        join(root, "e2e"),
-        join(root, "apps", "web", "e2e"),
-      ];
+    // Prefer Playwright config-selected suite (S-E2E-RUN alignment) over a raw
+    // walk of hard-coded e2e roots so testIgnore/testMatch/projects and
+    // non-listed titles cannot green-wash coverage.
+    const defaultE2eRoots = [
+      join(root, "playwright", "e2e"),
+      join(root, "e2e"),
+      join(root, "apps", "web", "e2e"),
+    ];
+    const e2eRoots = options.e2eRoots ?? defaultE2eRoots;
     const existingRoots = e2eRoots.filter((d) => existsSync(d));
-    const files = existingRoots.flatMap((d) => collectFiles(d));
+
+    const playwrightConfigPath =
+      options.playwrightConfigPath !== undefined
+        ? options.playwrightConfigPath
+        : findPlaywrightConfig(root);
+
+    /** @type {{ files: string[], entries: { file: string, title: string }[], source: string } | null} */
+    let selectedSuite = null;
+    // Resolve suite when injected/report provided, or when a real Playwright
+    // config exists and caller did not force static e2eRoots-only mode.
+    // Explicit e2eRoots (unit probes) still accept injected playwrightSuite.
+    if (
+      options.playwrightSuite != null ||
+      options.suiteReportPath ||
+      env.E2E_PLAYWRIGHT_SUITE_REPORT ||
+      env.E2E_PLAYWRIGHT_LIST_REPORT ||
+      (playwrightConfigPath && options.e2eRoots === undefined)
+    ) {
+      selectedSuite = resolvePlaywrightSelectedSuite({
+        root,
+        configPath: playwrightConfigPath,
+        playwrightSuite: options.playwrightSuite,
+        suiteReportPath: options.suiteReportPath,
+        env,
+        spawnSyncImpl: options.spawnSyncImpl,
+        allowCli: options.allowPlaywrightCli !== false,
+      });
+    }
+
+    // Phase 8 + real Playwright config: suite reconciliation is mandatory.
+    // Injected suite / report satisfies this; CLI list is used otherwise.
+    // Probe tests pass e2eRoots explicitly without a config — static mode OK.
+    if (
+      fullGate &&
+      playwrightConfigPath &&
+      options.e2eRoots === undefined &&
+      !selectedSuite
+    ) {
+      fail(
+        "Phase 8 full gate: Playwright config found but config-selected suite could not be resolved " +
+          `(config: ${playwrightConfigPath}). Provide a suite report (E2E_PLAYWRIGHT_SUITE_REPORT) ` +
+          "or ensure `pnpm exec playwright test --list` works so inventory IDs are validated " +
+          "against the suite Playwright actually executes (not static e2e roots alone).",
+      );
+    }
+
+    /** @type {string[]} */
+    let files;
+    /** @type {string} */
+    let coverageSource;
+    if (selectedSuite) {
+      // Restrict to suite files that exist on disk; titles filter findings later.
+      files = selectedSuite.files.filter((f) => existsSync(f));
+      // Suite may list relative paths that normalize differently — also try raw entries
+      if (files.length === 0) {
+        const fromEntries = [
+          ...new Set(
+            selectedSuite.entries
+              .map((e) => {
+                const abs = normalizePathKey(e.file, root);
+                if (abs && existsSync(abs)) return abs;
+                if (e.file && existsSync(e.file)) return resolve(e.file);
+                return "";
+              })
+              .filter(Boolean),
+          ),
+        ];
+        files = fromEntries;
+      }
+      coverageSource = `playwright-suite:${selectedSuite.source}`;
+    } else {
+      files = existingRoots.flatMap((d) => collectFiles(d));
+      coverageSource = "static-e2e-roots";
+    }
 
     /** IDs that must have @inv tags under current gate mode. */
     let tagTargets;
@@ -1359,22 +1862,25 @@ export function runInventoryLint(options = {}) {
 
     // Phase 8: absence of root or test files is always a hard failure.
     if (fullGate) {
-      if (existingRoots.length === 0) {
+      if (!selectedSuite && existingRoots.length === 0) {
         fail(
           "Phase 8 full gate: no E2E root found (expected playwright/e2e, e2e/, or apps/web/e2e) — tag coverage cannot be deferred",
         );
       }
       if (files.length === 0) {
         fail(
-          "Phase 8 full gate: E2E root(s) present but no test files (*.ts|js|mjs|tsx) — full REQUIRED @inv coverage required",
+          selectedSuite
+            ? "Phase 8 full gate: Playwright config-selected suite is empty or files missing on disk — full REQUIRED @inv coverage required"
+            : "Phase 8 full gate: E2E root(s) present but no test files (*.ts|js|mjs|tsx) — full REQUIRED @inv coverage required",
         );
       }
     }
 
     // Any mode: if tag targets exist, test files must exist.
     if (tagTargets.length > 0 && files.length === 0) {
-      const where =
-        existingRoots.length === 0
+      const where = selectedSuite
+        ? "Playwright config-selected suite empty or files missing on disk"
+        : existingRoots.length === 0
           ? "no E2E root found (expected playwright/e2e, e2e/, or apps/web/e2e)"
           : "E2E root(s) present but no test files (*.ts|js|mjs|tsx)";
       fail(
@@ -1384,11 +1890,19 @@ export function runInventoryLint(options = {}) {
 
     if (tagTargets.length > 0 && files.length > 0) {
       /** @type {{ id: string, skipped: boolean, focused: boolean, multiTag: boolean, title: string, file: string }[]} */
-      const allFindings = [];
+      const rawFindings = [];
       for (const f of files) {
         const src = readFileSync(f, "utf8");
-        allFindings.push(...extractInvTaggedTests(f, src));
+        rawFindings.push(...extractInvTaggedTests(f, src));
       }
+
+      // Reconcile with Playwright-selected suite: excluded files / unlisted
+      // titles (dead code, testIgnore, wrong project) do not count.
+      const allFindings = selectedSuite
+        ? rawFindings.filter((finding) =>
+            isFindingInPlaywrightSuite(finding, selectedSuite, root),
+          )
+        : rawFindings;
 
       // Strict 1:1: one test title must not own multiple inventory IDs.
       // Reject multi-tag declarations before counting coverage (anti-greenwash).
@@ -1417,6 +1931,7 @@ export function runInventoryLint(options = {}) {
       const missing = [];
       const commentOrLooseOnly = [];
       const skippedOnly = [];
+      const suiteExcludedOnly = [];
       const duplicates = [];
       const focusedIds = [];
       const wrongTestId = [];
@@ -1424,6 +1939,12 @@ export function runInventoryLint(options = {}) {
       // Detect loose @inv:ID occurrences that are NOT on a test title (comments etc.)
       // for clearer diagnostics when a target is missing.
       const looseBlob = files.map((f) => readFileSync(f, "utf8")).join("\n");
+      // Static findings before suite filter — diagnose "tagged but not selected"
+      const rawById = new Map();
+      for (const finding of rawFindings) {
+        if (!rawById.has(finding.id)) rawById.set(finding.id, []);
+        rawById.get(finding.id).push(finding);
+      }
 
       for (const id of tagTargets) {
         const list = findingsById.get(id) || [];
@@ -1432,7 +1953,12 @@ export function runInventoryLint(options = {}) {
         const skipped = list.filter((x) => x.skipped && !x.multiTag);
 
         if (active.length === 0 && skipped.length === 0) {
-          if (looseBlob.includes(`@inv:${id}`)) {
+          const rawList = rawById.get(id) || [];
+          const rawActive = rawList.filter((x) => !x.skipped && !x.multiTag);
+          if (selectedSuite && rawActive.length > 0) {
+            // Declaration exists in scanned files but is not in the selected suite
+            suiteExcludedOnly.push(id);
+          } else if (looseBlob.includes(`@inv:${id}`)) {
             commentOrLooseOnly.push(id);
           } else {
             missing.push(id);
@@ -1452,12 +1978,16 @@ export function runInventoryLint(options = {}) {
 
         const row = byId.get(id);
         const testId = row?.testId || "";
+        const anchorRoots =
+          existingRoots.length > 0
+            ? existingRoots
+            : files.map((f) => dirname(f));
         const anchored = active.some((x) =>
           isTestIdAnchored({
             file: x.file,
             title: x.title,
             testId,
-            e2eRoots: existingRoots,
+            e2eRoots: anchorRoots,
           }),
         );
         if (!anchored) {
@@ -1472,6 +2002,12 @@ export function runInventoryLint(options = {}) {
             (fullGate
               ? ""
               : " (OPEN rows deferred until owned; use E2E_INVENTORY_GATE=phase8 for full REQUIRED set)"),
+        );
+      }
+      if (suiteExcludedOnly.length > 0) {
+        fail(
+          `@inv tags for ${modeLabel} IDs exist in source but are not in the Playwright config-selected suite` +
+            ` (testIgnore/testMatch/projects exclusion, unlisted title, or dead conditional code — not executed by pnpm test:e2e): ${idList(suiteExcludedOnly)}`,
         );
       }
       if (commentOrLooseOnly.length > 0) {
@@ -1501,7 +2037,7 @@ export function runInventoryLint(options = {}) {
       }
 
       log(
-        `[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover ${tagTargets.length} ${modeLabel} IDs (1:1, non-skip/non-fail, test_id-anchored)` +
+        `[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover ${tagTargets.length} ${modeLabel} IDs (1:1, non-skip/non-fail, test_id-anchored, ${coverageSource})` +
           (fullGate
             ? ""
             : ` (${requiredIds.length - deferIds.size} total non-DEFER REQUIRED at Phase 8)`),

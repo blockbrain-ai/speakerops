@@ -338,6 +338,9 @@ describe("0.3 Browser E2E inventory law", () => {
     e2eFiles = null,
     fullGate = false,
     constitutionBody = null,
+    playwrightSuite = null,
+    baselinePathOverride = null,
+    suiteReportBody = null,
   }) {
     const probe = mkdtempSync(join(tmpdir(), "spo-e2e-probe-"));
     try {
@@ -356,12 +359,15 @@ describe("0.3 Browser E2E inventory law", () => {
       const e2eDir = join(probe, "playwright", "e2e");
       /** @type {string[]} */
       let e2eRoots;
+      /** @type {Record<string, string>} */
+      const writtenAbs = {};
       if (e2eFiles) {
         mkdirSync(e2eDir, { recursive: true });
         for (const [name, body] of Object.entries(e2eFiles)) {
           const dest = join(e2eDir, name);
           mkdirSync(dirname(dest), { recursive: true });
           writeFileSync(dest, body, "utf8");
+          writtenAbs[name] = dest;
         }
         e2eRoots = [e2eDir];
       } else if (ensureEmptyE2eRoot) {
@@ -372,13 +378,37 @@ describe("0.3 Browser E2E inventory law", () => {
         e2eRoots = [join(probe, "playwright", "e2e")];
       }
 
+      /** @type {unknown} */
+      let suite = playwrightSuite;
+      if (typeof playwrightSuite === "function") {
+        suite = playwrightSuite({ e2eDir, writtenAbs, probe });
+      }
+
+      /** @type {string | undefined} */
+      let suiteReportPath;
+      if (suiteReportBody != null) {
+        suiteReportPath = join(probe, "playwright-suite-report.json");
+        const body =
+          typeof suiteReportBody === "function"
+            ? suiteReportBody({ e2eDir, writtenAbs, probe })
+            : suiteReportBody;
+        writeFileSync(
+          suiteReportPath,
+          typeof body === "string" ? body : JSON.stringify(body),
+          "utf8",
+        );
+      }
+
       const result = runInventoryLint({
         inventoryPath: invPath,
-        baselinePath,
+        baselinePath: baselinePathOverride || baselinePath,
         e2eRoots,
         fullGate,
         silent: true,
+        allowPlaywrightCli: false,
         ...(constitutionPath ? { constitutionPath } : {}),
+        ...(suite != null ? { playwrightSuite: suite } : {}),
+        ...(suiteReportPath ? { suiteReportPath } : {}),
       });
       return {
         status: result.exitCode,
@@ -1263,5 +1293,206 @@ describe("0.3 Browser E2E inventory law", () => {
       0,
       `phase8 must pass with PASS statuses + Playwright-bound 1:1 map:\n${fmtResult(r)}`,
     );
+  });
+
+  it("rejects new REQUIRED inventory IDs not ratified into persistent baseline", () => {
+    // Growth must enter e2e-inventory-required-baseline.json with fingerprints;
+    // otherwise a later delete of the new journey would not fail the gate.
+    const r = runLintInProbe({
+      inventoryMutate: (inv) =>
+        inv.replace(
+          /(\| A11 \|[^|]*\|[^|]*\|[^|]*\|[^|]*\|[^|]*\| REQUIRED \| OPEN \|\n)/,
+          "$1| Z99 | public | surface | brand-new journey | e2e/public/z99 | none | REQUIRED | OPEN |\n",
+        ),
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `new REQUIRED Z99 without baseline entry must fail:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /missing from persistent baseline|Z99|fingerprints/i,
+      `must diagnose unratified REQUIRED growth:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects when baseline omits an inventory REQUIRED ID (growth unprotected)", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const slimIds = baseline.required_ids.filter((id) => id !== "A01");
+    const slimFp = { ...baseline.fingerprints };
+    delete slimFp.A01;
+    const slimBaseline = {
+      ...baseline,
+      required_ids: slimIds,
+      fingerprints: slimFp,
+    };
+    const dir = mkdtempSync(join(tmpdir(), "spo-baseline-slim-"));
+    try {
+      const slimPath = join(dir, "baseline.json");
+      writeFileSync(slimPath, JSON.stringify(slimBaseline), "utf8");
+      const r = runLintInProbe({
+        baselinePathOverride: slimPath,
+      });
+      assert.notEqual(
+        r.status,
+        0,
+        `inventory REQUIRED A01 missing from slim baseline must fail:\n${fmtResult(r)}`,
+      );
+      assert.match(
+        `${r.stderr}\n${r.stdout}`,
+        /missing from persistent baseline|A01/i,
+        `must name A01 as unratified:\n${fmtResult(r)}`,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects @inv only in files excluded from Playwright config-selected suite", () => {
+    // Tagged journey lives under public/ but suite only selects ignored.spec.ts
+    // (models testIgnore / testMatch / projects exclusion).
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts": a01RealTest,
+        "ignored.spec.ts": pwSource('test("not selected", async () => {});\n'),
+      },
+      playwrightSuite: ({ writtenAbs }) => ({
+        source: "test-injected",
+        entries: [
+          {
+            file: writtenAbs["ignored.spec.ts"],
+            title: "not selected",
+          },
+        ],
+      }),
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `suite-excluded @inv:A01 must not satisfy coverage:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /config-selected suite|not in the Playwright|testIgnore|A01/i,
+      `must diagnose suite exclusion:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects @inv only on titles not listed in Playwright selected suite (dead code)", () => {
+    // Static declaration exists, but Playwright --list would not emit the
+    // dead-branch title — only the live untagged test is selected.
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts": pwSource(
+          "if (false) {\n" +
+            '  test("@inv:A01 e2e/public/cfp-load dead branch", async () => {});\n' +
+            "}\n" +
+            'test("live untagged", async () => {});\n',
+        ),
+      },
+      playwrightSuite: ({ writtenAbs }) => ({
+        source: "test-injected",
+        entries: [
+          {
+            file: writtenAbs["public/cfp-load.spec.ts"],
+            title: "live untagged",
+          },
+        ],
+      }),
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `dead-conditional @inv must not count when suite lists only live title:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /config-selected suite|dead conditional|not in the Playwright|A01/i,
+      `must diagnose unlisted title:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("accepts @inv when Playwright suite selects the tagged title", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts": a01RealTest,
+        "other.spec.ts": pwSource(
+          'test("@inv:A01 e2e/public/cfp-load duplicate ignored", async () => {});\n',
+        ),
+      },
+      playwrightSuite: ({ writtenAbs }) => ({
+        source: "test-injected",
+        entries: [
+          {
+            file: writtenAbs["public/cfp-load.spec.ts"],
+            title: "@inv:A01 e2e/public/cfp-load public CFP loads",
+          },
+        ],
+      }),
+    });
+    assert.equal(
+      r.status,
+      0,
+      `suite-selected tagged title must pass:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      r.stdout,
+      /playwright-suite|OK: @inv/i,
+      `stdout should note suite reconciliation:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("accepts suite report file for config-selected reconciliation", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts": a01RealTest,
+      },
+      suiteReportBody: ({ writtenAbs }) => ({
+        source: "suite-report-file",
+        entries: [
+          {
+            file: writtenAbs["public/cfp-load.spec.ts"],
+            title: "@inv:A01 e2e/public/cfp-load public CFP loads",
+          },
+        ],
+      }),
+    });
+    assert.equal(
+      r.status,
+      0,
+      `suite report path must drive selection:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("package.json test scripts use Node recursive discovery (not shell **)", () => {
+    // Shell ** without globstar only expands one directory level and silently
+    // omits tests/integration/api/*.test.mjs and tests/*.test.mjs.
+    const pkg = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+    for (const name of ["test", "test:ci"]) {
+      const script = pkg.scripts[name];
+      assert.equal(typeof script, "string", `package.json scripts.${name}`);
+      assert.match(
+        script,
+        /node\s+--test\b/,
+        `${name} must invoke node --test`,
+      );
+      // Must not rely on unquoted shell globstar tests/**/*.test.mjs
+      assert.doesNotMatch(
+        script,
+        /tests\/\*\*\/\*\.test\.mjs/,
+        `${name} must not use shell-expanded tests/**/*.test.mjs`,
+      );
+      // Prefer directory form (Node recurses) or an explicit runner script
+      assert.match(
+        script,
+        /tests\/|scripts\/.*test/i,
+        `${name} must discover tests under tests/ via Node, not shell **`,
+      );
+    }
   });
 });
