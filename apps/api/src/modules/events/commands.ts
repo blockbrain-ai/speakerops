@@ -215,7 +215,20 @@ export async function updateEvent(
     version: existing.version + 1,
   };
 
-  await deps.events.updateEvent(next);
+  const updated = await deps.events.updateEvent(next, input.expectedVersion);
+  if (!updated) {
+    const latest = await deps.events.findEventById(input.eventId);
+    return {
+      ok: false,
+      status: 409,
+      error: "Version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.expectedVersion,
+        actual: latest?.version ?? existing.version,
+      },
+    };
+  }
 
   await deps.auth.insertAudit({
     id: uuidv7(),
@@ -361,7 +374,23 @@ export async function upsertRoom(
         version: 1,
       };
 
-  await deps.events.upsertRoom(row);
+  const written = await deps.events.upsertRoom(
+    row,
+    existing ? (input.expectedVersion ?? existing.version) : undefined,
+  );
+  if (!written) {
+    const latest = await deps.events.findRoom(input.eventId, input.roomId);
+    return {
+      ok: false,
+      status: 409,
+      error: "Version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.expectedVersion ?? existing?.version,
+        actual: latest?.version ?? existing?.version,
+      },
+    };
+  }
 
   await deps.auth.insertAudit({
     id: uuidv7(),
@@ -446,7 +475,23 @@ export async function upsertTrack(
         version: 1,
       };
 
-  await deps.events.upsertTrack(row);
+  const written = await deps.events.upsertTrack(
+    row,
+    existing ? (input.expectedVersion ?? existing.version) : undefined,
+  );
+  if (!written) {
+    const latest = await deps.events.findTrack(input.eventId, input.trackId);
+    return {
+      ok: false,
+      status: 409,
+      error: "Version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.expectedVersion ?? existing?.version,
+        actual: latest?.version ?? existing?.version,
+      },
+    };
+  }
 
   await deps.auth.insertAudit({
     id: uuidv7(),

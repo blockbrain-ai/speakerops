@@ -182,7 +182,23 @@ export async function setDesignDraft(
         updatedAt: now,
       };
 
-  await deps.design.upsertDraft(row);
+  const written = await deps.design.upsertDraft(
+    row,
+    existing ? (input.expectedVersion ?? existing.version) : undefined,
+  );
+  if (!written) {
+    const latest = await deps.design.findDraft(input.eventId);
+    return {
+      ok: false,
+      status: 409,
+      error: "Version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.expectedVersion ?? existing?.version,
+        actual: latest?.version ?? existing?.version,
+      },
+    };
+  }
 
   await deps.auth.insertAudit({
     id: uuidv7(),
@@ -269,11 +285,28 @@ export async function publishDesign(
   };
 
   // Persist derived brandFg back onto draft so admin preview matches public
-  await deps.design.upsertDraft({
-    ...draft,
-    tokens: gate.tokens,
-    updatedAt: now,
-  });
+  // Same-version write; gate on the draft version we just validated.
+  const draftWritten = await deps.design.upsertDraft(
+    {
+      ...draft,
+      tokens: gate.tokens,
+      updatedAt: now,
+    },
+    draft.version,
+  );
+  if (!draftWritten) {
+    const latest = await deps.design.findDraft(input.eventId);
+    return {
+      ok: false,
+      status: 409,
+      error: "Version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.expectedVersion,
+        actual: latest?.version ?? draft.version,
+      },
+    };
+  }
   await deps.design.upsertPublished(published);
 
   await deps.auth.insertAudit({
@@ -571,7 +604,8 @@ export async function uploadFileBytes(
 }
 
 /**
- * Public logo bytes by fileId (only if uploaded).
+ * Public logo bytes by fileId — only when the file is the logo referenced by
+ * the event's *published* design tokens (draft-only uploads stay private).
  */
 export async function getPublicFileBytes(
   deps: DesignCommandDeps,
@@ -583,6 +617,12 @@ export async function getPublicFileBytes(
   if (!file || !file.uploaded || file.purpose !== "logo") {
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
+
+  const published = await deps.design.findPublished(file.eventId);
+  if (!published || published.tokens.logoFileId !== file.id) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+
   const blob = await deps.design.getFileBytes(file.eventId, file.id);
   if (!blob) {
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };

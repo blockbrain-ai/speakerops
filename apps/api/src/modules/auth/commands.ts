@@ -9,9 +9,9 @@
  *
  * Bootstrap policy (E2 security):
  * - "open": local e2e / unit tests — create user + grant purpose role (dogfood convenience)
- * - "controlled" (production default): existing users only; optional first-admin bootstrap
- *   when no admin memberships exist (or BOOTSTRAP_ADMIN_EMAIL allowlist). Caller-supplied
- *   purpose never elevates an existing user's membership.
+ * - "controlled" (production default): existing users only; first-admin bootstrap only when
+ *   BOOTSTRAP_ADMIN_EMAIL is set, matches the caller, and zero admin memberships exist
+ *   (default-deny when unset). Caller-supplied purpose never elevates an existing user's membership.
  */
 import {
   uuidv7,
@@ -91,7 +91,8 @@ export type AuthCommandDeps = {
 
 /**
  * Decide whether an unknown email may be created + granted membership.
- * Controlled: first-admin only (purpose=admin, zero admins, optional email allowlist).
+ * Controlled: first-admin only when BOOTSTRAP_ADMIN_EMAIL is set, matches the
+ * caller email, purpose=admin, and zero admin memberships exist (default-deny).
  */
 export async function isAllowedBootstrap(
   store: AuthStore,
@@ -104,14 +105,12 @@ export async function isAllowedBootstrap(
 ): Promise<boolean> {
   if (policy === "open") return true;
   if (input.purpose !== "admin") return false;
-  const adminCount = await store.countMembershipsByRole("admin");
-  if (adminCount > 0) return false;
   const allow = input.bootstrapAdminEmail?.trim().toLowerCase();
-  if (allow && allow.length > 0) {
-    return normalizeEmail(input.email) === allow;
-  }
-  // Empty allowlist: first admin of an empty system (ops-controlled empty D1).
-  return true;
+  // Default-deny: controlled first-admin requires an explicit allowlist email.
+  if (!allow || allow.length === 0) return false;
+  if (normalizeEmail(input.email) !== allow) return false;
+  const adminCount = await store.countMembershipsByRole("admin");
+  return adminCount === 0;
 }
 
 /**
@@ -248,7 +247,11 @@ export async function exchangeMagicLink(
   }
 
   const usedAt = new Date().toISOString();
-  await deps.store.markMagicLinkUsed(link.id, usedAt);
+  // Atomic single-use: only the winner of the conditional consume may issue a session.
+  const consumed = await deps.store.consumeMagicLink(link.id, usedAt);
+  if (!consumed) {
+    return { ok: false, reason: "used" };
+  }
 
   const user = await deps.store.findUserById(link.userId);
   if (!user) {

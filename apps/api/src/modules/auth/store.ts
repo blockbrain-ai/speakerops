@@ -7,7 +7,7 @@
  *
  * Tokens are stored only as hashes — callers must hash before insert.
  */
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import type { EventRole, MagicLinkPurpose } from "@speakerops/shared";
 import {
@@ -81,7 +81,11 @@ export type AuthStore = {
   }): Promise<UserRow>;
   insertMagicLink(row: Omit<MagicLinkRow, "usedAt"> & { usedAt?: null }): Promise<MagicLinkRow>;
   findMagicLinkByTokenHash(tokenHash: string): Promise<MagicLinkRow | null>;
-  markMagicLinkUsed(id: string, usedAt: string): Promise<void>;
+  /**
+   * Conditionally mark magic link used only if still unused.
+   * Returns true when this caller won the consume (gates session issuance).
+   */
+  consumeMagicLink(id: string, usedAt: string): Promise<boolean>;
   insertSession(row: SessionRow): Promise<SessionRow>;
   findSessionByTokenHash(tokenHash: string): Promise<SessionRow | null>;
   deleteSessionByTokenHash(tokenHash: string): Promise<boolean>;
@@ -169,10 +173,11 @@ export class MemoryAuthStore implements AuthStore {
     return this.magicLinks.get(id) ?? null;
   }
 
-  async markMagicLinkUsed(id: string, usedAt: string): Promise<void> {
+  async consumeMagicLink(id: string, usedAt: string): Promise<boolean> {
     const row = this.magicLinks.get(id);
-    if (!row) return;
+    if (!row || row.usedAt) return false;
     this.magicLinks.set(id, { ...row, usedAt });
+    return true;
   }
 
   async insertSession(row: SessionRow): Promise<SessionRow> {
@@ -375,11 +380,13 @@ export class D1AuthStore implements AuthStore {
     };
   }
 
-  async markMagicLinkUsed(id: string, usedAt: string): Promise<void> {
-    await this.db
+  async consumeMagicLink(id: string, usedAt: string): Promise<boolean> {
+    const result = await this.db
       .update(magicLinks)
       .set({ usedAt })
-      .where(eq(magicLinks.id, id));
+      .where(and(eq(magicLinks.id, id), isNull(magicLinks.usedAt)));
+    const changes = d1Changes(result);
+    return changes > 0;
   }
 
   async insertSession(row: SessionRow): Promise<SessionRow> {
@@ -600,4 +607,15 @@ export class MagicLinkTestOutbox {
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+/** Extract rows-changed count from a Drizzle D1/SQLite update result. */
+export function d1Changes(result: unknown): number {
+  if (result == null || typeof result !== "object") return 0;
+  const meta = (result as { meta?: { changes?: number } }).meta;
+  if (meta && typeof meta.changes === "number") return meta.changes;
+  // better-sqlite3 / some drivers expose changes at top level
+  const top = (result as { changes?: number }).changes;
+  if (typeof top === "number") return top;
+  return 0;
 }

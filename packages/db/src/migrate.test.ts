@@ -222,6 +222,19 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("0006 adds dedicated uploaded column on file_assets (not checksum sentinel)", async () => {
+    const { dir, dbPath } = tempDbPath();
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0006_file_assets_uploaded.sql");
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.file_assets).toContain("uploaded");
+      expect(columns.file_assets).toContain("checksum");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("1.3 repository eventId scoping stub", () => {

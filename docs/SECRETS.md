@@ -26,7 +26,7 @@
 
 ## Auth (section 2.1) — names only
 - `AUTH_DEV_OUTBOX` — when `"1"`, local e2e API may expose `GET /api/auth/dev/outbox` for Playwright (never enable as a production dogfood default).
-- `BOOTSTRAP_ADMIN_EMAIL` — optional allowlist for controlled first-admin bootstrap on an empty D1 (production Worker). Not a secret token; email of the intended first admin. When unset, any email may take first-admin on a zero-admin database once; subsequent self-provision is denied.
+- `BOOTSTRAP_ADMIN_EMAIL` — required for controlled first-admin bootstrap on an empty D1 (production Worker). Not a secret token; email of the intended first admin. When unset, first-admin self-provision is default-deny (no public caller can claim admin). When set, only that email may create the first admin membership once; subsequent self-provision is denied.
 - Session cookie name is code constant `speakerops_session` (HttpOnly Secure SameSite=Lax) — not an env secret.
 - Never commit magic-link tokens, session values, or log them.
 

@@ -269,6 +269,52 @@ describe("2.4 design kit", () => {
     expect(uploadBody.uploaded).toBe(true);
     expect(uploadBody.fileId).toBe(png.fileId);
 
+    // Draft-only upload must not be publicly retrievable before Design.Publish
+    const publicBeforePublish = await app.request(
+      `http://localhost/api/public/files/${png.fileId}`,
+      { method: "GET" },
+      env,
+    );
+    expect(publicBeforePublish.status).toBe(404);
+
+    // Attach logo to draft and publish so public CFP can serve it
+    const setRes = await app.request(
+      `http://localhost/api/events/${eventId}/design`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-logo-draft",
+        },
+        body: JSON.stringify({
+          tokens: {
+            brand: "#0b57d0",
+            radius: "soft",
+            logoFileId: png.fileId,
+          },
+        }),
+      },
+      env,
+    );
+    expect(setRes.status).toBe(200);
+    const draft = DesignSetDraftResponseSchema.parse(await setRes.json());
+
+    const pubRes = await app.request(
+      `http://localhost/api/events/${eventId}/design/publish`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-logo-publish",
+        },
+        body: JSON.stringify({ expectedVersion: draft.draft.version }),
+      },
+      env,
+    );
+    expect(pubRes.status).toBe(200);
+
     const publicImg = await app.request(
       `http://localhost/api/public/files/${png.fileId}`,
       { method: "GET" },

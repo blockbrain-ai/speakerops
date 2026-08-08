@@ -4,6 +4,9 @@
  * MemoryDesignStore is the test / local e2e default (no D1 required).
  * D1DesignStore wraps the Worker DB binding (+ optional R2 FILES) for production.
  * All event-owned queries take eventId (E2).
+ *
+ * Draft updates use optimistic version in WHERE (E1). Upload readiness uses the
+ * dedicated `uploaded` column — never the checksum field.
  */
 import { eq, and } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
@@ -17,6 +20,7 @@ import {
   fileAssets,
 } from "@speakerops/db";
 import type { R2BucketLike } from "../../env.js";
+import { d1Changes } from "../auth/store.js";
 
 export type DesignDraftRow = {
   eventId: string;
@@ -56,7 +60,11 @@ export type FileBlob = {
 
 export type DesignStore = {
   findDraft(eventId: string): Promise<DesignDraftRow | null>;
-  upsertDraft(row: DesignDraftRow): Promise<DesignDraftRow>;
+  /**
+   * Insert or conditional update. On update, expectedVersion must match;
+   * returns false on version conflict (no row changed).
+   */
+  upsertDraft(row: DesignDraftRow, expectedVersion?: number): Promise<boolean>;
   findPublished(eventId: string): Promise<DesignPublishedRow | null>;
   upsertPublished(row: DesignPublishedRow): Promise<DesignPublishedRow>;
   insertFile(row: FileAssetRow): Promise<FileAssetRow>;
@@ -97,9 +105,22 @@ export class MemoryDesignStore implements DesignStore {
     return this.drafts.get(eventId) ?? null;
   }
 
-  async upsertDraft(row: DesignDraftRow): Promise<DesignDraftRow> {
+  async upsertDraft(
+    row: DesignDraftRow,
+    expectedVersion?: number,
+  ): Promise<boolean> {
+    const prev = this.drafts.get(row.eventId);
+    if (prev) {
+      const prior =
+        expectedVersion !== undefined
+          ? expectedVersion
+          : row.version === prev.version
+            ? prev.version // same-version write (e.g. publish brandFg backfill)
+            : row.version - 1;
+      if (prev.version !== prior) return false;
+    }
     this.drafts.set(row.eventId, row);
-    return row;
+    return true;
   }
 
   async findPublished(eventId: string): Promise<DesignPublishedRow | null> {
@@ -112,7 +133,11 @@ export class MemoryDesignStore implements DesignStore {
   }
 
   async insertFile(row: FileAssetRow): Promise<FileAssetRow> {
-    const full = { ...row, uploaded: row.uploaded ?? false };
+    const full = {
+      ...row,
+      uploaded: row.uploaded ?? false,
+      checksum: row.checksum ?? null,
+    };
     this.files.set(this.fileKey(row.eventId, row.id), full);
     this.filesById.set(row.id, full);
     return full;
@@ -140,6 +165,8 @@ export class MemoryDesignStore implements DesignStore {
       ...existing,
       size: patch.size,
       uploaded: patch.uploaded,
+      // checksum is never used as an upload-readiness sentinel
+      checksum: existing.checksum,
     };
     this.files.set(this.fileKey(eventId, fileId), updated);
     this.filesById.set(fileId, updated);
@@ -198,28 +225,42 @@ export class D1DesignStore implements DesignStore {
     };
   }
 
-  async upsertDraft(row: DesignDraftRow): Promise<DesignDraftRow> {
+  async upsertDraft(
+    row: DesignDraftRow,
+    expectedVersion?: number,
+  ): Promise<boolean> {
     const existing = await this.findDraft(row.eventId);
     const tokensJson = JSON.stringify(row.tokens);
     if (existing) {
-      await this.db
+      const prior =
+        expectedVersion !== undefined
+          ? expectedVersion
+          : row.version === existing.version
+            ? existing.version // same-version write (e.g. publish brandFg backfill)
+            : row.version - 1;
+      const result = await this.db
         .update(designTokenDrafts)
         .set({
           tokensJson,
           version: row.version,
           updatedAt: row.updatedAt,
         })
-        .where(eq(designTokenDrafts.eventId, row.eventId));
-    } else {
-      await this.db.insert(designTokenDrafts).values({
-        eventId: row.eventId,
-        tokensJson,
-        version: row.version,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      });
+        .where(
+          and(
+            eq(designTokenDrafts.eventId, row.eventId),
+            eq(designTokenDrafts.version, prior),
+          ),
+        );
+      return d1Changes(result) > 0;
     }
-    return row;
+    await this.db.insert(designTokenDrafts).values({
+      eventId: row.eventId,
+      tokensJson,
+      version: row.version,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+    return true;
   }
 
   async findPublished(eventId: string): Promise<DesignPublishedRow | null> {
@@ -265,9 +306,11 @@ export class D1DesignStore implements DesignStore {
   }
 
   async insertFile(row: FileAssetRow): Promise<FileAssetRow> {
-    const full = { ...row, uploaded: row.uploaded ?? false };
-    // Store upload readiness in checksum field as sentinel when no dedicated column
-    // (schema is fixed for 2.4): null = pending, "uploaded" = ready.
+    const full = {
+      ...row,
+      uploaded: row.uploaded ?? false,
+      checksum: row.checksum ?? null,
+    };
     await this.db.insert(fileAssets).values({
       id: full.id,
       eventId: full.eventId,
@@ -276,9 +319,10 @@ export class D1DesignStore implements DesignStore {
       filename: full.filename,
       mime: full.mime,
       size: full.size,
-      checksum: full.uploaded ? "uploaded" : null,
+      checksum: full.checksum,
       purpose: full.purpose,
       createdAt: full.createdAt,
+      uploaded: full.uploaded ? 1 : 0,
     });
     return full;
   }
@@ -294,6 +338,7 @@ export class D1DesignStore implements DesignStore {
     checksum: string | null;
     purpose: string;
     createdAt: string;
+    uploaded?: number | null;
   }): FileAssetRow {
     return {
       id: row.id,
@@ -306,7 +351,7 @@ export class D1DesignStore implements DesignStore {
       checksum: row.checksum ?? null,
       purpose: row.purpose,
       createdAt: row.createdAt,
-      uploaded: row.checksum === "uploaded",
+      uploaded: (row.uploaded ?? 0) === 1,
     };
   }
 
@@ -346,14 +391,13 @@ export class D1DesignStore implements DesignStore {
       .update(fileAssets)
       .set({
         size: patch.size,
-        checksum: patch.uploaded ? "uploaded" : null,
+        uploaded: patch.uploaded ? 1 : 0,
       })
       .where(and(eq(fileAssets.eventId, eventId), eq(fileAssets.id, fileId)));
     return {
       ...existing,
       size: patch.size,
       uploaded: patch.uploaded,
-      checksum: patch.uploaded ? "uploaded" : null,
     };
   }
 

@@ -183,28 +183,12 @@ describe("2.1 session auth magic link", () => {
     expect(user).toBeTruthy();
   });
 
-  it("controlled bootstrap: unknown email does not self-provision admin after first admin", async () => {
+  it("controlled bootstrap: default-deny when BOOTSTRAP_ADMIN_EMAIL unset", async () => {
     const { app, store, outbox } = createAppWithAuth({
       bootstrapPolicy: "controlled",
     });
 
-    // First admin on empty system is allowed
-    await app.request(
-      "http://localhost/api/auth/magic-link",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email: "first-admin@example.com",
-          purpose: "admin",
-        }),
-      },
-      env,
-    );
-    expect(outbox.lastForEmail("first-admin@example.com")).toBeTruthy();
-    expect(await store.countMembershipsByRole("admin")).toBe(1);
-
-    // Second random admin purpose: still sent:true but no user / no link
+    // No BOOTSTRAP_ADMIN_EMAIL on env → first admin claim is denied (no side effects)
     const res = await app.request(
       "http://localhost/api/auth/magic-link",
       {
@@ -216,6 +200,50 @@ describe("2.1 session auth magic link", () => {
         }),
       },
       env,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ sent: true });
+    expect(await store.findUserByEmail("attacker@example.com")).toBeNull();
+    expect(outbox.lastForEmail("attacker@example.com")).toBeNull();
+    expect(await store.countMembershipsByRole("admin")).toBe(0);
+  });
+
+  it("controlled bootstrap: allowlisted email may claim first admin once", async () => {
+    const { app, store, outbox } = createAppWithAuth({
+      bootstrapPolicy: "controlled",
+    });
+    const bootstrapEnv = {
+      ...env,
+      BOOTSTRAP_ADMIN_EMAIL: "first-admin@example.com",
+    };
+
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "first-admin@example.com",
+          purpose: "admin",
+        }),
+      },
+      bootstrapEnv,
+    );
+    expect(outbox.lastForEmail("first-admin@example.com")).toBeTruthy();
+    expect(await store.countMembershipsByRole("admin")).toBe(1);
+
+    // Non-allowlisted email still denied even on empty-looking request after first admin
+    const res = await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "attacker@example.com",
+          purpose: "admin",
+        }),
+      },
+      bootstrapEnv,
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ sent: true });

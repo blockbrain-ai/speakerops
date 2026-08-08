@@ -274,7 +274,7 @@ export function createPublicDesignRoutes(
   });
 
   /**
-   * GET /files/:fileId — public logo image bytes (uploaded logos only).
+   * GET /files/:fileId — public logo image bytes (published design logo only).
    * Used by public CFP <img src> for logoFileId field flow (C04).
    */
   pub.get("/files/:fileId", async (c) => {

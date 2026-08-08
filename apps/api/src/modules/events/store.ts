@@ -4,6 +4,9 @@
  * MemoryEventsStore is the test / local e2e default (no D1 required).
  * D1EventsStore wraps the Worker DB binding for production (E1 SoR).
  * All event-owned queries take eventId (E2).
+ *
+ * Mutable updates include the prior version in the WHERE clause (E1 optimistic
+ * concurrency) and report false when no row was changed.
  */
 import { eq, and, inArray } from "drizzle-orm";
 import { uuidv7, DEFAULT_ORG_ID } from "@speakerops/shared";
@@ -16,6 +19,7 @@ import {
   rooms,
   tracks,
 } from "@speakerops/db";
+import { d1Changes } from "../auth/store.js";
 
 export type OrgRow = {
   id: string;
@@ -64,13 +68,25 @@ export type EventsStore = {
   findEventBySlug(slug: string): Promise<EventRow | null>;
   listEventsByIds(ids: string[]): Promise<EventRow[]>;
   insertEvent(row: EventRow): Promise<EventRow>;
-  updateEvent(row: EventRow): Promise<EventRow>;
+  /**
+   * Conditional update: WHERE id AND version = expectedVersion.
+   * Returns false on version conflict (no row changed).
+   */
+  updateEvent(row: EventRow, expectedVersion: number): Promise<boolean>;
   findRoom(eventId: string, roomId: string): Promise<RoomRow | null>;
   listRooms(eventId: string): Promise<RoomRow[]>;
-  upsertRoom(row: RoomRow): Promise<RoomRow>;
+  /**
+   * Insert or conditional update. On update, expectedVersion must match;
+   * returns false on version conflict.
+   */
+  upsertRoom(row: RoomRow, expectedVersion?: number): Promise<boolean>;
   findTrack(eventId: string, trackId: string): Promise<TrackRow | null>;
   listTracks(eventId: string): Promise<TrackRow[]>;
-  upsertTrack(row: TrackRow): Promise<TrackRow>;
+  /**
+   * Insert or conditional update. On update, expectedVersion must match;
+   * returns false on version conflict.
+   */
+  upsertTrack(row: TrackRow, expectedVersion?: number): Promise<boolean>;
 };
 
 /** slugify name → kebab-case (ASCII). */
@@ -142,14 +158,15 @@ export class MemoryEventsStore implements EventsStore {
     return row;
   }
 
-  async updateEvent(row: EventRow): Promise<EventRow> {
+  async updateEvent(row: EventRow, expectedVersion: number): Promise<boolean> {
     const prev = this.events.get(row.id);
-    if (prev && prev.slug !== row.slug) {
+    if (!prev || prev.version !== expectedVersion) return false;
+    if (prev.slug !== row.slug) {
       this.eventsBySlug.delete(prev.slug);
     }
     this.events.set(row.id, row);
     this.eventsBySlug.set(row.slug, row.id);
-    return row;
+    return true;
   }
 
   async findRoom(eventId: string, roomId: string): Promise<RoomRow | null> {
@@ -160,9 +177,20 @@ export class MemoryEventsStore implements EventsStore {
     return [...this.rooms.values()].filter((r) => r.eventId === eventId);
   }
 
-  async upsertRoom(row: RoomRow): Promise<RoomRow> {
-    this.rooms.set(this.roomKey(row.eventId, row.id), row);
-    return row;
+  async upsertRoom(row: RoomRow, expectedVersion?: number): Promise<boolean> {
+    const key = this.roomKey(row.eventId, row.id);
+    const prev = this.rooms.get(key);
+    if (prev) {
+      if (expectedVersion !== undefined && prev.version !== expectedVersion) {
+        return false;
+      }
+      if (expectedVersion === undefined && prev.version !== row.version - 1) {
+        // Defend against lost updates when callers omit expectedVersion but bump version.
+        return false;
+      }
+    }
+    this.rooms.set(key, row);
+    return true;
   }
 
   async findTrack(eventId: string, trackId: string): Promise<TrackRow | null> {
@@ -173,9 +201,19 @@ export class MemoryEventsStore implements EventsStore {
     return [...this.tracks.values()].filter((t) => t.eventId === eventId);
   }
 
-  async upsertTrack(row: TrackRow): Promise<TrackRow> {
-    this.tracks.set(this.trackKey(row.eventId, row.id), row);
-    return row;
+  async upsertTrack(row: TrackRow, expectedVersion?: number): Promise<boolean> {
+    const key = this.trackKey(row.eventId, row.id);
+    const prev = this.tracks.get(key);
+    if (prev) {
+      if (expectedVersion !== undefined && prev.version !== expectedVersion) {
+        return false;
+      }
+      if (expectedVersion === undefined && prev.version !== row.version - 1) {
+        return false;
+      }
+    }
+    this.tracks.set(key, row);
+    return true;
   }
 }
 
@@ -268,8 +306,8 @@ export class D1EventsStore implements EventsStore {
     return row;
   }
 
-  async updateEvent(row: EventRow): Promise<EventRow> {
-    await this.db
+  async updateEvent(row: EventRow, expectedVersion: number): Promise<boolean> {
+    const result = await this.db
       .update(events)
       .set({
         orgId: row.orgId,
@@ -282,8 +320,8 @@ export class D1EventsStore implements EventsStore {
         updatedAt: row.updatedAt,
         version: row.version,
       })
-      .where(eq(events.id, row.id));
-    return row;
+      .where(and(eq(events.id, row.id), eq(events.version, expectedVersion)));
+    return d1Changes(result) > 0;
   }
 
   async findRoom(eventId: string, roomId: string): Promise<RoomRow | null> {
@@ -305,10 +343,12 @@ export class D1EventsStore implements EventsStore {
     return rows.map(mapRoom);
   }
 
-  async upsertRoom(row: RoomRow): Promise<RoomRow> {
+  async upsertRoom(row: RoomRow, expectedVersion?: number): Promise<boolean> {
     const existing = await this.findRoom(row.eventId, row.id);
     if (existing) {
-      await this.db
+      const prior =
+        expectedVersion !== undefined ? expectedVersion : row.version - 1;
+      const result = await this.db
         .update(rooms)
         .set({
           name: row.name,
@@ -316,19 +356,25 @@ export class D1EventsStore implements EventsStore {
           updatedAt: row.updatedAt,
           version: row.version,
         })
-        .where(and(eq(rooms.eventId, row.eventId), eq(rooms.id, row.id)));
-    } else {
-      await this.db.insert(rooms).values({
-        id: row.id,
-        eventId: row.eventId,
-        name: row.name,
-        capacity: row.capacity,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        version: row.version,
-      });
+        .where(
+          and(
+            eq(rooms.eventId, row.eventId),
+            eq(rooms.id, row.id),
+            eq(rooms.version, prior),
+          ),
+        );
+      return d1Changes(result) > 0;
     }
-    return row;
+    await this.db.insert(rooms).values({
+      id: row.id,
+      eventId: row.eventId,
+      name: row.name,
+      capacity: row.capacity,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      version: row.version,
+    });
+    return true;
   }
 
   async findTrack(eventId: string, trackId: string): Promise<TrackRow | null> {
@@ -350,10 +396,12 @@ export class D1EventsStore implements EventsStore {
     return rows.map(mapTrack);
   }
 
-  async upsertTrack(row: TrackRow): Promise<TrackRow> {
+  async upsertTrack(row: TrackRow, expectedVersion?: number): Promise<boolean> {
     const existing = await this.findTrack(row.eventId, row.id);
     if (existing) {
-      await this.db
+      const prior =
+        expectedVersion !== undefined ? expectedVersion : row.version - 1;
+      const result = await this.db
         .update(tracks)
         .set({
           name: row.name,
@@ -361,19 +409,25 @@ export class D1EventsStore implements EventsStore {
           updatedAt: row.updatedAt,
           version: row.version,
         })
-        .where(and(eq(tracks.eventId, row.eventId), eq(tracks.id, row.id)));
-    } else {
-      await this.db.insert(tracks).values({
-        id: row.id,
-        eventId: row.eventId,
-        name: row.name,
-        color: row.color,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        version: row.version,
-      });
+        .where(
+          and(
+            eq(tracks.eventId, row.eventId),
+            eq(tracks.id, row.id),
+            eq(tracks.version, prior),
+          ),
+        );
+      return d1Changes(result) > 0;
     }
-    return row;
+    await this.db.insert(tracks).values({
+      id: row.id,
+      eventId: row.eventId,
+      name: row.name,
+      color: row.color,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      version: row.version,
+    });
+    return true;
   }
 }
 
