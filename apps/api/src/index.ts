@@ -13,6 +13,7 @@
  * Section 4.1: Portal.GetHome / Task.Complete / Participation.UpdateProfile
  *             + admin speakers list/detail + task templates O05 (S-PORTAL)
  * Section 4.2: File.PresignUpload headshot/slides + File.CompleteUpload + R2 metadata
+ * Section 5.1: Comms.UpsertTemplate / Preview / Send enqueue (S-COMMS outbox)
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -103,6 +104,15 @@ import {
   createPortalRoutes,
   createEventPortalRoutes,
 } from "./modules/portal/routes.js";
+import {
+  createEventCommsRoutes,
+  createCommsRoutes,
+} from "./modules/comms/routes.js";
+import {
+  MemoryCommsStore,
+  D1CommsStore,
+  type CommsStore,
+} from "./modules/comms/store.js";
 import { registerOpenApiRoute } from "./openapi.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
@@ -125,6 +135,8 @@ export type CreateAppOptions = {
   evalStore?: EvalStore;
   /** Inject decisions store (defaults to in-memory for local/test). */
   decisionsStore?: DecisionsStore;
+  /** Inject comms store (defaults to in-memory for local/test). */
+  commsStore?: CommsStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /** Shared test outbox for magic-link capture. */
@@ -165,6 +177,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     options.submissionsStore ?? new MemorySubmissionsStore();
   const evalStore = options.evalStore ?? new MemoryEvalStore();
   const decisionsStore = options.decisionsStore ?? new MemoryDecisionsStore();
+  const commsStore = options.commsStore ?? new MemoryCommsStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -337,7 +350,21 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Section 4.1 — admin speakers list/detail + task templates (O05)
   app.route("/api/events", createEventPortalRoutes(portalRouteOpts));
 
-  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 — OpenAPI lists domain commands
+  const commsRouteOpts = {
+    store: authStore,
+    events: eventsStore,
+    submissions: submissionsStore,
+    decisions: decisionsStore,
+    comms: commsStore,
+  };
+
+  // Section 5.1 — Comms.UpsertTemplate under /api/events/:eventId/templates/:key
+  app.route("/api/events", createEventCommsRoutes(commsRouteOpts));
+
+  // Section 5.1 — Comms.Preview + Comms.Send (enqueue only, no provider HTTP)
+  app.route("/api/comms", createCommsRoutes(commsRouteOpts));
+
+  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 — OpenAPI lists domain commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);
@@ -362,6 +389,7 @@ export function createAppWithAuth(
   submissions: SubmissionsStore;
   eval: EvalStore;
   decisions: DecisionsStore;
+  comms: CommsStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
@@ -371,6 +399,7 @@ export function createAppWithAuth(
   const submissions = options.submissionsStore ?? new MemorySubmissionsStore();
   const evalStore = options.evalStore ?? new MemoryEvalStore();
   const decisionsStore = options.decisionsStore ?? new MemoryDecisionsStore();
+  const commsStore = options.commsStore ?? new MemoryCommsStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
@@ -381,6 +410,7 @@ export function createAppWithAuth(
     submissionsStore: submissions,
     evalStore,
     decisionsStore,
+    commsStore,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
     // Open bootstrap for e2e/unit tests only — never production.
@@ -395,6 +425,7 @@ export function createAppWithAuth(
     submissions,
     eval: evalStore,
     decisions: decisionsStore,
+    comms: commsStore,
     outbox,
   };
 }
@@ -464,6 +495,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     submissionsStore: new D1SubmissionsStore(d1),
     evalStore: new D1EvalStore(d1),
     decisionsStore: new D1DecisionsStore(d1),
+    commsStore: new D1CommsStore(d1),
     turnstileSecret,
     enableDevOutbox: false,
     bootstrapPolicy: "controlled",

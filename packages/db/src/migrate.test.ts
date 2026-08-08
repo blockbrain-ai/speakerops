@@ -22,6 +22,7 @@ import {
   SUBMISSION_TABLES,
   EVAL_TABLES,
   DECISION_TABLES,
+  COMMS_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -64,6 +65,8 @@ import {
   sessionSpeakers,
   taskTemplates,
   speakerTasks,
+  emailTemplates,
+  messageJobs,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -403,6 +406,33 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(result.applied).toContain("0011_sessions_source_submission_unique.sql");
       // 0014: task_templates.version (E1 mutable aggregate)
       expect(result.applied).toContain("0014_task_templates_version.sql");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("5.1 migration creates email_templates and message_jobs", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "speakerops-db-5.1-"));
+    const dbPath = join(dir, "test.sqlite");
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0015_comms.sql");
+      for (const table of COMMS_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.email_templates).toContain("event_id");
+      expect(columns.email_templates).toContain("key");
+      expect(columns.email_templates).toContain("subject");
+      expect(columns.email_templates).toContain("body_md");
+      expect(columns.email_templates).toContain("version");
+      expect(columns.message_jobs).toContain("template_id");
+      expect(columns.message_jobs).toContain("status");
+      expect(columns.message_jobs).toContain("idempotency_key");
+      expect(emailTemplates).toBeDefined();
+      expect(messageJobs).toBeDefined();
+      expect(schema.emailTemplates).toBe(emailTemplates);
+      expect(schema.messageJobs).toBe(messageJobs);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

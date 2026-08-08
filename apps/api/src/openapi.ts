@@ -1092,6 +1092,131 @@ export const FILE_OPENAPI_PATHS = {
   },
 } as const;
 
+/** OpenAPI paths for Comms.* commands (section 5.1). */
+export const COMMS_OPENAPI_PATHS = {
+  "/api/events/{eventId}/templates/{key}": {
+    put: {
+      operationId: "Comms.UpsertTemplate",
+      summary: "Comms.UpsertTemplate",
+      description:
+        "Create or update an event-scoped email template (subject + body with merge fields). No provider HTTP.",
+      tags: ["Comms"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "key",
+          in: "path",
+          required: true,
+          schema: { type: "string", description: "Template key (e.g. accept-reminder)" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["subject", "body"],
+              properties: {
+                subject: { type: "string" },
+                body: { type: "string" },
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Template updated" },
+        "201": { description: "Template created" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+        "409": { description: "Version conflict" },
+      },
+    },
+  },
+  "/api/comms/preview": {
+    post: {
+      operationId: "Comms.Preview",
+      summary: "Comms.Preview",
+      description:
+        "Render merge fields for a segment; returns recipients, bodies, missingFields. Stores draft message_job.",
+      tags: ["Comms"],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["templateId"],
+              properties: {
+                templateId: { type: "string" },
+                segment: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string" },
+                    participationIds: {
+                      type: "array",
+                      items: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Preview with rendered bodies" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Template not found" },
+      },
+    },
+  },
+  "/api/comms/send": {
+    post: {
+      operationId: "Comms.Send",
+      summary: "Comms.Send",
+      description:
+        "Enqueue send: marks message_job queued and inserts outbox_events (topic comms.send). Never calls provider HTTP (5.2 drains outbox).",
+      tags: ["Comms"],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["previewId", "idempotencyKey"],
+              properties: {
+                previewId: { type: "string" },
+                idempotencyKey: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Idempotent replay" },
+        "201": { description: "Job enqueued" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Preview not found" },
+        "409": { description: "Version conflict" },
+      },
+    },
+  },
+} as const;
+
 /** Commands registered in the OpenAPI document (expand per section). */
 export const OPENAPI_COMMANDS = [
   "Form.Create",
@@ -1124,6 +1249,9 @@ export const OPENAPI_COMMANDS = [
   "File.Upload",
   "File.CompleteUpload",
   "File.GetPublic",
+  "Comms.UpsertTemplate",
+  "Comms.Preview",
+  "Comms.Send",
 ] as const;
 
 export function buildOpenApiDocument(): Record<string, unknown> {
@@ -1133,7 +1261,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
@@ -1141,6 +1269,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...DECISION_OPENAPI_PATHS,
       ...PORTAL_OPENAPI_PATHS,
       ...FILE_OPENAPI_PATHS,
+      ...COMMS_OPENAPI_PATHS,
     },
     tags: [
       { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },
@@ -1153,6 +1282,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       { name: "Portal", description: "Speaker portal tasks + profile (S-PORTAL / 4.1)" },
       { name: "Speakers", description: "Admin speakers list/detail (4.1 API)" },
       { name: "TaskTemplate", description: "On-accept task templates O05 (4.1)" },
+      {
+        name: "Comms",
+        description:
+          "Email templates + outbox enqueue (S-COMMS / 5.1); provider send in 5.2",
+      },
     ],
     "x-speakerops-commands": [...OPENAPI_COMMANDS],
   };

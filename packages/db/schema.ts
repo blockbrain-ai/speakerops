@@ -2,10 +2,12 @@
  * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships
  * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets + 3.1 forms
  * + 3.3 people / submissions + 3.4 eval rounds / criteria / assignments / scores
- * + 3.5 decisions / program sessions / participations / task_templates / speaker_tasks.
+ * + 3.5 decisions / program sessions / participations / task_templates / speaker_tasks
+ * + 5.1 email_templates / message_jobs (S-COMMS outbox enqueue).
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1.
+ * Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
@@ -735,6 +737,71 @@ export const decisionTables = {
   speakerTasks,
 } as const;
 
+/**
+ * email_templates — event-scoped message templates with merge fields (section 5.1 / S-COMMS).
+ * UNIQUE(event_id, key). body_md holds markdown/plaintext with {{mergeField}} tokens.
+ * Optimistic `version` on mutable aggregate (E1).
+ */
+export const emailTemplates = sqliteTable(
+  "email_templates",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    key: text("key").notNull(),
+    subject: text("subject").notNull(),
+    bodyMd: text("body_md").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_email_templates_event_id").on(t.eventId),
+    uniqueIndex("idx_email_templates_event_key").on(t.eventId, t.key),
+  ],
+);
+
+/**
+ * message_jobs — preview drafts + queued sends (section 5.1).
+ * jobs carry idempotency_key (SCHEMA.md). Status preview → queued on enqueue.
+ * Provider delivery is section 5.2; request path only inserts outbox_events (E7).
+ */
+export const messageJobs = sqliteTable(
+  "message_jobs",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => emailTemplates.id),
+    status: text("status").notNull(),
+    segmentJson: text("segment_json").notNull(),
+    recipientsJson: text("recipients_json"),
+    bodiesJson: text("bodies_json"),
+    missingFieldsJson: text("missing_fields_json"),
+    idempotencyKey: text("idempotency_key"),
+    createdBy: text("created_by").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_message_jobs_event_id").on(t.eventId),
+    index("idx_message_jobs_template_id").on(t.templateId),
+    index("idx_message_jobs_status").on(t.status),
+    uniqueIndex("idx_message_jobs_idempotency_key").on(t.idempotencyKey),
+  ],
+);
+
+/** Comms tables owned by section 5.1. */
+export const commsTables = {
+  emailTemplates,
+  messageJobs,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -799,6 +866,10 @@ export type TaskTemplate = typeof taskTemplates.$inferSelect;
 export type NewTaskTemplate = typeof taskTemplates.$inferInsert;
 export type SpeakerTask = typeof speakerTasks.$inferSelect;
 export type NewSpeakerTask = typeof speakerTasks.$inferInsert;
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type NewEmailTemplate = typeof emailTemplates.$inferInsert;
+export type MessageJob = typeof messageJobs.$inferSelect;
+export type NewMessageJob = typeof messageJobs.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -834,4 +905,6 @@ export const schema = {
   sessionSpeakers,
   taskTemplates,
   speakerTasks,
+  emailTemplates,
+  messageJobs,
 } as const;

@@ -38,6 +38,8 @@ export {
   sessionSpeakers,
   taskTemplates,
   speakerTasks,
+  emailTemplates,
+  messageJobs,
   baselineTables,
   authTables,
   membershipTables,
@@ -47,6 +49,7 @@ export {
   submissionTables,
   evalTables,
   decisionTables,
+  commsTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -112,6 +115,10 @@ export {
   type NewTaskTemplate,
   type SpeakerTask,
   type NewSpeakerTask,
+  type EmailTemplate,
+  type NewEmailTemplate,
+  type MessageJob,
+  type NewMessageJob,
 } from "../schema.js";
 
 export {
@@ -146,6 +153,7 @@ export {
   SUBMISSION_TABLES,
   EVAL_TABLES,
   DECISION_TABLES,
+  COMMS_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

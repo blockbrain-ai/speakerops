@@ -170,7 +170,7 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| J01 | admin | Comms | Create/edit template merge fields | e2e/comms/template | — | REQUIRED | OPEN |
+| J01 | admin | Comms | Create/edit template merge fields | e2e/comms/template | — | REQUIRED | IMPLEMENTED |
 | J02 | admin | Comms | Segment audience; count | e2e/comms/segment | — | REQUIRED | OPEN |
 | J03 | admin | Comms | Preview all recipients + body | e2e/comms/preview | Send without preview blocked if product requires | REQUIRED | OPEN |
 | J04 | admin | Comms | Send once; second send idempotent | e2e/comms/send-idempotent | — | REQUIRED | OPEN |

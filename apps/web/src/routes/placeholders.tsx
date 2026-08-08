@@ -93,13 +93,14 @@ export function SchedulePage() {
   );
 }
 
+/** @deprecated Prefer apps/web/src/pages/Comms.tsx (section 5.1). */
 export function CommsPage() {
   return (
     <PageStub
       overline="Comms"
       title="Comms"
       body="Comms compose and send with trust-before-automation land in phase 5."
-      testId="page-comms"
+      testId="page-comms-stub"
     />
   );
 }

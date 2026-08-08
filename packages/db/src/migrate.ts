@@ -296,3 +296,6 @@ export const DECISION_TABLES = [
   "task_templates",
   "speaker_tasks",
 ] as const;
+
+/** Comms table names required by section 5.1 AC. */
+export const COMMS_TABLES = ["email_templates", "message_jobs"] as const;

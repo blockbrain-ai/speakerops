@@ -5,7 +5,8 @@
  * + Public CFP submit (section 3.3) + Eval queue / rubric (section 3.4)
  * + Submissions decisions (section 3.5)
  * + Portal APIs / task templates / admin speakers (section 4.1)
- * + Speaker portal UI G01–G08 (section 4.3).
+ * + Speaker portal UI G01–G08 (section 4.3)
+ * + Comms email templates (section 5.1).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -24,9 +25,9 @@ import { AdminEvaluationsPage } from "./pages/AdminEvaluations.js";
 import { SubmissionsPage } from "./pages/Submissions.js";
 import { TaskTemplatesSettingsPage } from "./pages/TaskTemplatesSettings.js";
 import { SpeakersPage } from "./pages/Speakers.js";
+import { CommsPage } from "./pages/Comms.js";
 import {
   BareLayout,
-  CommsPage,
   NotFoundPage,
   OverviewPage,
   SchedulePage,
