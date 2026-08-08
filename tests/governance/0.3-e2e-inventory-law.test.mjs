@@ -654,6 +654,40 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   
+  
+  it("rejects nested template-expression string import spoof", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "const decoy = `${\"import { test as fake } from '@playwright/test'\"}`;\n" +
+          'fake("@inv:A01 e2e/public/cfp-load nested spoof", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `nested template string spoof must fail:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects bare reassignment of Playwright test binding", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test } from '@playwright/test';\n" +
+          "test = (..._args) => {};\n" +
+          'test("@inv:A01 e2e/public/cfp-load bare reassigned", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `bare reassignment of test must fail:\n${fmtResult(r)}`,
+    );
+  });
+
   it("Phase 8 gate rejects string-literal import spoof + local test rebinding", () => {
     // Auditor regression: decoy string containing import text must not count
     // as a Playwright binding when the real `test` is a local no-op.

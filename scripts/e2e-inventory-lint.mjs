@@ -195,6 +195,28 @@ export function maskStringLiterals(code) {
           let depth = 1;
           while (i < n && depth > 0) {
             const x = code[i];
+            // Nested strings inside ${...} must be masked (anti string-spoof)
+            if (x === "'" || x === '"' || x === "`") {
+              const q = x;
+              result += q;
+              i++;
+              while (i < n) {
+                const y = code[i];
+                if (y === "\\") {
+                  result += "  ";
+                  i += 2;
+                  continue;
+                }
+                if (y === q) {
+                  result += q;
+                  i++;
+                  break;
+                }
+                result += y === "\n" ? "\n" : " ";
+                i++;
+              }
+              continue;
+            }
             if (x === "{") depth++;
             else if (x === "}") depth--;
             result += x;
@@ -350,6 +372,23 @@ export function extractPlaywrightTestBindings(code) {
     );
     if (shadowDecl.test(scan)) {
       bindings.delete(name);
+    }
+    // Bare reassignment without const/let/var (e.g. `test = (...args) => {}`)
+    // also invalidates a prior Playwright binding.
+    const bareAssign = new RegExp(
+      `(?<![.=])\\b${escapeRegExp(name)}\\s*=\\s*(?!=)([^;\\n]+)`,
+      "g",
+    );
+    let ba;
+    while ((ba = bareAssign.exec(scan)) !== null) {
+      const rhs = ba[1].trim().replace(/[;,].*$/, "").trim();
+      const names = [...bindings].map(escapeRegExp).join("|");
+      const validRebind = new RegExp(
+        `^(?:${names})\\s*(?:\\.\\s*extend\\s*\\(|$)`,
+      );
+      if (validRebind.test(rhs)) continue;
+      bindings.delete(name);
+      break;
     }
   }
 
