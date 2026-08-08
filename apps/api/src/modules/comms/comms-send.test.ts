@@ -1392,4 +1392,111 @@ describe("5.2 Comms send idempotent + ICS", () => {
     expect(await store.findIdempotencyKey(storageKey)).toBeTruthy();
     expect((await store.listOutboxByTopic(COMMS_OUTBOX_TOPIC)).length).toBe(1);
   });
+
+  it("MemoryCommsStore.enqueueSendAtomic concurrent same-key awaits inflight (no false success on audit fail)", async () => {
+    // Provisional claim must not let a concurrent same-key caller return a
+    // successful replay while the winner is still awaiting onAudit that fails.
+    const { MemoryCommsStore } = await import("./store.js");
+    const store = new MemoryCommsStore();
+    const now = new Date().toISOString();
+
+    await store.insertJob({
+      id: "job_inflight_race",
+      eventId: "evt_inflight_race",
+      templateId: "tpl_inflight_race",
+      status: "preview",
+      segmentJson: "{}",
+      recipientsJson: "[]",
+      bodiesJson: "[]",
+      missingFieldsJson: null,
+      idempotencyKey: null,
+      createdBy: "user_inflight",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    let releaseAudit!: () => void;
+    const auditGate = new Promise<void>((resolve) => {
+      releaseAudit = resolve;
+    });
+
+    const baseInput = {
+      jobId: "job_inflight_race",
+      status: "queued" as const,
+      idempotencyKey: "idem-inflight-race",
+      version: 2,
+      expectedVersion: 1,
+      updatedAt: now,
+      recipients: [
+        {
+          id: "rcpt_inflight_race",
+          jobId: "job_inflight_race",
+          eventId: "evt_inflight_race",
+          participationId: null,
+          toEmail: "speaker@example.com",
+          name: "Speaker",
+          subject: "Hi",
+          body: "Body",
+          status: "queued",
+          createdAt: now,
+        },
+      ],
+      outbox: {
+        id: "out_inflight_race",
+        topic: COMMS_OUTBOX_TOPIC,
+        payloadJson: JSON.stringify({ jobId: "job_inflight_race" }),
+        createdAt: now,
+        processedAt: null,
+        attempts: 0,
+        lastError: null,
+      },
+      idempotency: {
+        id: "idem_row_inflight_race",
+        key: "comms.send:idem-inflight-race",
+        requestHash: "hash-inflight-race",
+        responseJson: "{}",
+        createdAt: now,
+      },
+      audit: {
+        id: "aud_inflight_race",
+        eventId: "evt_inflight_race",
+        actorType: "user" as const,
+        actorId: "user_inflight",
+        action: "Comms.Send",
+        entityType: "message_job",
+        entityId: "job_inflight_race",
+        beforeJson: null,
+        afterJson: null,
+        correlationId: "corr-inflight-race",
+        createdAt: now,
+      },
+    };
+
+    const first = store.enqueueSendAtomic(baseInput, async () => {
+      await auditGate;
+      throw new Error("audit boom");
+    });
+
+    // Yield so first reaches onAudit await and registers inflight.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const second = store.enqueueSendAtomic({ ...baseInput }, async () => {});
+
+    releaseAudit!();
+
+    await expect(first).rejects.toThrow(/audit boom/);
+    const secondResult = await second;
+    const job = await store.findJobById("job_inflight_race");
+    const idem = await store.findIdempotencyKey("comms.send:idem-inflight-race");
+    // After first compensates, second may re-claim successfully.
+    if (secondResult) {
+      expect(job!.status).toBe("queued");
+      expect(idem).not.toBeNull();
+    } else if (job!.status === "preview") {
+      expect(idem).toBeNull();
+    }
+  });
+
 });

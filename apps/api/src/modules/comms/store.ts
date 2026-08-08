@@ -393,6 +393,12 @@ export class MemoryCommsStore implements CommsStore {
   private byPlacement = new Map<string, string>();
   private byUid = new Map<string, string>();
   private idemKeys = new Map<string, IdempotencyKeyRow>();
+  /**
+   * In-flight enqueue chains keyed by idempotency storage key.
+   * Concurrent callers await the active promise instead of reading provisional
+   * claim state mid-audit (avoids false-success replay if onAudit later fails).
+   */
+  private inflightEnqueues = new Map<string, Promise<MessageJobRow | null>>();
 
   private ek(eventId: string, key: string): string {
     return `${eventId}::${key}`;
@@ -747,90 +753,126 @@ export class MemoryCommsStore implements CommsStore {
    * - J04 same key + same requestHash → only one winner enqueues; loser returns null
    * - Same key + different requestHash → IdempotencyKeyConflictError (409)
    * - Job version CAS loser → null (no orphan recipients/outbox/audit)
-   * - Winner selection is synchronous (no await between check and claim) so
+   * - Winner selection is synchronous within a per-key inflight chain so
    *   concurrent Promise.all callers cannot both pass.
+   * - Concurrent same-key callers await the inflight promise instead of reading
+   *   provisional claim maps mid-onAudit (no false-success if audit fails).
    * - onAudit is part of the atomic unit: if it rejects, compensate the claim
    *   (restore job, drop idempotency, recipients, outbox) so E7/E3 hold.
    *
-   * Design note (do not flip-flop): race safety requires claim-before-await;
-   * cross-store audit (AuthStore) cannot join a true Memory transaction, so
+   * Design note (do not flip-flop): race safety = inflight chain + claim-before-
+   * await; cross-store audit (AuthStore) cannot join a Memory transaction, so
    * compensate-on-audit-failure is the Memory equivalent of D1's single batch.
    */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
     onAudit?: (row: AuditWriteInput) => Promise<void>,
   ): Promise<MessageJobRow | null> {
-    // --- Synchronous critical section (JS single-threaded between awaits) ---
-    // 1) Idempotency key / requestHash (parity with D1 unique index + reconcile).
-    const existingIdem = this.idemKeys.get(input.idempotency.key);
-    if (existingIdem) {
-      if (existingIdem.requestHash !== input.idempotency.requestHash) {
+    const storageKey = input.idempotency.key;
+
+    // Serialize same-key enqueues: concurrent callers await the in-flight
+    // attempt so they never observe provisional claim state mid-onAudit.
+    const prevFlight = this.inflightEnqueues.get(storageKey);
+
+    const run = async (): Promise<MessageJobRow | null> => {
+      if (prevFlight) {
+        try {
+          await prevFlight;
+        } catch {
+          // Prior attempt failed/compensated — fall through to re-check state.
+        }
+      }
+
+      // --- Committed-state critical section (no await until claim is done) ---
+      // 1) Idempotency key / requestHash (parity with D1 unique index).
+      const existingIdem = this.idemKeys.get(storageKey);
+      if (existingIdem) {
+        if (existingIdem.requestHash !== input.idempotency.requestHash) {
+          throw new IdempotencyKeyConflictError(input.idempotencyKey);
+        }
+        // Same request already committed — this call did not perform enqueue.
+        return null;
+      }
+
+      // Partial unique on message_jobs.idempotency_key: another job holds key.
+      const holderJobId = this.byIdempotency.get(input.idempotencyKey);
+      if (holderJobId !== undefined && holderJobId !== input.jobId) {
         throw new IdempotencyKeyConflictError(input.idempotencyKey);
       }
-      // Same request already recorded — this call did not perform the enqueue.
-      return null;
-    }
 
-    // Partial unique on message_jobs.idempotency_key: another job holds the key.
-    const holderJobId = this.byIdempotency.get(input.idempotencyKey);
-    if (holderJobId !== undefined && holderJobId !== input.jobId) {
-      throw new IdempotencyKeyConflictError(input.idempotencyKey);
-    }
+      // 2) Job version CAS — must win to enqueue.
+      const existing = this.jobs.get(input.jobId);
+      if (!existing) return null;
+      if (existing.version !== input.expectedVersion) return null;
+      if (input.version !== input.expectedVersion + 1) return null;
 
-    // 2) Job version CAS — must win to enqueue.
-    const existing = this.jobs.get(input.jobId);
-    if (!existing) return null;
-    if (existing.version !== input.expectedVersion) return null;
-    if (input.version !== input.expectedVersion + 1) return null;
+      // Snapshot for compensate-on-audit-failure (E7/E3).
+      const priorJob: MessageJobRow = { ...existing };
+      const priorByIdempotencyHadKey = this.byIdempotency.has(
+        input.idempotencyKey,
+      );
+      const priorByIdempotencyValue = this.byIdempotency.get(
+        input.idempotencyKey,
+      );
+      const recipientIds = input.recipients.map((r) => r.id);
+      const outboxId = input.outbox.id;
 
-    // Snapshot pre-claim state for compensate-on-audit-failure (E7/E3).
-    const priorJob: MessageJobRow = { ...existing };
-    const priorByIdempotencyHadKey = this.byIdempotency.has(input.idempotencyKey);
-    const priorByIdempotencyValue = this.byIdempotency.get(input.idempotencyKey);
-    const recipientIds = input.recipients.map((r) => r.id);
-    const outboxId = input.outbox.id;
+      // 3) Claim job + side effects before await (race-safe under JS
+      // single-thread + inflight chain above).
+      const next: MessageJobRow = {
+        ...existing,
+        status: input.status,
+        version: input.version,
+        updatedAt: input.updatedAt,
+        idempotencyKey: input.idempotencyKey,
+      };
+      this.jobs.set(input.jobId, next);
+      this.byIdempotency.set(input.idempotencyKey, input.jobId);
+      this.idemKeys.set(storageKey, { ...input.idempotency });
+      for (const r of input.recipients) {
+        this.recipients.set(r.id, { ...r });
+      }
+      this.outbox.push({ ...input.outbox });
 
-    // 3) Claim job + idempotency + side effects before any await so concurrent
-    // callers cannot both observe an empty key and both transition to queued.
-    const next: MessageJobRow = {
-      ...existing,
-      status: input.status,
-      version: input.version,
-      updatedAt: input.updatedAt,
-      idempotencyKey: input.idempotencyKey,
+      // 4) Audit is part of the atomic unit. If it rejects, compensate so
+      // concurrent waiters never see a durable success for a rolled-back claim.
+      if (onAudit) {
+        try {
+          await onAudit(input.audit);
+        } catch (err) {
+          this.jobs.set(input.jobId, priorJob);
+          if (
+            priorByIdempotencyHadKey &&
+            priorByIdempotencyValue !== undefined
+          ) {
+            this.byIdempotency.set(
+              input.idempotencyKey,
+              priorByIdempotencyValue,
+            );
+          } else {
+            this.byIdempotency.delete(input.idempotencyKey);
+          }
+          this.idemKeys.delete(storageKey);
+          for (const id of recipientIds) {
+            this.recipients.delete(id);
+          }
+          const outIdx = this.outbox.findIndex((r) => r.id === outboxId);
+          if (outIdx >= 0) this.outbox.splice(outIdx, 1);
+          throw err;
+        }
+      }
+      return { ...next };
     };
-    this.jobs.set(input.jobId, next);
-    this.byIdempotency.set(input.idempotencyKey, input.jobId);
-    this.idemKeys.set(input.idempotency.key, { ...input.idempotency });
-    for (const r of input.recipients) {
-      this.recipients.set(r.id, { ...r });
-    }
-    this.outbox.push({ ...input.outbox });
-    // --- end synchronous claim ---
 
-    // Audit is part of the atomic unit. Memory cannot co-commit AuthStore with
-    // CommsStore maps; if onAudit rejects, compensate the claim so we never
-    // leave job queued + outbox deliverable + idempotency stored without audit.
-    if (onAudit) {
-      try {
-        await onAudit(input.audit);
-      } catch (err) {
-        this.jobs.set(input.jobId, priorJob);
-        if (priorByIdempotencyHadKey && priorByIdempotencyValue !== undefined) {
-          this.byIdempotency.set(input.idempotencyKey, priorByIdempotencyValue);
-        } else {
-          this.byIdempotency.delete(input.idempotencyKey);
-        }
-        this.idemKeys.delete(input.idempotency.key);
-        for (const id of recipientIds) {
-          this.recipients.delete(id);
-        }
-        const outIdx = this.outbox.findIndex((r) => r.id === outboxId);
-        if (outIdx >= 0) this.outbox.splice(outIdx, 1);
-        throw err;
+    const flight = run();
+    this.inflightEnqueues.set(storageKey, flight);
+    try {
+      return await flight;
+    } finally {
+      if (this.inflightEnqueues.get(storageKey) === flight) {
+        this.inflightEnqueues.delete(storageKey);
       }
     }
-    return { ...next };
   }
 }
 
