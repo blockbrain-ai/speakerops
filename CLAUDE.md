@@ -84,5 +84,5 @@ Section Runner runs implementation phases inside this workspace. Stay within the
 
 - Exit claim: **`dogfood_ready`** (Cloudflare dogfood deploy + full browser E2E green + onboarding docs).
 - Do not shrink REQUIRED inventory; only owner **DEFER** removes a row from the required PASS set.
-- Intermediate inventory lint requires `@inv` on **Playwright-bound** `test()` for **IMPLEMENTED/PASS/FAIL** rows (empty/missing e2e root is a failure when any status-owned ID exists; all-OPEN pre-harness may defer). Phase 8 gate enforces **status PASS** + Playwright-bound `@inv` for every non-DEFER REQUIRED ID (local no-op `const test = …` does not count).
+- Intermediate inventory lint requires `@inv` on **Playwright-bound** `test()` for **IMPLEMENTED/PASS/FAIL** rows (empty/missing e2e root is a failure when any status-owned ID exists; all-OPEN pre-harness may defer). Phase 8 gate enforces **status PASS** + Playwright-bound `@inv` + a **run report** with **passed, non-skipped** results for every non-DEFER REQUIRED ID (`playwright test --list` / describe.skip / local no-op `const test = …` do not count).
 - Mainline product work is section-runner driven; do not push directly around the pipeline from inside a section without following gate rules.
