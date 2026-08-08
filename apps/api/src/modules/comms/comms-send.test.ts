@@ -1490,13 +1490,158 @@ describe("5.2 Comms send idempotent + ICS", () => {
     const secondResult = await second;
     const job = await store.findJobById("job_inflight_race");
     const idem = await store.findIdempotencyKey("comms.send:idem-inflight-race");
-    // After first compensates, second may re-claim successfully.
+    // After first drops provisional, second may re-claim successfully.
     if (secondResult) {
       expect(job!.status).toBe("queued");
       expect(idem).not.toBeNull();
     } else if (job!.status === "preview") {
       expect(idem).toBeNull();
     }
+  });
+
+  it("MemoryCommsStore public preflight reads never return provisional success mid-onAudit", async () => {
+    // Phase-audit major: sendComms preflight findIdempotencyKey /
+    // findJobByIdempotencyKey must not observe a claim that can still roll back.
+    // Provisional fences stay outside committed maps; readers await inflight.
+    const { MemoryCommsStore } = await import("./store.js");
+    const store = new MemoryCommsStore();
+    const now = new Date().toISOString();
+    const userKey = "idem-preflight-race";
+    const storageKey = `comms.send:${userKey}`;
+
+    await store.insertJob({
+      id: "job_preflight_race",
+      eventId: "evt_preflight_race",
+      templateId: "tpl_preflight_race",
+      status: "preview",
+      segmentJson: "{}",
+      recipientsJson: "[]",
+      bodiesJson: "[]",
+      missingFieldsJson: null,
+      idempotencyKey: null,
+      createdBy: "user_preflight",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    let releaseAudit!: () => void;
+    const auditGate = new Promise<void>((resolve) => {
+      releaseAudit = resolve;
+    });
+
+    const responseJson = JSON.stringify({
+      job: { id: "job_preflight_race", status: "queued" },
+      enqueued: true,
+    });
+
+    const first = store.enqueueSendAtomic(
+      {
+        jobId: "job_preflight_race",
+        status: "queued",
+        idempotencyKey: userKey,
+        version: 2,
+        expectedVersion: 1,
+        updatedAt: now,
+        recipients: [
+          {
+            id: "rcpt_preflight_race",
+            jobId: "job_preflight_race",
+            eventId: "evt_preflight_race",
+            participationId: null,
+            toEmail: "speaker@example.com",
+            name: "Speaker",
+            subject: "Hi",
+            body: "Body",
+            status: "queued",
+            createdAt: now,
+          },
+        ],
+        outbox: {
+          id: "out_preflight_race",
+          topic: COMMS_OUTBOX_TOPIC,
+          payloadJson: JSON.stringify({ jobId: "job_preflight_race" }),
+          createdAt: now,
+          processedAt: null,
+          attempts: 0,
+          lastError: null,
+        },
+        idempotency: {
+          id: "idem_row_preflight_race",
+          key: storageKey,
+          requestHash: "hash-preflight-race",
+          responseJson,
+          createdAt: now,
+        },
+        audit: {
+          id: "aud_preflight_race",
+          eventId: "evt_preflight_race",
+          actorType: "user",
+          actorId: "user_preflight",
+          action: "Comms.Send",
+          entityType: "message_job",
+          entityId: "job_preflight_race",
+          beforeJson: null,
+          afterJson: null,
+          correlationId: "corr-preflight-race",
+          createdAt: now,
+        },
+      },
+      async () => {
+        await auditGate;
+        throw new Error("audit boom preflight");
+      },
+    );
+
+    // Reach onAudit await (provisional fence held; committed maps still empty).
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Synchronous committed-map probe (must not see provisional publish).
+    // find* methods await inflight; raw post-await result must be null after fail.
+    const midJobById = await store.findJobById("job_preflight_race");
+    expect(midJobById!.status).toBe("preview");
+    expect(midJobById!.idempotencyKey).toBeNull();
+    expect(midJobById!.version).toBe(1);
+
+    const midOutbox = await store.listUnprocessedOutboxByTopic(COMMS_OUTBOX_TOPIC);
+    expect(midOutbox.find((r) => r.id === "out_preflight_race")).toBeUndefined();
+
+    // Preflight boundary used by sendComms — must reconcile inflight and then
+    // observe compensation (null), never a cached success body.
+    const preflightIdemP = store.findIdempotencyKey(storageKey);
+    const preflightJobP = store.findJobByIdempotencyKey(userKey);
+
+    // Neither preflight read may resolve to a success payload while audit pending.
+    // Give them a microtask; they should still be pending (awaiting inflight).
+    let idemSettled = false;
+    let jobSettled = false;
+    void preflightIdemP.then(() => {
+      idemSettled = true;
+    });
+    void preflightJobP.then(() => {
+      jobSettled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(idemSettled).toBe(false);
+    expect(jobSettled).toBe(false);
+
+    releaseAudit!();
+
+    await expect(first).rejects.toThrow(/audit boom preflight/);
+    expect(await preflightIdemP).toBeNull();
+    expect(await preflightJobP).toBeNull();
+
+    const job = await store.findJobById("job_preflight_race");
+    expect(job!.status).toBe("preview");
+    expect(job!.version).toBe(1);
+    expect(await store.findIdempotencyKey(storageKey)).toBeNull();
+    expect(
+      (await store.listUnprocessedOutboxByTopic(COMMS_OUTBOX_TOPIC)).find(
+        (r) => r.id === "out_preflight_race",
+      ),
+    ).toBeUndefined();
   });
 
 });

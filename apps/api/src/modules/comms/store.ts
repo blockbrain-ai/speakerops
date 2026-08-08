@@ -331,9 +331,9 @@ export type CommsStore = {
    *
    * D1: single batch + transition-token gate + unique idempotency_keys reconcile
    *     (audit_events in the same batch; onAudit ignored).
-   * Memory: synchronous check+claim (no await between) so Promise.all races
-   *     cannot both pass; await onAudit after claim; compensate/rollback the
-   *     claim if onAudit rejects so the unit stays atomic across AuthStore.
+   * Memory: provisional fences outside committed maps + per-key inflight chain;
+   *     commit maps only after onAudit succeeds so public preflight reads never
+   *     return a success that can still roll back.
    *
    * @param onAudit Memory/tests: write audit into AuthStore so listAudits works.
    *   D1 ignores this and inserts audit_events inside the same batch.
@@ -394,11 +394,25 @@ export class MemoryCommsStore implements CommsStore {
   private byUid = new Map<string, string>();
   private idemKeys = new Map<string, IdempotencyKeyRow>();
   /**
-   * In-flight enqueue chains keyed by idempotency storage key.
-   * Concurrent callers await the active promise instead of reading provisional
-   * claim state mid-audit (avoids false-success replay if onAudit later fails).
+   * In-flight enqueue chains keyed by idempotency storage key (`comms.send:…`).
+   * Concurrent enqueueSendAtomic callers chain here. Preflight readers
+   * (findIdempotencyKey / findJobByIdempotencyKey) also await so they never
+   * observe or race a claim that may still compensate.
    */
   private inflightEnqueues = new Map<string, Promise<MessageJobRow | null>>();
+  /**
+   * Same flights indexed by user-facing idempotency key (no prefix) so
+   * findJobByIdempotencyKey can reconcile without knowing the storage prefix.
+   */
+  private inflightByUserKey = new Map<string, Promise<MessageJobRow | null>>();
+  /**
+   * Provisional (uncommitted) fences while onAudit is in flight.
+   * Never published through committed maps — public reads only see post-audit
+   * state. Writers use these for exclusive CAS across concurrent enqueues.
+   */
+  private provisionalJobIds = new Set<string>();
+  private provisionalUserKeys = new Set<string>();
+  private provisionalIdemHashes = new Map<string, string>();
 
   private ek(eventId: string, key: string): string {
     return `${eventId}::${key}`;
@@ -406,6 +420,21 @@ export class MemoryCommsStore implements CommsStore {
 
   private pk(eventId: string, placementId: string): string {
     return `${eventId}::${placementId}`;
+  }
+
+  /**
+   * Await any in-flight enqueue for a storage or user key, then return.
+   * Swallows rejection (compensated failure) so readers re-check committed maps.
+   */
+  private async awaitInflight(
+    flight: Promise<MessageJobRow | null> | undefined,
+  ): Promise<void> {
+    if (!flight) return;
+    try {
+      await flight;
+    } catch {
+      // Compensated / failed — committed maps are the source of truth.
+    }
   }
 
   async findTemplateByEventKey(
@@ -474,6 +503,9 @@ export class MemoryCommsStore implements CommsStore {
   }
 
   async findJobByIdempotencyKey(key: string): Promise<MessageJobRow | null> {
+    // Reconcile inflight so sendComms preflight never replays a provisional
+    // claim that may still roll back when onAudit fails.
+    await this.awaitInflight(this.inflightByUserKey.get(key));
     const id = this.byIdempotency.get(key);
     if (!id) return null;
     const row = this.jobs.get(id);
@@ -728,6 +760,9 @@ export class MemoryCommsStore implements CommsStore {
   }
 
   async findIdempotencyKey(key: string): Promise<IdempotencyKeyRow | null> {
+    // Reconcile inflight so sendComms preflight never returns a cached success
+    // for a claim that is still awaiting onAudit (and may compensate).
+    await this.awaitInflight(this.inflightEnqueues.get(key));
     const row = this.idemKeys.get(key);
     return row ? { ...row } : null;
   }
@@ -755,23 +790,29 @@ export class MemoryCommsStore implements CommsStore {
    * - Job version CAS loser → null (no orphan recipients/outbox/audit)
    * - Winner selection is synchronous within a per-key inflight chain so
    *   concurrent Promise.all callers cannot both pass.
-   * - Concurrent same-key callers await the inflight promise instead of reading
-   *   provisional claim maps mid-onAudit (no false-success if audit fails).
-   * - onAudit is part of the atomic unit: if it rejects, compensate the claim
-   *   (restore job, drop idempotency, recipients, outbox) so E7/E3 hold.
+   * - Provisional claims stay *outside* committed maps until onAudit succeeds
+   *   (public preflight reads cannot return false success for a claim that
+   *   later compensates). Writers fence via provisionalJobIds / provisional
+   *   key sets + the inflight chain.
+   * - findIdempotencyKey / findJobByIdempotencyKey await the relevant inflight
+   *   so sendComms preflight reconciles before replaying.
+   * - onAudit is part of the atomic unit: if it rejects, drop the provisional
+   *   fence only (committed maps were never mutated).
    *
-   * Design note (do not flip-flop): race safety = inflight chain + claim-before-
-   * await; cross-store audit (AuthStore) cannot join a Memory transaction, so
-   * compensate-on-audit-failure is the Memory equivalent of D1's single batch.
+   * Design note (do not flip-flop): race safety = inflight chain + provisional
+   * fences outside committed maps; cross-store audit (AuthStore) cannot join a
+   * Memory transaction, so commit-after-onAudit is the Memory equivalent of
+   * D1's single batch (no compensate-from-committed needed).
    */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
     onAudit?: (row: AuditWriteInput) => Promise<void>,
   ): Promise<MessageJobRow | null> {
     const storageKey = input.idempotency.key;
+    const userKey = input.idempotencyKey;
 
     // Serialize same-key enqueues: concurrent callers await the in-flight
-    // attempt so they never observe provisional claim state mid-onAudit.
+    // attempt so they never race the provisional fence mid-onAudit.
     const prevFlight = this.inflightEnqueues.get(storageKey);
 
     const run = async (): Promise<MessageJobRow | null> => {
@@ -779,12 +820,12 @@ export class MemoryCommsStore implements CommsStore {
         try {
           await prevFlight;
         } catch {
-          // Prior attempt failed/compensated — fall through to re-check state.
+          // Prior attempt failed — provisional fence cleared; re-check state.
         }
       }
 
-      // --- Committed-state critical section (no await until claim is done) ---
-      // 1) Idempotency key / requestHash (parity with D1 unique index).
+      // --- Critical section (no await until provisional fence is registered) ---
+      // 1) Committed idempotency key / requestHash (parity with D1 unique index).
       const existingIdem = this.idemKeys.get(storageKey);
       if (existingIdem) {
         if (existingIdem.requestHash !== input.idempotency.requestHash) {
@@ -794,31 +835,37 @@ export class MemoryCommsStore implements CommsStore {
         return null;
       }
 
-      // Partial unique on message_jobs.idempotency_key: another job holds key.
-      const holderJobId = this.byIdempotency.get(input.idempotencyKey);
-      if (holderJobId !== undefined && holderJobId !== input.jobId) {
+      // Provisional same-key with different hash (should be gone after await
+      // prevFlight; keep as belt-and-suspenders for chain edge cases).
+      const provHash = this.provisionalIdemHashes.get(storageKey);
+      if (
+        provHash !== undefined &&
+        provHash !== input.idempotency.requestHash
+      ) {
         throw new IdempotencyKeyConflictError(input.idempotencyKey);
       }
 
-      // 2) Job version CAS — must win to enqueue.
+      // Partial unique on message_jobs.idempotency_key: another job holds key.
+      const holderJobId = this.byIdempotency.get(userKey);
+      if (holderJobId !== undefined && holderJobId !== input.jobId) {
+        throw new IdempotencyKeyConflictError(input.idempotencyKey);
+      }
+      // Provisional user-key fence held by a different job.
+      if (
+        this.provisionalUserKeys.has(userKey) &&
+        !this.provisionalJobIds.has(input.jobId)
+      ) {
+        throw new IdempotencyKeyConflictError(input.idempotencyKey);
+      }
+
+      // 2) Job version CAS — must win against committed + provisional fences.
       const existing = this.jobs.get(input.jobId);
       if (!existing) return null;
       if (existing.version !== input.expectedVersion) return null;
       if (input.version !== input.expectedVersion + 1) return null;
+      // Another enqueue holds an uncommitted claim on this job (diff key race).
+      if (this.provisionalJobIds.has(input.jobId)) return null;
 
-      // Snapshot for compensate-on-audit-failure (E7/E3).
-      const priorJob: MessageJobRow = { ...existing };
-      const priorByIdempotencyHadKey = this.byIdempotency.has(
-        input.idempotencyKey,
-      );
-      const priorByIdempotencyValue = this.byIdempotency.get(
-        input.idempotencyKey,
-      );
-      const recipientIds = input.recipients.map((r) => r.id);
-      const outboxId = input.outbox.id;
-
-      // 3) Claim job + side effects before await (race-safe under JS
-      // single-thread + inflight chain above).
       const next: MessageJobRow = {
         ...existing,
         status: input.status,
@@ -826,51 +873,53 @@ export class MemoryCommsStore implements CommsStore {
         updatedAt: input.updatedAt,
         idempotencyKey: input.idempotencyKey,
       };
-      this.jobs.set(input.jobId, next);
-      this.byIdempotency.set(input.idempotencyKey, input.jobId);
-      this.idemKeys.set(storageKey, { ...input.idempotency });
-      for (const r of input.recipients) {
-        this.recipients.set(r.id, { ...r });
-      }
-      this.outbox.push({ ...input.outbox });
 
-      // 4) Audit is part of the atomic unit. If it rejects, compensate so
-      // concurrent waiters never see a durable success for a rolled-back claim.
-      if (onAudit) {
-        try {
+      // 3) Provisional fence only — do NOT publish to committed maps yet.
+      // Public store reads (findIdempotencyKey, findJobByIdempotencyKey,
+      // findJobById, listOutbox, …) stay on pre-enqueue state until onAudit ok.
+      this.provisionalJobIds.add(input.jobId);
+      this.provisionalUserKeys.add(userKey);
+      this.provisionalIdemHashes.set(
+        storageKey,
+        input.idempotency.requestHash,
+      );
+
+      try {
+        // 4) Audit is part of the atomic unit.
+        if (onAudit) {
           await onAudit(input.audit);
-        } catch (err) {
-          this.jobs.set(input.jobId, priorJob);
-          if (
-            priorByIdempotencyHadKey &&
-            priorByIdempotencyValue !== undefined
-          ) {
-            this.byIdempotency.set(
-              input.idempotencyKey,
-              priorByIdempotencyValue,
-            );
-          } else {
-            this.byIdempotency.delete(input.idempotencyKey);
-          }
-          this.idemKeys.delete(storageKey);
-          for (const id of recipientIds) {
-            this.recipients.delete(id);
-          }
-          const outIdx = this.outbox.findIndex((r) => r.id === outboxId);
-          if (outIdx >= 0) this.outbox.splice(outIdx, 1);
-          throw err;
         }
+
+        // 5) Commit: only after onAudit succeeds (or no onAudit).
+        this.jobs.set(input.jobId, next);
+        this.byIdempotency.set(userKey, input.jobId);
+        this.idemKeys.set(storageKey, { ...input.idempotency });
+        for (const r of input.recipients) {
+          this.recipients.set(r.id, { ...r });
+        }
+        this.outbox.push({ ...input.outbox });
+        return { ...next };
+      } catch (err) {
+        // Provisional never hit committed maps — nothing to compensate there.
+        throw err;
+      } finally {
+        this.provisionalJobIds.delete(input.jobId);
+        this.provisionalUserKeys.delete(userKey);
+        this.provisionalIdemHashes.delete(storageKey);
       }
-      return { ...next };
     };
 
     const flight = run();
     this.inflightEnqueues.set(storageKey, flight);
+    this.inflightByUserKey.set(userKey, flight);
     try {
       return await flight;
     } finally {
       if (this.inflightEnqueues.get(storageKey) === flight) {
         this.inflightEnqueues.delete(storageKey);
+      }
+      if (this.inflightByUserKey.get(userKey) === flight) {
+        this.inflightByUserKey.delete(userKey);
       }
     }
   }
