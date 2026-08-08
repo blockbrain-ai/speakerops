@@ -333,6 +333,7 @@ describe("0.3 Browser E2E inventory law", () => {
     ensureEmptyE2eRoot = false,
     e2eFiles = null,
     fullGate = false,
+    constitutionBody = null,
   }) {
     const probe = mkdtempSync(join(tmpdir(), "spo-e2e-probe-"));
     try {
@@ -340,6 +341,13 @@ describe("0.3 Browser E2E inventory law", () => {
       if (inventoryMutate) inv = inventoryMutate(inv);
       const invPath = join(probe, "BROWSER_E2E_INVENTORY.md");
       writeFileSync(invPath, inv, "utf8");
+
+      /** @type {string | undefined} */
+      let constitutionPath;
+      if (constitutionBody != null) {
+        constitutionPath = join(probe, "00_CONSTITUTION.md");
+        writeFileSync(constitutionPath, constitutionBody, "utf8");
+      }
 
       const e2eDir = join(probe, "playwright", "e2e");
       /** @type {string[]} */
@@ -366,6 +374,7 @@ describe("0.3 Browser E2E inventory law", () => {
         e2eRoots,
         fullGate,
         silent: true,
+        ...(constitutionPath ? { constitutionPath } : {}),
       });
       return {
         status: result.exitCode,
@@ -376,6 +385,23 @@ describe("0.3 Browser E2E inventory law", () => {
     } finally {
       rmSync(probe, { recursive: true, force: true });
     }
+  }
+
+  /** Minimal constitution Article 0 DEFER table authorizing the given inventory IDs. */
+  function constitutionWithOwnerDefers(ids) {
+    const rows = ids
+      .map(
+        (id) =>
+          `| ${id} | owner-approved defer for inventory gate test | 2026-08-08 | owner |`,
+      )
+      .join("\n");
+    return (
+      `# Constitution\n\n` +
+      `**DEFER rows** (owner only; not PASS):\n\n` +
+      `| Soul / item | Reason | Date | Owner |\n` +
+      `|-------------|--------|------|-------|\n` +
+      `${rows || "| *(none yet)* | | | |"}\n`
+    );
   }
 
   function markA01Implemented(inv) {
@@ -492,6 +518,45 @@ describe("0.3 Browser E2E inventory law", () => {
       r.status,
       0,
       `expected pass with base.extend rebind:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("accepts typed fixture rebind (base.extend<MyFixtures>) as Playwright-bound", () => {
+    // Auditor regression: TypeScript generic args on .extend must not break
+    // Playwright binding detection (const test = base.extend<MyFixtures>({...})).
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test as base } from '@playwright/test';\n" +
+          "type MyFixtures = { foo: string };\n" +
+          "const test = base.extend<MyFixtures>({\n" +
+          "  foo: async ({}, use) => { await use('x'); },\n" +
+          "});\n" +
+          'test("@inv:A01 e2e/public/cfp-load typed extend", async () => {});\n',
+      },
+    });
+    assert.equal(
+      r.status,
+      0,
+      `expected pass with base.extend<MyFixtures> rebind:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("accepts nested generic fixture rebind (base.extend<Foo<Bar>>)", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test as base } from '@playwright/test';\n" +
+          "const test = base.extend<Foo<Bar>>({});\n" +
+          'test("@inv:A01 e2e/public/cfp-load nested generic extend", async () => {});\n',
+      },
+    });
+    assert.equal(
+      r.status,
+      0,
+      `expected pass with nested generic extend:\n${fmtResult(r)}`,
     );
   });
 
@@ -650,6 +715,116 @@ describe("0.3 Browser E2E inventory law", () => {
       `${r.stderr}\n${r.stdout}`,
       /must have status PASS|not PASS|Phase 8 full gate/i,
       `phase8 must diagnose non-PASS status:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects mass DEFER without owner amendments (anti greenwash)", () => {
+    // Auditor critical: marking all 108 rows DEFER + one empty placeholder
+    // test file must NOT yield "0 non-DEFER REQUIRED rows are PASS".
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    const r = runLintInProbe({
+      inventoryMutate: (inv) =>
+        inv.replace(
+          /^(\| [A-Z]\d{2} \|(?:[^|]*\|){6} )(?:OPEN|IMPLEMENTED|PASS|FAIL|DEFER) \|/gm,
+          "$1DEFER |",
+        ),
+      e2eFiles: {
+        "placeholder.spec.ts":
+          "import { test } from '@playwright/test';\n" +
+          'test("empty placeholder", async () => {});\n',
+      },
+      fullGate: true,
+      // Explicit empty owner table — no authorized DEFER
+      constitutionBody: constitutionWithOwnerDefers([]),
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must fail mass DEFER without owner amendment:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /owner amendment|unauthorized DEFER|DEFER without owner/i,
+      `phase8 must diagnose unauthorized DEFER:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects single inventory DEFER without constitution owner amendment", () => {
+    const r = runLintInProbe({
+      inventoryMutate: (inv) =>
+        inv.replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 DEFER |"),
+      constitutionBody: constitutionWithOwnerDefers([]),
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `unauthorized A01 DEFER must fail:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /owner amendment|A01/i,
+      `must name unauthorized DEFER ID:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate exempts owner-authorized DEFER from PASS set", () => {
+    // A01 DEFER with constitution record; all other rows PASS + @inv map.
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids.filter((id) => id !== "A01");
+    const body =
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") + "\n";
+    const r = runLintInProbe({
+      inventoryMutate: (inv) => {
+        let out = markAllStatusesPass(inv);
+        out = out.replace(
+          /^(\| A01 \|.*\| REQUIRED \|) PASS \|/m,
+          "$1 DEFER |",
+        );
+        return out;
+      },
+      e2eFiles: { "full-map-minus-a01.spec.ts": pwSource(body) },
+      fullGate: true,
+      constitutionBody: constitutionWithOwnerDefers(["A01"]),
+    });
+    assert.equal(
+      r.status,
+      0,
+      `phase8 must pass with owner-authorized A01 DEFER + rest PASS:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stdout}`,
+      /owner-authorized DEFER|authorized by owner amendment/i,
+      `stdout should note owner DEFER exemption:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects DEFER with empty reason/date/owner placeholder amendment", () => {
+    const r = runLintInProbe({
+      inventoryMutate: (inv) =>
+        inv.replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 DEFER |"),
+      constitutionBody:
+        `# Constitution\n\n` +
+        `**DEFER rows** (owner only; not PASS):\n\n` +
+        `| Soul / item | Reason | Date | Owner |\n` +
+        `|-------------|--------|------|-------|\n` +
+        `| A01 | | | |\n`,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `empty amendment fields must not authorize DEFER:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /owner amendment|A01/i,
+      `must reject empty-field DEFER amendment:\n${fmtResult(r)}`,
     );
   });
 

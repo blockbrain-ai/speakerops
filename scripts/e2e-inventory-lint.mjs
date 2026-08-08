@@ -416,7 +416,8 @@ export function stringLiteralBitmap(code) {
  * Counts as a Playwright test binding when:
  * - imported as `test` (or `test as alias`) from `@playwright/test`, or
  * - rebound via `const x = <binding>` / `const x = <binding>.extend(...)`
- *   (standard fixture pattern).
+ *   / `const x = <binding>.extend<MyFixtures>(...)` (standard fixture pattern;
+ *   TypeScript generic type arguments on `.extend` are supported).
  *
  * Import detection runs on string-masked source so decoy string literals cannot
  * spoof `import { test } from '@playwright/test'`. Module specifiers after
@@ -471,19 +472,127 @@ export function extractPlaywrightTestBindings(code) {
 
   if (bindings.size === 0) return bindings;
 
+  /**
+   * Collect const/let/var declarators and extract RHS with multi-line support
+   * for `base.extend<T>({ ... })` fixture objects.
+   *
+   * @returns {{ name: string, rhs: string, index: number }[]}
+   */
+  const collectDeclarators = () => {
+    /** @type {{ name: string, rhs: string, index: number }[]} */
+    const decls = [];
+    const declRe =
+      /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g;
+    let dm;
+    while ((dm = declRe.exec(scan)) !== null) {
+      const name = dm[1];
+      const rhsStart = dm.index + dm[0].length;
+      // Walk RHS until top-level ; or newline that is not inside ()/{}/[]/<>
+      // or string — enough for fixture rebinds.
+      let i = rhsStart;
+      let depthParen = 0;
+      let depthBrace = 0;
+      let depthBracket = 0;
+      let depthAngle = 0;
+      while (i < scan.length) {
+        const c = scan[i];
+        if (c === "'" || c === '"' || c === "`") {
+          const q = c;
+          i++;
+          while (i < scan.length) {
+            if (scan[i] === "\\") {
+              i += 2;
+              continue;
+            }
+            if (scan[i] === q) {
+              i++;
+              break;
+            }
+            if (q === "`" && scan[i] === "$" && scan[i + 1] === "{") {
+              i += 2;
+              let d = 1;
+              while (i < scan.length && d > 0) {
+                if (scan[i] === "{") d++;
+                else if (scan[i] === "}") d--;
+                i++;
+              }
+              continue;
+            }
+            i++;
+          }
+          continue;
+        }
+        if (c === "(") {
+          depthParen++;
+          i++;
+          continue;
+        }
+        if (c === ")") {
+          depthParen = Math.max(0, depthParen - 1);
+          i++;
+          continue;
+        }
+        if (c === "{") {
+          depthBrace++;
+          i++;
+          continue;
+        }
+        if (c === "}") {
+          depthBrace = Math.max(0, depthBrace - 1);
+          i++;
+          continue;
+        }
+        if (c === "[") {
+          depthBracket++;
+          i++;
+          continue;
+        }
+        if (c === "]") {
+          depthBracket = Math.max(0, depthBracket - 1);
+          i++;
+          continue;
+        }
+        // Angle depth only after `.extend` context is hard; count `<`/`>` when
+        // already inside an extend type-arg region (depthAngle>0) or when
+        // preceded by `extend` / identifier (type arg start).
+        if (c === "<") {
+          // Treat as type-arg opener when after identifier/extend or already nested
+          const prev = scan.slice(Math.max(0, i - 12), i);
+          if (depthAngle > 0 || /extend\s*$/.test(prev) || /[\w$>]\s*$/.test(prev)) {
+            depthAngle++;
+          }
+          i++;
+          continue;
+        }
+        if (c === ">" && depthAngle > 0) {
+          depthAngle--;
+          i++;
+          continue;
+        }
+        if (
+          depthParen === 0 &&
+          depthBrace === 0 &&
+          depthBracket === 0 &&
+          depthAngle === 0
+        ) {
+          if (c === ";" || c === "," || c === "\n") break;
+        }
+        i++;
+      }
+      const rhs = scan.slice(rhsStart, i).trim();
+      decls.push({ name, rhs, index: dm.index });
+    }
+    return decls;
+  };
+
   // Fixture / rebind: const test = base.extend({...}) or const test = base
+  // or const test = base.extend<MyFixtures>({...})
   for (let pass = 0; pass < 4; pass++) {
     let grew = false;
-    const names = [...bindings].map(escapeRegExp).join("|");
-    if (!names) break;
-    const rebindRe = new RegExp(
-      `\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(${names})\\s*(?:\\.\\s*extend\\s*\\(|[;\\n,)])`,
-      "g",
-    );
-    let rm;
-    while ((rm = rebindRe.exec(scan)) !== null) {
-      if (!bindings.has(rm[1])) {
-        bindings.add(rm[1]);
+    for (const decl of collectDeclarators()) {
+      if (bindings.has(decl.name)) continue;
+      if (isPlaywrightRebindRhs(decl.rhs, bindings)) {
+        bindings.add(decl.name);
         grew = true;
       }
     }
@@ -492,43 +601,40 @@ export function extractPlaywrightTestBindings(code) {
 
   // Shadowing / non-Playwright reassignment removes the name.
   for (const name of [...bindings]) {
-    const assignRe = new RegExp(
-      `\\b(?:const|let|var)\\s+${escapeRegExp(name)}\\s*=\\s*([^;\\n]+)`,
-      "g",
-    );
-    let am;
-    while ((am = assignRe.exec(scan)) !== null) {
-      const rhs = am[1].trim().replace(/[;,].*$/, "").trim();
-      const names = [...bindings].map(escapeRegExp).join("|");
-      const validRebind = new RegExp(
-        `^(?:${names})\\s*(?:\\.\\s*extend\\s*\\(|$)`,
-      );
-      if (validRebind.test(rhs)) {
-        continue;
-      }
+    for (const decl of collectDeclarators()) {
+      if (decl.name !== name) continue;
+      if (isPlaywrightRebindRhs(decl.rhs, bindings)) continue;
       bindings.delete(name);
       break;
     }
+    if (!bindings.has(name)) continue;
+
     const shadowDecl = new RegExp(
       `\\bfunction\\s+${escapeRegExp(name)}\\s*\\(`,
     );
     if (shadowDecl.test(scan)) {
       bindings.delete(name);
+      continue;
     }
     // Bare reassignment without const/let/var (e.g. `test = (...args) => {}`)
     // also invalidates a prior Playwright binding.
     const bareAssign = new RegExp(
-      `(?<![.=])\\b${escapeRegExp(name)}\\s*=\\s*(?!=)([^;\\n]+)`,
+      `(?<![.=])\\b${escapeRegExp(name)}\\s*=\\s*(?!=)`,
       "g",
     );
     let ba;
     while ((ba = bareAssign.exec(scan)) !== null) {
-      const rhs = ba[1].trim().replace(/[;,].*$/, "").trim();
-      const names = [...bindings].map(escapeRegExp).join("|");
-      const validRebind = new RegExp(
-        `^(?:${names})\\s*(?:\\.\\s*extend\\s*\\(|$)`,
-      );
-      if (validRebind.test(rhs)) continue;
+      // Skip if this is part of a const/let/var declarator (already handled)
+      const before = scan.slice(Math.max(0, ba.index - 12), ba.index);
+      if (/\b(?:const|let|var)\s+$/.test(before)) continue;
+      const rhsStart = ba.index + ba[0].length;
+      // Single-line RHS for bare assign is enough for no-op spoofs
+      let end = scan.indexOf("\n", rhsStart);
+      if (end < 0) end = scan.length;
+      const semi = scan.indexOf(";", rhsStart);
+      if (semi >= 0 && semi < end) end = semi;
+      const rhs = scan.slice(rhsStart, end).trim();
+      if (isPlaywrightRebindRhs(rhs, bindings)) continue;
       bindings.delete(name);
       break;
     }
@@ -672,6 +778,210 @@ function idList(ids) {
 }
 
 /**
+ * Skip a balanced bracket/paren region starting at `openIdx` (points at opener).
+ * Returns index just past the matching closer, or -1 if unbalanced.
+ * Strings/templates inside are treated naively (sufficient for type args / call sites).
+ *
+ * @param {string} s
+ * @param {number} openIdx
+ * @param {string} openCh
+ * @param {string} closeCh
+ * @returns {number}
+ */
+export function skipBalanced(s, openIdx, openCh, closeCh) {
+  if (s[openIdx] !== openCh) return -1;
+  let depth = 0;
+  let i = openIdx;
+  const n = s.length;
+  while (i < n) {
+    const c = s[i];
+    // Skip string/template interiors so quotes and braces inside them do not
+    // affect balance (fixture object literals may contain strings).
+    if (c === "'" || c === '"' || c === "`") {
+      const q = c;
+      i++;
+      while (i < n) {
+        if (s[i] === "\\") {
+          i += 2;
+          continue;
+        }
+        if (s[i] === q) {
+          i++;
+          break;
+        }
+        // Nested ${} in templates: recurse only for depth of template expr
+        if (q === "`" && s[i] === "$" && s[i + 1] === "{") {
+          i += 2;
+          let d = 1;
+          while (i < n && d > 0) {
+            if (s[i] === "{") d++;
+            else if (s[i] === "}") d--;
+            i++;
+          }
+          continue;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (c === openCh) {
+      depth++;
+      i++;
+      continue;
+    }
+    if (c === closeCh) {
+      depth--;
+      i++;
+      if (depth === 0) return i;
+      continue;
+    }
+    i++;
+  }
+  return -1;
+}
+
+/**
+ * Whether `rhs` is a valid Playwright test rebind expression relative to
+ * current binding names: `base`, `base.extend(...)`, `base.extend<T>(...)`,
+ * or chained `.extend` calls (with optional TypeScript type arguments).
+ *
+ * @param {string} rhs assignment right-hand side (trimmed)
+ * @param {Set<string>} bindingNames
+ * @returns {boolean}
+ */
+export function isPlaywrightRebindRhs(rhs, bindingNames) {
+  const s = (rhs ?? "").trim().replace(/[;,].*$/, "").trim();
+  if (!s) return false;
+
+  let i = 0;
+  const idMatch = s.slice(i).match(/^([A-Za-z_$][\w$]*)/);
+  if (!idMatch || !bindingNames.has(idMatch[1])) return false;
+  i += idMatch[1].length;
+
+  while (i < s.length) {
+    while (i < s.length && /\s/.test(s[i])) i++;
+    if (i >= s.length) return true;
+
+    if (s[i] !== ".") return false;
+    i++;
+    while (i < s.length && /\s/.test(s[i])) i++;
+    if (!s.startsWith("extend", i)) return false;
+    i += "extend".length;
+    while (i < s.length && /\s/.test(s[i])) i++;
+
+    // Optional TypeScript type arguments: .extend<MyFixtures>(...)
+    // Nested generics (Foo<Bar<Baz>>) via balanced skip.
+    if (s[i] === "<") {
+      const after = skipBalanced(s, i, "<", ">");
+      if (after < 0) return false;
+      i = after;
+      while (i < s.length && /\s/.test(s[i])) i++;
+    }
+
+    if (s[i] !== "(") return false;
+    const afterCall = skipBalanced(s, i, "(", ")");
+    if (afterCall < 0) return false;
+    i = afterCall;
+  }
+  return true;
+}
+
+/**
+ * Expand inventory ID tokens and inclusive letter-ranges from an owner-amendment
+ * item cell (e.g. `A01`, `A01 A02`, `A01–A03`, `inv:B01-B02`).
+ *
+ * @param {string} itemCell
+ * @returns {string[]}
+ */
+export function expandInventoryIdsFromItem(itemCell) {
+  const text = normalizeCell(itemCell);
+  if (!text) return [];
+  /** @type {string[]} */
+  const ids = [];
+  // Inclusive ranges: A01–A03 or A01-A03 (en-dash or hyphen)
+  const rangeRe = /\b([A-Z])(\d{2})\s*[–-]\s*\1(\d{2})\b/g;
+  let m;
+  const consumed = new Set();
+  while ((m = rangeRe.exec(text)) !== null) {
+    const letter = m[1];
+    const start = Number(m[2]);
+    const end = Number(m[3]);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) continue;
+    // Cap range expansion to avoid pathological owner rows
+    if (end - start > 200) continue;
+    for (let n = start; n <= end; n++) {
+      const id = `${letter}${String(n).padStart(2, "0")}`;
+      ids.push(id);
+      consumed.add(id);
+    }
+  }
+  // Bare IDs not already covered by a range match span
+  const bareRe = /\b([A-Z]\d{2})\b/g;
+  while ((m = bareRe.exec(text)) !== null) {
+    if (!consumed.has(m[1])) ids.push(m[1]);
+  }
+  return ids;
+}
+
+/**
+ * Parse the constitution Article 0 **DEFER rows** table and return inventory
+ * IDs that have a non-empty owner amendment (Reason + Date + Owner).
+ *
+ * Placeholder rows (`*(none yet)*`, empty cells) do not authorize DEFER.
+ * Soul-only deferrals without an inventory ID do not authorize inventory rows.
+ *
+ * @param {string} constitutionBody
+ * @returns {Set<string>}
+ */
+export function extractOwnerDeferInventoryIds(constitutionBody) {
+  /** @type {Set<string>} */
+  const authorized = new Set();
+  const body = constitutionBody ?? "";
+
+  // Anchor on the DEFER rows section (constitution Article 0) only —
+  // do not scan unrelated tables elsewhere in the document.
+  const sectionRe =
+    /\*\*DEFER rows\*\*[^\n]*\n([\s\S]*?)(?=\n\*\*[^*]|\n##\s|$)/i;
+  const sectionMatch = body.match(sectionRe);
+  if (!sectionMatch) return authorized;
+  const section = sectionMatch[1];
+
+  // Table rows: | item | reason | date | owner |
+  const rowRe = /^\|\s*([^|]+)\|\s*([^|]*)\|\s*([^|]*)\|\s*([^|]*)\|/gm;
+  let m;
+  while ((m = rowRe.exec(section)) !== null) {
+    const item = normalizeCell(m[1]);
+    const reason = normalizeCell(m[2]);
+    const date = normalizeCell(m[3]);
+    const owner = normalizeCell(m[4]);
+
+    // Skip markdown header / separator / empty placeholder
+    if (!item) continue;
+    if (/^soul\s*\/\s*item$/i.test(item)) continue;
+    if (/^[-:]+$/.test(item.replace(/\s/g, ""))) continue;
+    if (/\*\(\s*none yet\s*\)\*/i.test(item) || /^none yet$/i.test(item)) {
+      continue;
+    }
+    // Header row when all three label cells match (do not treat a real Owner
+    // name of "owner" as a header just because that column is named Owner).
+    if (
+      /^reason$/i.test(reason) &&
+      /^date$/i.test(date) &&
+      /^owner$/i.test(owner)
+    ) {
+      continue;
+    }
+    // Amendment requires evidence fields — blank reason/date/owner is not authoritative
+    if (!reason || !date || !owner) continue;
+
+    for (const id of expandInventoryIdsFromItem(item)) {
+      authorized.add(id);
+    }
+  }
+  return authorized;
+}
+
+/**
  * Run inventory lint.
  *
  * @param {object} [options]
@@ -680,6 +990,7 @@ function idList(ids) {
  * @param {string} [options.baselinePath]
  * @param {string[]} [options.e2eRoots]
  * @param {boolean} [options.fullGate]
+ * @param {string} [options.constitutionPath] owner DEFER table (Article 0)
  * @param {string[]} [options.argv] defaults to process.argv
  * @param {NodeJS.ProcessEnv} [options.env] defaults to process.env
  * @param {boolean} [options.silent] suppress console I/O (tests)
@@ -713,6 +1024,10 @@ export function runInventoryLint(options = {}) {
       options.baselinePath ||
       env.E2E_INVENTORY_BASELINE_PATH ||
       join(root, "scripts", "e2e-inventory-required-baseline.json");
+    const constitutionPath =
+      options.constitutionPath ||
+      env.E2E_CONSTITUTION_PATH ||
+      join(root, "KMS-competition", "initiative", "00_CONSTITUTION.md");
 
     const fullGate =
       options.fullGate === true ||
@@ -851,8 +1166,41 @@ export function runInventoryLint(options = {}) {
 
     const byId = new Map(journeys.map((j) => [j.id, j]));
     const requiredIds = requiredJourneys.map((j) => j.id);
+    const inventoryDeferIds = journeys
+      .filter((j) => j.status === "DEFER")
+      .map((j) => j.id);
+
+    // --- Owner DEFER amendments (constitution Article 0) ---
+    // Status DEFER is not self-authorizing: each inventory DEFER must appear
+    // in the constitution DEFER table with Reason + Date + Owner. Without that
+    // record, DEFER cannot leave the required PASS set (anti mass-DEFER greenwash).
+    /** @type {Set<string>} */
+    let ownerAuthorizedDeferIds = new Set();
+    if (inventoryDeferIds.length > 0) {
+      if (!existsSync(constitutionPath)) {
+        fail(
+          `inventory DEFER rows require owner amendment records but constitution missing: ${constitutionPath}` +
+            ` (unauthorized DEFER: ${idList(inventoryDeferIds)})`,
+        );
+      }
+      const constitutionBody = readFileSync(constitutionPath, "utf8");
+      ownerAuthorizedDeferIds = extractOwnerDeferInventoryIds(constitutionBody);
+      const unauthorizedDefer = inventoryDeferIds.filter(
+        (id) => !ownerAuthorizedDeferIds.has(id),
+      );
+      if (unauthorizedDefer.length > 0) {
+        fail(
+          `inventory DEFER without owner amendment (constitution DEFER table must list ID with Reason, Date, Owner): ${idList(unauthorizedDefer)}`,
+        );
+      }
+      log(
+        `[test:e2e:inventory] OK: ${inventoryDeferIds.length} inventory DEFER row(s) authorized by owner amendment`,
+      );
+    }
+
+    /** Authorized DEFER only — used for PASS-set exemption and anti-shrinkage. */
     const deferIds = new Set(
-      journeys.filter((j) => j.status === "DEFER").map((j) => j.id),
+      inventoryDeferIds.filter((id) => ownerAuthorizedDeferIds.has(id)),
     );
 
     if (requiredIds.length === 0) {
@@ -872,7 +1220,8 @@ export function runInventoryLint(options = {}) {
       const row = byId.get(id);
       if (!row) continue;
       if (row.required) continue;
-      if (row.status === "DEFER") continue;
+      // OPTIONAL only allowed when authorized owner DEFER also present
+      if (row.status === "DEFER" && deferIds.has(id)) continue;
       unauthorizedDrops.push(id);
     }
     if (unauthorizedDrops.length > 0) {
@@ -883,12 +1232,9 @@ export function runInventoryLint(options = {}) {
 
     const baselineStillRequired = baselineIds.filter((id) => {
       const row = byId.get(id);
-      return row && row.required && row.status !== "DEFER";
+      return row && row.required && !deferIds.has(id);
     });
-    const baselineDeferred = baselineIds.filter((id) => {
-      const row = byId.get(id);
-      return row && row.status === "DEFER";
-    });
+    const baselineDeferred = baselineIds.filter((id) => deferIds.has(id));
     const minRequired = baselineIds.length - baselineDeferred.length;
     if (baselineStillRequired.length < minRequired) {
       fail(
@@ -944,13 +1290,17 @@ export function runInventoryLint(options = {}) {
         ` inventory ${requiredIds.length} REQUIRED, ${unique.size} unique IDs, ${testIdSet.size} unique test_ids; fingerprints match`,
     );
 
-    // --- Phase 8: every non-DEFER REQUIRED row must claim status PASS ---
+    // --- Phase 8: every non-owner-DEFER REQUIRED row must claim status PASS ---
     // Ratified law (0.3 §2): CI fails if REQUIRED and not PASS at the Phase 8
     // gate. Intermediate modes do not enforce PASS (OPEN→IMPLEMENTED lifecycle).
+    // Only constitution-authorized DEFER rows are exempt (see deferIds).
     if (fullGate) {
       const notPass = journeys
         .filter(
-          (j) => j.required && j.status !== "DEFER" && j.status !== "PASS",
+          (j) =>
+            j.required &&
+            !deferIds.has(j.id) &&
+            j.status !== "PASS",
         )
         .map((j) => `${j.id}=${j.status || "<blank>"}`);
       if (notPass.length > 0) {
@@ -960,7 +1310,10 @@ export function runInventoryLint(options = {}) {
         );
       }
       log(
-        `[test:e2e:inventory] OK: Phase 8 status claim — ${baselineStillRequired.length} non-DEFER REQUIRED rows are PASS`,
+        `[test:e2e:inventory] OK: Phase 8 status claim — ${baselineStillRequired.length} non-DEFER REQUIRED rows are PASS` +
+          (deferIds.size
+            ? ` (${deferIds.size} owner-authorized DEFER exempt)`
+            : ""),
       );
     }
 
@@ -980,7 +1333,7 @@ export function runInventoryLint(options = {}) {
     let modeLabel;
     if (fullGate) {
       tagTargets = journeys
-        .filter((j) => j.required && j.status !== "DEFER")
+        .filter((j) => j.required && !deferIds.has(j.id))
         .map((j) => j.id);
       modeLabel = "phase8 full REQUIRED";
     } else {
@@ -988,7 +1341,7 @@ export function runInventoryLint(options = {}) {
         .filter(
           (j) =>
             j.required &&
-            j.status !== "DEFER" &&
+            !deferIds.has(j.id) &&
             TAG_REQUIRED_STATUSES.has(j.status),
         )
         .map((j) => j.id);
