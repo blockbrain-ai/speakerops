@@ -74,6 +74,15 @@ export function DesignKitPage() {
    * published / form state (C10 race: wrong tokens saved or published).
    */
   const loadGenRef = useRef(0);
+  /**
+   * Monotonic generations for save/publish so a completed request only clears
+   * its own busy flag. Event switches bump these and reset saving/publishing;
+   * otherwise a mid-flight finally that gated on activeEventId would leave the
+   * new event stuck with formBusy forever, and a stale finally must not clear
+   * a newer operation on the same (or re-selected) event.
+   */
+  const saveGenRef = useRef(0);
+  const publishGenRef = useRef(0);
   const activeEventIdRef = useRef(activeEventId);
   activeEventIdRef.current = activeEventId;
   const activeEventNameRef = useRef(activeEvent?.name);
@@ -135,9 +144,15 @@ export function DesignKitPage() {
   }, []);
 
   useEffect(() => {
+    // Invalidate in-flight load/save/publish so their finally blocks cannot
+    // leave formBusy stuck or clear a newer operation on the next event.
+    loadGenRef.current += 1;
+    saveGenRef.current += 1;
+    publishGenRef.current += 1;
+    setSaving(false);
+    setPublishing(false);
+
     if (!activeEventId) {
-      // Invalidate in-flight loads so they cannot write after clear.
-      loadGenRef.current += 1;
       setLoading(false);
       setDraft(null);
       setPublished(null);
@@ -191,6 +206,7 @@ export function DesignKitPage() {
     e.preventDefault();
     if (!activeEventId || loading) return;
     const eventId = activeEventId;
+    const gen = ++saveGenRef.current;
     setSaving(true);
     setStatus(null);
     try {
@@ -207,10 +223,14 @@ export function DesignKitPage() {
           body: JSON.stringify(body),
         },
       );
-      // Ignore result if the user switched events mid-save.
-      if (activeEventIdRef.current !== eventId) return;
+      // Ignore result if superseded (event switch or newer save).
+      if (gen !== saveGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
       const raw: unknown = await res.json().catch(() => null);
-      if (activeEventIdRef.current !== eventId) return;
+      if (gen !== saveGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
       if (!res.ok) {
         const env = ErrorEnvelopeSchema.safeParse(raw);
         setStatus({
@@ -227,10 +247,12 @@ export function DesignKitPage() {
       setDraft(parsed.data.draft);
       setStatus({ kind: "ok", text: "Draft saved" });
     } catch {
-      if (activeEventIdRef.current !== eventId) return;
+      if (gen !== saveGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
       setStatus({ kind: "error", text: "Network error" });
     } finally {
-      if (activeEventIdRef.current === eventId) {
+      if (gen === saveGenRef.current) {
         setSaving(false);
       }
     }
@@ -246,6 +268,7 @@ export function DesignKitPage() {
     }
     const eventId = activeEventId;
     const expectedVersion = draft.version;
+    const gen = ++publishGenRef.current;
     setPublishing(true);
     setPublishStatus(null);
     try {
@@ -258,9 +281,13 @@ export function DesignKitPage() {
           body: JSON.stringify({ expectedVersion }),
         },
       );
-      if (activeEventIdRef.current !== eventId) return;
+      if (gen !== publishGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
       const raw: unknown = await res.json().catch(() => null);
-      if (activeEventIdRef.current !== eventId) return;
+      if (gen !== publishGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
       if (!res.ok) {
         const env = ErrorEnvelopeSchema.safeParse(raw);
         const code = env.success ? env.data.code : "";
@@ -278,19 +305,26 @@ export function DesignKitPage() {
       }
       setPublished(parsed.data.published);
       // Reload draft (may include derived brandFg) — only if still this event.
-      if (activeEventIdRef.current === eventId) {
+      if (
+        gen === publishGenRef.current &&
+        activeEventIdRef.current === eventId
+      ) {
         await loadDesign(eventId);
       }
-      if (activeEventIdRef.current !== eventId) return;
+      if (gen !== publishGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
       setPublishStatus({
         kind: "ok",
         text: `Published (brandFg ${parsed.data.published.tokens.brandFg ?? "derived"})`,
       });
     } catch {
-      if (activeEventIdRef.current !== eventId) return;
+      if (gen !== publishGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
       setPublishStatus({ kind: "error", text: "Network error" });
     } finally {
-      if (activeEventIdRef.current === eventId) {
+      if (gen === publishGenRef.current) {
         setPublishing(false);
       }
     }
