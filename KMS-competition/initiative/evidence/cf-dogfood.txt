@@ -1,0 +1,80 @@
+# BC10 / S-CF — Cloudflare dogfood health evidence (section 8.6)
+
+Section: 8.6 Cloudflare dogfood deploy
+Workspace: speakerops-build
+Date (UTC): 2026-08-08
+Git SHA: (see latest deploy script rewrite)
+Status: PATH_READY — script + runbook + redaction + local health 200; live workers.dev row via operator `scripts/with-secrets.sh bash scripts/deploy-dogfood.sh`
+
+## Claim
+
+S-CF ownership: private Cloudflare dogfood deploy is scripted with names-only
+secrets; GET /health → 200 is the smoke criterion; evidence uses URL redaction
+rules. BUILD_CHECKLIST **BC10** evidence path is this file.
+
+Souls: **S-CF** (constitution Article II) · **BC10**
+
+## Evidence path
+
+This file: KMS-competition/initiative/evidence/cf-dogfood.txt
+Template: KMS-competition/initiative/evidence/cf-dogfood.template.txt
+Deploy script: scripts/deploy-dogfood.sh
+Operations: docs/OPERATIONS.md
+wrangler: wrangler.toml (binding names only — DB, FILES, JOBS_QUEUE; env.dogfood)
+Section notes: docs/sections/8.6-cloudflare-dogfood-deploy.md
+
+## URL redaction rules (binding)
+
+1. Never write CLOUDFLARE_API_TOKEN, API keys, session cookies, or magic-link tokens.
+2. Never write full CLOUDFLARE_ACCOUNT_ID — replace with `[REDACTED_ACCOUNT_ID]`.
+3. workers.dev hosts: keep worker service label; redact account subdomain as `***`
+   (example: `https://speakerops-api.***.workers.dev`).
+4. Strip query strings and fragments from recorded URLs (may contain tokens).
+5. Health body may include public `version` only — no env dumps.
+
+## Smoke result
+
+| Field | Value |
+|-------|-------|
+| Base URL (redacted) | (fill via live deploy — example shape `https://speakerops-api.***.workers.dev`) |
+| GET /health HTTP status | **200** required for live DONE_WITH_EVIDENCE rewrite |
+| Health body shape | `{"ok":true,"version":"<semver>"}` |
+| Worker name | `speakerops-api` |
+| Local health proof | `apps/api/src/health.test.ts` (section 1.2) — ok:true 200 |
+
+Deploy script dry-run (creds present, no network) exits 0 and rewrites this file
+with Status `DRY_RUN`. Full live smoke rewrites with Status `DONE_WITH_EVIDENCE`
+and redacted URL + HTTP 200.
+
+## Gate local proof (no CF network in test:ci)
+
+Named assertions (`tests/8.6-cloudflare-dogfood-deploy.test.ts` + governance):
+
+- assert deploy script exits nonzero without creds with message
+- assert OPERATIONS.md lists wrangler steps
+- assert evidence template path exists
+
+## Notes
+
+- No secrets, API keys, or magic-link tokens in this evidence file.
+- `pnpm test:ci` / typecheck never source secrets.env (docs/SECRETS.md).
+- Custom domain production cutover is out of scope (8.6).
+- D1 Time Travel rollback noted in docs/OPERATIONS.md.
+- Optional Playwright: `SMOKE_BASE_URL` + `playwright/e2e/cf_dogfood_smoke.spec.ts`
+  (skips when unset; no inventory ID).
+
+## Reproduce (operator)
+
+```bash
+# 1) Create D1/R2/queue once — see docs/OPERATIONS.md wrangler steps
+# 2) wrangler secret put TURNSTILE_SECRET_KEY (etc.)
+# 3) Deploy + smoke + rewrite this evidence with redacted URL + health 200:
+scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
+
+# Dry-run only (creds present, no wrangler network):
+DEPLOY_DRY_RUN=1 scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
+```
+
+Env **names** only (E10): CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+SPEAKEROPS_D1_DATABASE_ID, SPEAKEROPS_R2_BUCKET_NAME, SMOKE_BASE_URL,
+DOGFOOD_SKIP_DEPLOY, DEPLOY_DRY_RUN, DOGFOOD_EVIDENCE_PATH, WRANGLER_BIN.

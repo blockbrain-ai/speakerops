@@ -191,6 +191,8 @@ Section **8.2** runs the full Playwright suite (S-E2E-RUN): all REQUIRED **PASS*
 
 Section **8.5** emits the offline keystone coverage HTML for S-E2E-RUN evidence (`pnpm docs:e2e-report` → `reports/e2e-coverage.html`). Evidence: `KMS-competition/initiative/evidence/e2e-coverage.txt`.
 
+Section **8.6** owns **S-CF** dogfood deploy (`scripts/deploy-dogfood.sh`, `docs/OPERATIONS.md`, BC10 evidence). Optional remote Playwright: set `SMOKE_BASE_URL` and run `playwright/e2e/cf_dogfood_smoke.spec.ts` (skips when unset; no `@inv`).
+
 ---
 
 ## Related

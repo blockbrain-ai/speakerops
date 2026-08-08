@@ -68,6 +68,21 @@ Monorepo layout (section **1.1**): `apps/{web,api}`, `packages/{shared,db,cli}`.
 
 Worker API health (section **1.2**): `GET /health` → `{ ok: true, version }` on Hono Worker; root `wrangler.toml` binds D1 as `DB` (names only, no secrets). See [`docs/sections/1.2-worker-health.md`](./docs/sections/1.2-worker-health.md).
 
+### Cloudflare dogfood deploy (section 8.6 / S-CF)
+
+```bash
+# Fails clearly without CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
+pnpm deploy:dogfood
+
+# Operator path (secrets out-of-band — never commit values)
+scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
+```
+
+- **Runbook:** [`docs/OPERATIONS.md`](./docs/OPERATIONS.md) (wrangler create D1/R2/queue, `secret put`, deploy, D1 Time Travel rollback)
+- **Evidence (BC10):** `KMS-competition/initiative/evidence/cf-dogfood.txt` (+ `.template.txt` redaction rules)
+- **Optional remote smoke:** `SMOKE_BASE_URL=https://…workers.dev pnpm exec playwright test playwright/e2e/cf_dogfood_smoke.spec.ts` (skips when unset)
+- Env **names** only: see [`docs/SECRETS.md`](./docs/SECRETS.md). Gates (`test:ci` / `typecheck`) never source deploy secrets.
+
 D1 Drizzle baseline (section **1.3**): `packages/db/schema.ts` + `migrations/0001_baseline.sql` (`organizations`, `events`+`version`, `audit_events`, `outbox_events`, `idempotency_keys`). See [`docs/sections/1.3-d1-baseline.md`](./docs/sections/1.3-d1-baseline.md).
 
 Inventory lint is live from section **0.3** (TS entry **1.5**: `scripts/inventory-lint.ts`). Playwright harness is scaffolded in **1.5** (`playwright.config.ts`, `playwright/e2e/`); see [`docs/E2E.md`](./docs/E2E.md). **All REQUIRED** journeys + discovery crawl at **Phase 8**.

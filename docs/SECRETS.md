@@ -66,6 +66,20 @@
 - `SPEAKEROPS_CORRELATION_ID` — optional fixed correlation id for CLI requests (else CLI generates `cli_…`). Not a secret.
 - CLI command reference: `docs/CLI.md`. OpenAPI: `GET /openapi.json`.
 
+## Cloudflare dogfood deploy (section 8.6 / S-CF / BC10) — names only
+- `CLOUDFLARE_API_TOKEN` — Wrangler / API auth for dogfood deploy. **Required** by `scripts/deploy-dogfood.sh`. Never commit values; never log the token.
+- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account scope for wrangler. **Required** by deploy script. Evidence redacts full id (`[REDACTED_ACCOUNT_ID]`).
+- `SPEAKEROPS_D1_DATABASE_ID` — optional real D1 `database_id` override (placeholder in `wrangler.toml` is not deployable until set).
+- `SPEAKEROPS_R2_BUCKET_NAME` — optional R2 bucket name override for `FILES` binding.
+- `SMOKE_BASE_URL` — optional private workers.dev / preview base for health re-smoke and optional Playwright (`playwright/e2e/cf_dogfood_smoke.spec.ts` skips when unset).
+- `DOGFOOD_SKIP_DEPLOY` — when `"1"`, deploy script skips `wrangler deploy` and only smokes `SMOKE_BASE_URL`.
+- `DEPLOY_DRY_RUN` — when `"1"`, validate creds + write dry-run evidence; no network deploy.
+- `DOGFOOD_EVIDENCE_PATH` — optional override for BC10 evidence output (default `KMS-competition/initiative/evidence/cf-dogfood.txt`).
+- `DOGFOOD_WORKER_NAME` — optional Worker name (default `speakerops-api`).
+- `WRANGLER_BIN` — optional path/command for wrangler CLI.
+- Deploy entry: `pnpm deploy:dogfood` / `scripts/with-secrets.sh bash scripts/deploy-dogfood.sh`.
+- Runbook: `docs/OPERATIONS.md`. Never source these into general `test:ci` / `typecheck` gates.
+
 ## Base
 Dogfood base id is in AIRTABLE_BASE_ID. Tables:
 SpeakerOps_Submissions, SpeakerOps_Speakers, SpeakerOps_Sessions, SpeakerOps_Tasks, SpeakerOps_Schedule.

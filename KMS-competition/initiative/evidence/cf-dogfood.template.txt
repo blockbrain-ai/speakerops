@@ -1,0 +1,62 @@
+# BC10 / S-CF — Cloudflare dogfood health evidence TEMPLATE (section 8.6)
+
+> Copy / regenerate via `scripts/deploy-dogfood.sh` (preferred).
+> This template documents the **required fields** and **URL redaction rules**.
+> Do not fill secret **values** into git. Env **names** only (E10).
+
+Section: 8.6 Cloudflare dogfood deploy
+Workspace: speakerops-build
+Date (UTC): {{ISO8601_UTC}}
+Git SHA: {{GIT_SHA}}
+Status: {{DRY_RUN|DONE_WITH_EVIDENCE|DEPLOY_FAILED|SMOKE_FAILED}}
+
+## Claim
+
+Private Cloudflare (workers.dev / preview) dogfood URL returns GET /health → 200
+with body `{ "ok": true, "version": string }`.
+
+Souls: **S-CF** · BUILD_CHECKLIST **BC10**
+
+## Evidence path
+
+- Live evidence (written by deploy script): `KMS-competition/initiative/evidence/cf-dogfood.txt`
+- This template: `KMS-competition/initiative/evidence/cf-dogfood.template.txt`
+- Deploy: `scripts/deploy-dogfood.sh`
+- Ops runbook: `docs/OPERATIONS.md`
+- Wrangler (names only): `wrangler.toml`
+
+## URL redaction rules (binding)
+
+1. Never write `CLOUDFLARE_API_TOKEN`, API keys, session cookies, or magic-link tokens.
+2. Never write full `CLOUDFLARE_ACCOUNT_ID` — use `[REDACTED_ACCOUNT_ID]`.
+3. workers.dev hosts: keep worker service label; redact account subdomain as `***`
+   (example: `https://speakerops-api.***.workers.dev`).
+4. Strip query strings and fragments from recorded URLs.
+5. Health body may include public `version` only — no env dumps or stack traces.
+
+## Smoke result (fill via deploy script)
+
+| Field | Value |
+|-------|-------|
+| Base URL (redacted) | `https://speakerops-api.***.workers.dev` |
+| GET /health HTTP status | `200` |
+| Health body (redacted) | `{"ok":true,"version":"0.1.0"}` |
+| Worker name | `speakerops-api` |
+
+## Reproduce
+
+```bash
+scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
+```
+
+Required env **names**: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`  
+Optional: `SPEAKEROPS_D1_DATABASE_ID`, `SPEAKEROPS_R2_BUCKET_NAME`, `SMOKE_BASE_URL`,
+`DOGFOOD_SKIP_DEPLOY`, `DEPLOY_DRY_RUN`, `DOGFOOD_EVIDENCE_PATH`, `WRANGLER_BIN`
+
+## Local gate proof (no CF network)
+
+Named assertions in `tests/8.6-cloudflare-dogfood-deploy.test.ts` + governance twin:
+
+- assert deploy script exits nonzero without creds with message
+- assert OPERATIONS.md lists wrangler steps
+- assert evidence template path exists
