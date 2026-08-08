@@ -8,19 +8,22 @@
 import {
   uuidv7,
   DEFAULT_ORG_ID,
+  AIRTABLE_OUTBOX_TOPIC,
   type EventCreateBody,
   type EventUpdateBody,
   type RoomUpsertBody,
   type TrackUpsertBody,
+  type AirtableProjectPayload,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { AirtableStore } from "../airtable/store.js";
-import { enqueueAirtableProjection } from "../airtable/enqueue.js";
 import {
   type EventsStore,
   type EventRow,
   type RoomRow,
   type TrackRow,
+  type EventUnitBridges,
+  type EventUnitOutbox,
   slugifyName,
 } from "./store.js";
 
@@ -143,12 +146,95 @@ async function uniqueSlug(
   return slug;
 }
 
+/** Build airtable.project outbox payload without inserting (unit commits it). */
+function buildAirtableEventOutbox(input: {
+  eventId: string;
+  internalId: string;
+  sourceVersion: number;
+  name: string;
+  slug: string;
+  timezone: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  correlationId: string;
+}): EventUnitOutbox {
+  const payload: AirtableProjectPayload = {
+    eventId: input.eventId,
+    entityType: "event",
+    internalId: input.internalId,
+    sourceVersion: input.sourceVersion,
+    fields: {
+      name: input.name,
+      slug: input.slug,
+      timezone: input.timezone,
+      starts_at: input.startsAt,
+      ends_at: input.endsAt,
+      // I16: internal_id always present in projected fields
+      internal_id: input.internalId,
+    },
+    correlationId: input.correlationId,
+  };
+  return {
+    id: uuidv7(),
+    topic: AIRTABLE_OUTBOX_TOPIC,
+    payloadJson: JSON.stringify(payload),
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function eventUnitBridges(deps: EventCommandDeps): EventUnitBridges {
+  return {
+    insertMembership: async (m) => {
+      await deps.auth.upsertMembership({
+        eventId: m.eventId,
+        userId: m.userId,
+        role: m.role as "admin",
+      });
+    },
+    deleteMembership: async (eventId, userId) => {
+      await deps.auth.deleteMembership(eventId, userId);
+    },
+    insertOutbox: deps.airtable
+      ? async (o) => {
+          await deps.airtable!.insertOutbox({
+            id: o.id,
+            topic: o.topic,
+            payloadJson: o.payloadJson,
+            createdAt: o.createdAt,
+            processedAt: null,
+            attempts: 0,
+            lastError: null,
+          });
+        }
+      : undefined,
+    deleteOutbox: deps.airtable
+      ? async (id) => {
+          await deps.airtable!.deleteUnprocessedOutbox(id);
+        }
+      : undefined,
+    insertAudit: async (a) => {
+      await deps.auth.insertAudit({
+        id: a.id,
+        eventId: a.eventId,
+        actorType: a.actorType as "user" | "api_key" | "system",
+        actorId: a.actorId,
+        action: a.action,
+        entityType: a.entityType,
+        entityId: a.entityId,
+        beforeJson: a.beforeJson,
+        afterJson: a.afterJson,
+        correlationId: a.correlationId,
+        createdAt: a.createdAt,
+      });
+    },
+  };
+}
+
 /**
  * Event.Create — admin creates event; grants creator admin membership.
  *
- * E7 transactional outbox unit: event + membership + audit + airtable.project.
- * On side-effect failure, compensates the event insert so a failed request
- * never leaves a durable event change without a projection outbox row.
+ * E7 transactional outbox unit: event + membership + audit + airtable.project
+ * committed via EventsStore.createEventUnit (D1 batch / Memory bridges).
  */
 export async function createEvent(
   deps: EventCommandDeps,
@@ -177,67 +263,51 @@ export async function createEvent(
     version: 1,
   };
 
-  await deps.events.insertEvent(row);
-  let outboxId: string | null = null;
-  let membershipWritten = false;
-  try {
-    // Creator is admin of the new event (E2 membership)
-    await deps.auth.upsertMembership({
-      eventId: id,
-      userId: input.actorUserId,
-      role: "admin",
-    });
-    membershipWritten = true;
-
-    // S-AIRTABLE outbox before audit — both are part of the unit; failure
-    // compensates the event so we never leave SoR without projection.
-    if (deps.airtable) {
-      const enq = await enqueueAirtableProjection(deps.airtable, {
+  const outbox = deps.airtable
+    ? buildAirtableEventOutbox({
         eventId: id,
-        entityType: "event",
         internalId: id,
         sourceVersion: row.version,
-        fields: {
-          name: row.name,
-          slug: row.slug,
-          timezone: row.timezone,
-          starts_at: row.startsAt,
-          ends_at: row.endsAt,
-        },
-        correlationId: input.correlationId,
-      });
-      outboxId = enq.outboxId;
-    }
-
-    await deps.auth.insertAudit({
-      id: uuidv7(),
-      eventId: id,
-      actorType: actor.actorType,
-      actorId: actor.actorId,
-      action: "Event.Create",
-      entityType: "event",
-      entityId: id,
-      afterJson: JSON.stringify({
         name: row.name,
-        timezone: row.timezone,
         slug: row.slug,
-      }),
-      correlationId: input.correlationId,
-      createdAt: now,
-    });
-  } catch (err) {
-    // Compensate full unit: membership + event + partial outbox (E7).
-    // Order: membership first so we never leave an orphan membership row
-    // after event delete (event_id is not FK-cascaded).
-    if (membershipWritten) {
-      await deps.auth.deleteMembership(id, input.actorUserId);
-    }
-    await deps.events.deleteEvent(id);
-    if (outboxId && deps.airtable) {
-      await deps.airtable.deleteUnprocessedOutbox(outboxId);
-    }
-    throw err;
-  }
+        timezone: row.timezone,
+        startsAt: row.startsAt,
+        endsAt: row.endsAt,
+        correlationId: input.correlationId,
+      })
+    : null;
+
+  await deps.events.createEventUnit(
+    {
+      event: row,
+      membership: {
+        id: uuidv7(),
+        eventId: id,
+        userId: input.actorUserId,
+        role: "admin",
+        createdAt: now,
+      },
+      outbox,
+      audit: {
+        id: uuidv7(),
+        eventId: id,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        action: "Event.Create",
+        entityType: "event",
+        entityId: id,
+        beforeJson: null,
+        afterJson: JSON.stringify({
+          name: row.name,
+          timezone: row.timezone,
+          slug: row.slug,
+        }),
+        correlationId: input.correlationId,
+        createdAt: now,
+      },
+    },
+    eventUnitBridges(deps),
+  );
 
   return { ok: true, value: { event: toEventDto(row) } };
 }
@@ -245,9 +315,8 @@ export async function createEvent(
 /**
  * Event.Update — optimistic concurrency via expectedVersion.
  *
- * E7 transactional outbox unit: event CAS + audit + airtable.project.
- * Side-effect failure restores the prior event version so a failed request
- * never leaves a changed event without a projection outbox row.
+ * E7 transactional outbox unit: event CAS + audit + airtable.project
+ * committed via EventsStore.updateEventUnit (D1 batch / Memory bridges).
  */
 export async function updateEvent(
   deps: EventCommandDeps,
@@ -290,7 +359,54 @@ export async function updateEvent(
     version: existing.version + 1,
   };
 
-  const updated = await deps.events.updateEvent(next, input.expectedVersion);
+  const outbox = deps.airtable
+    ? buildAirtableEventOutbox({
+        eventId: next.id,
+        internalId: next.id,
+        sourceVersion: next.version,
+        name: next.name,
+        slug: next.slug,
+        timezone: next.timezone,
+        startsAt: next.startsAt,
+        endsAt: next.endsAt,
+        correlationId: input.correlationId,
+      })
+    : null;
+
+  const updated = await deps.events.updateEventUnit(
+    {
+      event: next,
+      expectedVersion: input.expectedVersion,
+      outbox,
+      audit: {
+        id: uuidv7(),
+        eventId: next.id,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        action: "Event.Update",
+        entityType: "event",
+        entityId: next.id,
+        beforeJson: JSON.stringify({
+          name: existing.name,
+          timezone: existing.timezone,
+          startsAt: existing.startsAt,
+          endsAt: existing.endsAt,
+          version: existing.version,
+        }),
+        afterJson: JSON.stringify({
+          name: next.name,
+          timezone: next.timezone,
+          startsAt: next.startsAt,
+          endsAt: next.endsAt,
+          version: next.version,
+        }),
+        correlationId: input.correlationId,
+        createdAt: now,
+      },
+    },
+    eventUnitBridges(deps),
+  );
+
   if (!updated) {
     const latest = await deps.events.findEventById(input.eventId);
     return {
@@ -303,94 +419,6 @@ export async function updateEvent(
         actual: latest?.version ?? existing.version,
       },
     };
-  }
-
-  let outboxId: string | null = null;
-  try {
-    // S-AIRTABLE: outbox only — never Airtable HTTP on request path (E7).
-    if (deps.airtable) {
-      const enq = await enqueueAirtableProjection(deps.airtable, {
-        eventId: next.id,
-        entityType: "event",
-        internalId: next.id,
-        sourceVersion: next.version,
-        fields: {
-          name: next.name,
-          slug: next.slug,
-          timezone: next.timezone,
-          starts_at: next.startsAt,
-          ends_at: next.endsAt,
-        },
-        correlationId: input.correlationId,
-      });
-      outboxId = enq.outboxId;
-    }
-
-    await deps.auth.insertAudit({
-      id: uuidv7(),
-      eventId: next.id,
-      actorType: actor.actorType,
-      actorId: actor.actorId,
-      action: "Event.Update",
-      entityType: "event",
-      entityId: next.id,
-      beforeJson: JSON.stringify({
-        name: existing.name,
-        timezone: existing.timezone,
-        startsAt: existing.startsAt,
-        endsAt: existing.endsAt,
-        version: existing.version,
-      }),
-      afterJson: JSON.stringify({
-        name: next.name,
-        timezone: next.timezone,
-        startsAt: next.startsAt,
-        endsAt: next.endsAt,
-        version: next.version,
-      }),
-      correlationId: input.correlationId,
-      createdAt: now,
-    });
-  } catch (err) {
-    // Compensate event CAS so error response leaves prior version intact.
-    // If another writer already moved past next.version, CAS fails — then
-    // ensure the committed change still has a projection outbox row (E7).
-    let restored = false;
-    try {
-      restored = await deps.events.updateEvent(existing, next.version);
-    } catch {
-      restored = false;
-    }
-    if (restored) {
-      if (outboxId && deps.airtable) {
-        await deps.airtable.deleteUnprocessedOutbox(outboxId);
-      }
-    } else if (deps.airtable && !outboxId) {
-      // Event change remained (or concurrent update advanced version).
-      // Best-effort: project the latest durable version so SoR ≠ missing outbox.
-      try {
-        const latest =
-          (await deps.events.findEventById(input.eventId)) ?? next;
-        await enqueueAirtableProjection(deps.airtable, {
-          eventId: latest.id,
-          entityType: "event",
-          internalId: latest.id,
-          sourceVersion: latest.version,
-          fields: {
-            name: latest.name,
-            slug: latest.slug,
-            timezone: latest.timezone,
-            starts_at: latest.startsAt,
-            ends_at: latest.endsAt,
-          },
-          correlationId: input.correlationId,
-        });
-      } catch {
-        // best-effort only — original error is rethrown
-      }
-    }
-    // If outboxId was set and restore failed, leave the outbox (covers next).
-    throw err;
   }
 
   return { ok: true, value: { event: toEventDto(next) } };

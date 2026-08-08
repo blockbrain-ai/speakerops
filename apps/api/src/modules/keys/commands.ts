@@ -84,9 +84,10 @@ export function generateApiKeyMaterial(): {
 /**
  * Authorization boundary for key administration (E2).
  * - Event-scoped API key: only keys bound to that eventId; cannot mint unscoped.
- * - Org-scoped API key (no eventId): only keys in that orgId.
- * - Session admin: only keys for events they administer (or unscoped keys in
- *   orgs of those events).
+ * - Org-scoped API key (no eventId): only keys in that orgId (incl. unscoped).
+ * - Session admin: only event-bound keys for events they administer.
+ *   Unscoped org-wide keys are never visible to session users — preventing
+ *   event admins from listing/revoking organization-wide integrations (E2).
  */
 export type KeysAdminScope = {
   /** Bound event when caller is an event-scoped API key. */
@@ -95,7 +96,7 @@ export type KeysAdminScope = {
   callerOrgId?: string | null;
   /** Event ids where session user is admin (session path). */
   adminEventIds?: string[];
-  /** Org ids derived from admin events (session path). */
+  /** Org ids derived from admin events (session path; mint path only). */
   adminOrgIds?: string[];
 };
 
@@ -113,11 +114,9 @@ export function keyVisibleToScope(
     if (row.eventId) {
       return scope.adminEventIds.includes(row.eventId);
     }
-    // Unscoped key: orgs of events the admin administers
-    const orgs = scope.adminOrgIds ?? [];
-    if (orgs.length > 0) return orgs.includes(row.orgId);
-    // Bootstrap memberships without Event.Create rows yet — allow list/create
-    return true;
+    // Session admins never list/revoke unscoped org-wide keys (E2).
+    // Only org-scoped Bearer keys:admin may manage those integrations.
+    return false;
   }
   // No scope → deny (should not list globally)
   return false;

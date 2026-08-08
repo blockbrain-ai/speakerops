@@ -88,6 +88,27 @@ export type EventOrgLookup = {
   findEventById(id: string): Promise<{ orgId: string } | null>;
 };
 
+/**
+ * Event / org binding check for Bearer principals (E2).
+ * - Event-scoped key: target eventId must match key.eventId
+ * - Org-scoped key: target event.orgId must match key.orgId
+ * Returns "ok" | "denied" (callers map denied → 404 NOT_FOUND).
+ */
+export async function assertApiKeyEventAccess(
+  eventsStore: EventOrgLookup | undefined,
+  apiKey: { eventId: string | null; orgId: string },
+  eventId: string,
+): Promise<"ok" | "denied"> {
+  if (apiKey.eventId) {
+    return apiKey.eventId === eventId ? "ok" : "denied";
+  }
+  // Org-scoped: require event lookup and matching orgId
+  if (!eventsStore) return "denied";
+  const event = await eventsStore.findEventById(eventId);
+  if (!event || event.orgId !== apiKey.orgId) return "denied";
+  return "ok";
+}
+
 export type RequireRoleOptions = {
   /**
    * How to resolve eventId for membership lookup.

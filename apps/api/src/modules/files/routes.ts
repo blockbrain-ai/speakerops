@@ -39,6 +39,7 @@ import {
   requireSession,
   requireSessionOrBearerScopes,
   actorFromContext,
+  assertApiKeyEventAccess,
 } from "../../middleware/authz.js";
 import {
   presignFileUpload,
@@ -184,8 +185,16 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
     }
 
     const apiKey = c.get("apiKey");
-    if (apiKey?.eventId && apiKey.eventId !== parsed.data.eventId) {
-      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+    if (apiKey) {
+      // Event-scoped and org-scoped keys must not cross org/event boundaries (E2).
+      const access = await assertApiKeyEventAccess(
+        events,
+        apiKey,
+        parsed.data.eventId,
+      );
+      if (access === "denied") {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
     }
 
     // API key with files:write is admin-equivalent for purpose role checks.
@@ -313,8 +322,11 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
     }
 
     const apiKey = c.get("apiKey");
-    if (apiKey?.eventId && apiKey.eventId !== eventId) {
-      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+    if (apiKey) {
+      const access = await assertApiKeyEventAccess(events, apiKey, eventId);
+      if (access === "denied") {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
     }
 
     // Load file for purpose-scoped role before buffering body
@@ -478,8 +490,15 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
         eventId = row?.eventId;
       }
       const apiKeyComplete = c.get("apiKey");
-      if (apiKeyComplete?.eventId && eventId && apiKeyComplete.eventId !== eventId) {
-        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      if (apiKeyComplete && eventId) {
+        const access = await assertApiKeyEventAccess(
+          events,
+          apiKeyComplete,
+          eventId,
+        );
+        if (access === "denied") {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
       }
       if (eventId && !apiKeyComplete) {
         const membership = await store.findMembership(eventId, user.id);

@@ -219,8 +219,20 @@ describe("7.3 Airtable one-way projection governance", () => {
       join(root, "apps", "api", "src", "modules", "events", "commands.ts"),
       "utf8",
     );
-    assert.match(eventsCmd, /enqueueAirtableProjection/);
-    assert.match(eventsCmd, /Never Airtable HTTP|never Airtable HTTP|outbox only/i);
+    // E7: airtable.project is part of createEventUnit / updateEventUnit (or
+    // legacy enqueueAirtableProjection) — never live Airtable HTTP on request path.
+    assert.match(
+      eventsCmd,
+      /AIRTABLE_OUTBOX_TOPIC|enqueueAirtableProjection|airtable\.project/,
+    );
+    assert.match(
+      eventsCmd,
+      /createEventUnit|updateEventUnit|enqueueAirtableProjection/,
+    );
+    assert.match(
+      eventsCmd,
+      /Never Airtable HTTP|never Airtable HTTP|outbox only|transactional outbox/i,
+    );
     // Must not import live fetch to Airtable from events commands
     assert.doesNotMatch(eventsCmd, /api\.airtable\.com/);
   });

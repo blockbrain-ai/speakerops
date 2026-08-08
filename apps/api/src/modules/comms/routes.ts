@@ -45,7 +45,11 @@ import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { CommsStore } from "./store.js";
 import type { KeysStore } from "../keys/store.js";
-import { requireRole, actorFromContext } from "../../middleware/authz.js";
+import {
+  requireRole,
+  actorFromContext,
+  assertApiKeyEventAccess,
+} from "../../middleware/authz.js";
 import {
   upsertTemplate,
   previewComms,
@@ -441,7 +445,7 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
         );
       }
 
-      // Resolve template → event for membership (cross-event isolation)
+      // Resolve template → event for membership (cross-event / cross-org isolation)
       const template = await comms.findTemplateById(parsed.data.templateId);
       if (!template) {
         return c.json(errorEnvelope("Template not found", NOT_FOUND), 404);
@@ -467,11 +471,21 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
             403,
           );
         }
-      } else if (apiKey.eventId && apiKey.eventId !== template.eventId) {
-        return c.json(
-          errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
-          404,
+      } else {
+        // Event-scoped and org-scoped keys: target template's event must match
+        // key binding / org (E2). eventsStore alone is not enough when
+        // eventIdFrom is "none" — resolve event from the template row.
+        const access = await assertApiKeyEventAccess(
+          events,
+          apiKey,
+          template.eventId,
         );
+        if (access === "denied") {
+          return c.json(
+            errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+            404,
+          );
+        }
       }
 
       const actor = actorFromContext(c) ?? {
@@ -548,6 +562,32 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
         if (!byKey) {
           return c.json(errorEnvelope("Preview not found", NOT_FOUND), 404);
         }
+        // Org/event isolation for idempotent replay path (E2).
+        const apiKeyReplay = c.get("apiKey");
+        if (apiKeyReplay) {
+          const access = await assertApiKeyEventAccess(
+            events,
+            apiKeyReplay,
+            byKey.eventId,
+          );
+          if (access === "denied") {
+            return c.json(
+              errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+              404,
+            );
+          }
+        } else {
+          const membership = await store.findMembership(
+            byKey.eventId,
+            user.id,
+          );
+          if (!membership || membership.role !== "admin") {
+            return c.json(
+              errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+              404,
+            );
+          }
+        }
       } else {
         const apiKey = c.get("apiKey");
         if (!apiKey) {
@@ -567,11 +607,18 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
               403,
             );
           }
-        } else if (apiKey.eventId && apiKey.eventId !== job.eventId) {
-          return c.json(
-            errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
-            404,
+        } else {
+          const access = await assertApiKeyEventAccess(
+            events,
+            apiKey,
+            job.eventId,
           );
+          if (access === "denied") {
+            return c.json(
+              errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+              404,
+            );
+          }
         }
       }
 

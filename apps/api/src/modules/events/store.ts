@@ -8,7 +8,7 @@
  * Mutable updates include the prior version in the WHERE clause (E1 optimistic
  * concurrency) and report false when no row was changed.
  */
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { uuidv7, DEFAULT_ORG_ID } from "@speakerops/shared";
 import {
   createDb,
@@ -18,6 +18,9 @@ import {
   events,
   rooms,
   tracks,
+  eventMemberships,
+  outboxEvents,
+  auditEvents,
 } from "@speakerops/db";
 import { d1Changes } from "../auth/store.js";
 
@@ -62,11 +65,82 @@ export type TrackRow = {
   version: number;
 };
 
+/**
+ * Membership row written as part of Event.Create unit (E7).
+ * Matches event_memberships columns.
+ */
+export type EventUnitMembership = {
+  id: string;
+  eventId: string;
+  userId: string;
+  role: string;
+  createdAt: string;
+};
+
+/** Outbox row written with the event mutation (airtable.project). */
+export type EventUnitOutbox = {
+  id: string;
+  topic: string;
+  payloadJson: string;
+  createdAt: string;
+};
+
+/** Audit row written with the event mutation (E3). */
+export type EventUnitAudit = {
+  id: string;
+  eventId: string | null;
+  actorType: string;
+  actorId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  beforeJson: string | null;
+  afterJson: string | null;
+  correlationId: string;
+  createdAt: string;
+};
+
+/**
+ * Event.Create transactional unit (E7): event + membership + optional outbox + audit.
+ * Single commit — no compensating multi-step path in commands.
+ */
+export type CreateEventUnit = {
+  event: EventRow;
+  membership: EventUnitMembership;
+  outbox: EventUnitOutbox | null;
+  audit: EventUnitAudit;
+};
+
+/**
+ * Event.Update transactional unit (E7): CAS event + optional outbox + audit.
+ * Returns false when version CAS loses (no side effects committed).
+ */
+export type UpdateEventUnit = {
+  event: EventRow;
+  expectedVersion: number;
+  outbox: EventUnitOutbox | null;
+  audit: EventUnitAudit;
+};
+
+/**
+ * Memory-store bridges so AuthStore / AirtableStore stay the SoR for those
+ * tables under Memory*. D1 ignores bridges and writes tables in one batch.
+ */
+export type EventUnitBridges = {
+  insertMembership(row: EventUnitMembership): Promise<void>;
+  deleteMembership(eventId: string, userId: string): Promise<void>;
+  insertOutbox?(row: EventUnitOutbox): Promise<void>;
+  deleteOutbox?(id: string): Promise<void>;
+  insertAudit(row: EventUnitAudit): Promise<void>;
+};
+
 export type EventsStore = {
   ensureOrg(input?: { id?: string; name?: string }): Promise<OrgRow>;
   findEventById(id: string): Promise<EventRow | null>;
   findEventBySlug(slug: string): Promise<EventRow | null>;
   listEventsByIds(ids: string[]): Promise<EventRow[]>;
+  /** All events belonging to an organization (org-scoped Bearer Event.List). */
+  listEventsByOrgId(orgId: string): Promise<EventRow[]>;
   insertEvent(row: EventRow): Promise<EventRow>;
   /**
    * Conditional update: WHERE id AND version = expectedVersion.
@@ -74,10 +148,23 @@ export type EventsStore = {
    */
   updateEvent(row: EventRow, expectedVersion: number): Promise<boolean>;
   /**
-   * Hard-delete for transactional-outbox compensation after a failed
-   * Event.Create side-effect unit (E7). Not a product command.
+   * Hard-delete for rare store-level rollback only. Product commands use
+   * createEventUnit / updateEventUnit (E7 transactional outbox).
    */
   deleteEvent(id: string): Promise<boolean>;
+  /**
+   * Atomic Event.Create unit (E7): event + membership + outbox? + audit.
+   * D1: single db.batch. Memory: bridges keep sibling stores consistent.
+   */
+  createEventUnit(unit: CreateEventUnit, bridges: EventUnitBridges): Promise<void>;
+  /**
+   * Atomic Event.Update unit (E7): CAS event + outbox? + audit.
+   * Returns false on version conflict (no side effects committed).
+   */
+  updateEventUnit(
+    unit: UpdateEventUnit,
+    bridges: EventUnitBridges,
+  ): Promise<boolean>;
   findRoom(eventId: string, roomId: string): Promise<RoomRow | null>;
   listRooms(eventId: string): Promise<RoomRow[]>;
   /**
@@ -157,6 +244,10 @@ export class MemoryEventsStore implements EventsStore {
     return out;
   }
 
+  async listEventsByOrgId(orgId: string): Promise<EventRow[]> {
+    return [...this.events.values()].filter((r) => r.orgId === orgId);
+  }
+
   async insertEvent(row: EventRow): Promise<EventRow> {
     this.events.set(row.id, row);
     this.eventsBySlug.set(row.slug, row.id);
@@ -179,6 +270,67 @@ export class MemoryEventsStore implements EventsStore {
     if (!prev) return false;
     this.events.delete(id);
     this.eventsBySlug.delete(prev.slug);
+    return true;
+  }
+
+  /**
+   * Memory: apply event + sibling-store bridges as one logical unit.
+   * On any bridge failure, reverse prior steps so no partial commit remains.
+   */
+  async createEventUnit(
+    unit: CreateEventUnit,
+    bridges: EventUnitBridges,
+  ): Promise<void> {
+    await this.insertEvent(unit.event);
+    let membershipOk = false;
+    let outboxOk = false;
+    try {
+      await bridges.insertMembership(unit.membership);
+      membershipOk = true;
+      if (unit.outbox && bridges.insertOutbox) {
+        await bridges.insertOutbox(unit.outbox);
+        outboxOk = true;
+      }
+      await bridges.insertAudit(unit.audit);
+    } catch (err) {
+      if (outboxOk && unit.outbox && bridges.deleteOutbox) {
+        await bridges.deleteOutbox(unit.outbox.id);
+      }
+      if (membershipOk) {
+        await bridges.deleteMembership(
+          unit.membership.eventId,
+          unit.membership.userId,
+        );
+      }
+      await this.deleteEvent(unit.event.id);
+      throw err;
+    }
+  }
+
+  async updateEventUnit(
+    unit: UpdateEventUnit,
+    bridges: EventUnitBridges,
+  ): Promise<boolean> {
+    const prev = this.events.get(unit.event.id);
+    if (!prev || prev.version !== unit.expectedVersion) return false;
+    const ok = await this.updateEvent(unit.event, unit.expectedVersion);
+    if (!ok) return false;
+    let outboxOk = false;
+    try {
+      if (unit.outbox && bridges.insertOutbox) {
+        await bridges.insertOutbox(unit.outbox);
+        outboxOk = true;
+      }
+      await bridges.insertAudit(unit.audit);
+    } catch (err) {
+      // Restore prior version so failed unit leaves SoR unchanged.
+      this.events.set(prev.id, prev);
+      this.eventsBySlug.set(prev.slug, prev.id);
+      if (outboxOk && unit.outbox && bridges.deleteOutbox) {
+        await bridges.deleteOutbox(unit.outbox.id);
+      }
+      throw err;
+    }
     return true;
   }
 
@@ -302,6 +454,14 @@ export class D1EventsStore implements EventsStore {
     return rows.map(mapEvent);
   }
 
+  async listEventsByOrgId(orgId: string): Promise<EventRow[]> {
+    const rows = await this.db
+      .select()
+      .from(events)
+      .where(eq(events.orgId, orgId));
+    return rows.map(mapEvent);
+  }
+
   async insertEvent(row: EventRow): Promise<EventRow> {
     await this.db.insert(events).values({
       id: row.id,
@@ -340,6 +500,147 @@ export class D1EventsStore implements EventsStore {
   async deleteEvent(id: string): Promise<boolean> {
     const result = await this.db.delete(events).where(eq(events.id, id));
     return d1Changes(result) > 0;
+  }
+
+  /**
+   * Single D1 batch: event + membership + outbox? + audit (E7 transactional outbox).
+   * Bridges are ignored — tables are written directly so AuthStore/AirtableStore
+   * (same D1 binding) observe the committed unit.
+   */
+  async createEventUnit(
+    unit: CreateEventUnit,
+    _bridges: EventUnitBridges,
+  ): Promise<void> {
+    const e = unit.event;
+    const m = unit.membership;
+    const a = unit.audit;
+    const eventInsert = this.db.insert(events).values({
+      id: e.id,
+      orgId: e.orgId,
+      name: e.name,
+      slug: e.slug,
+      timezone: e.timezone,
+      startsAt: e.startsAt,
+      endsAt: e.endsAt,
+      settingsJson: e.settingsJson,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+      version: e.version,
+    });
+    const membershipInsert = this.db.insert(eventMemberships).values({
+      id: m.id,
+      eventId: m.eventId,
+      userId: m.userId,
+      role: m.role,
+      createdAt: m.createdAt,
+    });
+    const auditInsert = this.db.insert(auditEvents).values({
+      id: a.id,
+      eventId: a.eventId,
+      actorType: a.actorType,
+      actorId: a.actorId,
+      action: a.action,
+      entityType: a.entityType,
+      entityId: a.entityId,
+      beforeJson: a.beforeJson,
+      afterJson: a.afterJson,
+      correlationId: a.correlationId,
+      createdAt: a.createdAt,
+    });
+    if (unit.outbox) {
+      const o = unit.outbox;
+      const outboxInsert = this.db.insert(outboxEvents).values({
+        id: o.id,
+        topic: o.topic,
+        payloadJson: o.payloadJson,
+        createdAt: o.createdAt,
+        processedAt: null,
+        attempts: 0,
+        lastError: null,
+      });
+      await this.db.batch([
+        eventInsert,
+        membershipInsert,
+        outboxInsert,
+        auditInsert,
+      ]);
+    } else {
+      await this.db.batch([eventInsert, membershipInsert, auditInsert]);
+    }
+  }
+
+  /**
+   * Single D1 batch: CAS event update + outbox? + audit (E7).
+   * Outbox/audit inserts are gated on the winning version so a lost CAS
+   * never leaves side effects without the event mutation.
+   */
+  async updateEventUnit(
+    unit: UpdateEventUnit,
+    _bridges: EventUnitBridges,
+  ): Promise<boolean> {
+    const e = unit.event;
+    const a = unit.audit;
+    const eventUpdate = this.db
+      .update(events)
+      .set({
+        orgId: e.orgId,
+        name: e.name,
+        slug: e.slug,
+        timezone: e.timezone,
+        startsAt: e.startsAt,
+        endsAt: e.endsAt,
+        settingsJson: e.settingsJson,
+        updatedAt: e.updatedAt,
+        version: e.version,
+      })
+      .where(and(eq(events.id, e.id), eq(events.version, unit.expectedVersion)));
+
+    // Gate side effects on the new version (only present if CAS won).
+    const casWon = and(eq(events.id, e.id), eq(events.version, e.version));
+
+    const auditInsert = this.db.insert(auditEvents).select(
+      this.db
+        .select({
+          id: sql<string>`${a.id}`.as("id"),
+          eventId: sql<string | null>`${a.eventId}`.as("event_id"),
+          actorType: sql<string>`${a.actorType}`.as("actor_type"),
+          actorId: sql<string>`${a.actorId}`.as("actor_id"),
+          action: sql<string>`${a.action}`.as("action"),
+          entityType: sql<string>`${a.entityType}`.as("entity_type"),
+          entityId: sql<string>`${a.entityId}`.as("entity_id"),
+          beforeJson: sql<string | null>`${a.beforeJson}`.as("before_json"),
+          afterJson: sql<string | null>`${a.afterJson}`.as("after_json"),
+          correlationId: sql<string>`${a.correlationId}`.as("correlation_id"),
+          createdAt: sql<string>`${a.createdAt}`.as("created_at"),
+        })
+        .from(events)
+        .where(casWon)
+        .limit(1),
+    );
+
+    let results: unknown[];
+    if (unit.outbox) {
+      const o = unit.outbox;
+      const outboxInsert = this.db.insert(outboxEvents).select(
+        this.db
+          .select({
+            id: sql<string>`${o.id}`.as("id"),
+            topic: sql<string>`${o.topic}`.as("topic"),
+            payloadJson: sql<string>`${o.payloadJson}`.as("payload_json"),
+            createdAt: sql<string>`${o.createdAt}`.as("created_at"),
+            processedAt: sql<string | null>`${null}`.as("processed_at"),
+            attempts: sql<number>`${0}`.as("attempts"),
+            lastError: sql<string | null>`${null}`.as("last_error"),
+          })
+          .from(events)
+          .where(casWon)
+          .limit(1),
+      );
+      results = await this.db.batch([eventUpdate, outboxInsert, auditInsert]);
+    } else {
+      results = await this.db.batch([eventUpdate, auditInsert]);
+    }
+    return d1Changes(results[0]) > 0;
   }
 
   async findRoom(eventId: string, roomId: string): Promise<RoomRow | null> {

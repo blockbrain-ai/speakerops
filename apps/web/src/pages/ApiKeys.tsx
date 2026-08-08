@@ -28,10 +28,12 @@ import {
   type ApiScope,
   type KeysCreateResponse,
 } from "@speakerops/shared";
+import { useEventContext } from "../events/EventContext.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
 
 export function ApiKeysPage() {
+  const { activeEventId } = useEventContext();
   const [keys, setKeys] = useState<ApiKeyDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -132,7 +134,18 @@ export function ApiKeysPage() {
       return;
     }
 
+    if (!activeEventId) {
+      setCreateStatus({
+        kind: "error",
+        text: "Select an event before creating an API key",
+      });
+      setCreating(false);
+      return;
+    }
+
     try {
+      // Always bind to the active event — session admins cannot mint unscoped
+      // org-wide keys, and multi-event admins must supply eventId (7.1).
       const res = await fetch("/api/keys", {
         method: "POST",
         credentials: "include",
@@ -140,7 +153,11 @@ export function ApiKeysPage() {
           "content-type": "application/json",
           accept: "application/json",
         },
-        body: JSON.stringify({ name: name.trim(), scopes }),
+        body: JSON.stringify({
+          name: name.trim(),
+          scopes,
+          eventId: activeEventId,
+        }),
       });
       const raw: unknown = await res.json();
       if (!res.ok) {

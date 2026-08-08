@@ -97,6 +97,7 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
    * Role: admin (any event membership with role admin)
    * Bearer: events:read (7.2 CLI01)
    * Event-scoped keys: only the bound event (never creator's full admin set).
+   * Org-scoped keys: only events in apiKey.orgId (never cross-org via creator).
    */
   events.get(
     "/",
@@ -114,6 +115,13 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
         const one = await getEvent(deps, apiKey.eventId);
         payload = {
           events: one.ok ? [one.value.event] : [],
+        };
+      } else if (apiKey) {
+        // Org-scoped Bearer: filter by key.orgId — never expose other orgs
+        // via the key creator's multi-org memberships (E2).
+        const listed = await listEventsForAdmin(deps, actor.userId);
+        payload = {
+          events: listed.events.filter((e) => e.orgId === apiKey.orgId),
         };
       } else {
         payload = await listEventsForAdmin(deps, actor.userId);
@@ -133,6 +141,7 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
    * POST /api/events — Event.Create
    * Role: admin (any admin membership — bootstrap / multi-event)
    * Bearer: events:write (7.2) — unscoped keys only; event-scoped keys forbidden.
+   * Org-scoped keys: orgId forced to apiKey.orgId (cannot create in another org).
    */
   events.post(
     "/",
@@ -176,8 +185,14 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
         );
       }
 
+      // Org-scoped Bearer: constrain orgId to the key's organization (E2).
+      // Ignore/override body.orgId so a key cannot mint events in another org.
+      const body = apiKey
+        ? { ...parsed.data, orgId: apiKey.orgId }
+        : parsed.data;
+
       const result = await createEvent(deps, {
-        ...parsed.data,
+        ...body,
         actorUserId: actor.userId,
         actorType: actor.actorType,
         actorId: actor.actorId,
