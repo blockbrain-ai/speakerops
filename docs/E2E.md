@@ -71,6 +71,7 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright/e2e/event_settings.spec.ts` | Section **2.3** `@inv:C01`/`C02`/`C07`/`C11`/`O01`–`O03` |
 | `playwright/e2e/design_kit.spec.ts` | Section **2.4** `@inv:C03`–`C06`/`C08`–`C10` Design Kit |
 | `playwright/e2e/auth_settings_keystone.spec.ts` | Section **2.5** I12 keystone (login → design publish → public brand) |
+| `playwright/e2e/form_builder.spec.ts` | Section **3.2** `@inv:D01`–`D10` form builder admin UI |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |

@@ -1,7 +1,7 @@
 /**
  * App router + shared admin layout (section 1.4) + auth login (section 2.1)
  * + RequireRole admin guards (section 2.2) + event context (section 2.3)
- * + Design Kit (section 2.4).
+ * + Design Kit (section 2.4) + Form builder (section 3.2).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -13,9 +13,9 @@ import { PortalHomePage } from "./pages/PortalHome.js";
 import { EventSettingsPage } from "./pages/EventSettings.js";
 import { DesignKitPage } from "./pages/DesignKit.js";
 import { PublicCfpPage } from "./pages/PublicCfp.js";
+import { FormBuilderPage } from "./pages/FormBuilder.js";
 import {
   BareLayout,
-  CfpFormsPage,
   CommsPage,
   EvaluationsPage,
   NotFoundPage,
@@ -69,7 +69,7 @@ export function AppRoutes() {
         path="/admin/cfp"
         element={
           <AdminGuard>
-            <CfpFormsPage />
+            <FormBuilderPage />
           </AdminGuard>
         }
       />
@@ -152,7 +152,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <BrowserRouter>
-      <div id="speakerops-root" data-section="2.4" data-testid="app-root">
+      <div id="speakerops-root" data-section="3.2" data-testid="app-root">
         <AppRoutes />
       </div>
     </BrowserRouter>

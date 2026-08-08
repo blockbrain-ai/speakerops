@@ -77,16 +77,16 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| D01 | admin | Forms | Create form; add text/select/file/speaker fields | e2e/admin/form-create | — | REQUIRED | OPEN |
-| D02 | admin | Forms | Reorder fields drag | e2e/admin/form-reorder | — | REQUIRED | OPEN |
-| D03 | admin | Forms | Conditional rule: show field if select=X | e2e/admin/form-conditional | Circular rule blocked | REQUIRED | OPEN |
-| D04 | admin | Forms | Category field + routing target | e2e/admin/form-routing | — | REQUIRED | OPEN |
-| D05 | admin | Forms | Required flags + validation | e2e/admin/form-required | — | REQUIRED | OPEN |
-| D06 | admin | Forms | Welcome/thank-you copy | e2e/admin/form-copy | — | REQUIRED | OPEN |
-| D07 | admin | Forms | Preview side-by-side | e2e/admin/form-preview | — | REQUIRED | OPEN |
-| D08 | admin | Forms | Publish version; pin version on new submission | e2e/admin/form-publish-version | Edit published creates new version | REQUIRED | OPEN |
-| D09 | admin | Forms | Open/close + submission limit | e2e/admin/form-limits | Over limit rejected | REQUIRED | OPEN |
-| D10 | admin | Forms | Copy public link | e2e/admin/form-link | — | REQUIRED | OPEN |
+| D01 | admin | Forms | Create form; add text/select/file/speaker fields | e2e/admin/form-create | — | REQUIRED | PASS |
+| D02 | admin | Forms | Reorder fields drag | e2e/admin/form-reorder | — | REQUIRED | PASS |
+| D03 | admin | Forms | Conditional rule: show field if select=X | e2e/admin/form-conditional | Circular rule blocked | REQUIRED | PASS |
+| D04 | admin | Forms | Category field + routing target | e2e/admin/form-routing | — | REQUIRED | PASS |
+| D05 | admin | Forms | Required flags + validation | e2e/admin/form-required | — | REQUIRED | PASS |
+| D06 | admin | Forms | Welcome/thank-you copy | e2e/admin/form-copy | — | REQUIRED | PASS |
+| D07 | admin | Forms | Preview side-by-side | e2e/admin/form-preview | — | REQUIRED | PASS |
+| D08 | admin | Forms | Publish version; pin version on new submission | e2e/admin/form-publish-version | Edit published creates new version | REQUIRED | PASS |
+| D09 | admin | Forms | Open/close + submission limit | e2e/admin/form-limits | Over limit rejected | REQUIRED | PASS |
+| D10 | admin | Forms | Copy public link | e2e/admin/form-link | — | REQUIRED | PASS |
 
 ---
 

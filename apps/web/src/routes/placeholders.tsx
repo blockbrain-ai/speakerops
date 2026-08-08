@@ -34,13 +34,14 @@ export function OverviewPage() {
   );
 }
 
+/** @deprecated Replaced by FormBuilderPage (section 3.2). Kept for type exports only. */
 export function CfpFormsPage() {
   return (
     <PageStub
       overline="CFP / Forms"
       title="Forms"
-      body="Form builder UI lands in section 3.2. This route is a chrome placeholder."
-      testId="page-cfp"
+      body="Form builder UI is FormBuilderPage at /admin/cfp (section 3.2)."
+      testId="page-cfp-placeholder"
     />
   );
 }
