@@ -1422,9 +1422,11 @@ export class D1CommsStore implements CommsStore {
    *   that version with concurrent losers (winner N→N+1; loser UPDATE 0 rows
    *   still sees version N+1) and commits orphan side effects under different
    *   idempotency keys.
-   * - Single batch + gate on values unique to *this* winning UPDATE satisfies
-   *   both: atomicity and no orphans. The UPDATE stamps idempotency_key and
-   *   updated_at; only the winner's row matches both with the new version.
+   * - Single batch + gate on a *per-attempt transition token* (uuid stamped into
+   *   updated_at) satisfies both: atomicity and no orphans. Concurrent same
+   *   idempotencyKey retries never share the gate marker even at identical ms.
+   * - If a batch still races the unique idempotency_keys index, reconcile to the
+   *   existing job (J04) instead of surfacing 500.
    */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
@@ -1432,13 +1434,17 @@ export class D1CommsStore implements CommsStore {
   ): Promise<MessageJobRow | null> {
     const audit = buildAuditEventRow(input.audit);
 
+    // Guaranteed-unique per attempt — not wall-clock ms (J04 same-key race).
+    const transitionToken = uuidv7();
+    const transitionStamp = `${input.updatedAt}#${transitionToken}`;
+
     const jobUpdate = this.db
       .update(messageJobs)
       .set({
         status: input.status,
         idempotencyKey: input.idempotencyKey,
         version: input.version,
-        updatedAt: input.updatedAt,
+        updatedAt: transitionStamp,
       })
       .where(
         and(
@@ -1447,13 +1453,12 @@ export class D1CommsStore implements CommsStore {
         ),
       );
 
-    // Transition-unique gate (not merely shared target version N+1).
-    // Visible to later statements in the same D1 batch transaction.
+    // Transition-unique gate: only *this* UPDATE stamp is visible to inserts.
     const jobWon = and(
       eq(messageJobs.id, input.jobId),
       eq(messageJobs.version, input.version),
       eq(messageJobs.idempotencyKey, input.idempotencyKey),
-      eq(messageJobs.updatedAt, input.updatedAt),
+      eq(messageJobs.updatedAt, transitionStamp),
     );
 
     const recipientInserts = input.recipients.map((r) =>
@@ -1550,26 +1555,34 @@ export class D1CommsStore implements CommsStore {
     // Single D1 batch: job + side effects commit or roll back together (E7).
     // D1 batch requires a non-empty tuple type.
     let results: unknown[];
-    if (recipientInserts.length === 0) {
-      results = await this.db.batch([
-        jobUpdate,
-        outboxInsert,
-        idemInsert,
-        auditInsert,
-      ]);
-    } else {
-      results = await this.db.batch([
-        jobUpdate,
-        recipientInserts[0]!,
-        ...recipientInserts.slice(1),
-        outboxInsert,
-        idemInsert,
-        auditInsert,
-      ]);
+    try {
+      if (recipientInserts.length === 0) {
+        results = await this.db.batch([
+          jobUpdate,
+          outboxInsert,
+          idemInsert,
+          auditInsert,
+        ]);
+      } else {
+        results = await this.db.batch([
+          jobUpdate,
+          recipientInserts[0]!,
+          ...recipientInserts.slice(1),
+          outboxInsert,
+          idemInsert,
+          auditInsert,
+        ]);
+      }
+    } catch (err) {
+      // Duplicate-key batch race on idempotency_keys: winner committed; J04 replay.
+      const existing = await this.findJobByIdempotencyKey(input.idempotencyKey);
+      if (existing) return existing;
+      throw err;
     }
     if (d1Changes(results[0]) === 0) {
-      // Version conflict: jobWon inserts matched 0 rows (transition-unique
-      // predicate: version + idempotency_key + updated_at); no orphans.
+      // Lost version CAS. Same-key concurrent winner → idempotent return (J04).
+      const existing = await this.findJobByIdempotencyKey(input.idempotencyKey);
+      if (existing) return existing;
       return null;
     }
     return this.findJobById(input.jobId);

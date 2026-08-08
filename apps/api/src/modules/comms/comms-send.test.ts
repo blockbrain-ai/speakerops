@@ -844,9 +844,12 @@ describe("5.2 Comms send idempotent + ICS", () => {
     );
     expect(enqueue).toContain("this.db.batch");
     expect(enqueue).toContain("idempotencyKey");
+    expect(enqueue).toContain("transitionStamp");
+    expect(enqueue).toContain("transitionToken");
     expect(enqueue).toMatch(/eq\(\s*messageJobs\.idempotencyKey/);
     expect(enqueue).toMatch(/eq\(\s*messageJobs\.updatedAt/);
     expect(enqueue).toMatch(/eq\(\s*messageJobs\.version/);
+    expect(enqueue).toContain("findJobByIdempotencyKey");
     // Must not reintroduce claim-then-separate-insert (E7 orphan risk).
     expect(enqueue).not.toMatch(/claimResult/);
   });
