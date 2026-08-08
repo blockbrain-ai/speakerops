@@ -179,7 +179,7 @@ export function maskStringLiterals(code) {
 
     // Template literal
     if (c === "`") {
-      const keep = shouldKeepSpecifier();
+      const keep = false; // templates never real import paths
       result += "`";
       i++;
       while (i < n) {
