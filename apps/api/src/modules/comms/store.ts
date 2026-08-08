@@ -5,7 +5,7 @@
  * D1CommsStore wraps the Worker DB binding for production (E1 SoR).
  * Event-scoped queries take eventId (E2).
  */
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, or, sql } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import {
   createDb,
@@ -23,6 +23,48 @@ import {
   auditEvents,
 } from "@speakerops/db";
 import { d1Changes } from "../auth/store.js";
+
+/**
+ * Outbox exclusive lease encoded in last_error (no schema migration).
+ * Format: claim:<claimedUntilISO>:<claimToken>
+ * Active while processed_at IS NULL and claimedUntil > now.
+ */
+export const OUTBOX_CLAIM_PREFIX = "claim:";
+
+/** Default exclusive-drain lease (ms). Concurrent queue + cron must not overlap. */
+export const OUTBOX_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+export function formatOutboxClaim(
+  claimedUntil: string,
+  claimToken: string,
+): string {
+  return `${OUTBOX_CLAIM_PREFIX}${claimedUntil}:${claimToken}`;
+}
+
+/** True when lastError is an unexpired exclusive claim. */
+export function isActiveOutboxClaim(
+  lastError: string | null | undefined,
+  nowIso: string,
+): boolean {
+  if (!lastError || !lastError.startsWith(OUTBOX_CLAIM_PREFIX)) return false;
+  const rest = lastError.slice(OUTBOX_CLAIM_PREFIX.length);
+  const sep = rest.indexOf(":");
+  if (sep <= 0) return false;
+  const until = rest.slice(0, sep);
+  // ISO-8601 timestamps compare lexicographically.
+  return until > nowIso;
+}
+
+export function parseOutboxClaimToken(
+  lastError: string | null | undefined,
+): string | null {
+  if (!lastError || !lastError.startsWith(OUTBOX_CLAIM_PREFIX)) return null;
+  const rest = lastError.slice(OUTBOX_CLAIM_PREFIX.length);
+  const sep = rest.indexOf(":");
+  if (sep < 0) return null;
+  const token = rest.slice(sep + 1);
+  return token.length > 0 ? token : null;
+}
 
 /** Atomic Comms.Send enqueue payload (job + recipients + outbox + idem + audit). */
 export type EnqueueSendAtomicInput = {
@@ -174,6 +216,28 @@ export type CommsStore = {
   listOutbox(): Promise<OutboxEventRow[]>;
   listOutboxByTopic(topic: string): Promise<OutboxEventRow[]>;
   listUnprocessedOutboxByTopic(topic: string): Promise<OutboxEventRow[]>;
+  /**
+   * Atomic exclusive claim for drain (queue consumer vs cron).
+   * Returns null if already processed or another worker holds an unexpired lease.
+   * Stores claim in last_error as claim:<until>:<token>.
+   */
+  claimOutboxForProcessing(
+    id: string,
+    patch: {
+      claimToken: string;
+      claimedUntil: string;
+      attempts: number;
+    },
+  ): Promise<OutboxEventRow | null>;
+  /**
+   * Drop an exclusive claim so another drain can resume (e.g. mid-job crash
+   * recovery path after incomplete multi-recipient send). No-op if processed
+   * or claim token does not match.
+   */
+  releaseOutboxClaim(
+    id: string,
+    claimToken: string,
+  ): Promise<OutboxEventRow | null>;
   markOutboxProcessed(
     id: string,
     patch: {
@@ -185,6 +249,11 @@ export type CommsStore = {
 
   insertRecipient(row: MessageRecipientRow): Promise<MessageRecipientRow>;
   listRecipientsForJob(jobId: string): Promise<MessageRecipientRow[]>;
+  /**
+   * Atomic per-recipient send lock: queued|pending → sending.
+   * Returns null if missing or already claimed/terminal (another drain won).
+   */
+  claimRecipientForSend(id: string): Promise<MessageRecipientRow | null>;
   updateRecipientStatus(
     id: string,
     status: string,
@@ -406,9 +475,55 @@ export class MemoryCommsStore implements CommsStore {
   async listUnprocessedOutboxByTopic(
     topic: string,
   ): Promise<OutboxEventRow[]> {
+    const nowIso = new Date().toISOString();
     return this.outbox
-      .filter((r) => r.topic === topic && r.processedAt === null)
+      .filter(
+        (r) =>
+          r.topic === topic &&
+          r.processedAt === null &&
+          !isActiveOutboxClaim(r.lastError, nowIso),
+      )
       .map((r) => ({ ...r }));
+  }
+
+  async claimOutboxForProcessing(
+    id: string,
+    patch: {
+      claimToken: string;
+      claimedUntil: string;
+      attempts: number;
+    },
+  ): Promise<OutboxEventRow | null> {
+    const idx = this.outbox.findIndex((r) => r.id === id);
+    if (idx < 0) return null;
+    const row = this.outbox[idx]!;
+    if (row.processedAt !== null) return null;
+    const nowIso = new Date().toISOString();
+    if (isActiveOutboxClaim(row.lastError, nowIso)) return null;
+    const next: OutboxEventRow = {
+      ...row,
+      attempts: patch.attempts,
+      lastError: formatOutboxClaim(patch.claimedUntil, patch.claimToken),
+    };
+    this.outbox[idx] = next;
+    return { ...next };
+  }
+
+  async releaseOutboxClaim(
+    id: string,
+    claimToken: string,
+  ): Promise<OutboxEventRow | null> {
+    const idx = this.outbox.findIndex((r) => r.id === id);
+    if (idx < 0) return null;
+    const row = this.outbox[idx]!;
+    if (row.processedAt !== null) return null;
+    if (parseOutboxClaimToken(row.lastError) !== claimToken) return null;
+    const next: OutboxEventRow = {
+      ...row,
+      lastError: null,
+    };
+    this.outbox[idx] = next;
+    return { ...next };
   }
 
   async markOutboxProcessed(
@@ -442,6 +557,20 @@ export class MemoryCommsStore implements CommsStore {
     return [...this.recipients.values()]
       .filter((r) => r.jobId === jobId)
       .map((r) => ({ ...r }));
+  }
+
+  async claimRecipientForSend(
+    id: string,
+  ): Promise<MessageRecipientRow | null> {
+    const existing = this.recipients.get(id);
+    if (!existing) return null;
+    // Enqueue writes "queued"; schema default is "pending".
+    if (existing.status !== "pending" && existing.status !== "queued") {
+      return null;
+    }
+    const next: MessageRecipientRow = { ...existing, status: "sending" };
+    this.recipients.set(id, next);
+    return { ...next };
   }
 
   async updateRecipientStatus(
@@ -822,13 +951,66 @@ export class D1CommsStore implements CommsStore {
   async listUnprocessedOutboxByTopic(
     topic: string,
   ): Promise<OutboxEventRow[]> {
+    const nowIso = new Date().toISOString();
     const rows = await this.db
       .select()
       .from(outboxEvents)
       .where(
         and(eq(outboxEvents.topic, topic), isNull(outboxEvents.processedAt)),
       );
-    return rows.map((r) => ({
+    // Filter expired/absent claims in app (D1 WHERE for claim shape is fragile).
+    return rows
+      .filter((r) => !isActiveOutboxClaim(r.lastError, nowIso))
+      .map((r) => ({
+        id: r.id,
+        topic: r.topic,
+        payloadJson: r.payloadJson,
+        createdAt: r.createdAt,
+        processedAt: r.processedAt,
+        attempts: r.attempts,
+        lastError: r.lastError,
+      }));
+  }
+
+  async claimOutboxForProcessing(
+    id: string,
+    patch: {
+      claimToken: string;
+      claimedUntil: string;
+      attempts: number;
+    },
+  ): Promise<OutboxEventRow | null> {
+    const nowIso = new Date().toISOString();
+    const claimValue = formatOutboxClaim(patch.claimedUntil, patch.claimToken);
+    // Atomic CAS: only one concurrent drain wins.
+    // Claimable when unprocessed and (no claim marker OR expired lease).
+    // claim:<ISO24>:<token> — ISO length 24 so substr positions are fixed.
+    const result = await this.db
+      .update(outboxEvents)
+      .set({
+        attempts: patch.attempts,
+        lastError: claimValue,
+      })
+      .where(
+        and(
+          eq(outboxEvents.id, id),
+          isNull(outboxEvents.processedAt),
+          or(
+            isNull(outboxEvents.lastError),
+            sql`${outboxEvents.lastError} NOT LIKE ${OUTBOX_CLAIM_PREFIX + "%"}`,
+            sql`substr(${outboxEvents.lastError}, 7, 24) <= ${nowIso}`,
+          ),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
+    const rows = await this.db
+      .select()
+      .from(outboxEvents)
+      .where(eq(outboxEvents.id, id))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return {
       id: r.id,
       topic: r.topic,
       payloadJson: r.payloadJson,
@@ -836,7 +1018,43 @@ export class D1CommsStore implements CommsStore {
       processedAt: r.processedAt,
       attempts: r.attempts,
       lastError: r.lastError,
-    }));
+    };
+  }
+
+  async releaseOutboxClaim(
+    id: string,
+    claimToken: string,
+  ): Promise<OutboxEventRow | null> {
+    const rows = await this.db
+      .select()
+      .from(outboxEvents)
+      .where(eq(outboxEvents.id, id))
+      .limit(1);
+    const existing = rows[0];
+    if (!existing || existing.processedAt !== null) return null;
+    if (parseOutboxClaimToken(existing.lastError) !== claimToken) return null;
+    const priorClaim = existing.lastError;
+    if (priorClaim == null) return null;
+    const result = await this.db
+      .update(outboxEvents)
+      .set({ lastError: null })
+      .where(
+        and(
+          eq(outboxEvents.id, id),
+          isNull(outboxEvents.processedAt),
+          eq(outboxEvents.lastError, priorClaim),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
+    return {
+      id: existing.id,
+      topic: existing.topic,
+      payloadJson: existing.payloadJson,
+      createdAt: existing.createdAt,
+      processedAt: existing.processedAt,
+      attempts: existing.attempts,
+      lastError: null,
+    };
   }
 
   async markOutboxProcessed(
@@ -909,6 +1127,44 @@ export class D1CommsStore implements CommsStore {
       status: r.status,
       createdAt: r.createdAt,
     }));
+  }
+
+  async claimRecipientForSend(
+    id: string,
+  ): Promise<MessageRecipientRow | null> {
+    // Claim when still pre-send (enqueue uses "queued"; schema default "pending").
+    const result = await this.db
+      .update(messageRecipients)
+      .set({ status: "sending" })
+      .where(
+        and(
+          eq(messageRecipients.id, id),
+          or(
+            eq(messageRecipients.status, "pending"),
+            eq(messageRecipients.status, "queued"),
+          ),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
+    const rows = await this.db
+      .select()
+      .from(messageRecipients)
+      .where(eq(messageRecipients.id, id))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.id,
+      jobId: r.jobId,
+      eventId: r.eventId,
+      participationId: r.participationId,
+      toEmail: r.toEmail,
+      name: r.name,
+      subject: r.subject,
+      body: r.body,
+      status: r.status,
+      createdAt: r.createdAt,
+    };
   }
 
   async updateRecipientStatus(
@@ -1127,15 +1383,20 @@ export class D1CommsStore implements CommsStore {
   }
 
   /**
-   * Single D1 batch: job update + recipients + outbox + idempotency + audit.
-   * All-or-nothing for mid-request failure (E7 transactional outbox).
+   * Atomic Comms.Send enqueue (E7):
+   * 1) Conditional job version claim (standalone) — 0 rows → null, no side effects.
+   * 2) Recipients + outbox + idempotency + audit in one D1 batch.
+   *
+   * D1 batch does not treat "UPDATE matched 0 rows" as an error, so the job
+   * claim MUST run before inserts. Otherwise a version conflict still commits
+   * orphan recipients/outbox/idempotency/audit (concurrent different keys).
    */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
     _onAudit?: (row: AuditWriteInput) => Promise<void>,
   ): Promise<MessageJobRow | null> {
-    const audit = buildAuditEventRow(input.audit);
-    const jobUpdate = this.db
+    // Gate: only the version winner proceeds to side-effect inserts.
+    const claimResult = await this.db
       .update(messageJobs)
       .set({
         status: input.status,
@@ -1149,7 +1410,11 @@ export class D1CommsStore implements CommsStore {
           eq(messageJobs.version, input.expectedVersion),
         ),
       );
+    if (d1Changes(claimResult) === 0) {
+      return null;
+    }
 
+    const audit = buildAuditEventRow(input.audit);
     const recipientInserts = input.recipients.map((r) =>
       this.db.insert(messageRecipients).values({
         id: r.id,
@@ -1197,18 +1462,18 @@ export class D1CommsStore implements CommsStore {
       createdAt: audit.createdAt,
     });
 
-    // Single D1 batch = transactional multi-statement write (E7).
-    const results = await this.db.batch([
-      jobUpdate,
-      ...recipientInserts,
-      outboxInsert,
-      idemInsert,
-      auditInsert,
-    ]);
-    if (d1Changes(results[0]) === 0) {
-      // Version conflict: batch may still have applied inserts on some runtimes.
-      // Prefer null so the command layer can reconcile via idempotency lookup.
-      return null;
+    // Side effects only after the version claim succeeded.
+    // D1 batch requires a non-empty tuple type; outbox + idem + audit always present.
+    if (recipientInserts.length === 0) {
+      await this.db.batch([outboxInsert, idemInsert, auditInsert]);
+    } else {
+      await this.db.batch([
+        recipientInserts[0]!,
+        ...recipientInserts.slice(1),
+        outboxInsert,
+        idemInsert,
+        auditInsert,
+      ]);
     }
     return this.findJobById(input.jobId);
   }

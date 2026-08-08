@@ -636,6 +636,66 @@ describe("5.2 Comms send idempotent + ICS", () => {
     expect(outbox[0]!.processedAt).not.toBeNull();
   });
 
+  it("assert concurrent outbox drains do not double-send a recipient", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-send-concurrent@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Concurrent Drain");
+    await seedAcceptedSpeaker(admin, event.id, "concurrent");
+    const { preview } = await upsertAndPreview(
+      admin,
+      event.id,
+      "concurrent-nudge",
+    );
+
+    const sendRes = await admin.app.request(
+      "http://localhost/api/comms/send",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-send-concurrent",
+        },
+        body: JSON.stringify({
+          previewId: preview.previewId,
+          idempotencyKey: "idem-concurrent-1",
+        }),
+      },
+      env,
+    );
+    expect(sendRes.status).toBe(201);
+    const sendBody = CommsSendResponseSchema.parse(await sendRes.json());
+
+    // Shared provider so both drains record into the same send log.
+    const sandbox = new SandboxEmailProvider();
+    const [a, b] = await Promise.all([
+      processCommsOutbox({
+        comms: admin.comms,
+        auth: admin.store,
+        provider: sandbox,
+      }),
+      processCommsOutbox({
+        comms: admin.comms,
+        auth: admin.store,
+        provider: sandbox,
+      }),
+    ]);
+
+    // At-most-once: concurrent queue + cron style drains must not double-send.
+    expect(a.processed + b.processed).toBeLessThanOrEqual(1);
+    expect(sandbox.sent.length).toBe(1);
+    expect(sandbox.sent[0]!.to).toBe(
+      "speaker-send-concurrent@example.com",
+    );
+
+    const deliveries = await admin.comms.listDeliveryEventsForJob(
+      sendBody.job.id,
+    );
+    expect(deliveries.length).toBe(1);
+  });
+
   it("assert invalid ICS startsAt returns 400 VALIDATION_ERROR not 500", async () => {
     const admin = await magicLinkSession(
       "admin",

@@ -12,7 +12,14 @@
  *   GET  /api/events/:eventId/comms/jobs/:jobId
  *   GET/POST /api/events/:eventId/comms/ics
  */
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   CommsUpsertTemplateResponseSchema,
   CommsPreviewResponseSchema,
@@ -41,6 +48,15 @@ import {
 
 export function CommsPage() {
   const { activeEventId } = useEventContext();
+
+  /**
+   * Monotonic load generation + active event id so a slower response for event A
+   * cannot overwrite templates/speakers/jobs/invites after switching to event B
+   * (stale template pick → preview/send against A while UI shows B).
+   */
+  const loadGenRef = useRef(0);
+  const activeEventIdRef = useRef(activeEventId);
+  activeEventIdRef.current = activeEventId;
 
   // —— Template editor (J01) ——
   const [key, setKey] = useState("accept-reminder");
@@ -152,102 +168,141 @@ export function CommsPage() {
     setLastIdempotencyKey(null);
   }, []);
 
-  const loadTemplates = useCallback(async (eventId: string) => {
-    try {
-      const res = await fetch(
-        `/api/events/${encodeURIComponent(eventId)}/templates`,
-        {
-          credentials: "include",
-          headers: { accept: "application/json" },
-        },
-      );
-      if (!res.ok) return;
-      const raw: unknown = await res.json();
-      const parsed = CommsListTemplatesResponseSchema.safeParse(raw);
-      if (parsed.success) {
-        setTemplates(parsed.data.templates);
-      }
-    } catch {
-      /* non-fatal */
-    }
-  }, []);
+  const isCurrentEventLoad = useCallback(
+    (eventId: string, gen: number) =>
+      gen === loadGenRef.current && activeEventIdRef.current === eventId,
+    [],
+  );
 
-  const loadSpeakers = useCallback(async (eventId: string) => {
-    setSpeakersError(null);
-    try {
-      const res = await fetch(
-        `/api/events/${encodeURIComponent(eventId)}/speakers`,
-        {
-          credentials: "include",
-          headers: { accept: "application/json" },
-        },
-      );
-      if (!res.ok) {
-        setSpeakersError(`Speakers load failed (${res.status})`);
-        setSpeakers([]);
-        return;
+  const loadTemplates = useCallback(
+    async (eventId: string, gen?: number) => {
+      const loadGen = gen ?? loadGenRef.current;
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(eventId)}/templates`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        if (!res.ok) return;
+        const raw: unknown = await res.json();
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        const parsed = CommsListTemplatesResponseSchema.safeParse(raw);
+        if (parsed.success) {
+          setTemplates(parsed.data.templates);
+        }
+      } catch {
+        /* non-fatal */
       }
-      const raw: unknown = await res.json();
-      const parsed = AdminSpeakersListResponseSchema.safeParse(raw);
-      if (!parsed.success) {
-        setSpeakersError("Unexpected speakers response");
-        return;
-      }
-      setSpeakers(parsed.data.speakers);
-    } catch {
-      setSpeakersError("Network error loading speakers");
-    }
-  }, []);
+    },
+    [isCurrentEventLoad],
+  );
 
-  const loadJobs = useCallback(async (eventId: string) => {
-    setLogError(null);
-    try {
-      const res = await fetch(
-        `/api/events/${encodeURIComponent(eventId)}/comms/jobs`,
-        {
-          credentials: "include",
-          headers: { accept: "application/json" },
-        },
-      );
-      if (!res.ok) {
-        setLogError(`Delivery log failed (${res.status})`);
-        return;
+  const loadSpeakers = useCallback(
+    async (eventId: string, gen?: number) => {
+      const loadGen = gen ?? loadGenRef.current;
+      if (isCurrentEventLoad(eventId, loadGen)) {
+        setSpeakersError(null);
       }
-      const raw: unknown = await res.json();
-      const parsed = CommsListJobsResponseSchema.safeParse(raw);
-      if (!parsed.success) {
-        setLogError("Unexpected jobs response");
-        return;
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(eventId)}/speakers`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        if (!res.ok) {
+          setSpeakersError(`Speakers load failed (${res.status})`);
+          setSpeakers([]);
+          return;
+        }
+        const raw: unknown = await res.json();
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        const parsed = AdminSpeakersListResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          setSpeakersError("Unexpected speakers response");
+          return;
+        }
+        setSpeakers(parsed.data.speakers);
+      } catch {
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        setSpeakersError("Network error loading speakers");
       }
-      setJobs(parsed.data.jobs);
-    } catch {
-      setLogError("Network error loading delivery log");
-    }
-  }, []);
+    },
+    [isCurrentEventLoad],
+  );
 
-  const loadInvites = useCallback(async (eventId: string) => {
-    try {
-      const res = await fetch(
-        `/api/events/${encodeURIComponent(eventId)}/comms/ics`,
-        {
-          credentials: "include",
-          headers: { accept: "application/json" },
-        },
-      );
-      if (!res.ok) return;
-      const raw: unknown = await res.json();
-      const parsed = CommsListIcsResponseSchema.safeParse(raw);
-      if (parsed.success) {
-        setInvites(parsed.data.invites);
+  const loadJobs = useCallback(
+    async (eventId: string, gen?: number) => {
+      const loadGen = gen ?? loadGenRef.current;
+      if (isCurrentEventLoad(eventId, loadGen)) {
+        setLogError(null);
       }
-    } catch {
-      /* non-fatal */
-    }
-  }, []);
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(eventId)}/comms/jobs`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        if (!res.ok) {
+          setLogError(`Delivery log failed (${res.status})`);
+          return;
+        }
+        const raw: unknown = await res.json();
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        const parsed = CommsListJobsResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          setLogError("Unexpected jobs response");
+          return;
+        }
+        setJobs(parsed.data.jobs);
+      } catch {
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        setLogError("Network error loading delivery log");
+      }
+    },
+    [isCurrentEventLoad],
+  );
+
+  const loadInvites = useCallback(
+    async (eventId: string, gen?: number) => {
+      const loadGen = gen ?? loadGenRef.current;
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(eventId)}/comms/ics`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        if (!res.ok) return;
+        const raw: unknown = await res.json();
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        const parsed = CommsListIcsResponseSchema.safeParse(raw);
+        if (parsed.success) {
+          setInvites(parsed.data.invites);
+        }
+      } catch {
+        /* non-fatal */
+      }
+    },
+    [isCurrentEventLoad],
+  );
 
   // Event switch: clear event-scoped send state so a still-enabled Send cannot
   // submit the prior event's preview while the UI shows the new event.
+  // Bump loadGen so in-flight loads for the prior event are ignored on resolve.
   useEffect(() => {
+    const gen = ++loadGenRef.current;
+
     setSelectedParticipationIds([]);
     setTemplateId(null);
     setLastSaved(null);
@@ -262,6 +317,7 @@ export function CommsPage() {
     setSelectedJob(null);
     setLogError(null);
     setIcsStatus(null);
+    setSpeakersError(null);
     setSpeakers([]);
     setJobs([]);
     setInvites([]);
@@ -270,10 +326,10 @@ export function CommsPage() {
     if (!activeEventId) {
       return;
     }
-    void loadTemplates(activeEventId);
-    void loadSpeakers(activeEventId);
-    void loadJobs(activeEventId);
-    void loadInvites(activeEventId);
+    void loadTemplates(activeEventId, gen);
+    void loadSpeakers(activeEventId, gen);
+    void loadJobs(activeEventId, gen);
+    void loadInvites(activeEventId, gen);
   }, [activeEventId, loadTemplates, loadSpeakers, loadJobs, loadInvites]);
 
   const onSaveTemplate = useCallback(

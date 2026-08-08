@@ -6,6 +6,10 @@
  * and RESEND_API_KEY are set (env names only, E10).
  *
  * Request path never calls this; Comms.Send only inserts outbox_events (E7).
+ *
+ * Concurrency: exclusive per-row claim (lease in last_error) before any
+ * provider call, plus per-recipient pending→sending claim so queue consumer
+ * and scheduled drain cannot double-send the same recipient.
  */
 
 import { uuidv7, COMMS_OUTBOX_TOPIC } from "@speakerops/shared";
@@ -13,6 +17,7 @@ import type { AuthStore } from "../modules/auth/store.js";
 import type { CommsStore } from "../modules/comms/store.js";
 import {
   newDeliveryEventId,
+  OUTBOX_CLAIM_LEASE_MS,
 } from "../modules/comms/store.js";
 import {
   createEmailProvider,
@@ -43,11 +48,12 @@ type CommsSendPayload = {
 };
 
 /**
- * Process all unprocessed `comms.send` outbox rows (sandbox default).
- * Safe to re-run: already-processed rows are skipped; recovery is tracked
- * **per recipient** — only recipients without a delivery_events row are sent.
- * The outbox row is marked processed only once every recipient has a terminal
- * delivery record (at-most-once per recipient, resume-safe for multi-recipient).
+ * Process unprocessed `comms.send` outbox rows (sandbox default).
+ * Safe to re-run: rows are claimed atomically; already-processed / actively
+ * leased rows are skipped; recovery is tracked **per recipient** — only
+ * recipients without a delivery_events row are sent. The outbox row is marked
+ * processed only once every recipient has a terminal delivery record
+ * (at-most-once per recipient, resume-safe for multi-recipient).
  */
 export async function processCommsOutbox(
   deps: EmailConsumerDeps,
@@ -67,13 +73,28 @@ export async function processCommsOutbox(
   const jobIds: string[] = [];
 
   for (const row of batch) {
+    // Exclusive claim before any provider work (queue + cron concurrency).
+    const claimToken = uuidv7();
+    const claimedUntil = new Date(
+      Date.now() + OUTBOX_CLAIM_LEASE_MS,
+    ).toISOString();
+    const claimed = await deps.comms.claimOutboxForProcessing(row.id, {
+      claimToken,
+      claimedUntil,
+      attempts: row.attempts + 1,
+    });
+    if (!claimed) {
+      skipped += 1;
+      continue;
+    }
+
     let payload: CommsSendPayload;
     try {
       payload = JSON.parse(row.payloadJson) as CommsSendPayload;
     } catch {
       await deps.comms.markOutboxProcessed(row.id, {
         processedAt: new Date().toISOString(),
-        attempts: row.attempts + 1,
+        attempts: claimed.attempts,
         lastError: "invalid_payload_json",
       });
       failed += 1;
@@ -83,7 +104,7 @@ export async function processCommsOutbox(
     if (!payload.jobId || !payload.eventId) {
       await deps.comms.markOutboxProcessed(row.id, {
         processedAt: new Date().toISOString(),
-        attempts: row.attempts + 1,
+        attempts: claimed.attempts,
         lastError: "missing_job_or_event",
       });
       failed += 1;
@@ -94,7 +115,7 @@ export async function processCommsOutbox(
     if (!job) {
       await deps.comms.markOutboxProcessed(row.id, {
         processedAt: new Date().toISOString(),
-        attempts: row.attempts + 1,
+        attempts: claimed.attempts,
         lastError: "job_not_found",
       });
       failed += 1;
@@ -129,7 +150,7 @@ export async function processCommsOutbox(
       });
       await deps.comms.markOutboxProcessed(row.id, {
         processedAt: now,
-        attempts: row.attempts + 1,
+        attempts: claimed.attempts,
         lastError: null,
       });
       processed += 1;
@@ -158,7 +179,7 @@ export async function processCommsOutbox(
       }
       await deps.comms.markOutboxProcessed(row.id, {
         processedAt: now,
-        attempts: row.attempts + 1,
+        attempts: claimed.attempts,
         lastError: anyFailedExisting ? "partial_or_full_failure" : null,
       });
       skipped += 1;
@@ -167,8 +188,27 @@ export async function processCommsOutbox(
     }
 
     let anyFailed = existingDeliveries.some((d) => d.status === "failed");
+    let newlySent = 0;
 
     for (const recipient of pendingRecipients) {
+      // Per-recipient lock: only one drain may call the provider for a row.
+      // Enqueue writes status "queued"; schema default is "pending".
+      // Resume after crash: status already "sending" with no delivery → send.
+      if (recipient.status === "pending" || recipient.status === "queued") {
+        const claimedRecipient = await deps.comms.claimRecipientForSend(
+          recipient.id,
+        );
+        if (!claimedRecipient) {
+          // Another concurrent drain claimed this recipient — skip provider.
+          continue;
+        }
+      } else if (recipient.status === "sending") {
+        // Exclusive outbox lease + no delivery: resume mid-flight claim.
+      } else {
+        // Terminal status without delivery is inconsistent; do not re-send.
+        continue;
+      }
+
       const result = await provider.send({
         to: recipient.toEmail,
         subject: recipient.subject ?? "",
@@ -202,6 +242,7 @@ export async function processCommsOutbox(
         result.ok ? (result.status === "sandbox" ? "sandbox" : "sent") : "failed",
       );
 
+      newlySent += 1;
       if (!result.ok) anyFailed = true;
     }
 
@@ -218,7 +259,8 @@ export async function processCommsOutbox(
     );
 
     if (!allRecipientsDone) {
-      // Leave processed_at NULL so a later drain continues remaining recipients.
+      // Release exclusive claim so a later drain can continue remaining recipients.
+      await deps.comms.releaseOutboxClaim(row.id, claimToken);
       failed += 1;
       jobIds.push(job.id);
       continue;
@@ -237,7 +279,7 @@ export async function processCommsOutbox(
 
     await deps.comms.markOutboxProcessed(row.id, {
       processedAt: now,
-      attempts: row.attempts + 1,
+      attempts: claimed.attempts,
       lastError: anyFailed ? "partial_or_full_failure" : null,
     });
 
@@ -254,7 +296,7 @@ export async function processCommsOutbox(
         status: terminalStatus,
         provider: provider.name,
         recipientCount: recipients.length,
-        newlySent: pendingRecipients.length,
+        newlySent,
       }),
       correlationId:
         payload.correlationId ?? options.correlationId ?? uuidv7(),
