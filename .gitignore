@@ -9,6 +9,9 @@ node_modules/
 .env.*
 !.env.example
 
+# Host-local secret loader (pipeline/runtime; never commit)
+scripts/load-secrets.sh
+
 # OS / editor
 .DS_Store
 *.log
