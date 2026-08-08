@@ -571,8 +571,14 @@ export class D1EventsStore implements EventsStore {
 
   /**
    * Single D1 batch: CAS event update + outbox? + audit (E7).
-   * Outbox/audit inserts are gated on the winning version so a lost CAS
-   * never leaves side effects without the event mutation.
+   *
+   * Side effects are gated on a *per-attempt transition stamp* written into
+   * updated_at by this UPDATE, then restored to the canonical ISO value.
+   * Gating only on the target version is insufficient: a concurrent writer
+   * can advance expectedVersion→target before this batch runs; the UPDATE
+   * then changes 0 rows but version already equals the target, so INSERT…
+   * SELECT would still commit the loser's outbox/audit. The unique stamp
+   * is only visible when *this* CAS won (same pattern as schedule/comms).
    */
   async updateEventUnit(
     unit: UpdateEventUnit,
@@ -580,6 +586,12 @@ export class D1EventsStore implements EventsStore {
   ): Promise<boolean> {
     const e = unit.event;
     const a = unit.audit;
+
+    // Guaranteed-unique per attempt — not wall-clock ms alone.
+    // Used only as an INSERT…SELECT gate; restored to e.updatedAt below.
+    const transitionToken = uuidv7();
+    const transitionStamp = `${e.updatedAt}#${transitionToken}`;
+
     const eventUpdate = this.db
       .update(events)
       .set({
@@ -590,13 +602,17 @@ export class D1EventsStore implements EventsStore {
         startsAt: e.startsAt,
         endsAt: e.endsAt,
         settingsJson: e.settingsJson,
-        updatedAt: e.updatedAt,
+        updatedAt: transitionStamp,
         version: e.version,
       })
       .where(and(eq(events.id, e.id), eq(events.version, unit.expectedVersion)));
 
-    // Gate side effects on the new version (only present if CAS won).
-    const casWon = and(eq(events.id, e.id), eq(events.version, e.version));
+    // Transition-unique gate: only *this* UPDATE stamp is visible to inserts.
+    const casWon = and(
+      eq(events.id, e.id),
+      eq(events.version, e.version),
+      eq(events.updatedAt, transitionStamp),
+    );
 
     const auditInsert = this.db.insert(auditEvents).select(
       this.db
@@ -618,6 +634,12 @@ export class D1EventsStore implements EventsStore {
         .limit(1),
     );
 
+    // Restore canonical ISO updatedAt (do not leak transition marker in DTOs).
+    const restoreUpdatedAt = this.db
+      .update(events)
+      .set({ updatedAt: e.updatedAt })
+      .where(casWon);
+
     let results: unknown[];
     if (unit.outbox) {
       const o = unit.outbox;
@@ -636,9 +658,18 @@ export class D1EventsStore implements EventsStore {
           .where(casWon)
           .limit(1),
       );
-      results = await this.db.batch([eventUpdate, outboxInsert, auditInsert]);
+      results = await this.db.batch([
+        eventUpdate,
+        outboxInsert,
+        auditInsert,
+        restoreUpdatedAt,
+      ]);
     } else {
-      results = await this.db.batch([eventUpdate, auditInsert]);
+      results = await this.db.batch([
+        eventUpdate,
+        auditInsert,
+        restoreUpdatedAt,
+      ]);
     }
     return d1Changes(results[0]) > 0;
   }

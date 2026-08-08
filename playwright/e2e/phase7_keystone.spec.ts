@@ -140,10 +140,12 @@ async function mintKey(
   session: string,
   name: string,
   scopes: string[],
+  /** Required when session admin has multiple event memberships. */
+  eventId: string,
 ): Promise<{ id: string; secret: string; prefix: string }> {
   const res = await request.post("/api/keys", {
     headers: sessionHeaders(session),
-    data: { name, scopes },
+    data: { name, scopes, eventId },
   });
   expect(res.status(), await res.text()).toBe(201);
   const body = (await res.json()) as {
@@ -260,6 +262,7 @@ test.describe("7.4 phase7 keystone (I12 K* + CLI deny + airtable pause)", () => 
       admin.session,
       `phase7-revoke-${RUN.slice(-6)}`,
       ["events:read"],
+      event.id,
     );
     await page.reload();
     await expect(page.getByTestId("api-keys-page")).toBeVisible({
@@ -328,6 +331,7 @@ test.describe("7.4 phase7 keystone (I12 K* + CLI deny + airtable pause)", () => 
       admin2.session,
       `phase7-reports-only-${RUN.slice(-6)}`,
       ["reports:read", "events:read"],
+      event2.id,
     );
 
     // Server-side path used by CLI (Bearer → 403 FORBIDDEN)

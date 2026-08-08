@@ -42,6 +42,7 @@ import {
   createEvent,
   updateEvent,
   listEventsForAdmin,
+  listEventsByOrg,
   getEvent,
   listRooms,
   getRoom,
@@ -117,12 +118,9 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
           events: one.ok ? [one.value.event] : [],
         };
       } else if (apiKey) {
-        // Org-scoped Bearer: filter by key.orgId — never expose other orgs
-        // via the key creator's multi-org memberships (E2).
-        const listed = await listEventsForAdmin(deps, actor.userId);
-        payload = {
-          events: listed.events.filter((e) => e.orgId === apiKey.orgId),
-        };
+        // Org-scoped Bearer: all events in apiKey.orgId via listEventsByOrgId
+        // — not the key creator's admin memberships (unbound org automation).
+        payload = await listEventsByOrg(deps, apiKey.orgId);
       } else {
         payload = await listEventsForAdmin(deps, actor.userId);
       }

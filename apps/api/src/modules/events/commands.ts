@@ -467,6 +467,19 @@ export async function listEventsForAdmin(
   return { events };
 }
 
+/**
+ * Event.List for org-scoped Bearer keys — all events in apiKey.orgId.
+ * Does not filter by the key creator's admin memberships (E2): unbound
+ * organization automation must list events it is authorized to access.
+ */
+export async function listEventsByOrg(
+  deps: EventCommandDeps,
+  orgId: string,
+): Promise<{ events: ReturnType<typeof toEventDto>[] }> {
+  const rows = await deps.events.listEventsByOrgId(orgId);
+  return { events: rows.map(toEventDto) };
+}
+
 export async function getEvent(
   deps: EventCommandDeps,
   eventId: string,
