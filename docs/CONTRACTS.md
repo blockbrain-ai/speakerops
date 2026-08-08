@@ -1,9 +1,10 @@
 # SpeakerOps — contract map
 
 **Purpose:** Single index of binding programme contracts so builders do not invent a second source of truth.  
-**Sections:** 0.1 programme contract · 0.2 Lumen design system lock (governance).  
+**Sections:** 0.1 programme contract · 0.2 Lumen design system lock · **0.3 Browser E2E inventory law** (governance).  
 **Programme contract summary:** [`docs/governance/0.1-programme-contract.md`](./governance/0.1-programme-contract.md)  
-**Lumen lock (E6):** [`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md)
+**Lumen lock (E6):** [`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md)  
+**E2E inventory law (S-E2E-INV / S-E2E-RUN):** [`docs/governance/0.3-e2e-inventory-law.md`](./governance/0.3-e2e-inventory-law.md)
 
 ---
 
@@ -14,13 +15,14 @@
 | Constitution | [`KMS-competition/initiative/00_CONSTITUTION.md`](../KMS-competition/initiative/00_CONSTITUTION.md) | North star, souls, stack lock, non-goals, dogfood_ready |
 | Programme contract | [`docs/governance/0.1-programme-contract.md`](./governance/0.1-programme-contract.md) | Workspace ratification of Articles I–II, VI–VIII |
 | **Lumen lock (E6 frontend freeze)** | [`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md) | Token CSS vars, contrast gate, SVG reject, retheme blast radius, component checklist |
+| **Browser E2E inventory law (0.3)** | [`docs/governance/0.3-e2e-inventory-law.md`](./governance/0.3-e2e-inventory-law.md) | REQUIRED PASS for dogfood, @inv tags, Phase 8 full run, no shrinkage, discovery crawl, phase letter map |
 | Schema | [`KMS-competition/initiative/contracts/SCHEMA.md`](../KMS-competition/initiative/contracts/SCHEMA.md) | D1 tables; section ownership; no invented columns |
 | Commands | [`KMS-competition/initiative/contracts/COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) | Named domain commands; HTTP/CLI 1:1 |
 | Scopes | [`KMS-competition/initiative/contracts/SCOPES.md`](../KMS-competition/initiative/contracts/SCOPES.md) | API key scopes; default-deny high-risk |
 | CLI inventory | [`KMS-competition/initiative/contracts/CLI_INVENTORY.md`](../KMS-competition/initiative/contracts/CLI_INVENTORY.md) | CLI surface parity |
 | Inventory ownership | [`KMS-competition/initiative/contracts/INVENTORY_OWNERSHIP.md`](../KMS-competition/initiative/contracts/INVENTORY_OWNERSHIP.md) | Which section owns which @inv rows |
 | Traceability | [`KMS-competition/initiative/contracts/TRACEABILITY.md`](../KMS-competition/initiative/contracts/TRACEABILITY.md) | Requirement → section map |
-| Browser E2E law | [`KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md) | Exhaustive REQUIRED journeys |
+| Browser E2E inventory (canonical) | [`KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md) | Exhaustive REQUIRED journeys (source of truth) |
 | Lumen (initiative synthesis) | [`KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`](../KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md) | Full design synthesis; 0.2 freezes essentials |
 | Synthesis | [`KMS-competition/research-pack/SYNTHESIS-BEST-FOOT-FORWARD.md`](../KMS-competition/research-pack/SYNTHESIS-BEST-FOOT-FORWARD.md) | Keep/cut decisions |
 
@@ -33,6 +35,15 @@ Engineering standard **E6** (Frontend — Lumen + E9) requires React + Vite + Lu
 **[`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md)**
 
 Implement `apps/web/src/styles/lumen.css` (section 1.4) from that lock. Do not invent freeform CSS or retheme admin chrome.
+
+### S-E2E-INV / S-E2E-RUN → inventory law
+
+Constitution souls **S-E2E-INV** and **S-E2E-RUN** require inventory completeness and full headless proof. The workspace ratification is:
+
+**[`docs/governance/0.3-e2e-inventory-law.md`](./governance/0.3-e2e-inventory-law.md)**
+
+Canonical journeys: [`BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md).  
+Commands: `pnpm test:e2e` · `pnpm test:e2e:inventory`. Do not shrink REQUIRED rows; discovery crawl REQUIRED at Phase 8.
 
 ---
 
@@ -58,6 +69,7 @@ See programme contract §3 for full table and non-goals. Lumen tokens / retheme 
 1. Do not add endpoints or table columns outside COMMANDS/SCHEMA without updating those contracts in the same PR.
 2. Do not introduce a second SoR (Airtable writes, DO-as-DB, client-only authz).
 3. Shared DTOs live in `packages/shared/src/` once scaffolded — import; do not duplicate types across web/api.
-4. Every new UI control adds a browser inventory row in the same section.
+4. Every new UI control adds a browser inventory row in the same section; Playwright tests tag `@inv:A01` etc. (see [0.3 inventory law](./governance/0.3-e2e-inventory-law.md)).
 5. Soul tests change only via constitution Amendment + owner approval.
 6. UI chrome uses Lumen tokens from the 0.2 lock only — no freeform CSS/HTML; retheme public CFP + speaker portal only.
+7. Do not shrink REQUIRED inventory; no wildcard-only acceptance; Phase 8 runs full suite + discovery crawl.

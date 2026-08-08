@@ -10,6 +10,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 |-----|-----|
 | [`docs/governance/0.1-programme-contract.md`](./docs/governance/0.1-programme-contract.md) | North star, stack lock, non-goals, soul pointers, clean-room, dogfood_ready |
 | [`docs/governance/0.2-lumen-lock.md`](./docs/governance/0.2-lumen-lock.md) | **E6 Lumen lock** — tokens, contrast gate, SVG reject, retheme blast radius, component checklist |
+| [`docs/governance/0.3-e2e-inventory-law.md`](./docs/governance/0.3-e2e-inventory-law.md) | **S-E2E-INV / S-E2E-RUN** — REQUIRED PASS for dogfood, `@inv` tags, Phase 8 full run, no shrinkage, discovery crawl |
 | [`docs/CONTRACTS.md`](./docs/CONTRACTS.md) | Index of binding contracts |
 | [`KMS-competition/initiative/00_CONSTITUTION.md`](./KMS-competition/initiative/00_CONSTITUTION.md) | Binding constitution (souls, stack, anti-dilution) |
 
@@ -29,7 +30,8 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 - Schema: `KMS-competition/initiative/contracts/SCHEMA.md`
 - Commands: `KMS-competition/initiative/contracts/COMMANDS.md`
 - Scopes: `KMS-competition/initiative/contracts/SCOPES.md`
-- Browser E2E law: `KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`
+- Browser E2E inventory (canonical): `KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`
+- Browser E2E inventory law (workspace): `docs/governance/0.3-e2e-inventory-law.md`
 - Lumen (initiative): `KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`
 - Lumen lock (workspace E6 freeze): `docs/governance/0.2-lumen-lock.md`
 
@@ -38,9 +40,11 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 ```bash
 pnpm typecheck
 pnpm test:ci
+pnpm test:e2e:inventory   # inventory law lint (from 0.3)
+pnpm test:e2e             # Playwright full suite (stub until harness; Phase 8 = all REQUIRED PASS)
 ```
 
-Browser E2E / inventory lint apply after scaffold (Phase 1+) and full UI inventory (Phase 8).
+Inventory lint is live from section **0.3**. Full browser suite runs after Playwright scaffold (Phase 1.5+); **all REQUIRED** journeys + discovery crawl at **Phase 8**.
 
 ## Phase map
 
