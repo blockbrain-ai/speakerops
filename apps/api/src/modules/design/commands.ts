@@ -535,7 +535,9 @@ export type UploadFileInput = {
  * Enforces (COMMANDS.md + FilePresignBodySchema boundary):
  * - presign TTL from created_at + FILE_PRESIGN_TTL_MS (matches returned expiresAt)
  * - body size ≤ presign-declared size and ≤ FILE_UPLOAD_MAX_BYTES (10 MiB)
- * - single-use: reject if already uploaded (no indefinite overwrite)
+ * - single-use: atomic claim (uploaded 0→1) before any R2 write; concurrent losers
+ *   get 409 without writing bytes or emitting audit. On put failure the claim is
+ *   released so a client may retry.
  */
 export async function uploadFileBytes(
   deps: DesignCommandDeps,
@@ -553,6 +555,7 @@ export async function uploadFileBytes(
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
+  // Fast-path reject when already terminal; authoritative single-use is claimFileUpload.
   if (file.uploaded) {
     return {
       ok: false,
@@ -648,14 +651,40 @@ export async function uploadFileBytes(
     };
   }
 
-  await deps.design.putFileBytes(input.eventId, input.fileId, {
-    bytes: input.body,
-    mime: "image/png",
-  });
-  await deps.design.updateFileAfterUpload(input.eventId, input.fileId, {
-    size: byteLength,
-    uploaded: true,
-  });
+  // Claim ownership before writing bytes so concurrent PUTs cannot both land.
+  const claimed = await deps.design.claimFileUpload(
+    input.eventId,
+    input.fileId,
+    { size: byteLength },
+  );
+  if (!claimed) {
+    return {
+      ok: false,
+      status: 409,
+      error: "File already uploaded",
+      code: "CONFLICT",
+      details: { fileId: input.fileId },
+    };
+  }
+
+  try {
+    await deps.design.putFileBytes(input.eventId, input.fileId, {
+      bytes: input.body,
+      mime: "image/png",
+    });
+  } catch {
+    // Failure recovery: release claim + restore declared size so a client may retry.
+    await deps.design.releaseFileUploadClaim(input.eventId, input.fileId, {
+      size: declaredSize,
+    });
+    return {
+      ok: false,
+      status: 400,
+      error: "Upload storage failed",
+      code: "VALIDATION_ERROR",
+      details: { fileId: input.fileId },
+    };
+  }
 
   const now = new Date().toISOString();
   await deps.auth.insertAudit({

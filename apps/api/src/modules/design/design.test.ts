@@ -30,6 +30,11 @@ import {
   validateContrastGate,
 } from "@speakerops/shared";
 import { createAppWithAuth } from "../../index.js";
+import {
+  MemoryDesignStore,
+  type DesignStore,
+  type FileBlob,
+} from "./store.js";
 
 /** Minimal valid PNG signature + IHDR stub (16 bytes). */
 const MINI_PNG = new Uint8Array([
@@ -38,6 +43,41 @@ const MINI_PNG = new Uint8Array([
 ]);
 
 const env = { APP_VERSION: "0.1.0" };
+
+/** Design store that can force putFileBytes to fail once (claim-release recovery). */
+function designStoreWithFlakyPut(): {
+  design: DesignStore;
+  failNextPut: () => void;
+} {
+  const inner = new MemoryDesignStore();
+  let failPuts = 0;
+  const design: DesignStore = {
+    findDraft: (e) => inner.findDraft(e),
+    upsertDraft: (r, v) => inner.upsertDraft(r, v),
+    findPublished: (e) => inner.findPublished(e),
+    upsertPublished: (r) => inner.upsertPublished(r),
+    insertFile: (r) => inner.insertFile(r),
+    findFile: (e, id) => inner.findFile(e, id),
+    findFileById: (id) => inner.findFileById(id),
+    claimFileUpload: (e, id, p) => inner.claimFileUpload(e, id, p),
+    releaseFileUploadClaim: (e, id, p) =>
+      inner.releaseFileUploadClaim(e, id, p),
+    async putFileBytes(eventId: string, fileId: string, blob: FileBlob) {
+      if (failPuts > 0) {
+        failPuts -= 1;
+        throw new Error("simulated R2 put failure");
+      }
+      return inner.putFileBytes(eventId, fileId, blob);
+    },
+    getFileBytes: (e, id) => inner.getFileBytes(e, id),
+  };
+  return {
+    design,
+    failNextPut: () => {
+      failPuts += 1;
+    },
+  };
+}
 
 async function magicLinkSession(
   purpose: "admin" | "speaker" | "evaluator",
@@ -751,6 +791,234 @@ describe("2.4 design kit", () => {
     }, env);
     expect(second.status).toBe(409);
     expect(ErrorEnvelopeSchema.parse(await second.json()).code).toBe(CONFLICT);
+  });
+
+  it("File.Upload concurrent PUTs: only one claim wins (atomic single-use)", async () => {
+    const { app, cookie, design, store } = await magicLinkSession(
+      "admin",
+      "admin-upload-race@example.com",
+    );
+    const { id: eventId } = await createEvent(app, cookie, "Upload Race");
+
+    const bodyA = new Uint8Array(MINI_PNG);
+    const bodyB = new Uint8Array(MINI_PNG);
+    bodyB[bodyB.length - 1] = 0xff; // distinct payload; same length budget
+
+    const presign = await app.request(
+      "http://localhost/api/files/presign",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-upload-race-presign",
+        },
+        body: JSON.stringify({
+          eventId,
+          purpose: "logo",
+          mime: "image/png",
+          size: bodyA.byteLength,
+          filename: "race.png",
+        }),
+      },
+      env,
+    );
+    const png = FilePresignResponseSchema.parse(await presign.json());
+
+    const [resA, resB] = await Promise.all([
+      app.request(`http://localhost${png.url}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "image/png",
+          cookie,
+          "x-correlation-id": "corr-upload-race-a",
+        },
+        body: bodyA,
+      }, env),
+      app.request(`http://localhost${png.url}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "image/png",
+          cookie,
+          "x-correlation-id": "corr-upload-race-b",
+        },
+        body: bodyB,
+      }, env),
+    ]);
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    const winner = resA.status === 200 ? resA : resB;
+    const loser = resA.status === 409 ? resA : resB;
+    expect(FileUploadResponseSchema.parse(await winner.json()).uploaded).toBe(
+      true,
+    );
+    expect(ErrorEnvelopeSchema.parse(await loser.json()).code).toBe(CONFLICT);
+
+    // Exactly one stored blob — winner's bytes, not a last-writer-wins mix.
+    const blob = await design.getFileBytes(eventId, png.fileId);
+    expect(blob).not.toBeNull();
+    const stored = new Uint8Array(blob!.bytes);
+    const matchesA =
+      stored.length === bodyA.length &&
+      stored.every((b, i) => b === bodyA[i]);
+    const matchesB =
+      stored.length === bodyB.length &&
+      stored.every((b, i) => b === bodyB[i]);
+    expect(matchesA || matchesB).toBe(true);
+    expect(matchesA && matchesB).toBe(false);
+
+    const meta = await design.findFile(eventId, png.fileId);
+    expect(meta?.uploaded).toBe(true);
+    expect(meta?.size).toBe(bodyA.byteLength);
+
+    // Only the winning claim may emit File.Upload audit.
+    const uploadAudits = (await store.listAudits()).filter(
+      (a) => a.action === "File.Upload" && a.entityId === png.fileId,
+    );
+    expect(uploadAudits).toHaveLength(1);
+  });
+
+  it("claimFileUpload is exclusive; put failure releases claim for retry", async () => {
+    const { design } = await magicLinkSession(
+      "admin",
+      "admin-upload-claim@example.com",
+    );
+    const eventId = "01900000-0000-7000-8000-0000000000c1";
+    const fileId = "01900000-0000-7000-8000-0000000000c2";
+    const declaredSize = MINI_PNG.byteLength;
+
+    await design.insertFile({
+      id: fileId,
+      eventId,
+      ownerParticipationId: null,
+      r2Key: `events/${eventId}/logo/${fileId}.png`,
+      filename: "claim.png",
+      mime: "image/png",
+      size: declaredSize,
+      checksum: null,
+      purpose: "logo",
+      createdAt: new Date().toISOString(),
+      uploaded: false,
+    });
+
+    const [c1, c2] = await Promise.all([
+      design.claimFileUpload(eventId, fileId, { size: declaredSize }),
+      design.claimFileUpload(eventId, fileId, { size: declaredSize }),
+    ]);
+    const winners = [c1, c2].filter(Boolean);
+    expect(winners).toHaveLength(1);
+    expect(winners[0]!.uploaded).toBe(true);
+
+    // Simulate putFileBytes failure recovery path.
+    await design.releaseFileUploadClaim(eventId, fileId, {
+      size: declaredSize,
+    });
+    const afterRelease = await design.findFile(eventId, fileId);
+    expect(afterRelease?.uploaded).toBe(false);
+    expect(afterRelease?.size).toBe(declaredSize);
+
+    const retried = await design.claimFileUpload(eventId, fileId, {
+      size: declaredSize - 1,
+    });
+    expect(retried?.uploaded).toBe(true);
+    expect(retried?.size).toBe(declaredSize - 1);
+  });
+
+  it("File.Upload releases claim when storage put fails so client may retry", async () => {
+    const { design, failNextPut } = designStoreWithFlakyPut();
+    const { app, design: designStore, outbox } = createAppWithAuth({
+      cookieSecure: true,
+      designStore: design,
+    });
+    const email = "admin-upload-putfail@example.com";
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, purpose: "admin" }),
+      },
+      env,
+    );
+    const token = outbox.lastForEmail(email)!.token;
+    const exchange = await app.request(
+      "http://localhost/api/auth/exchange",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token }),
+      },
+      env,
+    );
+    expect(exchange.status).toBe(200);
+    const setCookie = exchange.headers.get("set-cookie")!;
+    const sessionValue = setCookie
+      .split(";")[0]!
+      .split("=")
+      .slice(1)
+      .join("=");
+    const cookie = `${SESSION_COOKIE_NAME}=${sessionValue}`;
+
+    const { id: eventId } = await createEvent(app, cookie, "Upload PutFail");
+    const presign = await app.request(
+      "http://localhost/api/files/presign",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-upload-putfail-presign",
+        },
+        body: JSON.stringify({
+          eventId,
+          purpose: "logo",
+          mime: "image/png",
+          size: MINI_PNG.byteLength,
+          filename: "putfail.png",
+        }),
+      },
+      env,
+    );
+    const png = FilePresignResponseSchema.parse(await presign.json());
+
+    failNextPut();
+    const failed = await app.request(`http://localhost${png.url}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "image/png",
+        cookie,
+        "x-correlation-id": "corr-upload-putfail-1",
+      },
+      body: MINI_PNG,
+    }, env);
+    expect(failed.status).toBe(400);
+    expect(ErrorEnvelopeSchema.parse(await failed.json()).code).toBe(
+      VALIDATION_ERROR,
+    );
+
+    const pending = await designStore.findFile(eventId, png.fileId);
+    expect(pending?.uploaded).toBe(false);
+    expect(pending?.size).toBe(MINI_PNG.byteLength);
+    expect(await designStore.getFileBytes(eventId, png.fileId)).toBeNull();
+
+    // Retry after recovery succeeds and marks uploaded once.
+    const retry = await app.request(`http://localhost${png.url}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "image/png",
+        cookie,
+        "x-correlation-id": "corr-upload-putfail-2",
+      },
+      body: MINI_PNG,
+    }, env);
+    expect(retry.status).toBe(200);
+    expect(FileUploadResponseSchema.parse(await retry.json()).uploaded).toBe(
+      true,
+    );
+    const done = await designStore.findFile(eventId, png.fileId);
+    expect(done?.uploaded).toBe(true);
+    expect(await designStore.getFileBytes(eventId, png.fileId)).not.toBeNull();
   });
 
   it("File.Upload rejects expired presign and oversized Content-Length", async () => {

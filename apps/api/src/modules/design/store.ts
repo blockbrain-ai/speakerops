@@ -6,7 +6,8 @@
  * All event-owned queries take eventId (E2).
  *
  * Draft updates use optimistic version in WHERE (E1). Upload readiness uses the
- * dedicated `uploaded` column — never the checksum field.
+ * dedicated `uploaded` column — never the checksum field. File.Upload claims
+ * ownership with a conditional uploaded 0→1 transition before any R2 write.
  */
 import { eq, and } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
@@ -71,11 +72,25 @@ export type DesignStore = {
   findFile(eventId: string, fileId: string): Promise<FileAssetRow | null>;
   /** Lookup by file id only (public serve path). */
   findFileById(fileId: string): Promise<FileAssetRow | null>;
-  updateFileAfterUpload(
+  /**
+   * Atomic single-use claim: transition uploaded 0→1 with actual size only when
+   * still pending. Returns the updated row, or null if missing / already claimed.
+   * Must win this race before putFileBytes may run (File.Upload concurrency).
+   */
+  claimFileUpload(
     eventId: string,
     fileId: string,
-    patch: { size: number; uploaded: boolean },
+    patch: { size: number },
   ): Promise<FileAssetRow | null>;
+  /**
+   * Release a won claim after putFileBytes failure so a client may retry.
+   * Restores declared size and uploaded=0 only while still claimed (uploaded=1).
+   */
+  releaseFileUploadClaim(
+    eventId: string,
+    fileId: string,
+    patch: { size: number },
+  ): Promise<void>;
   putFileBytes(
     eventId: string,
     fileId: string,
@@ -154,23 +169,40 @@ export class MemoryDesignStore implements DesignStore {
     return this.filesById.get(fileId) ?? null;
   }
 
-  async updateFileAfterUpload(
+  async claimFileUpload(
     eventId: string,
     fileId: string,
-    patch: { size: number; uploaded: boolean },
+    patch: { size: number },
   ): Promise<FileAssetRow | null> {
-    const existing = await this.findFile(eventId, fileId);
-    if (!existing) return null;
+    // Synchronous check-and-set: atomic under the JS event loop (no await between).
+    const existing = this.files.get(this.fileKey(eventId, fileId));
+    if (!existing || existing.uploaded) return null;
     const updated: FileAssetRow = {
       ...existing,
       size: patch.size,
-      uploaded: patch.uploaded,
+      uploaded: true,
       // checksum is never used as an upload-readiness sentinel
       checksum: existing.checksum,
     };
     this.files.set(this.fileKey(eventId, fileId), updated);
     this.filesById.set(fileId, updated);
     return updated;
+  }
+
+  async releaseFileUploadClaim(
+    eventId: string,
+    fileId: string,
+    patch: { size: number },
+  ): Promise<void> {
+    const existing = this.files.get(this.fileKey(eventId, fileId));
+    if (!existing || !existing.uploaded) return;
+    const updated: FileAssetRow = {
+      ...existing,
+      size: patch.size,
+      uploaded: false,
+    };
+    this.files.set(this.fileKey(eventId, fileId), updated);
+    this.filesById.set(fileId, updated);
   }
 
   async putFileBytes(
@@ -380,25 +412,48 @@ export class D1DesignStore implements DesignStore {
     return this.mapFile(row);
   }
 
-  async updateFileAfterUpload(
+  async claimFileUpload(
     eventId: string,
     fileId: string,
-    patch: { size: number; uploaded: boolean },
+    patch: { size: number },
   ): Promise<FileAssetRow | null> {
-    const existing = await this.findFile(eventId, fileId);
-    if (!existing) return null;
+    // Conditional D1 transition: only one concurrent winner when uploaded=0.
+    const result = await this.db
+      .update(fileAssets)
+      .set({
+        size: patch.size,
+        uploaded: 1,
+      })
+      .where(
+        and(
+          eq(fileAssets.eventId, eventId),
+          eq(fileAssets.id, fileId),
+          eq(fileAssets.uploaded, 0),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
+    return this.findFile(eventId, fileId);
+  }
+
+  async releaseFileUploadClaim(
+    eventId: string,
+    fileId: string,
+    patch: { size: number },
+  ): Promise<void> {
+    // Only release while still claimed (uploaded=1); no-op if already pending.
     await this.db
       .update(fileAssets)
       .set({
         size: patch.size,
-        uploaded: patch.uploaded ? 1 : 0,
+        uploaded: 0,
       })
-      .where(and(eq(fileAssets.eventId, eventId), eq(fileAssets.id, fileId)));
-    return {
-      ...existing,
-      size: patch.size,
-      uploaded: patch.uploaded,
-    };
+      .where(
+        and(
+          eq(fileAssets.eventId, eventId),
+          eq(fileAssets.id, fileId),
+          eq(fileAssets.uploaded, 1),
+        ),
+      );
   }
 
   async putFileBytes(
