@@ -843,14 +843,23 @@ export function skipBalanced(s, openIdx, openCh, closeCh) {
 /**
  * Whether `rhs` is a valid Playwright test rebind expression relative to
  * current binding names: `base`, `base.extend(...)`, `base.extend<T>(...)`,
- * or chained `.extend` calls (with optional TypeScript type arguments).
+ * `base.extend<A, B>(...)` (multi type-args), single-line fixture callbacks
+ * with commas/semicolons inside the call, or chained `.extend` calls.
+ *
+ * Delimiters inside type args / call expressions are preserved — do **not**
+ * pre-truncate at `,` or `;` (that rejects valid multi-generic and fixture
+ * object forms). Only a trailing statement terminator after a complete
+ * expression is ignored.
  *
  * @param {string} rhs assignment right-hand side (trimmed)
  * @param {Set<string>} bindingNames
  * @returns {boolean}
  */
 export function isPlaywrightRebindRhs(rhs, bindingNames) {
-  const s = (rhs ?? "").trim().replace(/[;,].*$/, "").trim();
+  // Strip only a trailing statement terminator (optional). Commas and
+  // interior semicolons belong to generics / fixture object literals and
+  // must remain for balanced-skip parsing.
+  const s = (rhs ?? "").trim().replace(/;\s*$/, "").trim();
   if (!s) return false;
 
   let i = 0;
@@ -870,7 +879,7 @@ export function isPlaywrightRebindRhs(rhs, bindingNames) {
     while (i < s.length && /\s/.test(s[i])) i++;
 
     // Optional TypeScript type arguments: .extend<MyFixtures>(...)
-    // Nested generics (Foo<Bar<Baz>>) via balanced skip.
+    // Multi-arg (Foo, Bar) and nested (Foo<Bar<Baz>>) via balanced skip.
     if (s[i] === "<") {
       const after = skipBalanced(s, i, "<", ">");
       if (after < 0) return false;

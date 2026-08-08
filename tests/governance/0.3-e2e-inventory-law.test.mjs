@@ -19,7 +19,11 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { runInventoryLint } from "../../scripts/e2e-inventory-lint.mjs";
+import {
+  runInventoryLint,
+  isPlaywrightRebindRhs,
+  extractPlaywrightTestBindings,
+} from "../../scripts/e2e-inventory-lint.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const lawPath = join(root, "docs", "governance", "0.3-e2e-inventory-law.md");
@@ -557,6 +561,88 @@ describe("0.3 Browser E2E inventory law", () => {
       r.status,
       0,
       `expected pass with nested generic extend:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("accepts multi-arg generic fixture rebind (base.extend<Foo, Bar>)", () => {
+    // Auditor regression: commas inside type arguments must not truncate the
+    // rebind RHS (prior replace(/[;,].*$/, "") rejected multi-generic forms).
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test as base } from '@playwright/test';\n" +
+          "const test = base.extend<Foo, Bar>({});\n" +
+          'test("@inv:A01 e2e/public/cfp-load multi-arg generic extend", async () => {});\n',
+      },
+    });
+    assert.equal(
+      r.status,
+      0,
+      `expected pass with base.extend<Foo, Bar> rebind:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("accepts single-line fixture callback with commas as Playwright-bound", () => {
+    // Auditor regression: commas/semicolons inside fixture object literals and
+    // callbacks (e.g. async ({}, use) => …) must remain Playwright bindings.
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test as base } from '@playwright/test';\n" +
+          "const test = base.extend({ foo: async ({}, use) => { await use('x'); }, bar: 1 });\n" +
+          'test("@inv:A01 e2e/public/cfp-load single-line fixture commas", async () => {});\n',
+      },
+    });
+    assert.equal(
+      r.status,
+      0,
+      `expected pass with single-line fixture commas:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("isPlaywrightRebindRhs keeps multi-generic and fixture commas intact", () => {
+    const bindings = new Set(["base"]);
+    assert.equal(isPlaywrightRebindRhs("base.extend({})", bindings), true);
+    assert.equal(isPlaywrightRebindRhs("base.extend({});", bindings), true);
+    assert.equal(
+      isPlaywrightRebindRhs("base.extend<MyFixtures>({})", bindings),
+      true,
+    );
+    assert.equal(
+      isPlaywrightRebindRhs("base.extend<Foo, Bar>({})", bindings),
+      true,
+      "two type arguments must not be truncated at comma",
+    );
+    assert.equal(
+      isPlaywrightRebindRhs("base.extend<Foo<Bar>>({})", bindings),
+      true,
+    );
+    assert.equal(
+      isPlaywrightRebindRhs(
+        "base.extend({ foo: async ({}, use) => { await use('x'); }, bar: 1 })",
+        bindings,
+      ),
+      true,
+      "fixture object commas/semicolons must not reject rebind",
+    );
+    assert.equal(
+      isPlaywrightRebindRhs("base.extend({ a: 1, b: 2 })", bindings),
+      true,
+    );
+    assert.equal(isPlaywrightRebindRhs("base", bindings), true);
+    assert.equal(isPlaywrightRebindRhs("(...args) => {}", bindings), false);
+    assert.equal(isPlaywrightRebindRhs("other.extend({})", bindings), false);
+
+    const multiGenericSrc =
+      "import { test as base } from '@playwright/test';\n" +
+      "const test = base.extend<Foo, Bar>({ foo: async ({}, use) => { await use('x'); } });\n";
+    const found = extractPlaywrightTestBindings(multiGenericSrc);
+    assert.equal(
+      found.has("test"),
+      true,
+      `expected test binding from multi-generic single-line fixture, got: ${[...found].join(",")}`,
     );
   });
 
