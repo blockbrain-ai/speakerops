@@ -99,10 +99,10 @@ describe("1.2 Worker API health", () => {
     expect(id!.charAt(14)).toBe("7");
   });
 
-  it("unregistered domain routes remain 404 (scope guard)", async () => {
+  it("truly unregistered domain routes remain 404 (scope guard)", async () => {
     const app = createApp();
-    // Domain routes beyond health + 2.1 auth + 2.2 events/schedule remain 404 until their sections
-    for (const path of ["/api/public/cfp/demo", "/api/keys"]) {
+    // Paths that must stay unregistered until a later section owns them
+    for (const path of ["/api/oauth/clients", "/api/not-a-command"]) {
       const res = await app.request(`http://localhost${path}`, { method: "GET" });
       expect(res.status).toBe(404);
       const body = (await res.json()) as { code?: string };
@@ -113,6 +113,14 @@ describe("1.2 Worker API health", () => {
   it("GET /api/events without session returns 401 (2.2 role gate registered)", async () => {
     const app = createApp();
     const res = await app.request("http://localhost/api/events", { method: "GET" });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("UNAUTHORIZED");
+  });
+
+  it("GET /api/keys without session returns 401 (7.1 keys gate registered)", async () => {
+    const app = createApp();
+    const res = await app.request("http://localhost/api/keys", { method: "GET" });
     expect(res.status).toBe(401);
     const body = (await res.json()) as { code?: string };
     expect(body.code).toBe("UNAUTHORIZED");

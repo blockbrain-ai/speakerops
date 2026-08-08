@@ -187,10 +187,10 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| K01 | admin | API Keys | Create key with subset of scopes; secret shown once | e2e/keys/create | — | REQUIRED | OPEN |
-| K02 | admin | API Keys | Revoke key | e2e/keys/revoke | — | REQUIRED | OPEN |
-| K03 | admin | API Keys | Copy prefix only after dismiss | e2e/keys/secret-once | — | REQUIRED | OPEN |
-| K04 | admin | API Keys | Non-admin cannot open keys | e2e/keys/authz | — | REQUIRED | OPEN |
+| K01 | admin | API Keys | Create key with subset of scopes; secret shown once | e2e/keys/create | — | REQUIRED | PASS |
+| K02 | admin | API Keys | Revoke key | e2e/keys/revoke | — | REQUIRED | PASS |
+| K03 | admin | API Keys | Copy prefix only after dismiss | e2e/keys/secret-once | — | REQUIRED | PASS |
+| K04 | admin | API Keys | Non-admin cannot open keys | e2e/keys/authz | — | REQUIRED | PASS |
 
 ---
 

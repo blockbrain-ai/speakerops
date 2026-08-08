@@ -18,6 +18,7 @@
  * Section 5.3: Comms admin UI reads — ListTemplates/Jobs/Ics + IcsForPlacement HTTP
  * Section 6.1: Schedule.List/Place/Move/Unschedule + hard room/speaker conflict engine
  * Section 6.3: Reports.Readiness outstanding + stats (S-READY live dashboard)
+ * Section 7.1: Keys.Create/Revoke/List + hashed secrets + Bearer auth (S-CLI)
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -123,6 +124,12 @@ import {
   type CommsStore,
 } from "./modules/comms/store.js";
 import { createReadinessRoutes } from "./modules/readiness/routes.js";
+import { createKeysRoutes } from "./modules/keys/routes.js";
+import {
+  MemoryKeysStore,
+  D1KeysStore,
+  type KeysStore,
+} from "./modules/keys/store.js";
 import {
   processCommsOutbox,
   type ProcessOutboxResult,
@@ -153,6 +160,8 @@ export type CreateAppOptions = {
   commsStore?: CommsStore;
   /** Inject schedule store (defaults to in-memory for local/test). */
   scheduleStore?: ScheduleStore;
+  /** Inject API keys store (defaults to in-memory for local/test). */
+  keysStore?: KeysStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /** Shared test outbox for magic-link capture. */
@@ -195,6 +204,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const decisionsStore = options.decisionsStore ?? new MemoryDecisionsStore();
   const commsStore = options.commsStore ?? new MemoryCommsStore();
   const scheduleStore = options.scheduleStore ?? new MemoryScheduleStore();
+  const keysStore = options.keysStore ?? new MemoryKeysStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -399,7 +409,17 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
-  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 / 6.3 — OpenAPI lists domain commands
+  // Section 7.1 — Keys.List/Create/Revoke + Bearer keys:admin
+  app.route(
+    "/api/keys",
+    createKeysRoutes({
+      store: authStore,
+      events: eventsStore,
+      keys: keysStore,
+    }),
+  );
+
+  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 / 6.3 / 7.1 — OpenAPI lists domain commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);
@@ -426,6 +446,7 @@ export function createAppWithAuth(
   decisions: DecisionsStore;
   comms: CommsStore;
   schedule: ScheduleStore;
+  keys: KeysStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
@@ -437,6 +458,7 @@ export function createAppWithAuth(
   const decisionsStore = options.decisionsStore ?? new MemoryDecisionsStore();
   const commsStore = options.commsStore ?? new MemoryCommsStore();
   const scheduleStore = options.scheduleStore ?? new MemoryScheduleStore();
+  const keysStore = options.keysStore ?? new MemoryKeysStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
@@ -449,6 +471,7 @@ export function createAppWithAuth(
     decisionsStore,
     commsStore,
     scheduleStore,
+    keysStore,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
     // Open bootstrap for e2e/unit tests only — never production.
@@ -465,6 +488,7 @@ export function createAppWithAuth(
     decisions: decisionsStore,
     comms: commsStore,
     schedule: scheduleStore,
+    keys: keysStore,
     outbox,
   };
 }
@@ -536,6 +560,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     decisionsStore: new D1DecisionsStore(d1),
     commsStore: new D1CommsStore(d1),
     scheduleStore: new D1ScheduleStore(d1),
+    keysStore: new D1KeysStore(d1),
     turnstileSecret,
     enableDevOutbox: false,
     bootstrapPolicy: "controlled",

@@ -1,14 +1,18 @@
 /**
- * Authz middleware — section 2.2.
+ * Authz middleware — section 2.2 + 7.1 bearer API keys.
  *
  * - requireSession: HttpOnly cookie → user (401 if missing/expired)
  * - requireRole(roles): event_memberships role check
+ * - requireKeysAdmin: admin session OR Bearer with keys:admin (7.1)
+ * - resolveBearer / authenticateApiKey: Authorization: Bearer (7.1)
  *
  * HTTP matrix (documented):
  * | Condition | Status | Code |
  * |-----------|--------|------|
  * | No / invalid session | 401 | UNAUTHORIZED |
+ * | Invalid / revoked / expired API key | 401 | UNAUTHORIZED |
  * | Authenticated but wrong role | 403 | FORBIDDEN |
+ * | Authenticated but wrong scope | 403 | FORBIDDEN |
  * | No membership on target event (cross-event) | 404 | NOT_FOUND |
  * | Validation failure | 400 | VALIDATION_ERROR |
  *
@@ -25,16 +29,24 @@ import {
   NOT_FOUND,
   SESSION_COOKIE_NAME,
   type EventRole,
+  type ApiScope,
 } from "@speakerops/shared";
-import type { ApiEnv } from "../env.js";
+import type { ApiEnv, AuthzApiKey } from "../env.js";
 import type { AuthStore, MembershipRow, SessionRow, UserRow } from "../modules/auth/store.js";
 import { hashToken, isExpired } from "../modules/auth/crypto.js";
 import { getSessionTokenFromCookieHeader } from "../modules/auth/cookies.js";
+import type { KeysStore } from "../modules/keys/store.js";
+import {
+  authenticateApiKey,
+  parseScopesJson,
+} from "../modules/keys/commands.js";
 
 export type AuthzUser = {
   id: string;
   email: string;
 };
+
+export type { AuthzApiKey };
 
 export type RequireRoleOptions = {
   /**
@@ -48,7 +60,51 @@ export type RequireRoleOptions = {
    * Param name when eventIdFrom === "param" (default "eventId").
    */
   eventIdParam?: string;
+  /**
+   * When set with keysStore, Authorization: Bearer is accepted if the key
+   * has any of these scopes (and is not revoked/expired). Session path unchanged.
+   */
+  bearerScopes?: readonly string[];
+  /** Required when bearerScopes is set. */
+  keysStore?: KeysStore;
 };
+
+/** Extract raw secret from Authorization: Bearer header (or null). */
+export function extractBearerSecret(
+  authorization: string | undefined,
+): string | null {
+  if (!authorization) return null;
+  const m = /^Bearer\s+(\S+)/i.exec(authorization.trim());
+  if (!m?.[1]) return null;
+  return m[1];
+}
+
+/**
+ * Resolve Bearer API key and attach to context.
+ * Returns 'missing' | 'invalid' | AuthzApiKey.
+ */
+export async function resolveBearer(
+  c: Context<ApiEnv>,
+  keysStore: KeysStore,
+): Promise<"missing" | "invalid" | AuthzApiKey> {
+  const secret = extractBearerSecret(c.req.header("authorization"));
+  if (!secret) return "missing";
+
+  const row = await authenticateApiKey(keysStore, secret);
+  if (!row) return "invalid";
+
+  const principal: AuthzApiKey = {
+    id: row.id,
+    scopes: parseScopesJson(row.scopesJson),
+    eventId: row.eventId,
+    orgId: row.orgId,
+    createdBy: row.createdBy,
+  };
+  c.set("apiKey", principal);
+  // Synthetic user id for handlers that expect actorUserId (createdBy user)
+  c.set("user", { id: row.createdBy, email: "" });
+  return principal;
+}
 
 /**
  * Resolve session from cookie and attach user to context.
@@ -117,6 +173,10 @@ function resolveEventId(
  * When eventIdFrom is "none":
  * - user must have at least one membership with an allowed role (any event)
  * - otherwise 403 FORBIDDEN
+ *
+ * Optional Bearer path (7.1): when Authorization: Bearer is present and
+ * options.bearerScopes + options.keysStore are set, a valid key with any
+ * listed scope is accepted. Invalid/revoked/expired key → 401.
  */
 export function requireRole(
   store: AuthStore,
@@ -126,6 +186,52 @@ export function requireRole(
   const allowed = new Set(allowedRoles);
 
   return async (c, next) => {
+    // Bearer takes precedence when Authorization header is present (7.1)
+    const authHeader = c.req.header("authorization");
+    if (
+      authHeader &&
+      /^Bearer\s+/i.test(authHeader) &&
+      options.keysStore &&
+      options.bearerScopes &&
+      options.bearerScopes.length > 0
+    ) {
+      const principal = await resolveBearer(c, options.keysStore);
+      if (principal === "missing" || principal === "invalid") {
+        return c.json(
+          errorEnvelope("Authentication required", UNAUTHORIZED),
+          401,
+        );
+      }
+      const have = new Set(principal.scopes);
+      const ok = options.bearerScopes.some((s) => have.has(s as ApiScope));
+      if (!ok) {
+        return c.json(
+          errorEnvelope("Insufficient scope", FORBIDDEN, {
+            required: [...options.bearerScopes],
+          }),
+          403,
+        );
+      }
+      // Optional event binding: when key is event-scoped and route has eventId
+      const eventId = resolveEventId(c, {
+        eventIdFrom: options.eventIdFrom ?? "param",
+        eventIdParam: options.eventIdParam,
+      });
+      if (
+        principal.eventId &&
+        eventId &&
+        options.eventIdFrom !== "none" &&
+        principal.eventId !== eventId
+      ) {
+        return c.json(
+          errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+          404,
+        );
+      }
+      await next();
+      return;
+    }
+
     const resolved = await resolveSession(c, store);
     if (!resolved) {
       return c.json(
@@ -186,5 +292,67 @@ export function requireRole(
   };
 }
 
+/**
+ * Keys.Create / Keys.Revoke / Keys.List guard (section 7.1).
+ *
+ * Accepts:
+ * - Valid admin session (any event membership with role admin)
+ * - Authorization: Bearer with keys:admin scope (not revoked/expired)
+ *
+ * Invalid/revoked/expired bearer → 401.
+ * Valid auth but insufficient role/scope → 403.
+ */
+export function requireKeysAdmin(
+  store: AuthStore,
+  keysStore: KeysStore,
+): MiddlewareHandler<ApiEnv> {
+  return async (c, next) => {
+    const authHeader = c.req.header("authorization");
+    if (authHeader && /^Bearer\s+/i.test(authHeader)) {
+      const principal = await resolveBearer(c, keysStore);
+      if (principal === "missing" || principal === "invalid") {
+        return c.json(
+          errorEnvelope("Authentication required", UNAUTHORIZED),
+          401,
+        );
+      }
+      if (!principal.scopes.includes("keys:admin")) {
+        return c.json(
+          errorEnvelope("Insufficient scope", FORBIDDEN, {
+            required: ["keys:admin"],
+          }),
+          403,
+        );
+      }
+      await next();
+      return;
+    }
+
+    const resolved = await resolveSession(c, store);
+    if (!resolved) {
+      return c.json(
+        errorEnvelope("Authentication required", UNAUTHORIZED),
+        401,
+      );
+    }
+
+    const memberships = await store.listMembershipsForUser(resolved.user.id);
+    const match = memberships.find((m) => m.role === "admin");
+    if (!match) {
+      return c.json(
+        errorEnvelope("Insufficient role", FORBIDDEN, {
+          required: ["admin"],
+        }),
+        403,
+      );
+    }
+    c.set("membership", match);
+    await next();
+  };
+}
+
 /** Type helper for handlers that run after requireRole. */
 export type MembershipContext = MembershipRow;
+
+// Re-export isExpired for callers that need expiry checks on key rows
+export { isExpired, hashToken };

@@ -78,6 +78,16 @@ export type WorkerBindings = {
 };
 
 import type { MembershipRow } from "./modules/auth/store.js";
+import type { ApiScope } from "@speakerops/shared";
+
+/** API key principal attached after successful Bearer auth (section 7.1). */
+export type AuthzApiKey = {
+  id: string;
+  scopes: ApiScope[];
+  eventId: string | null;
+  orgId: string;
+  createdBy: string;
+};
 
 export type ApiEnv = {
   Bindings: WorkerBindings;
@@ -87,5 +97,7 @@ export type ApiEnv = {
     user?: { id: string; email: string };
     sessionId?: string;
     membership?: MembershipRow;
+    /** Set by Bearer API key auth (section 7.1). */
+    apiKey?: AuthzApiKey;
   };
 };

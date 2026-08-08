@@ -313,3 +313,6 @@ export const SCHEDULE_TABLES = [
   "room_block_reservations",
   "speaker_block_reservations",
 ] as const;
+
+/** API keys table names required by section 7.1 AC. */
+export const API_KEYS_TABLES = ["api_keys"] as const;

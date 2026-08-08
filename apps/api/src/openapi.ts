@@ -1398,7 +1398,92 @@ export const OPENAPI_COMMANDS = [
   "Schedule.Move",
   "Schedule.Unschedule",
   "Reports.Readiness",
+  "Keys.List",
+  "Keys.Create",
+  "Keys.Revoke",
 ] as const;
+
+/** OpenAPI paths for Keys.* commands (section 7.1 / S-CLI). */
+export const KEYS_OPENAPI_PATHS = {
+  "/api/keys": {
+    get: {
+      operationId: "Keys.List",
+      summary: "Keys.List",
+      description:
+        "List API keys without secrets (prefix + scopes only). Admin session or Bearer keys:admin.",
+      tags: ["Keys"],
+      responses: {
+        "200": { description: "keys[] without secret or hash" },
+        "401": { description: "Unauthenticated / revoked key" },
+        "403": { description: "Forbidden role or scope" },
+      },
+    },
+    post: {
+      operationId: "Keys.Create",
+      summary: "Keys.Create",
+      description:
+        "Mint API key; secret returned once only; hash stored. Default-deny high-risk scopes unless explicitly listed.",
+      tags: ["Keys"],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["name", "scopes"],
+              properties: {
+                name: { type: "string", minLength: 1, maxLength: 200 },
+                scopes: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 1,
+                  description: "SCOPES.md strings; default-deny not auto-granted",
+                },
+                eventId: { type: "string", nullable: true },
+                expiresAt: {
+                  type: "string",
+                  format: "date-time",
+                  nullable: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "201": { description: "{ id, secret, prefix } — secret once only" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role or scope" },
+        "404": { description: "eventId not found when provided" },
+      },
+    },
+  },
+  "/api/keys/{keyId}": {
+    delete: {
+      operationId: "Keys.Revoke",
+      summary: "Keys.Revoke",
+      description:
+        "Soft-revoke API key; subsequent Bearer auth returns 401",
+      tags: ["Keys"],
+      parameters: [
+        {
+          name: "keyId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "ok + revokedAt" },
+        "400": { description: "Already revoked" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role or scope" },
+        "404": { description: "Key not found" },
+      },
+    },
+  },
+} as const;
 
 /** OpenAPI paths for Reports.Readiness (section 6.3 / S-READY). */
 export const READINESS_OPENAPI_PATHS = {
@@ -1613,7 +1698,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1) + readiness (6.3).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1) + readiness (6.3) + API keys (7.1).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
@@ -1624,6 +1709,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...COMMS_OPENAPI_PATHS,
       ...SCHEDULE_OPENAPI_PATHS,
       ...READINESS_OPENAPI_PATHS,
+      ...KEYS_OPENAPI_PATHS,
     },
     tags: [
       { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },
@@ -1650,6 +1736,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         name: "Reports",
         description:
           "Readiness outstanding dashboard (S-READY / 6.3); live poll ≤5s",
+      },
+      {
+        name: "Keys",
+        description:
+          "API key mint/revoke + hashed secrets + scopes (S-CLI / 7.1); Bearer auth",
       },
     ],
     "x-speakerops-commands": [...OPENAPI_COMMANDS],

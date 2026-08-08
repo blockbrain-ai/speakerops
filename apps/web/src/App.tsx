@@ -9,6 +9,7 @@
  * + Comms email templates (section 5.1) + trust-before-send UI (section 5.3)
  * + Schedule Studio five views I01–I16 (section 6.2).
  * + Readiness dashboard H01–H05 + speakers L05 (section 6.3 / S-READY).
+ * + API keys mint/revoke K01–K04 (section 7.1 / S-CLI).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -30,6 +31,7 @@ import { SpeakersPage } from "./pages/Speakers.js";
 import { CommsPage } from "./pages/Comms.js";
 import { ScheduleStudioPage } from "./pages/schedule/ScheduleStudio.js";
 import { ReadinessPage } from "./pages/Readiness.js";
+import { ApiKeysPage } from "./pages/ApiKeys.js";
 import {
   BareLayout,
   NotFoundPage,
@@ -169,6 +171,14 @@ export function AppRoutes() {
         element={
           <AdminGuard>
             <TaskTemplatesSettingsPage />
+          </AdminGuard>
+        }
+      />
+      <Route
+        path="/admin/settings/api-keys"
+        element={
+          <AdminGuard>
+            <ApiKeysPage />
           </AdminGuard>
         }
       />

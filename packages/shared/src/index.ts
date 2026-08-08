@@ -447,3 +447,25 @@ export {
   type ReportsReadinessResponse,
   isTaskOverdue,
 } from "./readiness.js";
+
+export {
+  API_SCOPES,
+  type ApiScope,
+  ApiScopeSchema,
+  DEFAULT_DENY_SCOPES,
+  type DefaultDenyScope,
+  DEFAULT_DENY_SCOPE_SET,
+  SAFE_DEFAULT_SCOPES,
+  ApiKeySchema,
+  type ApiKeyDto,
+  KeysListResponseSchema,
+  type KeysListResponse,
+  KeysCreateBodySchema,
+  type KeysCreateBody,
+  KeysCreateResponseSchema,
+  type KeysCreateResponse,
+  KeysRevokeResponseSchema,
+  type KeysRevokeResponse,
+  scopesAreValid,
+  keyHasScopes,
+} from "./keys.js";

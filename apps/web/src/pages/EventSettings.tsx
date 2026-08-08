@@ -361,6 +361,14 @@ export function EventSettingsPage() {
         >
           Task templates →
         </a>
+        {" · "}
+        <a
+          href="/admin/settings/api-keys"
+          className="design-kit__link lumen-focusable"
+          data-testid="settings-api-keys-link"
+        >
+          API keys →
+        </a>
       </p>
 
       {/* C01 — Create event */}

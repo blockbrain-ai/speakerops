@@ -5,10 +5,11 @@
  * + 3.5 decisions / program sessions / participations / task_templates / speaker_tasks
  * + 5.1 email_templates / message_jobs (S-COMMS outbox enqueue)
  * + 5.2 message_recipients / delivery_events / calendar_invites (send + ICS)
- * + 6.1 schedule_placements / room_block_reservations / speaker_block_reservations.
+ * + 6.1 schedule_placements / room_block_reservations / speaker_block_reservations
+ * + 7.1 api_keys (hashed secrets + scopes; S-CLI).
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1 / 5.2 / 6.1.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1 / 5.2 / 6.1 / 7.1.
  * Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
@@ -994,6 +995,41 @@ export const scheduleTables = {
   speakerBlockReservations,
 } as const;
 
+/**
+ * api_keys — agent/CLI credentials (section 7.1 / S-CLI).
+ * key_hash only — plaintext secret returned once on Keys.Create (E10).
+ * scopes_json: JSON string array of SCOPES.md strings; default-deny high-risk.
+ */
+export const apiKeys = sqliteTable(
+  "api_keys",
+  {
+    id: text("id").primaryKey().notNull(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    keyPrefix: text("key_prefix").notNull(),
+    keyHash: text("key_hash").notNull(),
+    scopesJson: text("scopes_json").notNull(),
+    eventId: text("event_id"),
+    expiresAt: text("expires_at"),
+    revokedAt: text("revoked_at"),
+    createdBy: text("created_by").notNull(),
+    lastUsedAt: text("last_used_at"),
+  },
+  (t) => [
+    uniqueIndex("idx_api_keys_key_hash").on(t.keyHash),
+    index("idx_api_keys_org_id").on(t.orgId),
+    index("idx_api_keys_key_prefix").on(t.keyPrefix),
+    index("idx_api_keys_event_id").on(t.eventId),
+  ],
+);
+
+/** API keys table owned by section 7.1. */
+export const apiKeysTables = {
+  apiKeys,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -1076,6 +1112,8 @@ export type SpeakerBlockReservation =
   typeof speakerBlockReservations.$inferSelect;
 export type NewSpeakerBlockReservation =
   typeof speakerBlockReservations.$inferInsert;
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type NewApiKey = typeof apiKeys.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -1119,4 +1157,5 @@ export const schema = {
   schedulePlacements,
   roomBlockReservations,
   speakerBlockReservations,
+  apiKeys,
 } as const;
