@@ -19,3 +19,7 @@ dist/
 coverage/
 .wrangler/
 .dev.vars
+
+# Audit scratch (auditor temp)
+.audit/
+.phase-audit/
