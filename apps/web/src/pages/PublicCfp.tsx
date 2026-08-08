@@ -125,12 +125,20 @@ export function PublicCfpPage() {
                 : "no published brand (Lumen defaults)"}
             </p>
             {published?.tokens.logoFileId ? (
-              <p
-                className="event-settings__meta"
-                data-testid="public-cfp-logo-id"
-              >
-                logo {published.tokens.logoFileId}
-              </p>
+              <>
+                <img
+                  src={`/api/public/files/${encodeURIComponent(published.tokens.logoFileId)}`}
+                  alt=""
+                  className="public-cfp__logo"
+                  data-testid="public-cfp-logo"
+                />
+                <p
+                  className="event-settings__meta"
+                  data-testid="public-cfp-logo-id"
+                >
+                  logo {published.tokens.logoFileId}
+                </p>
+              </>
             ) : null}
           </div>
         </>

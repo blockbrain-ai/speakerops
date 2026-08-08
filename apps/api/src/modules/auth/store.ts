@@ -3,13 +3,25 @@
  * + event_memberships (section 2.2).
  *
  * MemoryAuthStore is the test / local e2e default (no D1 required).
- * D1AuthStore wraps the Worker DB binding for production.
+ * D1AuthStore wraps the Worker DB binding for production (E1 SoR).
  *
  * Tokens are stored only as hashes — callers must hash before insert.
  */
+import { eq, and, sql } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import type { EventRole, MagicLinkPurpose } from "@speakerops/shared";
-import { buildAuditEventRow, type AuditWriteInput } from "@speakerops/db";
+import {
+  buildAuditEventRow,
+  createDb,
+  type AuditWriteInput,
+  type D1DatabaseLike,
+  type SpeakerOpsDb,
+  users,
+  magicLinks,
+  authSessions,
+  eventMemberships,
+  auditEvents,
+} from "@speakerops/db";
 
 export type UserRow = {
   id: string;
@@ -90,6 +102,8 @@ export type AuthStore = {
   ): Promise<MembershipRow | null>;
   listMembershipsForUser(userId: string): Promise<MembershipRow[]>;
   listMemberships(): Promise<MembershipRow[]>;
+  /** Count memberships with role (controlled first-admin bootstrap). */
+  countMembershipsByRole(role: EventRole): Promise<number>;
 };
 
 /**
@@ -237,6 +251,322 @@ export class MemoryAuthStore implements AuthStore {
 
   async listMemberships(): Promise<MembershipRow[]> {
     return [...this.memberships.values()];
+  }
+
+  async countMembershipsByRole(role: EventRole): Promise<number> {
+    let n = 0;
+    for (const m of this.memberships.values()) {
+      if (m.role === role) n += 1;
+    }
+    return n;
+  }
+}
+
+/**
+ * D1-backed auth store — production Worker SoR (binding name: DB).
+ * Never stores plaintext tokens.
+ */
+export class D1AuthStore implements AuthStore {
+  private readonly db: SpeakerOpsDb;
+
+  constructor(d1: D1DatabaseLike) {
+    this.db = createDb(d1);
+  }
+
+  async findUserByEmail(email: string): Promise<UserRow | null> {
+    const key = normalizeEmail(email);
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.email, key))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name ?? null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async findUserById(id: string): Promise<UserRow | null> {
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name ?? null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async createUser(input: {
+    email: string;
+    name?: string | null;
+  }): Promise<UserRow> {
+    const email = normalizeEmail(input.email);
+    const existing = await this.findUserByEmail(email);
+    if (existing) return existing;
+    const now = new Date().toISOString();
+    const row: UserRow = {
+      id: uuidv7(),
+      email,
+      name: input.name ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.db.insert(users).values({
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+    return row;
+  }
+
+  async insertMagicLink(
+    row: Omit<MagicLinkRow, "usedAt"> & { usedAt?: null },
+  ): Promise<MagicLinkRow> {
+    const full: MagicLinkRow = {
+      ...row,
+      usedAt: row.usedAt ?? null,
+    };
+    await this.db.insert(magicLinks).values({
+      id: full.id,
+      userId: full.userId,
+      eventId: full.eventId,
+      purpose: full.purpose,
+      tokenHash: full.tokenHash,
+      expiresAt: full.expiresAt,
+      usedAt: full.usedAt,
+      createdAt: full.createdAt,
+    });
+    return full;
+  }
+
+  async findMagicLinkByTokenHash(
+    tokenHash: string,
+  ): Promise<MagicLinkRow | null> {
+    const rows = await this.db
+      .select()
+      .from(magicLinks)
+      .where(eq(magicLinks.tokenHash, tokenHash))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      userId: row.userId,
+      eventId: row.eventId ?? null,
+      purpose: row.purpose as MagicLinkPurpose,
+      tokenHash: row.tokenHash,
+      expiresAt: row.expiresAt,
+      usedAt: row.usedAt ?? null,
+      createdAt: row.createdAt,
+    };
+  }
+
+  async markMagicLinkUsed(id: string, usedAt: string): Promise<void> {
+    await this.db
+      .update(magicLinks)
+      .set({ usedAt })
+      .where(eq(magicLinks.id, id));
+  }
+
+  async insertSession(row: SessionRow): Promise<SessionRow> {
+    await this.db.insert(authSessions).values({
+      id: row.id,
+      userId: row.userId,
+      tokenHash: row.tokenHash,
+      expiresAt: row.expiresAt,
+      createdAt: row.createdAt,
+    });
+    return row;
+  }
+
+  async findSessionByTokenHash(
+    tokenHash: string,
+  ): Promise<SessionRow | null> {
+    const rows = await this.db
+      .select()
+      .from(authSessions)
+      .where(eq(authSessions.tokenHash, tokenHash))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      userId: row.userId,
+      tokenHash: row.tokenHash,
+      expiresAt: row.expiresAt,
+      createdAt: row.createdAt,
+    };
+  }
+
+  async deleteSessionByTokenHash(tokenHash: string): Promise<boolean> {
+    const existing = await this.findSessionByTokenHash(tokenHash);
+    if (!existing) return false;
+    await this.db
+      .delete(authSessions)
+      .where(eq(authSessions.tokenHash, tokenHash));
+    return true;
+  }
+
+  async insertAudit(row: AuditRow): Promise<void> {
+    const built = buildAuditEventRow(row);
+    await this.db.insert(auditEvents).values({
+      id: built.id,
+      eventId: built.eventId ?? null,
+      actorType: built.actorType,
+      actorId: built.actorId,
+      action: built.action,
+      entityType: built.entityType,
+      entityId: built.entityId,
+      beforeJson: built.beforeJson ?? null,
+      afterJson: built.afterJson ?? null,
+      correlationId: built.correlationId,
+      createdAt: built.createdAt,
+    });
+  }
+
+  async listAudits(): Promise<AuditRow[]> {
+    const rows = await this.db.select().from(auditEvents);
+    return rows.map((r) => ({
+      id: r.id,
+      eventId: r.eventId ?? null,
+      actorType: r.actorType as AuditRow["actorType"],
+      actorId: r.actorId,
+      action: r.action,
+      entityType: r.entityType,
+      entityId: r.entityId,
+      beforeJson: r.beforeJson ?? null,
+      afterJson: r.afterJson ?? null,
+      correlationId: r.correlationId,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async listMagicLinks(): Promise<MagicLinkRow[]> {
+    const rows = await this.db.select().from(magicLinks);
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      eventId: r.eventId ?? null,
+      purpose: r.purpose as MagicLinkPurpose,
+      tokenHash: r.tokenHash,
+      expiresAt: r.expiresAt,
+      usedAt: r.usedAt ?? null,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async listSessions(): Promise<SessionRow[]> {
+    const rows = await this.db.select().from(authSessions);
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      tokenHash: r.tokenHash,
+      expiresAt: r.expiresAt,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async upsertMembership(input: {
+    eventId: string;
+    userId: string;
+    role: EventRole;
+  }): Promise<MembershipRow> {
+    const existing = await this.findMembership(input.eventId, input.userId);
+    if (existing) {
+      await this.db
+        .update(eventMemberships)
+        .set({ role: input.role })
+        .where(eq(eventMemberships.id, existing.id));
+      return { ...existing, role: input.role };
+    }
+    const row: MembershipRow = {
+      id: uuidv7(),
+      eventId: input.eventId,
+      userId: input.userId,
+      role: input.role,
+      createdAt: new Date().toISOString(),
+    };
+    await this.db.insert(eventMemberships).values({
+      id: row.id,
+      eventId: row.eventId,
+      userId: row.userId,
+      role: row.role,
+      createdAt: row.createdAt,
+    });
+    return row;
+  }
+
+  async findMembership(
+    eventId: string,
+    userId: string,
+  ): Promise<MembershipRow | null> {
+    const rows = await this.db
+      .select()
+      .from(eventMemberships)
+      .where(
+        and(
+          eq(eventMemberships.eventId, eventId),
+          eq(eventMemberships.userId, userId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      eventId: row.eventId,
+      userId: row.userId,
+      role: row.role as EventRole,
+      createdAt: row.createdAt,
+    };
+  }
+
+  async listMembershipsForUser(userId: string): Promise<MembershipRow[]> {
+    const rows = await this.db
+      .select()
+      .from(eventMemberships)
+      .where(eq(eventMemberships.userId, userId));
+    return rows.map((r) => ({
+      id: r.id,
+      eventId: r.eventId,
+      userId: r.userId,
+      role: r.role as EventRole,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async listMemberships(): Promise<MembershipRow[]> {
+    const rows = await this.db.select().from(eventMemberships);
+    return rows.map((r) => ({
+      id: r.id,
+      eventId: r.eventId,
+      userId: r.userId,
+      role: r.role as EventRole,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async countMembershipsByRole(role: EventRole): Promise<number> {
+    const rows = await this.db
+      .select({ n: sql<number>`count(*)` })
+      .from(eventMemberships)
+      .where(eq(eventMemberships.role, role));
+    const n = rows[0]?.n;
+    return typeof n === "number" ? n : Number(n ?? 0);
   }
 }
 

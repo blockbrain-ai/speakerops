@@ -6,6 +6,12 @@
  * Auth.Logout — clear cookie + delete session
  *
  * Never log plaintext tokens (E10).
+ *
+ * Bootstrap policy (E2 security):
+ * - "open": local e2e / unit tests — create user + grant purpose role (dogfood convenience)
+ * - "controlled" (production default): existing users only; optional first-admin bootstrap
+ *   when no admin memberships exist (or BOOTSTRAP_ADMIN_EMAIL allowlist). Caller-supplied
+ *   purpose never elevates an existing user's membership.
  */
 import {
   uuidv7,
@@ -28,6 +34,7 @@ import type {
   AuthStore,
   MagicLinkTestOutbox,
   CapturedMagicLink,
+  UserRow,
 } from "./store.js";
 import { normalizeEmail } from "./store.js";
 
@@ -36,11 +43,22 @@ export function purposeToRole(purpose: MagicLinkPurpose): EventRole {
   return purpose;
 }
 
+/**
+ * Production vs test bootstrap for Auth.RequestMagicLink.
+ * Production Worker must use "controlled".
+ */
+export type BootstrapPolicy = "open" | "controlled";
+
 export type RequestMagicLinkInput = {
   email: string;
   purpose: MagicLinkPurpose;
   eventId?: string;
   correlationId: string;
+  /**
+   * Optional allowlist email for controlled first-admin bootstrap
+   * (from BOOTSTRAP_ADMIN_EMAIL env name — never a secret value in repo).
+   */
+  bootstrapAdminEmail?: string | null;
 };
 
 export type ExchangeMagicLinkInput = {
@@ -67,12 +85,40 @@ export type ExchangeFailure = {
 export type AuthCommandDeps = {
   store: AuthStore;
   outbox: MagicLinkTestOutbox;
+  /** Default "controlled". Tests/e2e pass "open". */
+  bootstrapPolicy?: BootstrapPolicy;
 };
 
 /**
+ * Decide whether an unknown email may be created + granted membership.
+ * Controlled: first-admin only (purpose=admin, zero admins, optional email allowlist).
+ */
+export async function isAllowedBootstrap(
+  store: AuthStore,
+  input: {
+    email: string;
+    purpose: MagicLinkPurpose;
+    bootstrapAdminEmail?: string | null;
+  },
+  policy: BootstrapPolicy,
+): Promise<boolean> {
+  if (policy === "open") return true;
+  if (input.purpose !== "admin") return false;
+  const adminCount = await store.countMembershipsByRole("admin");
+  if (adminCount > 0) return false;
+  const allow = input.bootstrapAdminEmail?.trim().toLowerCase();
+  if (allow && allow.length > 0) {
+    return normalizeEmail(input.email) === allow;
+  }
+  // Empty allowlist: first admin of an empty system (ops-controlled empty D1).
+  return true;
+}
+
+/**
  * Auth.RequestMagicLink
- * - Unknown email: still returns sent:true (no enumeration)
- * - Known or bootstrap: create user if needed, store token hash, capture plaintext only in outbox
+ * - Always returns { sent: true } (no email enumeration)
+ * - Controlled: unknown email is a silent no-op unless first-admin bootstrap
+ * - Existing users get a magic link; purpose does not rewrite memberships
  */
 export async function requestMagicLink(
   deps: AuthCommandDeps,
@@ -80,16 +126,36 @@ export async function requestMagicLink(
 ): Promise<RequestMagicLinkResponse> {
   const email = normalizeEmail(input.email);
   const response: RequestMagicLinkResponse = { sent: true };
+  const policy = deps.bootstrapPolicy ?? "controlled";
 
-  // Always same shape — timing: still do work only when we can issue a link.
-  // For admin bootstrap + speaker/evaluator login we create the user if absent so dogfood works.
-  const user = await deps.store.createUser({ email });
+  let user: UserRow | null = await deps.store.findUserByEmail(email);
+  let grantedMembershipId: string | null = null;
+  let grantedRole: EventRole | null = null;
+  let isBootstrapCreate = false;
+
+  if (!user) {
+    const allowed = await isAllowedBootstrap(
+      deps.store,
+      {
+        email,
+        purpose: input.purpose,
+        bootstrapAdminEmail: input.bootstrapAdminEmail,
+      },
+      policy,
+    );
+    if (!allowed) {
+      // No enumeration: identical response, no user / link / membership side effects
+      return response;
+    }
+    user = await deps.store.createUser({ email });
+    isBootstrapCreate = true;
+  }
+
   const plaintext = generateToken(32);
   const tokenHash = await hashToken(plaintext);
   const now = new Date();
   const magicId = uuidv7();
   const createdAt = now.toISOString();
-  // Membership event: explicit eventId, or dogfood bootstrap for role grants
   const membershipEventId = input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
 
   await deps.store.insertMagicLink({
@@ -103,13 +169,27 @@ export async function requestMagicLink(
     createdAt,
   });
 
-  // Section 2.2: purpose maps to event_memberships.role for requireRole checks
-  const role = purposeToRole(input.purpose);
-  const membership = await deps.store.upsertMembership({
-    eventId: membershipEventId,
-    userId: user.id,
-    role,
-  });
+  // Membership grants:
+  // - open: purpose → role upsert (e2e dogfood)
+  // - controlled: only on first-admin bootstrap create; never elevate existing users
+  if (policy === "open") {
+    const role = purposeToRole(input.purpose);
+    const membership = await deps.store.upsertMembership({
+      eventId: membershipEventId,
+      userId: user.id,
+      role,
+    });
+    grantedMembershipId = membership.id;
+    grantedRole = role;
+  } else if (isBootstrapCreate && input.purpose === "admin") {
+    const membership = await deps.store.upsertMembership({
+      eventId: membershipEventId,
+      userId: user.id,
+      role: "admin",
+    });
+    grantedMembershipId = membership.id;
+    grantedRole = "admin";
+  }
 
   const captured: CapturedMagicLink = {
     email,
@@ -136,8 +216,10 @@ export async function requestMagicLink(
       email,
       purpose: input.purpose,
       userId: user.id,
-      membershipId: membership.id,
-      role,
+      membershipId: grantedMembershipId,
+      role: grantedRole,
+      bootstrapPolicy: policy,
+      bootstrapCreate: isBootstrapCreate,
     }),
     correlationId: input.correlationId,
     createdAt,

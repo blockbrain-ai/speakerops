@@ -3,15 +3,30 @@
  * Kept separate so modules can import without circular deps on index.ts.
  */
 
+import type { D1DatabaseLike } from "@speakerops/db";
+
+/** Minimal R2 surface for logo object storage (binding name: FILES). */
+export type R2BucketLike = {
+  put(
+    key: string,
+    value: ArrayBuffer | ArrayBufferView | string | Blob,
+    options?: { httpMetadata?: { contentType?: string } },
+  ): Promise<unknown>;
+  get(key: string): Promise<{
+    arrayBuffer(): Promise<ArrayBuffer>;
+    httpMetadata?: { contentType?: string };
+  } | null>;
+};
+
 /**
  * Worker bindings (names only — values from wrangler / CF dashboard).
  * Placeholders match wrangler.toml; real resources land in deploy sections.
  */
 export type WorkerBindings = {
-  /** D1 database binding name: DB */
-  DB?: unknown;
-  /** R2 bucket binding name: FILES */
-  FILES?: unknown;
+  /** D1 database binding name: DB (required for production SoR) */
+  DB?: D1DatabaseLike;
+  /** R2 bucket binding name: FILES (logo bytes) */
+  FILES?: R2BucketLike;
   /** Queue producer binding name: JOBS_QUEUE */
   JOBS_QUEUE?: unknown;
   /** Non-secret public version string (wrangler [vars]) */
@@ -21,6 +36,11 @@ export type WorkerBindings = {
    * Never enable in production dogfood without explicit ops decision.
    */
   AUTH_DEV_OUTBOX?: string;
+  /**
+   * Optional first-admin allowlist (email). Env **name** only in repo (E10).
+   * When set under controlled bootstrap, only this email may self-bootstrap admin.
+   */
+  BOOTSTRAP_ADMIN_EMAIL?: string;
 };
 
 import type { MembershipRow } from "./modules/auth/store.js";

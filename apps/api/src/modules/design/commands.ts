@@ -153,11 +153,12 @@ export async function setDesignDraft(
       input.eventId,
       input.tokens.logoFileId,
     );
-    if (!file || file.purpose !== "logo") {
+    if (!file || file.purpose !== "logo" || !file.uploaded) {
       return {
         ok: false,
         status: 400,
-        error: "logoFileId must reference a logo file for this event",
+        error:
+          "logoFileId must reference an uploaded logo file for this event",
         code: "VALIDATION_ERROR",
         details: { logoFileId: input.tokens.logoFileId },
       };
@@ -420,6 +421,7 @@ export async function presignFileUpload(
   const r2Key = `events/${input.eventId}/logo/${fileId}.png`;
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
+  // Metadata only until client PUTs bytes to the upload URL (not "ready" yet).
   const row: FileAssetRow = {
     id: fileId,
     eventId: input.eventId,
@@ -431,10 +433,11 @@ export async function presignFileUpload(
     checksum: null,
     purpose: "logo",
     createdAt: now,
+    uploaded: false,
   };
   await deps.design.insertFile(row);
 
-  // Dev/local: synthetic upload URL (no real R2 in unit tests / e2e)
+  // Local/dev and production share the same upload handler path.
   const url = `/api/files/${encodeURIComponent(fileId)}/upload?eventId=${encodeURIComponent(input.eventId)}`;
 
   await deps.auth.insertAudit({
@@ -450,6 +453,7 @@ export async function presignFileUpload(
       mime,
       size: input.size,
       r2Key,
+      uploaded: false,
     }),
     correlationId: input.correlationId,
     createdAt: now,
@@ -464,6 +468,128 @@ export async function presignFileUpload(
       purpose: "logo",
       expiresAt,
     },
+  };
+}
+
+export type UploadFileInput = {
+  eventId: string;
+  fileId: string;
+  body: ArrayBuffer;
+  contentType: string | undefined;
+  actorUserId: string;
+  correlationId: string;
+};
+
+/**
+ * PUT body to presign URL — store PNG bytes; mark file uploaded.
+ */
+export async function uploadFileBytes(
+  deps: DesignCommandDeps,
+  input: UploadFileInput,
+): Promise<
+  CommandOk<{ fileId: string; uploaded: true; size: number }> | CommandErr
+> {
+  const event = await deps.events.findEventById(input.eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+
+  const file = await deps.design.findFile(input.eventId, input.fileId);
+  if (!file || file.purpose !== "logo") {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+
+  const mime = (input.contentType ?? file.mime).trim().toLowerCase();
+  if (!(LOGO_MIME_ALLOWLIST as readonly string[]).includes(mime)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Logo upload allows image/png only",
+      code: "VALIDATION_ERROR",
+      details: { mime, allowlist: [...LOGO_MIME_ALLOWLIST] },
+    };
+  }
+
+  // PNG magic bytes check (defense in depth against content-type spoof)
+  const bytes = new Uint8Array(input.body);
+  const isPng =
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47;
+  if (!isPng) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Logo body must be a PNG image",
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  if (bytes.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Empty upload body",
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  await deps.design.putFileBytes(input.eventId, input.fileId, {
+    bytes: input.body,
+    mime: "image/png",
+  });
+  await deps.design.updateFileAfterUpload(input.eventId, input.fileId, {
+    size: bytes.length,
+    uploaded: true,
+  });
+
+  const now = new Date().toISOString();
+  await deps.auth.insertAudit({
+    id: uuidv7(),
+    eventId: input.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "File.Upload",
+    entityType: "file_asset",
+    entityId: input.fileId,
+    afterJson: JSON.stringify({
+      purpose: "logo",
+      mime: "image/png",
+      size: bytes.length,
+      uploaded: true,
+    }),
+    correlationId: input.correlationId,
+    createdAt: now,
+  });
+
+  return {
+    ok: true,
+    value: { fileId: input.fileId, uploaded: true, size: bytes.length },
+  };
+}
+
+/**
+ * Public logo bytes by fileId (only if uploaded).
+ */
+export async function getPublicFileBytes(
+  deps: DesignCommandDeps,
+  fileId: string,
+): Promise<
+  CommandOk<{ bytes: ArrayBuffer; mime: string; eventId: string }> | CommandErr
+> {
+  const file = await deps.design.findFileById(fileId);
+  if (!file || !file.uploaded || file.purpose !== "logo") {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+  const blob = await deps.design.getFileBytes(file.eventId, file.id);
+  if (!blob) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+  return {
+    ok: true,
+    value: { bytes: blob.bytes, mime: blob.mime, eventId: file.eventId },
   };
 }
 

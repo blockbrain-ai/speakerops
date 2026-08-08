@@ -154,7 +154,7 @@ describe("2.2 roles and route guards", () => {
     );
   });
 
-  it("admin POST schedule place succeeds and writes audit with correlationId", async () => {
+  it("admin POST schedule place passes role gate then 501 (no fake placement)", async () => {
     const eventId = "evt_admin_place";
     const { app, store, cookie } = await magicLinkSession(
       "admin",
@@ -180,22 +180,14 @@ describe("2.2 roles and route guards", () => {
       },
       env,
     );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toMatchObject({
-      ok: true,
-      placement: {
-        eventId,
-        sessionId: "sess_a",
-        roomId: "room_a",
-      },
-    });
+    // Section 2.2: role gate only — no D1 schedule_placements until 6.1
+    expect(res.status).toBe(501);
+    const body = ErrorEnvelopeSchema.parse(await res.json());
+    expect(body.code).toBe("NOT_IMPLEMENTED");
 
     const audits = await store.listAudits();
     const placeAudit = audits.find((a) => a.action === "Schedule.Place");
-    expect(placeAudit).toBeTruthy();
-    expect(placeAudit!.correlationId).toBe("corr-admin-place-1");
-    expect(placeAudit!.eventId).toBe(eventId);
+    expect(placeAudit).toBeUndefined();
   });
 
   it("cross-event isolation: no membership on event returns 404 not 403", async () => {

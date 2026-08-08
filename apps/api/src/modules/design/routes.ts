@@ -35,6 +35,8 @@ import {
   publishDesign,
   getPublicDesign,
   presignFileUpload,
+  uploadFileBytes,
+  getPublicFileBytes,
 } from "./commands.js";
 
 export type DesignRouteOptions = {
@@ -271,6 +273,26 @@ export function createPublicDesignRoutes(
     );
   });
 
+  /**
+   * GET /files/:fileId — public logo image bytes (uploaded logos only).
+   * Used by public CFP <img src> for logoFileId field flow (C04).
+   */
+  pub.get("/files/:fileId", async (c) => {
+    const fileId = c.req.param("fileId");
+    const result = await getPublicFileBytes(deps, fileId);
+    if (!result.ok) {
+      return commandError(c, result);
+    }
+    return new Response(result.value.bytes, {
+      status: 200,
+      headers: {
+        "content-type": result.value.mime,
+        "cache-control": "public, max-age=300",
+        "x-content-type-options": "nosniff",
+      },
+    });
+  });
+
   return pub;
 }
 
@@ -355,6 +377,62 @@ export function createFileRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
         );
       }
       return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * PUT /:fileId/upload?eventId= — accept PNG body for a prior File.PresignUpload.
+   * Session + admin membership required on eventId.
+   */
+  files.put(
+    "/:fileId/upload",
+    requireRole(store, ["admin"], { eventIdFrom: "none" }),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+
+      const fileId = c.req.param("fileId");
+      const eventId = c.req.query("eventId");
+      if (!eventId || eventId.trim().length === 0) {
+        return c.json(
+          errorEnvelope("eventId query parameter is required", VALIDATION_ERROR),
+          400,
+        );
+      }
+
+      const membership = await store.findMembership(eventId, user.id);
+      if (!membership) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      if (membership.role !== "admin") {
+        return c.json(
+          errorEnvelope("Insufficient role", "FORBIDDEN", {
+            required: ["admin"],
+            role: membership.role,
+          }),
+          403,
+        );
+      }
+
+      const body = await c.req.arrayBuffer();
+      const result = await uploadFileBytes(deps, {
+        eventId,
+        fileId,
+        body,
+        contentType: c.req.header("content-type") ?? undefined,
+        actorUserId: user.id,
+        correlationId: c.get("correlationId"),
+      });
+
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      return c.json(result.value, 200);
     },
   );
 

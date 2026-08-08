@@ -164,7 +164,8 @@ test("@inv:B06 e2e/auth/role-guard-eval evaluator cannot mutate schedule", async
       },
     },
   );
-  expect(adminPlace.status()).toBe(200);
+  // Admin passes role gate; Schedule.Place persistence is deferred to 6.1 (501).
+  expect(adminPlace.status()).toBe(501);
   const body = await adminPlace.json();
-  expect(body).toMatchObject({ ok: true, placement: { eventId } });
+  expect(body).toMatchObject({ code: "NOT_IMPLEMENTED" });
 });

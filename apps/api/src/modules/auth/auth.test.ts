@@ -162,7 +162,7 @@ describe("2.1 session auth magic link", () => {
 
   it("assert unknown email still returns sent:true", async () => {
     const { app, store } = createAppWithAuth();
-    // Email never seen before
+    // Email never seen before (open bootstrap creates user for e2e)
     const res = await app.request(
       "http://localhost/api/auth/magic-link",
       {
@@ -178,9 +178,80 @@ describe("2.1 session auth magic link", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ sent: true });
-    // User is created for bootstrap, but response shape is identical
+    // Open policy (createAppWithAuth): user is created for dogfood e2e
     const user = await store.findUserByEmail("brand-new-unknown@example.org");
     expect(user).toBeTruthy();
+  });
+
+  it("controlled bootstrap: unknown email does not self-provision admin after first admin", async () => {
+    const { app, store, outbox } = createAppWithAuth({
+      bootstrapPolicy: "controlled",
+    });
+
+    // First admin on empty system is allowed
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "first-admin@example.com",
+          purpose: "admin",
+        }),
+      },
+      env,
+    );
+    expect(outbox.lastForEmail("first-admin@example.com")).toBeTruthy();
+    expect(await store.countMembershipsByRole("admin")).toBe(1);
+
+    // Second random admin purpose: still sent:true but no user / no link
+    const res = await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "attacker@example.com",
+          purpose: "admin",
+        }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ sent: true });
+    expect(await store.findUserByEmail("attacker@example.com")).toBeNull();
+    expect(outbox.lastForEmail("attacker@example.com")).toBeNull();
+    expect(await store.countMembershipsByRole("admin")).toBe(1);
+  });
+
+  it("controlled bootstrap: purpose does not elevate existing user membership", async () => {
+    const { app, store, outbox } = createAppWithAuth({
+      bootstrapPolicy: "controlled",
+    });
+
+    // Seed speaker via open path on a throwaway store first is hard; seed manually
+    const user = await store.createUser({ email: "speaker-elevate@example.com" });
+    await store.upsertMembership({
+      eventId: "evt_dogfood",
+      userId: user.id,
+      role: "speaker",
+    });
+
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "speaker-elevate@example.com",
+          purpose: "admin",
+        }),
+      },
+      env,
+    );
+    expect(outbox.lastForEmail("speaker-elevate@example.com")).toBeTruthy();
+    const m = await store.findMembership("evt_dogfood", user.id);
+    expect(m?.role).toBe("speaker");
   });
 
   it("bad token exchange returns 401 E4 envelope", async () => {

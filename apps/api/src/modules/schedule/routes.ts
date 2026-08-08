@@ -3,21 +3,21 @@
  *
  * POST /api/events/:eventId/schedule/place → Schedule.Place
  *
- * Full conflict engine is section 6.1. This module enforces:
+ * Full conflict engine + D1 schedule_placements persistence is section 6.1.
+ * This module enforces only:
  * - Zod body validation (E4)
  * - requireRole(['admin']) on eventId
  * - cross-event isolation 404 when no membership
  * - evaluator/speaker → 403
- * - audit_events on successful place stub
+ *
+ * Admin callers that pass the guard receive 501 NOT_IMPLEMENTED — not a fake
+ * 200 placement that is immediately lost (no D1 write, no misleading success).
  */
 import { Hono } from "hono";
 import {
   SchedulePlaceBodySchema,
-  SchedulePlaceResponseSchema,
   errorEnvelope,
   VALIDATION_ERROR,
-  INTERNAL_ERROR,
-  uuidv7,
 } from "@speakerops/shared";
 import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
@@ -26,6 +26,9 @@ import { requireRole } from "../../middleware/authz.js";
 export type ScheduleRouteOptions = {
   store: AuthStore;
 };
+
+/** Machine-readable code for deferred Schedule.Place persistence (6.1). */
+export const NOT_IMPLEMENTED = "NOT_IMPLEMENTED" as const;
 
 export function createScheduleRoutes(
   options: ScheduleRouteOptions,
@@ -36,12 +39,13 @@ export function createScheduleRoutes(
   /**
    * POST /api/events/:eventId/schedule/place — Schedule.Place
    * Role: admin only (evaluator cannot schedule write — B06)
+   *
+   * After authz + validation: 501 until schedule placements are D1-backed (6.1).
    */
   schedule.post(
     "/:eventId/schedule/place",
     requireRole(store, ["admin"], { eventIdFrom: "param" }),
     async (c) => {
-      const eventId = c.req.param("eventId");
       let raw: unknown;
       try {
         raw = await c.req.json();
@@ -62,52 +66,15 @@ export function createScheduleRoutes(
         );
       }
 
-      const user = c.get("user");
-      const correlationId = c.get("correlationId");
-      const placementId = uuidv7();
-      const body = parsed.data;
-
-      const response = {
-        ok: true as const,
-        placement: {
-          id: placementId,
-          eventId,
-          sessionId: body.sessionId,
-          roomId: body.roomId,
-          startsAt: body.startsAt,
-          endsAt: body.endsAt,
-          version: 1,
-        },
-      };
-
-      const out = SchedulePlaceResponseSchema.safeParse(response);
-      if (!out.success) {
-        return c.json(
-          errorEnvelope("Response validation failed", INTERNAL_ERROR),
-          500,
-        );
-      }
-
-      // Consequential write audit (stub placement until 6.1 engine)
-      await store.insertAudit({
-        id: uuidv7(),
-        eventId,
-        actorType: "user",
-        actorId: user?.id ?? "unknown",
-        action: "Schedule.Place",
-        entityType: "schedule_placement",
-        entityId: placementId,
-        afterJson: JSON.stringify({
-          sessionId: body.sessionId,
-          roomId: body.roomId,
-          startsAt: body.startsAt,
-          endsAt: body.endsAt,
-        }),
-        correlationId,
-        createdAt: new Date().toISOString(),
-      });
-
-      return c.json(out.data, 200);
+      // Guard passed. Do not invent a placement or audit a non-write.
+      return c.json(
+        errorEnvelope(
+          "Schedule.Place persistence is not implemented until section 6.1",
+          NOT_IMPLEMENTED,
+          { section: "6.1" },
+        ),
+        501,
+      );
     },
   );
 

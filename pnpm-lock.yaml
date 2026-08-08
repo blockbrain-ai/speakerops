@@ -53,6 +53,9 @@ importers:
       '@speakerops/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(@types/better-sqlite3@9.6.0)(@types/sql.js@1.4.11)(better-sqlite3@13.0.3)(sql.js@1.14.1)
       hono:
         specifier: ^4.5.0
         version: 4.13.1

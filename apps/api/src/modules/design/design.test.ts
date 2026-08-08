@@ -216,7 +216,7 @@ describe("2.4 design kit", () => {
     expect(envBody.code).toBe(VALIDATION_ERROR);
     expect(envBody.error.toLowerCase()).toMatch(/svg|not allowed|png/);
 
-    // PNG succeeds
+    // PNG presign succeeds; body not ready until upload
     const pngRes = await app.request(
       "http://localhost/api/files/presign",
       {
@@ -241,6 +241,44 @@ describe("2.4 design kit", () => {
     expect(png.mime).toBe("image/png");
     expect(png.purpose).toBe("logo");
     expect(png.fileId.length).toBeGreaterThan(0);
+    expect(png.url).toContain(`/api/files/${png.fileId}/upload`);
+
+    // Minimal PNG (8-byte signature + pad)
+    const pngBytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52,
+    ]);
+    const uploadRes = await app.request(
+      `http://localhost${png.url}`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "image/png",
+          cookie,
+          "x-correlation-id": "corr-logo-upload",
+        },
+        body: pngBytes,
+      },
+      env,
+    );
+    expect(uploadRes.status).toBe(200);
+    const uploadBody = (await uploadRes.json()) as {
+      fileId: string;
+      uploaded: boolean;
+    };
+    expect(uploadBody.uploaded).toBe(true);
+    expect(uploadBody.fileId).toBe(png.fileId);
+
+    const publicImg = await app.request(
+      `http://localhost/api/public/files/${png.fileId}`,
+      { method: "GET" },
+      env,
+    );
+    expect(publicImg.status).toBe(200);
+    expect(publicImg.headers.get("content-type")).toMatch(/image\/png/);
+    const served = new Uint8Array(await publicImg.arrayBuffer());
+    expect(served[0]).toBe(0x89);
+    expect(served[1]).toBe(0x50);
   });
 
   it("assert public design endpoint returns published not draft", async () => {

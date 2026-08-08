@@ -12,19 +12,22 @@
  * CORS: same-origin policy by default — no open Access-Control-Allow-Origin.
  * SPA and Worker share the dogfood origin (or Vite proxy in local dev);
  * cross-origin headers are not added until an explicit public surface needs them.
+ *
+ * Production: default export builds stores from env.DB (D1) — never Memory*.
+ * Tests/e2e: createApp / createAppWithAuth inject Memory* stores.
  */
 import { Hono } from "hono";
 import {
   HealthResponseSchema,
   type HealthResponse,
 } from "@speakerops/shared";
-import { createDbMarker, SCHEMA_READY } from "@speakerops/db";
+import { createDbMarker, SCHEMA_READY, type D1DatabaseLike } from "@speakerops/db";
 import {
   correlationMiddleware,
   notFoundHandler,
   onErrorHandler,
 } from "./middleware/errors.js";
-import type { ApiEnv } from "./env.js";
+import type { ApiEnv, WorkerBindings } from "./env.js";
 import { createAuthRoutes } from "./modules/auth/routes.js";
 import { createEventsRoutes } from "./modules/events/routes.js";
 import { createScheduleRoutes } from "./modules/schedule/routes.js";
@@ -35,15 +38,19 @@ import {
 } from "./modules/design/routes.js";
 import {
   MemoryAuthStore,
+  D1AuthStore,
   MagicLinkTestOutbox,
   type AuthStore,
 } from "./modules/auth/store.js";
+import type { BootstrapPolicy } from "./modules/auth/commands.js";
 import {
   MemoryEventsStore,
+  D1EventsStore,
   type EventsStore,
 } from "./modules/events/store.js";
 import {
   MemoryDesignStore,
+  D1DesignStore,
   type DesignStore,
 } from "./modules/design/store.js";
 
@@ -68,11 +75,19 @@ export type CreateAppOptions = {
    * Default: true when options.magicLinkOutbox is provided or AUTH_DEV_OUTBOX=1.
    */
   enableDevOutbox?: boolean;
+  /**
+   * Auth bootstrap policy. Production Worker: "controlled".
+   * createAppWithAuth (e2e/tests): "open".
+   */
+  bootstrapPolicy?: BootstrapPolicy;
 };
 
 /**
  * Create the Hono app.
  * Used by the Worker default export and by unit tests via `app.request()`.
+ *
+ * When stores are omitted, Memory* is used (unit tests / createApp health only).
+ * Production Worker must pass D1-backed stores from env.DB.
  */
 export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
@@ -87,6 +102,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
+  // Production: controlled. createAppWithAuth overrides to open for e2e.
+  const bootstrapPolicy = options.bootstrapPolicy ?? "controlled";
 
   app.use("*", correlationMiddleware);
 
@@ -118,6 +135,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       outbox: magicLinkOutbox,
       cookieSecure: options.cookieSecure,
       enableDevOutbox,
+      bootstrapPolicy,
     }),
   );
 
@@ -151,7 +169,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
-  // Section 2.4 — File.PresignUpload (logo PNG only)
+  // Section 2.4 — File.PresignUpload + upload body (logo PNG only)
   app.route(
     "/api/files",
     createFileRoutes({
@@ -170,6 +188,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
 /**
  * Create app with always-on dev outbox (local e2e / vitest).
  * Production Worker default export does not enable this.
+ * Uses open bootstrap so magic-link purpose can seed memberships for tests.
  */
 export function createAppWithAuth(
   options: CreateAppOptions = {},
@@ -191,13 +210,51 @@ export function createAppWithAuth(
     designStore: design,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
+    // Open bootstrap for e2e/unit tests only — never production.
+    bootstrapPolicy: options.bootstrapPolicy ?? "open",
   });
   return { app, store, events, design, outbox };
 }
 
-/** Default export for Cloudflare Workers (wrangler main). */
-const app = createApp({
-  // Production: no dev outbox. AUTH_DEV_OUTBOX is never read here by default.
-  enableDevOutbox: false,
-});
-export default app;
+/**
+ * Build production app from Worker bindings (D1 SoR).
+ * Throws if DB binding is missing — Memory stores are never used in production.
+ */
+export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
+  if (!env.DB) {
+    throw new Error(
+      "Worker binding DB is required for production SoR (E1). Memory stores are test-only.",
+    );
+  }
+  const d1 = env.DB as D1DatabaseLike;
+  return createApp({
+    authStore: new D1AuthStore(d1),
+    eventsStore: new D1EventsStore(d1),
+    designStore: new D1DesignStore(d1, env.FILES),
+    enableDevOutbox: false,
+    bootstrapPolicy: "controlled",
+  });
+}
+
+/** Cache one Hono app per env object (isolates reuse bindings). */
+const appByEnv = new WeakMap<object, Hono<ApiEnv>>();
+
+/**
+ * Cloudflare Workers default export.
+ * Constructs D1-backed stores from env.DB on first request for this env.
+ */
+export default {
+  fetch(
+    request: Request,
+    env: WorkerBindings,
+    ctx?: unknown,
+  ): Response | Promise<Response> {
+    const key = env as object;
+    let app = appByEnv.get(key);
+    if (!app) {
+      app = createAppFromBindings(env);
+      appByEnv.set(key, app);
+    }
+    return app.fetch(request, env, ctx as never);
+  },
+};

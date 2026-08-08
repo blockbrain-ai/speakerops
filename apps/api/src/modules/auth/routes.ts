@@ -25,6 +25,7 @@ import {
   requestMagicLink,
   exchangeMagicLink,
   logoutSession,
+  type BootstrapPolicy,
 } from "./commands.js";
 import type { AuthStore, MagicLinkTestOutbox } from "./store.js";
 import {
@@ -40,11 +41,17 @@ export type AuthRouteOptions = {
   cookieSecure?: boolean;
   /** Register GET /api/auth/dev/outbox for e2e (default false). */
   enableDevOutbox?: boolean;
+  /** Production: "controlled". Tests/e2e: "open". */
+  bootstrapPolicy?: BootstrapPolicy;
 };
 
 export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
   const auth = new Hono<ApiEnv>();
-  const deps = { store: options.store, outbox: options.outbox };
+  const deps = {
+    store: options.store,
+    outbox: options.outbox,
+    bootstrapPolicy: options.bootstrapPolicy ?? "controlled",
+  };
   const cookieSecure = options.cookieSecure !== false;
 
   /**
@@ -73,11 +80,16 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
     }
 
     const correlationId = c.get("correlationId");
+    const bootstrapAdminEmail =
+      typeof c.env?.BOOTSTRAP_ADMIN_EMAIL === "string"
+        ? c.env.BOOTSTRAP_ADMIN_EMAIL
+        : null;
     const result = await requestMagicLink(deps, {
       email: parsed.data.email,
       purpose: parsed.data.purpose,
       eventId: parsed.data.eventId,
       correlationId,
+      bootstrapAdminEmail,
     });
 
     const out = RequestMagicLinkResponseSchema.safeParse(result);

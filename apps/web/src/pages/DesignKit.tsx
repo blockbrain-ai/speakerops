@@ -273,11 +273,34 @@ export function DesignKitPage() {
         setLogoStatus({ kind: "error", text: "Unexpected presign response" });
         return;
       }
+
+      // PUT PNG bytes to the presigned upload URL (required before logo is ready)
+      const uploadRes = await fetch(parsed.data.url, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "content-type": "image/png" },
+        body: file,
+      });
+      if (!uploadRes.ok) {
+        const uploadRaw: unknown = await uploadRes.json().catch(() => null);
+        const env = ErrorEnvelopeSchema.safeParse(uploadRaw);
+        setLogoStatus({
+          kind: "error",
+          text: env.success
+            ? env.data.error
+            : `Upload failed (${uploadRes.status})`,
+        });
+        return;
+      }
+
       setLogoFileId(parsed.data.fileId);
       // Local object URL for inert <img> preview (never execute SVG)
       if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
       setLogoPreviewUrl(URL.createObjectURL(file));
-      setLogoStatus({ kind: "ok", text: `Logo ready (${parsed.data.fileId.slice(0, 8)}…)` });
+      setLogoStatus({
+        kind: "ok",
+        text: `Logo ready (${parsed.data.fileId.slice(0, 8)}…)`,
+      });
     } catch {
       setLogoStatus({ kind: "error", text: "Network error" });
     }
