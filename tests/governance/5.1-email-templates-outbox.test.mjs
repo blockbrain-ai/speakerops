@@ -156,9 +156,14 @@ describe("5.1 email templates outbox governance", () => {
     assert.match(commands, /\/api\/events\/:eventId\/templates\/:key/);
   });
 
-  it("inventory J01 is IMPLEMENTED (not shrunk)", () => {
+  it("inventory J01 is IMPLEMENTED or PASS (not shrunk)", () => {
     const inv = readFileSync(inventoryPath, "utf8");
     assert.match(inv, /\| J01 \|/);
-    assert.match(inv, /J01.*IMPLEMENTED|IMPLEMENTED.*J01|J01 \| admin \| Comms \|.*IMPLEMENTED/);
+    // 5.1 marks IMPLEMENTED; 5.4 keystone promotes to PASS
+    assert.match(
+      inv,
+      /\| J01 \| admin \| Comms \|.*\| (IMPLEMENTED|PASS) \|/,
+      "J01 must remain IMPLEMENTED or PASS",
+    );
   });
 });

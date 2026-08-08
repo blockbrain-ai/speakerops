@@ -170,16 +170,16 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| J01 | admin | Comms | Create/edit template merge fields | e2e/comms/template | — | REQUIRED | IMPLEMENTED |
-| J02 | admin | Comms | Segment audience; count | e2e/comms/segment | — | REQUIRED | IMPLEMENTED |
-| J03 | admin | Comms | Preview all recipients + body | e2e/comms/preview | Send without preview blocked if product requires | REQUIRED | IMPLEMENTED |
-| J04 | admin | Comms | Send once; second send idempotent | e2e/comms/send-idempotent | — | REQUIRED | IMPLEMENTED |
-| J05 | admin | Comms | Delivery log visible | e2e/comms/log | — | REQUIRED | IMPLEMENTED |
-| J06 | admin | Comms | ICS attach for scheduled session | e2e/comms/ics | — | REQUIRED | IMPLEMENTED |
-| J07 | admin | Comms | Role without comms:send cannot send | e2e/comms/authz | 403 | REQUIRED | IMPLEMENTED |
-| J08 | admin | Comms | Send without completed preview blocked | e2e/comms/preview-required | Blocked | REQUIRED | IMPLEMENTED |
-| J09 | admin | Comms | Edit audience invalidates preview | e2e/comms/preview-invalidate | — | REQUIRED | IMPLEMENTED |
-| J10 | admin | Comms | ICS update after reschedule keeps UID bumps SEQUENCE | e2e/comms/ics-update | — | REQUIRED | IMPLEMENTED |
+| J01 | admin | Comms | Create/edit template merge fields | e2e/comms/template | — | REQUIRED | PASS |
+| J02 | admin | Comms | Segment audience; count | e2e/comms/segment | — | REQUIRED | PASS |
+| J03 | admin | Comms | Preview all recipients + body | e2e/comms/preview | Send without preview blocked if product requires | REQUIRED | PASS |
+| J04 | admin | Comms | Send once; second send idempotent | e2e/comms/send-idempotent | — | REQUIRED | PASS |
+| J05 | admin | Comms | Delivery log visible | e2e/comms/log | — | REQUIRED | PASS |
+| J06 | admin | Comms | ICS attach for scheduled session | e2e/comms/ics | — | REQUIRED | PASS |
+| J07 | admin | Comms | Role without comms:send cannot send | e2e/comms/authz | 403 | REQUIRED | PASS |
+| J08 | admin | Comms | Send without completed preview blocked | e2e/comms/preview-required | Blocked | REQUIRED | PASS |
+| J09 | admin | Comms | Edit audience invalidates preview | e2e/comms/preview-invalidate | — | REQUIRED | PASS |
+| J10 | admin | Comms | ICS update after reschedule keeps UID bumps SEQUENCE | e2e/comms/ics-update | — | REQUIRED | PASS |
 
 ---
 
