@@ -283,3 +283,13 @@ export const EVAL_TABLES = [
   "eval_assignments",
   "scores",
 ] as const;
+
+/** Decision / session / task table names required by section 3.5 AC. */
+export const DECISION_TABLES = [
+  "decisions",
+  "event_participations",
+  "sessions",
+  "session_speakers",
+  "task_templates",
+  "speaker_tasks",
+] as const;

@@ -478,6 +478,68 @@
   color: var(--lumen-warn);
 }
 
+/* Section 3.5 — Submissions & decisions (Lumen tokens only) */
+.submissions-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-4);
+  max-width: 1100px;
+}
+
+.submissions-page__filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+}
+
+.submissions-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  margin-top: var(--lumen-space-2);
+}
+
+.submissions-page__preview-list {
+  margin: 0;
+  padding-left: var(--lumen-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+  font-size: 14px;
+}
+
+.submissions-page__subhead {
+  margin: var(--lumen-space-3) 0 var(--lumen-space-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.submissions-page__badge {
+  display: inline-block;
+  padding: 2px var(--lumen-space-2);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-brand-soft);
+  color: var(--lumen-brand);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.submissions-page__row--active td {
+  background: var(--lumen-brand-soft);
+}
+
+.submissions-page__assign {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+  margin: var(--lumen-space-3) 0;
+  padding-top: var(--lumen-space-3);
+  border-top: 1px solid var(--lumen-border);
+}
+
 /* Public CFP (published tokens only; section 3.3 form) — Lumen tokens only */
 .public-cfp {
   background: var(--lumen-surface);

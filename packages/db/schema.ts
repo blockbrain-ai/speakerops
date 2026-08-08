@@ -1,10 +1,11 @@
 /**
  * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships
  * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets + 3.1 forms
- * + 3.3 people / submissions + 3.4 eval rounds / criteria / assignments / scores.
+ * + 3.3 people / submissions + 3.4 eval rounds / criteria / assignments / scores
+ * + 3.5 decisions / program sessions / participations / task_templates / speaker_tasks.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5. Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
@@ -582,6 +583,152 @@ export const evalTables = {
   scores,
 } as const;
 
+/**
+ * decisions — accept / reject / waitlist on a submission (section 3.5).
+ * UNIQUE(submission_id) — one recorded decision row per submission (idempotent accept).
+ */
+export const decisions = sqliteTable(
+  "decisions",
+  {
+    id: text("id").primaryKey().notNull(),
+    submissionId: text("submission_id").notNull(),
+    decision: text("decision").notNull(),
+    reason: text("reason"),
+    decidedBy: text("decided_by").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    index("idx_decisions_submission_id").on(t.submissionId),
+    uniqueIndex("idx_decisions_submission_unique").on(t.submissionId),
+  ],
+);
+
+/**
+ * event_participations — Person on an event (Person ≠ Speaker join) (section 3.5 / 4.1).
+ */
+export const eventParticipations = sqliteTable(
+  "event_participations",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    personId: text("person_id").notNull(),
+    userId: text("user_id"),
+    roleLabel: text("role_label"),
+    status: text("status").notNull(),
+    bio: text("bio"),
+    company: text("company"),
+    title: text("title"),
+    headshotFileId: text("headshot_file_id"),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_event_participations_event_id").on(t.eventId),
+    index("idx_event_participations_person_id").on(t.personId),
+    uniqueIndex("idx_event_participations_event_person").on(
+      t.eventId,
+      t.personId,
+    ),
+  ],
+);
+
+/**
+ * program sessions — SCHEMA.md `sessions` (not auth_sessions) (section 3.5).
+ * Direct/sponsor entry allowed without source_submission_id.
+ */
+export const programSessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    sourceSubmissionId: text("source_submission_id"),
+    title: text("title").notNull(),
+    description: text("description"),
+    trackId: text("track_id"),
+    status: text("status").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_sessions_event_id").on(t.eventId),
+    index("idx_sessions_source_submission").on(t.sourceSubmissionId),
+  ],
+);
+
+/**
+ * session_speakers — participation on a program session (section 3.5).
+ */
+export const sessionSpeakers = sqliteTable(
+  "session_speakers",
+  {
+    sessionId: text("session_id").notNull(),
+    participationId: text("participation_id").notNull(),
+    isPrimary: integer("is_primary").notNull().default(0),
+  },
+  (t) => [
+    index("idx_session_speakers_participation").on(t.participationId),
+    uniqueIndex("idx_session_speakers_pk").on(t.sessionId, t.participationId),
+  ],
+);
+
+/**
+ * task_templates — event-scoped templates (on_accept | manual) (section 3.5).
+ */
+export const taskTemplates = sqliteTable(
+  "task_templates",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    trigger: text("trigger").notNull(),
+    dueOffsetDays: integer("due_offset_days").notNull().default(0),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    index("idx_task_templates_event_id").on(t.eventId),
+    index("idx_task_templates_event_trigger").on(t.eventId, t.trigger),
+  ],
+);
+
+/**
+ * speaker_tasks — instantiated tasks for a participation (section 3.5 / portal 4.x).
+ */
+export const speakerTasks = sqliteTable(
+  "speaker_tasks",
+  {
+    id: text("id").primaryKey().notNull(),
+    templateId: text("template_id").notNull(),
+    participationId: text("participation_id").notNull(),
+    status: text("status").notNull(),
+    dueAt: text("due_at"),
+    completedAt: text("completed_at"),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_speaker_tasks_participation").on(t.participationId),
+    index("idx_speaker_tasks_template").on(t.templateId),
+    uniqueIndex("idx_speaker_tasks_template_participation").on(
+      t.templateId,
+      t.participationId,
+    ),
+  ],
+);
+
+/** Decision / session / task tables owned by section 3.5. */
+export const decisionTables = {
+  decisions,
+  eventParticipations,
+  programSessions,
+  sessionSpeakers,
+  taskTemplates,
+  speakerTasks,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -634,6 +781,18 @@ export type EvalAssignment = typeof evalAssignments.$inferSelect;
 export type NewEvalAssignment = typeof evalAssignments.$inferInsert;
 export type Score = typeof scores.$inferSelect;
 export type NewScore = typeof scores.$inferInsert;
+export type Decision = typeof decisions.$inferSelect;
+export type NewDecision = typeof decisions.$inferInsert;
+export type EventParticipation = typeof eventParticipations.$inferSelect;
+export type NewEventParticipation = typeof eventParticipations.$inferInsert;
+export type ProgramSession = typeof programSessions.$inferSelect;
+export type NewProgramSession = typeof programSessions.$inferInsert;
+export type SessionSpeaker = typeof sessionSpeakers.$inferSelect;
+export type NewSessionSpeaker = typeof sessionSpeakers.$inferInsert;
+export type TaskTemplate = typeof taskTemplates.$inferSelect;
+export type NewTaskTemplate = typeof taskTemplates.$inferInsert;
+export type SpeakerTask = typeof speakerTasks.$inferSelect;
+export type NewSpeakerTask = typeof speakerTasks.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -663,4 +822,10 @@ export const schema = {
   evalCriteria,
   evalAssignments,
   scores,
+  decisions,
+  eventParticipations,
+  programSessions,
+  sessionSpeakers,
+  taskTemplates,
+  speakerTasks,
 } as const;

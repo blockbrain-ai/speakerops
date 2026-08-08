@@ -65,17 +65,41 @@ export function EventProvider({ children }: { children: ReactNode }) {
       const list = await fetchEventList();
       setEvents(list);
       setActiveEventIdState((prev) => {
-        if (prev && list.some((e) => e.id === prev)) return prev;
+        // Prefer a concrete Event.Create row over synthetic bootstrap ids
+        // (e.g. evt_dogfood membership without a real events row).
+        const pickPreferred = (candidate: string | null): string | null => {
+          if (candidate && list.some((e) => e.id === candidate)) {
+            return candidate;
+          }
+          const real = list.find(
+            (e) => e.name !== e.id && e.slug && e.slug !== e.id,
+          );
+          return real?.id ?? list[0]?.id ?? null;
+        };
+
+        if (prev && list.some((e) => e.id === prev)) {
+          // Upgrade bootstrap placeholder when a real event exists
+          const prevItem = list.find((e) => e.id === prev);
+          if (prevItem && prevItem.name === prevItem.id && list.length > 1) {
+            const preferred = pickPreferred(null);
+            if (preferred && preferred !== prev) {
+              if (typeof localStorage !== "undefined") {
+                localStorage.setItem(STORAGE_KEY, preferred);
+              }
+              return preferred;
+            }
+          }
+          return prev;
+        }
         const stored =
           typeof localStorage !== "undefined"
             ? localStorage.getItem(STORAGE_KEY)
             : null;
-        if (stored && list.some((e) => e.id === stored)) return stored;
-        const first = list[0]?.id ?? null;
-        if (first && typeof localStorage !== "undefined") {
-          localStorage.setItem(STORAGE_KEY, first);
+        const next = pickPreferred(stored);
+        if (next && typeof localStorage !== "undefined") {
+          localStorage.setItem(STORAGE_KEY, next);
         }
-        return first;
+        return next;
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load events");

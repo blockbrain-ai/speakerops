@@ -94,14 +94,14 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| E01 | admin | Submissions | List filters by status/category | e2e/admin/sub-list | — | REQUIRED | OPEN |
-| E02 | admin | Submissions | Open detail; answers; speakers | e2e/admin/sub-detail | — | REQUIRED | OPEN |
-| E03 | admin | Submissions | Assign to evaluator | e2e/admin/sub-assign | — | REQUIRED | OPEN |
-| E04 | admin | Submissions | Accept creates session + tasks | e2e/admin/sub-accept | Accept without authz denied | REQUIRED | OPEN |
-| E05 | admin | Submissions | Reject with reason | e2e/admin/sub-reject | — | REQUIRED | OPEN |
-| E06 | admin | Submissions | Waitlist status | e2e/admin/sub-waitlist | — | REQUIRED | OPEN |
-| E07 | admin | Submissions | Direct/sponsor session entry (no CFP) | e2e/admin/session-direct | — | REQUIRED | OPEN |
-| E08 | admin | Submissions | Bulk select + preview bulk status change | e2e/admin/sub-bulk | Empty selection blocked | REQUIRED | OPEN |
+| E01 | admin | Submissions | List filters by status/category | e2e/admin/sub-list | — | REQUIRED | PASS |
+| E02 | admin | Submissions | Open detail; answers; speakers | e2e/admin/sub-detail | — | REQUIRED | PASS |
+| E03 | admin | Submissions | Assign to evaluator | e2e/admin/sub-assign | — | REQUIRED | PASS |
+| E04 | admin | Submissions | Accept creates session + tasks | e2e/admin/sub-accept | Accept without authz denied | REQUIRED | PASS |
+| E05 | admin | Submissions | Reject with reason | e2e/admin/sub-reject | — | REQUIRED | PASS |
+| E06 | admin | Submissions | Waitlist status | e2e/admin/sub-waitlist | — | REQUIRED | PASS |
+| E07 | admin | Submissions | Direct/sponsor session entry (no CFP) | e2e/admin/session-direct | — | REQUIRED | PASS |
+| E08 | admin | Submissions | Bulk select + preview bulk status change | e2e/admin/sub-bulk | Empty selection blocked | REQUIRED | PASS |
 
 ---
 

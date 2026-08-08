@@ -21,6 +21,7 @@ import {
   FORM_TABLES,
   SUBMISSION_TABLES,
   EVAL_TABLES,
+  DECISION_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -57,6 +58,12 @@ import {
   evalCriteria,
   evalAssignments,
   scores,
+  decisions,
+  eventParticipations,
+  programSessions,
+  sessionSpeakers,
+  taskTemplates,
+  speakerTasks,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -342,6 +349,42 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(schema.evalCriteria).toBe(evalCriteria);
       expect(schema.evalAssignments).toBe(evalAssignments);
       expect(schema.scores).toBe(scores);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("3.5 migration creates decisions, sessions, participations, task tables", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "speakerops-db-3.5-"));
+    const dbPath = join(dir, "test.sqlite");
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0010_decisions.sql");
+      for (const table of DECISION_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.decisions).toContain("submission_id");
+      expect(columns.decisions).toContain("decision");
+      expect(columns.decisions).toContain("decided_by");
+      expect(columns.sessions).toContain("source_submission_id");
+      expect(columns.sessions).toContain("title");
+      expect(columns.session_speakers).toContain("participation_id");
+      expect(columns.event_participations).toContain("person_id");
+      expect(columns.event_participations).toContain("event_id");
+      expect(columns.task_templates).toContain("trigger");
+      expect(columns.task_templates).toContain("due_offset_days");
+      expect(columns.speaker_tasks).toContain("template_id");
+      expect(columns.speaker_tasks).toContain("participation_id");
+      expect(decisions).toBeDefined();
+      expect(eventParticipations).toBeDefined();
+      expect(programSessions).toBeDefined();
+      expect(sessionSpeakers).toBeDefined();
+      expect(taskTemplates).toBeDefined();
+      expect(speakerTasks).toBeDefined();
+      expect(schema.decisions).toBe(decisions);
+      expect(schema.programSessions).toBe(programSessions);
+      expect(schema.speakerTasks).toBe(speakerTasks);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

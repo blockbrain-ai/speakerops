@@ -46,13 +46,14 @@ export function CfpFormsPage() {
   );
 }
 
+/** @deprecated Replaced by SubmissionsPage (section 3.5). */
 export function SubmissionsPage() {
   return (
     <PageStub
       overline="Submissions"
       title="Submissions"
-      body="Submission list and decisions land in section 3.5."
-      testId="page-submissions"
+      body="Submission list and decisions are SubmissionsPage at /admin/submissions (section 3.5)."
+      testId="page-submissions-placeholder"
     />
   );
 }

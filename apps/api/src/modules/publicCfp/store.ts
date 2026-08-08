@@ -53,16 +53,26 @@ export type SubmissionSpeakerRow = {
 
 export type SubmissionsStore = {
   findPersonByOrgEmail(orgId: string, email: string): Promise<PersonRow | null>;
+  findPersonById(personId: string): Promise<PersonRow | null>;
   insertPerson(row: PersonRow): Promise<PersonRow>;
   updatePersonName(personId: string, name: string, updatedAt: string): Promise<void>;
   insertSubmission(row: SubmissionRow): Promise<SubmissionRow>;
   insertAnswers(rows: SubmissionAnswerRow[]): Promise<void>;
   insertSpeakers(rows: SubmissionSpeakerRow[]): Promise<void>;
   findSubmissionById(submissionId: string): Promise<SubmissionRow | null>;
-  /** Event-scoped list (E2) — section 3.4 assign / admin rollup. */
+  /** Event-scoped list (E2) — section 3.4 assign / admin rollup / 3.5 list. */
   listSubmissionsForEvent(eventId: string): Promise<SubmissionRow[]>;
   listAnswers(submissionId: string): Promise<SubmissionAnswerRow[]>;
   listSpeakers(submissionId: string): Promise<SubmissionSpeakerRow[]>;
+  /**
+   * Optimistic status update (E1): WHERE id AND version = expectedVersion.
+   * Returns null on version conflict.
+   */
+  updateSubmission(
+    submissionId: string,
+    patch: { status: string; version: number },
+    expectedVersion: number,
+  ): Promise<SubmissionRow | null>;
   /** Count submitted rows for event (submission_limit check). */
   countSubmittedForEvent(eventId: string): Promise<number>;
   countSubmittedForFormVersion(formVersionId: string): Promise<number>;
@@ -101,6 +111,11 @@ export class MemorySubmissionsStore implements SubmissionsStore {
     const id = this.byOrgEmail.get(this.orgEmailKey(orgId, email));
     if (!id) return null;
     const row = this.people.get(id);
+    return row ? { ...row } : null;
+  }
+
+  async findPersonById(personId: string): Promise<PersonRow | null> {
+    const row = this.people.get(personId);
     return row ? { ...row } : null;
   }
 
@@ -166,6 +181,23 @@ export class MemorySubmissionsStore implements SubmissionsStore {
     return (this.speakers.get(submissionId) ?? []).map((r) => ({ ...r }));
   }
 
+  async updateSubmission(
+    submissionId: string,
+    patch: { status: string; version: number },
+    expectedVersion: number,
+  ): Promise<SubmissionRow | null> {
+    const existing = this.submissions.get(submissionId);
+    if (!existing) return null;
+    if (existing.version !== expectedVersion) return null;
+    const next: SubmissionRow = {
+      ...existing,
+      status: patch.status,
+      version: patch.version,
+    };
+    this.submissions.set(submissionId, next);
+    return { ...next };
+  }
+
   async countSubmittedForEvent(eventId: string): Promise<number> {
     let n = 0;
     for (const s of this.submissions.values()) {
@@ -203,6 +235,24 @@ export class D1SubmissionsStore implements SubmissionsStore {
       .where(
         and(eq(people.orgId, orgId), eq(people.email, email.toLowerCase())),
       )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      orgId: row.orgId,
+      email: row.email,
+      name: row.name,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async findPersonById(personId: string): Promise<PersonRow | null> {
+    const rows = await this.db
+      .select()
+      .from(people)
+      .where(eq(people.id, personId))
       .limit(1);
     const row = rows[0];
     if (!row) return null;
@@ -341,6 +391,30 @@ export class D1SubmissionsStore implements SubmissionsStore {
       isPrimary: r.isPrimary === 1,
       sortOrder: r.sortOrder,
     }));
+  }
+
+  async updateSubmission(
+    submissionId: string,
+    patch: { status: string; version: number },
+    expectedVersion: number,
+  ): Promise<SubmissionRow | null> {
+    await this.db
+      .update(submissions)
+      .set({
+        status: patch.status,
+        version: patch.version,
+      })
+      .where(
+        and(
+          eq(submissions.id, submissionId),
+          eq(submissions.version, expectedVersion),
+        ),
+      );
+    const row = await this.findSubmissionById(submissionId);
+    if (!row || row.version !== patch.version || row.status !== patch.status) {
+      return null;
+    }
+    return row;
   }
 
   async countSubmittedForEvent(eventId: string): Promise<number> {

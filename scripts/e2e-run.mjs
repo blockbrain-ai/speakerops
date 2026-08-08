@@ -46,26 +46,35 @@ if (process.env.E2E_WEB_SERVER === undefined) {
 }
 
 // Prefer built Worker app for e2e-api-server (stable ESM, no strip-types).
+// Always rebuild shared + api so section work is not served from stale dist
+// when reuseExistingServer is off / CI starts a fresh server.
 const apiDist = join(root, "apps", "api", "dist", "index.js");
+console.log("[test:e2e] building @speakerops/shared + @speakerops/api for e2e…");
+const build = spawnSync(
+  "pnpm",
+  ["--filter", "@speakerops/shared", "--filter", "@speakerops/api", "build"],
+  { cwd: root, stdio: "inherit", shell: false },
+);
+if (build.status !== 0) {
+  console.error("[test:e2e] API build failed — cannot start e2e health server");
+  process.exit(build.status === null ? 1 : build.status);
+}
 if (!existsSync(apiDist)) {
-  console.log("[test:e2e] building @speakerops/api (dist missing)…");
-  const build = spawnSync(
-    "pnpm",
-    ["--filter", "@speakerops/api", "build"],
-    { cwd: root, stdio: "inherit", shell: false },
-  );
-  if (build.status !== 0) {
-    console.error("[test:e2e] API build failed — cannot start e2e health server");
-    process.exit(build.status === null ? 1 : build.status);
-  }
+  console.error("[test:e2e] API dist missing after build:", apiDist);
+  process.exit(1);
 }
 
+// Forward extra CLI args after `--` (e.g. a single spec path).
+const extraArgs = process.argv.slice(2).filter((a) => a !== "--");
+
 console.log(
-  `[test:e2e] running Playwright with ${config} (E2E_WEB_SERVER=${process.env.E2E_WEB_SERVER})`,
+  `[test:e2e] running Playwright with ${config} (E2E_WEB_SERVER=${process.env.E2E_WEB_SERVER})${
+    extraArgs.length ? ` args=${extraArgs.join(" ")}` : ""
+  }`,
 );
 const result = spawnSync(
   "pnpm",
-  ["exec", "playwright", "test", "--config", config],
+  ["exec", "playwright", "test", "--config", config, ...extraArgs],
   {
     cwd: root,
     stdio: "inherit",

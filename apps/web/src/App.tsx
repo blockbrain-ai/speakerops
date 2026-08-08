@@ -2,7 +2,8 @@
  * App router + shared admin layout (section 1.4) + auth login (section 2.1)
  * + RequireRole admin guards (section 2.2) + event context (section 2.3)
  * + Design Kit (section 2.4) + Form builder (section 3.2)
- * + Public CFP submit (section 3.3) + Eval queue / rubric (section 3.4).
+ * + Public CFP submit (section 3.3) + Eval queue / rubric (section 3.4)
+ * + Submissions decisions (section 3.5).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -18,6 +19,7 @@ import { FormBuilderPage } from "./pages/FormBuilder.js";
 import { EvaluatorQueuePage } from "./pages/EvaluatorQueue.js";
 import { RubricSettingsPage } from "./pages/RubricSettings.js";
 import { AdminEvaluationsPage } from "./pages/AdminEvaluations.js";
+import { SubmissionsPage } from "./pages/Submissions.js";
 import {
   BareLayout,
   CommsPage,
@@ -25,7 +27,6 @@ import {
   OverviewPage,
   SchedulePage,
   SpeakersPage,
-  SubmissionsPage,
 } from "./routes/placeholders.js";
 import type { ReactNode } from "react";
 
@@ -180,7 +181,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <BrowserRouter>
-      <div id="speakerops-root" data-section="3.4" data-testid="app-root">
+      <div id="speakerops-root" data-section="3.5" data-testid="app-root">
         <AppRoutes />
       </div>
     </BrowserRouter>
