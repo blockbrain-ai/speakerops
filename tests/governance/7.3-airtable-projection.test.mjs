@@ -187,7 +187,7 @@ describe("7.3 Airtable one-way projection governance", () => {
     assert.match(o, /airtable\/status/);
   });
 
-  it("O06 UI page + inventory IMPLEMENTED + @inv tag", () => {
+  it("O06 UI page + inventory IMPLEMENTED or PASS + @inv tag", () => {
     const p = readFileSync(page, "utf8");
     const app = readFileSync(appTsx, "utf8");
     const e2e = readFileSync(e2ePath, "utf8");
@@ -197,7 +197,8 @@ describe("7.3 Airtable one-way projection governance", () => {
     assert.match(app, /AirtableStatusPage|settings\/airtable/);
     assert.match(e2e, /@inv:O06/);
     assert.match(e2e, /e2e\/settings\/airtable-status/);
-    assert.match(inv, /O06.*IMPLEMENTED|IMPLEMENTED.*O06/);
+    // 7.3 marks IMPLEMENTED; 7.4 keystone promotes to PASS
+    assert.match(inv, /O06.*(?:IMPLEMENTED|PASS)|(?:IMPLEMENTED|PASS).*O06/);
   });
 
   it("section doc maps ACs to named assertions", () => {

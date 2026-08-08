@@ -46,21 +46,38 @@ if (process.env.E2E_WEB_SERVER === undefined) {
 }
 
 // Prefer built Worker app for e2e-api-server (stable ESM, no strip-types).
-// Always rebuild shared + api so section work is not served from stale dist
-// when reuseExistingServer is off / CI starts a fresh server.
+// Always rebuild shared + api + cli so section work is not served from stale
+// dist when reuseExistingServer is off / CI starts a fresh server.
+// CLI dist is required by phase7 keystone (7.4) for CLI07 deny spawn against
+// the live e2e API (S-CLI proof in browser gate).
 const apiDist = join(root, "apps", "api", "dist", "index.js");
-console.log("[test:e2e] building @speakerops/shared + @speakerops/api for e2e…");
+const cliDist = join(root, "packages", "cli", "dist", "main.js");
+console.log(
+  "[test:e2e] building @speakerops/shared + @speakerops/api + @speakerops/cli for e2e…",
+);
 const build = spawnSync(
   "pnpm",
-  ["--filter", "@speakerops/shared", "--filter", "@speakerops/api", "build"],
+  [
+    "--filter",
+    "@speakerops/shared",
+    "--filter",
+    "@speakerops/api",
+    "--filter",
+    "@speakerops/cli",
+    "build",
+  ],
   { cwd: root, stdio: "inherit", shell: false },
 );
 if (build.status !== 0) {
-  console.error("[test:e2e] API build failed — cannot start e2e health server");
+  console.error("[test:e2e] API/CLI build failed — cannot start e2e health server");
   process.exit(build.status === null ? 1 : build.status);
 }
 if (!existsSync(apiDist)) {
   console.error("[test:e2e] API dist missing after build:", apiDist);
+  process.exit(1);
+}
+if (!existsSync(cliDist)) {
+  console.error("[test:e2e] CLI dist missing after build:", cliDist);
   process.exit(1);
 }
 

@@ -132,6 +132,9 @@ speakerops schedule place --event E --session S --room R --start … --end … -
 # → exit 2, body { error, code: "FORBIDDEN", details.required: ["schedule:write"] }
 ```
 
+- **Unit:** `packages/cli/src/cli.test.ts` (CLI07)
+- **Phase-7 keystone:** `playwright/e2e/phase7_keystone.spec.ts` spawns CLI against e2e API (section 7.4)
+
 ### CLI08 — `files upload`
 
 ```bash

@@ -83,6 +83,10 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright/e2e/comms_template.spec.ts` | Section **5.1** `@inv:J01` template editor |
 | `playwright/e2e/comms_admin.spec.ts` | Section **5.3** `@inv:J02`–`J10` comms admin trust-before-send |
 | `playwright/e2e/comms_keystone.spec.ts` | Section **5.4** I12 keystone (template → preview → send → ICS → authz) |
+| `playwright/e2e/schedule_dash_keystone.spec.ts` | Section **6.4** I12 keystone (schedule → readiness → speakers → L05) |
+| `playwright/e2e/api_keys.spec.ts` | Section **7.1** `@inv:K01`–`K04` API keys UI |
+| `playwright/e2e/airtable_status.spec.ts` | Section **7.3** `@inv:O06` Airtable status |
+| `playwright/e2e/phase7_keystone.spec.ts` | Section **7.4** I12 keystone (K* → CLI07 deny → airtable pause) |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
@@ -93,6 +97,8 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `KMS-competition/initiative/evidence/phase3-e2e.txt` | Phase 3 keystone evidence (3.6) |
 | `KMS-competition/initiative/evidence/phase4-e2e.txt` | Phase 4 keystone evidence (4.4) |
 | `KMS-competition/initiative/evidence/phase5-e2e.txt` | Phase 5 keystone evidence (5.4) |
+| `KMS-competition/initiative/evidence/phase6-e2e.txt` | Phase 6 keystone evidence (6.4) |
+| `KMS-competition/initiative/evidence/phase7-e2e.txt` | Phase 7 keystone evidence (7.4) |
 
 ---
 
@@ -139,6 +145,10 @@ Section **3.6** adds the phase-3 I12 keystone (`cfp_eval_keystone.spec.ts`): for
 Section **4.4** adds the phase-4 I12 keystone (`portal_keystone.spec.ts`): seed accept → speaker portal green (G01–G08). Inventory G01–G08 / O05 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase4-e2e.txt`.
 
 Section **5.4** adds the phase-5 I12 keystone (`comms_keystone.spec.ts`): template → segment → preview-required → send idempotent → delivery log → ICS SEQUENCE → authz. Inventory J01–J10 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase5-e2e.txt`.
+
+Section **6.4** adds the phase-6 I12 keystone (`schedule_dash_keystone.spec.ts`): schedule → readiness → speakers → L05. Inventory I01–I16 / H01–H05 / N01–N04 / L05 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase6-e2e.txt`.
+
+Section **7.4** adds the phase-7 I12 keystone (`phase7_keystone.spec.ts`): K* keys → CLI07 deny → airtable pause. Inventory K01–K04 / O06 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase7-e2e.txt`.
 
 ---
 

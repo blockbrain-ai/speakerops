@@ -12,8 +12,8 @@
 | BC05 | S-COMMS | Preview send + ICS | J* PASS | OPEN | | |
 | BC06 | S-SCHED | Five views + conflict | I* PASS | DONE_WITH_EVIDENCE | initiative/evidence/phase6-e2e.txt | 6.4 keystone |
 | BC07 | S-READY | Live outstanding dashboard | H* PASS | DONE_WITH_EVIDENCE | initiative/evidence/phase6-e2e.txt | 6.4 keystone |
-| BC08 | S-CLI | Scoped CLI admin path | cli test report | OPEN | | |
-| BC09 | S-AIRTABLE | One-way projection | integration log | OPEN | | |
+| BC08 | S-CLI | Scoped CLI admin path | cli test report | DONE_WITH_EVIDENCE | initiative/evidence/phase7-e2e.txt | 7.4 keystone + CLI07 |
+| BC09 | S-AIRTABLE | One-way projection | integration log | DONE_WITH_EVIDENCE | initiative/evidence/phase7-e2e.txt | 7.4 keystone + pause |
 | BC10 | S-CF | CF dogfood URL healthy | smoke URL note | OPEN | | |
 | BC11 | S-E2E-INV | Inventory complete | BROWSER_E2E_INVENTORY.md | OPEN | initiative/BROWSER_E2E_INVENTORY.md | predeclared |
 | BC12 | S-E2E-RUN | Full browser suite green | playwright HTML report | OPEN | | |

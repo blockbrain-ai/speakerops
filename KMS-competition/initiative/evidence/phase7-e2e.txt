@@ -1,0 +1,96 @@
+# Phase 7 CLI + Airtable evidence — section 7.4 (I12 keystone)
+
+Section: 7.4 CLI Airtable proof
+Workspace: speakerops-build
+Date: 2026-08-08
+
+## Claim
+
+I12: K* keys → CLI07 deny → airtable pause (K01–K04, O06).
+Inventory K01–K04, O06 status PASS.
+assert phase7 keystone includes CLI07 deny and airtable pause.
+
+Souls: S-CLI (scoped CLI admin path · CLI07 reports-only schedule place exit 2)
+       S-AIRTABLE (one-way projection · pause survival · O06 lag status).
+
+## Evidence path
+
+This file: KMS-competition/initiative/evidence/phase7-e2e.txt
+Section notes: docs/sections/7.4-cli-airtable-e2e.md
+Keystone: playwright/e2e/phase7_keystone.spec.ts
+Implementation journeys:
+  - playwright/e2e/api_keys.spec.ts (@inv:K01–K04)
+  - playwright/e2e/airtable_status.spec.ts (@inv:O06)
+CLI unit: packages/cli/src/cli.test.ts (CLI01–CLI12 incl. CLI07)
+Airtable unit: apps/api/src/modules/airtable/airtable.test.ts
+
+## Notes
+
+- No secrets, API keys, or magic-link tokens in this evidence file.
+- Active @inv ownership remains 1:1 on implementation specs; keystone documents all phase-7 tags and runs the multi-step soul path.
+- Local e2e uses E2E_WEB_SERVER=1 (Vite + scripts/e2e-api-server.mjs); CLI spawns against E2E_API_PORT (default 8787).
+- S-CLI: mint reports-only key → schedule place HTTP 403 + speakerops exit 2 FORBIDDEN.
+- S-AIRTABLE: Event.Update 200 while AIRTABLE_API_KEY unset; status paused + pendingCount≥1; O06 UI lag.
+
+## Gate command outputs
+
+### pnpm typecheck
+```
+> speakerops@0.1.0 typecheck /mnt/HC_Volume_105994188/speakerops-build
+> tsc -b --pretty false
+
+exit: 0
+```
+
+### pnpm test:ci (summary)
+```
+# Subtest: 7.4 CLI Airtable e2e proof
+    ok 1 - assert phase7 keystone includes CLI07 deny and airtable pause
+    ok 2 - assert K01–K04 and O06 inv tags pass
+    ok 3 - section doc notes evidence path and N/A product surface
+    ok 4 - evidence path file exists for phase 7 keystone
+    ok 5 - pnpm test:e2e remains non-interactive and builds CLI for keystone
+    ok 6 - no new product handlers in API composition root (scope guard)
+    ok 7 - no secrets committed in 7.4 e2e artifacts
+ok 37 - 7.4 CLI Airtable e2e proof
+1..37
+# tests 368
+# suites 37
+# pass 368
+# fail 0
+
+ Test Files  32 passed (32)
+      Tests  308 passed (308)
+
+exit: 0
+```
+
+### pnpm test:e2e:inventory
+```
+> speakerops@0.1.0 test:e2e:inventory /mnt/HC_Volume_105994188/speakerops-build
+> tsx scripts/inventory-lint.ts
+
+[test:e2e:inventory] OK: baseline 108 IDs intact (108 REQUIRED non-DEFER, 0 DEFER); inventory 108 REQUIRED, 108 unique IDs, 108 unique test_ids; fingerprints match
+[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover 104 implemented/status-owned IDs (1:1, non-skip/non-fail, test_id-anchored, playwright-suite:playwright-list-json) (108 total non-DEFER REQUIRED at Phase 8)
+exit: 0
+```
+
+### pnpm test:e2e (phase7 keystone + K* + O06)
+```
+> E2E_WEB_SERVER=1 pnpm exec playwright test playwright/e2e/phase7_keystone.spec.ts --reporter=list
+
+  ✓  phase7_keystone.spec.ts keystone: K* keys → CLI07 deny → airtable pause (phase7)
+
+  1 passed
+
+> E2E_WEB_SERVER=1 pnpm exec playwright test playwright/e2e/api_keys.spec.ts playwright/e2e/airtable_status.spec.ts --reporter=list
+
+  ✓  @inv:O06 e2e/settings/airtable-status
+  ✓  @inv:K01 e2e/keys/create
+  ✓  @inv:K02 e2e/keys/revoke
+  ✓  @inv:K03 e2e/keys/secret-once
+  ✓  @inv:K04 e2e/keys/authz
+
+  5 passed
+exit: 0
+```
