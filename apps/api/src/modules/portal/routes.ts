@@ -124,6 +124,8 @@ export function createPortalRoutes(
         eventId: q.data.eventId,
         userId: user.id,
         userEmail: user.email,
+        correlationId:
+          c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown",
       });
       if (!result.ok) return commandError(c, result);
 

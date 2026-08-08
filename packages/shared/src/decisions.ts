@@ -83,6 +83,8 @@ export const TaskTemplateSchema = z.object({
   description: z.string().nullable(),
   trigger: z.enum(["on_accept", "manual"]),
   dueOffsetDays: z.number().int(),
+  /** Optimistic concurrency version (E1 mutable aggregate). */
+  version: z.number().int().positive(),
 });
 export type TaskTemplateDto = z.infer<typeof TaskTemplateSchema>;
 

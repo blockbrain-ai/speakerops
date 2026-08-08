@@ -128,6 +128,7 @@ function toTemplateDto(row: TaskTemplateRow): TaskTemplateDto {
     description: row.description,
     trigger: row.trigger,
     dueOffsetDays: row.dueOffsetDays,
+    version: row.version,
   };
 }
 
@@ -148,10 +149,16 @@ function pickNextTask(tasks: PortalTaskDto[]): PortalTaskDto | null {
 /**
  * Resolve participations owned by the current user for an event.
  * Matches userId first; falls back to person email and links userId.
+ * Identity-binding write emits audit_events (E3).
  */
 export async function resolveOwnParticipations(
   deps: PortalCommandDeps,
-  input: { eventId: string; userId: string; userEmail: string },
+  input: {
+    eventId: string;
+    userId: string;
+    userEmail: string;
+    correlationId?: string;
+  },
 ): Promise<ParticipationRow[]> {
   const all = await deps.decisions.listParticipationsForEvent(input.eventId);
   const byUser = all.filter((p) => p.userId === input.userId);
@@ -180,7 +187,29 @@ export async function resolveOwnParticipations(
       version: part.version + 1,
       updatedAt: now,
     });
-    return linked ? [linked] : [part];
+    if (linked) {
+      await deps.auth.insertAudit({
+        id: uuidv7(),
+        eventId: input.eventId,
+        actorType: "user",
+        actorId: input.userId,
+        action: "Participation.LinkUser",
+        entityType: "event_participation",
+        entityId: part.id,
+        beforeJson: JSON.stringify({
+          userId: null,
+          version: part.version,
+        }),
+        afterJson: JSON.stringify({
+          userId: linked.userId,
+          version: linked.version,
+        }),
+        correlationId: input.correlationId ?? "unknown",
+        createdAt: now,
+      });
+      return [linked];
+    }
+    return [part];
   }
 
   // userId set to someone else — not own
@@ -243,6 +272,7 @@ export async function getPortalHome(
     eventId: string;
     userId: string;
     userEmail: string;
+    correlationId?: string;
   },
 ): Promise<CommandOk<PortalHomeResponse> | CommandErr> {
   const event = await deps.events.findEventById(input.eventId);
@@ -318,6 +348,7 @@ export async function completeTask(
     eventId: part.eventId,
     userId: input.userId,
     userEmail: input.userEmail,
+    correlationId: input.correlationId,
   });
   if (!own.some((p) => p.id === part.id)) {
     // assert speaker cannot complete another participation task
@@ -422,6 +453,7 @@ export async function updateParticipationProfile(
     eventId: part.eventId,
     userId: input.userId,
     userEmail: input.userEmail,
+    correlationId: input.correlationId,
   });
   if (!own.some((p) => p.id === part.id)) {
     return {
@@ -443,6 +475,50 @@ export async function updateParticipationProfile(
         version: part.version,
       },
     };
+  }
+
+  // headshotFileId must reference an uploaded headshot owned by this participation
+  if (
+    input.body.headshotFileId !== undefined &&
+    input.body.headshotFileId !== null
+  ) {
+    if (!deps.design) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Headshot file store unavailable",
+        code: "VALIDATION_ERROR",
+      };
+    }
+    const file = await deps.design.findFile(
+      part.eventId,
+      input.body.headshotFileId,
+    );
+    const uploadState =
+      typeof file?.uploadState === "number"
+        ? file.uploadState
+        : file?.uploaded
+          ? 1
+          : 0;
+    if (
+      !file ||
+      file.eventId !== part.eventId ||
+      file.ownerParticipationId !== part.id ||
+      file.purpose !== "headshot" ||
+      uploadState !== 1
+    ) {
+      return {
+        ok: false,
+        status: 400,
+        error:
+          "headshotFileId must be an uploaded headshot file owned by this participation",
+        code: "VALIDATION_ERROR",
+        details: {
+          headshotFileId: input.body.headshotFileId,
+          participationId: part.id,
+        },
+      };
+    }
   }
 
   const now = new Date().toISOString();
@@ -572,6 +648,35 @@ export async function listSpeakers(
   };
 }
 
+function toFileMeta(f: {
+  id: string;
+  eventId: string;
+  ownerParticipationId: string | null;
+  filename: string;
+  mime: string;
+  size: number;
+  purpose: string;
+  uploaded: boolean;
+  uploadState?: number;
+  checksum: string | null;
+  createdAt: string;
+}): SpeakerFileMetaDto {
+  return {
+    id: f.id,
+    eventId: f.eventId,
+    ownerParticipationId: f.ownerParticipationId,
+    filename: f.filename,
+    mime: f.mime,
+    size: f.size,
+    purpose: f.purpose,
+    // SCHEMA uploaded INTEGER; FileAssetRow exposes boolean readiness + optional uploadState
+    uploaded:
+      typeof f.uploadState === "number" ? f.uploadState : f.uploaded ? 1 : 0,
+    checksum: f.checksum,
+    createdAt: f.createdAt,
+  };
+}
+
 async function filesForParticipation(
   deps: PortalCommandDeps,
   eventId: string,
@@ -579,33 +684,32 @@ async function filesForParticipation(
 ): Promise<SpeakerFileMetaDto[]> {
   const files: SpeakerFileMetaDto[] = [];
   if (!deps.design) return files;
+  const seen = new Set<string>();
 
-  if (part.headshotFileId) {
+  // Primary path: files owned by this participation (headshot + slides)
+  if (deps.design.listFilesForParticipation) {
+    const owned = await deps.design.listFilesForParticipation(
+      eventId,
+      part.id,
+    );
+    for (const f of owned) {
+      if (f.eventId !== eventId) continue;
+      // Cross-speaker isolation: only this participation's owner id
+      if (f.ownerParticipationId !== part.id) continue;
+      seen.add(f.id);
+      files.push(toFileMeta(f));
+    }
+  }
+
+  // Legacy / profile pointer: headshotFileId when owner was null historically
+  if (part.headshotFileId && !seen.has(part.headshotFileId)) {
     const f = await deps.design.findFile(eventId, part.headshotFileId);
     if (f && f.eventId === eventId) {
-      // Cross-speaker isolation: only files owned by this participation or null owner (legacy)
       if (
         f.ownerParticipationId == null ||
         f.ownerParticipationId === part.id
       ) {
-        files.push({
-          id: f.id,
-          eventId: f.eventId,
-          ownerParticipationId: f.ownerParticipationId,
-          filename: f.filename,
-          mime: f.mime,
-          size: f.size,
-          purpose: f.purpose,
-          // SCHEMA uploaded INTEGER; FileAssetRow exposes boolean readiness + optional uploadState
-          uploaded:
-            typeof f.uploadState === "number"
-              ? f.uploadState
-              : f.uploaded
-                ? 1
-                : 0,
-          checksum: f.checksum,
-          createdAt: f.createdAt,
-        });
+        files.push(toFileMeta(f));
       }
     }
   }
@@ -709,6 +813,7 @@ export async function createTaskTemplate(
         : input.body.description,
     trigger: input.body.trigger ?? "on_accept",
     dueOffsetDays: input.body.dueOffsetDays ?? 14,
+    version: 1,
     createdAt: now,
   });
 
@@ -750,6 +855,19 @@ export async function updateTaskTemplate(
     };
   }
 
+  if (existing.version !== input.body.expectedVersion) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Template version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.body.expectedVersion,
+        version: existing.version,
+      },
+    };
+  }
+
   const updated = await deps.decisions.updateTaskTemplate(input.templateId, {
     ...(input.body.title !== undefined
       ? { title: input.body.title.trim() }
@@ -763,13 +881,19 @@ export async function updateTaskTemplate(
     ...(input.body.dueOffsetDays !== undefined
       ? { dueOffsetDays: input.body.dueOffsetDays }
       : {}),
+    version: existing.version + 1,
+    expectedVersion: input.body.expectedVersion,
   });
   if (!updated) {
     return {
       ok: false,
-      status: 404,
-      error: "Template not found",
-      code: "NOT_FOUND",
+      status: 409,
+      error: "Template version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.body.expectedVersion,
+        version: existing.version,
+      },
     };
   }
 

@@ -249,6 +249,7 @@ describe("3.5 Decision.Record", () => {
       description: "A",
       trigger: "on_accept",
       dueOffsetDays: 7,
+      version: 1,
       createdAt: new Date().toISOString(),
     });
     const tplB = await admin.decisions.insertTaskTemplate({
@@ -258,6 +259,7 @@ describe("3.5 Decision.Record", () => {
       description: "B",
       trigger: "on_accept",
       dueOffsetDays: 14,
+      version: 1,
       createdAt: new Date().toISOString(),
     });
     const tplC = await admin.decisions.insertTaskTemplate({
@@ -267,6 +269,7 @@ describe("3.5 Decision.Record", () => {
       description: "C",
       trigger: "on_accept",
       dueOffsetDays: 21,
+      version: 1,
       createdAt: new Date().toISOString(),
     });
 
@@ -328,6 +331,7 @@ describe("3.5 Decision.Record", () => {
       description: null,
       trigger: "on_accept",
       dueOffsetDays: 3,
+      version: 1,
       createdAt: new Date().toISOString(),
     });
 
@@ -918,6 +922,7 @@ describe("3.5 Decision.Record", () => {
       description: null,
       trigger: "on_accept",
       dueOffsetDays: 7,
+      version: 1,
       createdAt: new Date().toISOString(),
     });
 
@@ -1365,6 +1370,7 @@ describe("3.5 Decision.Record", () => {
       description: null,
       trigger: "on_accept",
       dueOffsetDays: 7,
+      version: 1,
       createdAt: new Date().toISOString(),
     });
 

@@ -399,14 +399,25 @@ test("@inv:N04 e2e/admin/speakers-files Open headshot/slides metadata; no cross-
   const eventA = await ensureEvent(request, session, `N04 Event A ${run}`);
   const eventB = await ensureEvent(request, session, `N04 Event B ${run}`);
 
+  const speakerAEmail = `n04-a-${run}@example.com`;
+  const speakerA2Email = `n04-a2-${run}@example.com`;
   const a = await acceptSpeaker(
     request,
     session,
     eventA.id,
     eventA.slug,
-    `n04-a-${run}@example.com`,
+    speakerAEmail,
     "Speaker A",
     `N04 Talk A ${run}`,
+  );
+  const a2 = await acceptSpeaker(
+    request,
+    session,
+    eventA.id,
+    eventA.slug,
+    speakerA2Email,
+    "Speaker A2",
+    `N04 Talk A2 ${run}`,
   );
   await acceptSpeaker(
     request,
@@ -418,19 +429,153 @@ test("@inv:N04 e2e/admin/speakers-files Open headshot/slides metadata; no cross-
     `N04 Talk B ${run}`,
   );
 
-  // Detail for A is event-scoped
+  // Upload headshot + slides for speaker A (admin path; ownership bound to participation)
+  const miniJpeg = new Uint8Array([
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+  ]);
+  const miniPdf = new Uint8Array([
+    0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xc7, 0xec,
+  ]);
+
+  async function uploadPortalFile(
+    purpose: "headshot" | "slides",
+    participationId: string,
+    mime: string,
+    bytes: Uint8Array,
+    filename: string,
+  ): Promise<string> {
+    const presign = await request.post("/api/files/presign", {
+      headers: sessionHeaders(session),
+      data: {
+        eventId: eventA.id,
+        purpose,
+        mime,
+        size: bytes.byteLength,
+        filename,
+        ownerParticipationId: participationId,
+      },
+    });
+    expect(presign.status(), `presign ${purpose}`).toBe(200);
+    const p = (await presign.json()) as { fileId: string; url: string };
+
+    const upload = await request.put(p.url, {
+      headers: {
+        cookie: `speakerops_session=${session}`,
+        "content-type": mime,
+      },
+      data: bytes,
+    });
+    expect(upload.status(), `upload ${purpose}`).toBe(200);
+
+    const complete = await request.post(`/api/files/${p.fileId}/complete`, {
+      headers: sessionHeaders(session),
+      data: {
+        eventId: eventA.id,
+        checksum: `sha256:n04-${purpose}-${run}`,
+        filename,
+      },
+    });
+    expect(complete.status(), `complete ${purpose}`).toBe(200);
+    return p.fileId;
+  }
+
+  const headshotId = await uploadPortalFile(
+    "headshot",
+    a.participationId,
+    "image/jpeg",
+    miniJpeg,
+    "a-headshot.jpg",
+  );
+  const slidesId = await uploadPortalFile(
+    "slides",
+    a.participationId,
+    "application/pdf",
+    miniPdf,
+    "a-slides.pdf",
+  );
+  // Other speaker in same event gets their own headshot (must not leak into A's detail)
+  await uploadPortalFile(
+    "headshot",
+    a2.participationId,
+    "image/jpeg",
+    miniJpeg,
+    "a2-headshot.jpg",
+  );
+
+  // Bind headshot on profile (speaker session) so headshotFileId path is also covered
+  await requestMagicLink(request, speakerAEmail, "speaker", eventA.id);
+  const spLink = await fetchDevLink(request, speakerAEmail);
+  const spSession = await exchangeForCookie(request, spLink.token);
+  const home = await request.get(
+    `/api/portal/home?eventId=${encodeURIComponent(eventA.id)}`,
+    { headers: { cookie: `speakerops_session=${spSession}` } },
+  );
+  expect(home.status()).toBe(200);
+  const homeBody = (await home.json()) as {
+    participations: Array<{ id: string; version: number }>;
+  };
+  const part = homeBody.participations.find((p) => p.id === a.participationId);
+  expect(part).toBeTruthy();
+  const patch = await request.patch(
+    `/api/portal/participations/${a.participationId}`,
+    {
+      headers: sessionHeaders(spSession),
+      data: {
+        headshotFileId: headshotId,
+        expectedVersion: part!.version,
+      },
+    },
+  );
+  expect(patch.status()).toBe(200);
+
+  // Speakers.Get for A exposes headshot + slides metadata only for A
   const ok = await request.get(
     `/api/events/${eventA.id}/speakers/${a.participationId}`,
     { headers: { cookie: `speakerops_session=${session}` } },
   );
   expect(ok.status()).toBe(200);
   const body = (await ok.json()) as {
-    participation: { eventId: string };
-    files: Array<{ eventId: string }>;
+    participation: { eventId: string; headshotFileId: string | null };
+    files: Array<{
+      id: string;
+      eventId: string;
+      ownerParticipationId: string | null;
+      purpose: string;
+      uploaded: number;
+    }>;
   };
   expect(body.participation.eventId).toBe(eventA.id);
+  expect(body.participation.headshotFileId).toBe(headshotId);
+  expect(body.files.length).toBeGreaterThanOrEqual(2);
+  const fileIds = body.files.map((f) => f.id);
+  expect(fileIds).toContain(headshotId);
+  expect(fileIds).toContain(slidesId);
   for (const f of body.files) {
     expect(f.eventId).toBe(eventA.id);
+    expect(f.ownerParticipationId).toBe(a.participationId);
+    expect(f.uploaded).toBe(1);
+  }
+  // Same-event cross-speaker leakage blocked
+  expect(fileIds).not.toContainEqual(
+    body.files.find((f) => f.ownerParticipationId === a2.participationId)?.id,
+  );
+  const purposes = new Set(body.files.map((f) => f.purpose));
+  expect(purposes.has("headshot")).toBeTruthy();
+  expect(purposes.has("slides")).toBeTruthy();
+
+  // A2 detail must not include A's files
+  const a2Detail = await request.get(
+    `/api/events/${eventA.id}/speakers/${a2.participationId}`,
+    { headers: { cookie: `speakerops_session=${session}` } },
+  );
+  expect(a2Detail.status()).toBe(200);
+  const a2Body = (await a2Detail.json()) as {
+    files: Array<{ id: string; ownerParticipationId: string | null }>;
+  };
+  expect(a2Body.files.map((f) => f.id)).not.toContain(headshotId);
+  expect(a2Body.files.map((f) => f.id)).not.toContain(slidesId);
+  for (const f of a2Body.files) {
+    expect(f.ownerParticipationId).toBe(a2.participationId);
   }
 
   // Cross-event leak blocked

@@ -387,6 +387,7 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(columns.event_participations).toContain("event_id");
       expect(columns.task_templates).toContain("trigger");
       expect(columns.task_templates).toContain("due_offset_days");
+      expect(columns.task_templates).toContain("version");
       expect(columns.speaker_tasks).toContain("template_id");
       expect(columns.speaker_tasks).toContain("participation_id");
       expect(decisions).toBeDefined();
@@ -400,6 +401,8 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(schema.speakerTasks).toBe(speakerTasks);
       // 0011: unique source_submission_id (one session per CFP submission)
       expect(result.applied).toContain("0011_sessions_source_submission_unique.sql");
+      // 0014: task_templates.version (E1 mutable aggregate)
+      expect(result.applied).toContain("0014_task_templates_version.sql");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

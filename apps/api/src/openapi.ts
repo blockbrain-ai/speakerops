@@ -881,12 +881,31 @@ export const PORTAL_OPENAPI_PATHS = {
           schema: { type: "string" },
         },
       ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["expectedVersion"],
+              properties: {
+                title: { type: "string" },
+                description: { type: "string", nullable: true },
+                trigger: { type: "string", enum: ["on_accept", "manual"] },
+                dueOffsetDays: { type: "integer" },
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
       responses: {
         "200": { description: "Template updated" },
         "400": { description: "Validation error" },
         "401": { description: "Unauthenticated" },
         "403": { description: "Forbidden role" },
         "404": { description: "Not found" },
+        "409": { description: "expectedVersion conflict" },
       },
     },
     delete: {
@@ -943,6 +962,11 @@ export const FILE_OPENAPI_PATHS = {
                 mime: { type: "string" },
                 size: { type: "integer", maximum: 10485760 },
                 filename: { type: "string" },
+                ownerParticipationId: {
+                  type: "string",
+                  description:
+                    "Required for headshot/slides — binds file_assets.owner_participation_id",
+                },
               },
             },
           },

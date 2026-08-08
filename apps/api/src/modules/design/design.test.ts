@@ -59,6 +59,8 @@ function designStoreWithFlakyPut(): {
     insertFile: (r) => inner.insertFile(r),
     findFile: (e, id) => inner.findFile(e, id),
     findFileById: (id) => inner.findFileById(id),
+    listFilesForParticipation: (e, p) =>
+      inner.listFilesForParticipation(e, p),
     claimFileUpload: (e, id, p) => inner.claimFileUpload(e, id, p),
     completeFileUpload: (e, id) => inner.completeFileUpload(e, id),
     completeFileChecksum: (e, id, p) => inner.completeFileChecksum(e, id, p),

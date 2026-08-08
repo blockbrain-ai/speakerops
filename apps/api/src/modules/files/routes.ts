@@ -31,6 +31,8 @@ import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { DesignStore } from "../design/store.js";
+import type { DecisionsStore } from "../decisions/store.js";
+import type { SubmissionsStore } from "../publicCfp/store.js";
 import { requireRole, requireSession } from "../../middleware/authz.js";
 import {
   presignFileUpload,
@@ -38,11 +40,14 @@ import {
   completeFileUpload,
   rolesForFilePurpose,
 } from "./commands.js";
+import { resolveOwnParticipations } from "../portal/commands.js";
 
 export type FileRouteOptions = {
   store: AuthStore;
   events: EventsStore;
   design: DesignStore;
+  decisions: DecisionsStore;
+  submissions: SubmissionsStore;
 };
 
 function commandError(
@@ -61,18 +66,83 @@ function commandError(
 }
 
 /**
+ * Speakers may only act on files owned by their own participation (same event).
+ * Admins may act on any file in the event.
+ */
+async function assertSpeakerOwnsFile(
+  options: {
+    store: AuthStore;
+    events: EventsStore;
+    decisions: DecisionsStore;
+    submissions: SubmissionsStore;
+  },
+  input: {
+    eventId: string;
+    ownerParticipationId: string | null;
+    userId: string;
+    userEmail: string;
+    role: string;
+    correlationId?: string;
+  },
+): Promise<{ ok: true } | { ok: false; status: 403; error: string }> {
+  if (input.role === "admin") return { ok: true };
+  if (!input.ownerParticipationId) {
+    return {
+      ok: false,
+      status: 403,
+      error: "File is not associated with a speaker participation",
+    };
+  }
+  const own = await resolveOwnParticipations(
+    {
+      decisions: options.decisions,
+      events: options.events,
+      auth: options.store,
+      submissions: options.submissions,
+    },
+    {
+      eventId: input.eventId,
+      userId: input.userId,
+      userEmail: input.userEmail,
+      correlationId: input.correlationId,
+    },
+  );
+  if (!own.some((p) => p.id === input.ownerParticipationId)) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Cannot upload or complete another speaker's file",
+    };
+  }
+  return { ok: true };
+}
+
+/**
  * File routes — File.PresignUpload / Upload / CompleteUpload.
  * Mounted at /api/files
  */
 export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
   const files = new Hono<ApiEnv>();
-  const { store, events, design: designStore } = options;
+  const {
+    store,
+    events,
+    design: designStore,
+    decisions,
+    submissions,
+  } = options;
   const deps = { design: designStore, events, auth: store };
+  const portalDeps = {
+    decisions,
+    events,
+    auth: store,
+    submissions,
+    design: designStore,
+  };
 
   /**
    * POST /presign — File.PresignUpload
    * Session required; event membership + purpose-scoped roles (E2).
-   * logo → admin; headshot|slides → speaker|admin.
+   * logo → admin; headshot|slides → speaker|admin (must own participation).
    */
   files.post("/presign", requireSession(store), async (c) => {
     const user = c.get("user");
@@ -120,10 +190,59 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       );
     }
 
+    const correlationId =
+      c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown";
+
+    // Bind headshot/slides to a participation; logo has no owner.
+    if (
+      parsed.data.purpose === "headshot" ||
+      parsed.data.purpose === "slides"
+    ) {
+      const ownerId = parsed.data.ownerParticipationId?.trim();
+      if (!ownerId) {
+        return c.json(
+          errorEnvelope(
+            "ownerParticipationId is required for headshot and slides uploads",
+            VALIDATION_ERROR,
+            { purpose: parsed.data.purpose },
+          ),
+          400,
+        );
+      }
+      const part = await decisions.findParticipationById(ownerId);
+      if (!part || part.eventId !== parsed.data.eventId) {
+        return c.json(
+          errorEnvelope(
+            "ownerParticipationId must be a participation in this event",
+            VALIDATION_ERROR,
+            { ownerParticipationId: ownerId },
+          ),
+          400,
+        );
+      }
+      if (membership.role === "speaker") {
+        const own = await resolveOwnParticipations(portalDeps, {
+          eventId: parsed.data.eventId,
+          userId: user.id,
+          userEmail: user.email,
+          correlationId,
+        });
+        if (!own.some((p) => p.id === ownerId)) {
+          return c.json(
+            errorEnvelope(
+              "Cannot presign upload for another speaker's participation",
+              FORBIDDEN,
+            ),
+            403,
+          );
+        }
+      }
+    }
+
     const result = await presignFileUpload(deps, {
       ...parsed.data,
       actorUserId: user.id,
-      correlationId: c.get("correlationId"),
+      correlationId,
     });
 
     if (!result.ok) {
@@ -143,6 +262,7 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
   /**
    * PUT /:fileId/upload?eventId= — File.Upload
    * Session + membership; role must match file purpose (logo admin; portal speaker|admin).
+   * Speakers may only upload files owned by their own participation.
    */
   files.put("/:fileId/upload", requireSession(store), async (c) => {
     const user = c.get("user");
@@ -182,6 +302,26 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
         }),
         403,
       );
+    }
+
+    if (
+      existing.purpose === "headshot" ||
+      existing.purpose === "slides"
+    ) {
+      const ownership = await assertSpeakerOwnsFile(
+        { store, events, decisions, submissions },
+        {
+          eventId,
+          ownerParticipationId: existing.ownerParticipationId,
+          userId: user.id,
+          userEmail: user.email,
+          role: membership.role,
+          correlationId: c.get("correlationId"),
+        },
+      );
+      if (!ownership.ok) {
+        return c.json(errorEnvelope(ownership.error, FORBIDDEN), 403);
+      }
     }
 
     const contentLengthHeader = c.req.header("content-length");
@@ -246,6 +386,7 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
   /**
    * POST /:fileId/complete — File.CompleteUpload
    * Session + speaker|admin on file's event; sets checksum metadata.
+   * Speakers may only complete files owned by their own participation.
    */
   files.post(
     "/:fileId/complete",
@@ -285,8 +426,8 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
 
       // Resolve event from body or file row for membership check
       let eventId = parsed.data.eventId;
+      const row = await designStore.findFileById(fileId);
       if (!eventId) {
-        const row = await designStore.findFileById(fileId);
         eventId = row?.eventId;
       }
       if (eventId) {
@@ -302,6 +443,25 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
             }),
             403,
           );
+        }
+        if (
+          row &&
+          (row.purpose === "headshot" || row.purpose === "slides")
+        ) {
+          const ownership = await assertSpeakerOwnsFile(
+            { store, events, decisions, submissions },
+            {
+              eventId,
+              ownerParticipationId: row.ownerParticipationId,
+              userId: user.id,
+              userEmail: user.email,
+              role: membership.role,
+              correlationId: c.get("correlationId"),
+            },
+          );
+          if (!ownership.ok) {
+            return c.json(errorEnvelope(ownership.error, FORBIDDEN), 403);
+          }
         }
       }
 

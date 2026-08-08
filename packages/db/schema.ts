@@ -678,7 +678,8 @@ export const sessionSpeakers = sqliteTable(
 );
 
 /**
- * task_templates — event-scoped templates (on_accept | manual) (section 3.5).
+ * task_templates — event-scoped templates (on_accept | manual) (section 3.5 / 4.1 O05).
+ * Mutable aggregate: optimistic `version` required (E1).
  */
 export const taskTemplates = sqliteTable(
   "task_templates",
@@ -689,6 +690,7 @@ export const taskTemplates = sqliteTable(
     description: text("description"),
     trigger: text("trigger").notNull(),
     dueOffsetDays: integer("due_offset_days").notNull().default(0),
+    version: integer("version").notNull().default(1),
     createdAt: text("created_at").notNull(),
   },
   (t) => [

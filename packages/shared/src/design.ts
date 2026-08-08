@@ -108,13 +108,34 @@ export const FILE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 export const FILE_PRESIGN_TTL_MS = 15 * 60 * 1000;
 
 /** File.PresignUpload body — POST /api/files/presign */
-export const FilePresignBodySchema = z.object({
-  eventId: z.string().min(1),
-  purpose: FilePurposeSchema,
-  mime: z.string().min(1).max(128),
-  size: z.number().int().positive().max(FILE_UPLOAD_MAX_BYTES),
-  filename: z.string().min(1).max(255).optional(),
-});
+export const FilePresignBodySchema = z
+  .object({
+    eventId: z.string().min(1),
+    purpose: FilePurposeSchema,
+    mime: z.string().min(1).max(128),
+    size: z.number().int().positive().max(FILE_UPLOAD_MAX_BYTES),
+    filename: z.string().min(1).max(255).optional(),
+    /**
+     * Required for purpose=headshot|slides — binds file_assets.owner_participation_id
+     * so Speakers.Get / CompleteUpload can enforce same-speaker ownership.
+     * Ignored for purpose=logo (always null owner).
+     */
+    ownerParticipationId: z.string().min(1).max(128).optional(),
+  })
+  .superRefine((b, ctx) => {
+    if (
+      (b.purpose === "headshot" || b.purpose === "slides") &&
+      (b.ownerParticipationId === undefined ||
+        b.ownerParticipationId.trim().length === 0)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "ownerParticipationId is required for headshot and slides uploads",
+        path: ["ownerParticipationId"],
+      });
+    }
+  });
 export type FilePresignBody = z.infer<typeof FilePresignBodySchema>;
 
 /** File.PresignUpload response */

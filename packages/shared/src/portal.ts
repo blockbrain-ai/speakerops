@@ -161,6 +161,8 @@ export const TaskTemplateUpdateBodySchema = z
     description: z.string().max(4000).nullable().optional(),
     trigger: z.enum(["on_accept", "manual"]).optional(),
     dueOffsetDays: z.number().int().min(0).max(3650).optional(),
+    /** Required for optimistic concurrency on task_templates (E1). */
+    expectedVersion: z.number().int().positive(),
   })
   .refine(
     (b) =>

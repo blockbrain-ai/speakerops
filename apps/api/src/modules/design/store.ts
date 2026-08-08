@@ -105,6 +105,14 @@ export type DesignStore = {
   /** Lookup by file id only (public serve path). */
   findFileById(fileId: string): Promise<FileAssetRow | null>;
   /**
+   * Files owned by a participation within an event (headshot/slides).
+   * Used by Speakers.Get — never returns another participation's files.
+   */
+  listFilesForParticipation?(
+    eventId: string,
+    ownerParticipationId: string,
+  ): Promise<FileAssetRow[]>;
+  /**
    * Atomic single-use claim: transition pending (0) → claimed (2) with actual size.
    * Returns the updated row, or null if missing / not pending.
    * Does NOT mark uploaded=1 — bytes are not stored yet. Call completeFileUpload
@@ -243,6 +251,19 @@ export class MemoryDesignStore implements DesignStore {
 
   async findFileById(fileId: string): Promise<FileAssetRow | null> {
     return this.filesById.get(fileId) ?? null;
+  }
+
+  async listFilesForParticipation(
+    eventId: string,
+    ownerParticipationId: string,
+  ): Promise<FileAssetRow[]> {
+    return [...this.files.values()]
+      .filter(
+        (f) =>
+          f.eventId === eventId &&
+          f.ownerParticipationId === ownerParticipationId,
+      )
+      .map((f) => ({ ...f }));
   }
 
   async claimFileUpload(
@@ -591,6 +612,22 @@ export class D1DesignStore implements DesignStore {
     const row = rows[0];
     if (!row) return null;
     return this.mapFile(row);
+  }
+
+  async listFilesForParticipation(
+    eventId: string,
+    ownerParticipationId: string,
+  ): Promise<FileAssetRow[]> {
+    const rows = await this.db
+      .select()
+      .from(fileAssets)
+      .where(
+        and(
+          eq(fileAssets.eventId, eventId),
+          eq(fileAssets.ownerParticipationId, ownerParticipationId),
+        ),
+      );
+    return rows.map((r) => this.mapFile(r));
   }
 
   async claimFileUpload(

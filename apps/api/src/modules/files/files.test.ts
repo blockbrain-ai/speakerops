@@ -25,8 +25,10 @@ import {
   SLIDES_MIME_ALLOWLIST,
   VIRUS_SCAN_UNSCANNED,
   FILE_UPLOAD_MAX_BYTES,
+  uuidv7,
 } from "@speakerops/shared";
 import { createAppWithAuth } from "../../index.js";
+import type { DecisionsStore } from "../decisions/store.js";
 
 /** Minimal JPEG (SOI + APP0 stub). */
 const MINI_JPEG = new Uint8Array([
@@ -49,9 +51,10 @@ async function magicLinkSession(
   store: ReturnType<typeof createAppWithAuth>["store"];
   events: ReturnType<typeof createAppWithAuth>["events"];
   design: ReturnType<typeof createAppWithAuth>["design"];
+  decisions: ReturnType<typeof createAppWithAuth>["decisions"];
   cookie: string;
 }> {
-  const { app, store, events, design, outbox } = createAppWithAuth({
+  const { app, store, events, design, decisions, outbox } = createAppWithAuth({
     cookieSecure: true,
   });
   const body: Record<string, string> = { email, purpose };
@@ -88,6 +91,7 @@ async function magicLinkSession(
     store,
     events,
     design,
+    decisions,
     cookie: `${SESSION_COOKIE_NAME}=${sessionValue}`,
   };
 }
@@ -115,13 +119,39 @@ async function createEvent(
   return { id: parsed.event.id, slug: parsed.event.slug };
 }
 
+/** Seed a participation for ownerParticipationId on portal file uploads. */
+async function seedParticipation(
+  decisions: DecisionsStore,
+  eventId: string,
+  opts?: { userId?: string | null },
+): Promise<string> {
+  const now = new Date().toISOString();
+  const row = await decisions.insertParticipation({
+    id: uuidv7(),
+    eventId,
+    personId: uuidv7(),
+    userId: opts?.userId ?? null,
+    roleLabel: "speaker",
+    status: "accepted",
+    bio: null,
+    company: null,
+    title: null,
+    headshotFileId: null,
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return row.id;
+}
+
 describe("4.2 R2 file uploads", () => {
   it("assert application/x-msdownload presign 400", async () => {
-    const { app, cookie } = await magicLinkSession(
+    const { app, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-exe@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie, "Exe Reject Event");
+    const partId = await seedParticipation(decisions, eventId);
 
     const res = await app.request(
       "http://localhost/api/files/presign",
@@ -134,6 +164,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "application/x-msdownload",
           size: 4096,
@@ -178,11 +209,12 @@ describe("4.2 R2 file uploads", () => {
   });
 
   it("assert file_assets row has r2_key not bytes", async () => {
-    const { app, store, design, cookie } = await magicLinkSession(
+    const { app, store, design, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-meta@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie, "Metadata Event");
+    const partId = await seedParticipation(decisions, eventId);
 
     const presign = await app.request(
       "http://localhost/api/files/presign",
@@ -195,6 +227,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "image/jpeg",
           size: MINI_JPEG.byteLength,
@@ -208,6 +241,7 @@ describe("4.2 R2 file uploads", () => {
 
     const row = await design.findFile(eventId, png.fileId);
     expect(row).not.toBeNull();
+    expect(row!.ownerParticipationId).toBe(partId);
     expect(row!.r2Key).toMatch(
       new RegExp(`^events/${eventId}/headshot/${png.fileId}\\.`),
     );
@@ -286,11 +320,12 @@ describe("4.2 R2 file uploads", () => {
 
   it("headshot jpeg presign + upload ok (AC: Headshot jpeg ok)", async () => {
     expect(HEADSHOT_MIME_ALLOWLIST).toContain("image/jpeg");
-    const { app, cookie } = await magicLinkSession(
+    const { app, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-jpeg@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie, "JPEG Headshot");
+    const partId = await seedParticipation(decisions, eventId);
 
     const presign = await app.request(
       "http://localhost/api/files/presign",
@@ -303,6 +338,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "image/jpeg",
           size: MINI_JPEG.byteLength,
@@ -330,11 +366,12 @@ describe("4.2 R2 file uploads", () => {
 
   it("slides pdf presign ok", async () => {
     expect(SLIDES_MIME_ALLOWLIST).toContain("application/pdf");
-    const { app, cookie } = await magicLinkSession(
+    const { app, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-slides@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie, "Slides Event");
+    const partId = await seedParticipation(decisions, eventId);
 
     const presign = await app.request(
       "http://localhost/api/files/presign",
@@ -347,6 +384,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "slides",
           mime: "application/pdf",
           size: MINI_PDF.byteLength,
@@ -372,11 +410,12 @@ describe("4.2 R2 file uploads", () => {
   });
 
   it("download requires auth — public GET headshot 404", async () => {
-    const { app, design, cookie } = await magicLinkSession(
+    const { app, design, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-dl@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie, "Download Auth");
+    const partId = await seedParticipation(decisions, eventId);
 
     const presign = await app.request(
       "http://localhost/api/files/presign",
@@ -389,6 +428,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "image/jpeg",
           size: MINI_JPEG.byteLength,
@@ -423,11 +463,12 @@ describe("4.2 R2 file uploads", () => {
   });
 
   it("unauthenticated presign returns 401", async () => {
-    const { app, cookie } = await magicLinkSession(
+    const { app, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-unauth@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie);
+    const partId = await seedParticipation(decisions, eventId);
 
     const res = await app.request(
       "http://localhost/api/files/presign",
@@ -439,6 +480,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "image/jpeg",
           size: 100,
@@ -452,7 +494,7 @@ describe("4.2 R2 file uploads", () => {
   });
 
   it("evaluator role cannot presign headshot (403)", async () => {
-    const { app, outbox } = createAppWithAuth({ cookieSecure: true });
+    const { app, outbox, decisions } = createAppWithAuth({ cookieSecure: true });
 
     await app.request(
       "http://localhost/api/auth/magic-link",
@@ -487,6 +529,7 @@ describe("4.2 R2 file uploads", () => {
       adminCookie,
       "Role Gate Event",
     );
+    const partId = await seedParticipation(decisions, eventId);
 
     await app.request(
       "http://localhost/api/auth/magic-link",
@@ -529,6 +572,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "image/jpeg",
           size: 100,
@@ -542,7 +586,9 @@ describe("4.2 R2 file uploads", () => {
   });
 
   it("speaker can presign headshot on own event", async () => {
-    const { app, outbox } = createAppWithAuth({ cookieSecure: true });
+    const { app, outbox, decisions, store, design } = createAppWithAuth({
+      cookieSecure: true,
+    });
     // Admin creates event
     await app.request(
       "http://localhost/api/auth/magic-link",
@@ -603,6 +649,11 @@ describe("4.2 R2 file uploads", () => {
       .split("=")
       .slice(1)
       .join("=")}`;
+    const spUser = await store.findUserByEmail("speaker-up@example.com");
+    expect(spUser).toBeTruthy();
+    const partId = await seedParticipation(decisions, eventId, {
+      userId: spUser!.id,
+    });
 
     const res = await app.request(
       "http://localhost/api/files/presign",
@@ -615,6 +666,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "image/jpeg",
           size: MINI_JPEG.byteLength,
@@ -626,14 +678,17 @@ describe("4.2 R2 file uploads", () => {
     expect(res.status).toBe(200);
     const body = FilePresignResponseSchema.parse(await res.json());
     expect(body.purpose).toBe("headshot");
+    const meta = await design.findFile(eventId, body.fileId);
+    expect(meta?.ownerParticipationId).toBe(partId);
   });
 
   it("validation 400 on complete missing checksum", async () => {
-    const { app, cookie } = await magicLinkSession(
+    const { app, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-val@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie);
+    const partId = await seedParticipation(decisions, eventId);
 
     const presign = await app.request(
       "http://localhost/api/files/presign",
@@ -646,6 +701,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "slides",
           mime: "application/pdf",
           size: 100,
@@ -674,11 +730,12 @@ describe("4.2 R2 file uploads", () => {
   });
 
   it("presign audit includes correlationId", async () => {
-    const { app, store, cookie } = await magicLinkSession(
+    const { app, store, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-audit@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie);
+    const partId = await seedParticipation(decisions, eventId);
 
     const res = await app.request(
       "http://localhost/api/files/presign",
@@ -691,6 +748,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "image/png",
           size: 64,
@@ -712,11 +770,12 @@ describe("4.2 R2 file uploads", () => {
   });
 
   it("size over 10 MiB rejected at Zod boundary", async () => {
-    const { app, cookie } = await magicLinkSession(
+    const { app, cookie, decisions } = await magicLinkSession(
       "admin",
       "admin-size@example.com",
     );
     const { id: eventId } = await createEvent(app, cookie);
+    const partId = await seedParticipation(decisions, eventId);
 
     const res = await app.request(
       "http://localhost/api/files/presign",
@@ -729,6 +788,7 @@ describe("4.2 R2 file uploads", () => {
         },
         body: JSON.stringify({
           eventId,
+          ownerParticipationId: partId,
           purpose: "headshot",
           mime: "image/jpeg",
           size: FILE_UPLOAD_MAX_BYTES + 1,

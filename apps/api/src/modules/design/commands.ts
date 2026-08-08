@@ -492,11 +492,29 @@ export async function presignFileUpload(
   // expiresAt is created_at + FILE_PRESIGN_TTL_MS (File.Upload enforces the same deadline).
   const expiresAt = new Date(nowMs + FILE_PRESIGN_TTL_MS).toISOString();
 
+  // Portal headshot/slides must bind owner_participation_id; logo stays null.
+  const ownerParticipationId =
+    purpose === "logo"
+      ? null
+      : (input.ownerParticipationId?.trim() || null);
+  if (
+    (purpose === "headshot" || purpose === "slides") &&
+    !ownerParticipationId
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      error: "ownerParticipationId is required for headshot and slides uploads",
+      code: "VALIDATION_ERROR",
+      details: { purpose },
+    };
+  }
+
   // Metadata only until client PUTs bytes via File.Upload (not "ready" yet).
   const row: FileAssetRow = {
     id: fileId,
     eventId: input.eventId,
-    ownerParticipationId: null,
+    ownerParticipationId,
     r2Key,
     filename,
     mime,
@@ -525,6 +543,7 @@ export async function presignFileUpload(
       mime,
       size: input.size,
       r2Key,
+      ownerParticipationId,
       uploaded: false,
       virusScanStatus: VIRUS_SCAN_UNSCANNED,
     }),

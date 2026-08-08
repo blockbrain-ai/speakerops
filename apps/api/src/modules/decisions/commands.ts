@@ -160,6 +160,7 @@ async function ensureOnAcceptTemplates(
       description: d.description,
       trigger: "on_accept",
       dueOffsetDays: d.due,
+      version: 1,
       createdAt: now,
     });
     created.push(row);

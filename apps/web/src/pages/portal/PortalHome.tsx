@@ -378,6 +378,7 @@ export function PortalHomePage() {
           mime,
           size: file.size,
           filename: file.name,
+          ownerParticipationId: participation.id,
         }),
       });
       const presignRaw: unknown = await presignRes.json().catch(() => null);
@@ -447,15 +448,7 @@ export function PortalHomePage() {
       );
 
       if (purpose === "headshot") {
-        // Local object URL preview (never execute SVG — mime gated)
-        if (headshotPreviewRef.current) {
-          URL.revokeObjectURL(headshotPreviewRef.current);
-        }
-        const url = URL.createObjectURL(file);
-        headshotPreviewRef.current = url;
-        setHeadshotPreview(url);
-
-        // Bind headshot to participation profile
+        // Bind headshot to participation profile before claiming success
         const patchRes = await fetch(
           `/api/portal/participations/${encodeURIComponent(participation.id)}`,
           {
@@ -468,24 +461,44 @@ export function PortalHomePage() {
             }),
           },
         );
-        if (patchRes.ok) {
-          const patchRaw: unknown = await patchRes.json().catch(() => null);
-          const parsed =
-            ParticipationUpdateProfileResponseSchema.safeParse(patchRaw);
-          if (parsed.success) {
-            const p = parsed.data.participation;
-            setHome((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    participations: prev.participations.map((x) =>
-                      x.id === p.id ? p : x,
-                    ),
-                  }
-                : prev,
-            );
-          }
+        const patchRaw: unknown = await patchRes.json().catch(() => null);
+        if (!patchRes.ok) {
+          const env = ErrorEnvelopeSchema.safeParse(patchRaw);
+          setStatus(
+            env.success
+              ? env.data.error
+              : `Profile update failed (${patchRes.status})`,
+          );
+          setFileBusy(false);
+          return;
         }
+        const parsed =
+          ParticipationUpdateProfileResponseSchema.safeParse(patchRaw);
+        if (!parsed.success) {
+          setStatus("Unexpected profile update response");
+          setFileBusy(false);
+          return;
+        }
+        const p = parsed.data.participation;
+        setHome((prev) =>
+          prev
+            ? {
+                ...prev,
+                participations: prev.participations.map((x) =>
+                  x.id === p.id ? p : x,
+                ),
+              }
+            : prev,
+        );
+
+        // Local object URL preview only after successful profile bind
+        if (headshotPreviewRef.current) {
+          URL.revokeObjectURL(headshotPreviewRef.current);
+        }
+        const url = URL.createObjectURL(file);
+        headshotPreviewRef.current = url;
+        setHeadshotPreview(url);
+
         setStatus(`Headshot uploaded (${file.name})`);
         showToast("Headshot ready");
       } else {

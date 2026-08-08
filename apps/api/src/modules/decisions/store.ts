@@ -18,6 +18,7 @@ import {
   taskTemplates,
   speakerTasks,
 } from "@speakerops/db";
+import { d1Changes } from "../auth/store.js";
 
 export type DecisionRow = {
   id: string;
@@ -70,6 +71,8 @@ export type TaskTemplateRow = {
   description: string | null;
   trigger: "on_accept" | "manual";
   dueOffsetDays: number;
+  /** Optimistic concurrency version (E1). */
+  version: number;
   createdAt: string;
 };
 
@@ -100,7 +103,11 @@ export type DecisionsStore = {
   ): Promise<ParticipationRow | null>;
   findParticipationById(id: string): Promise<ParticipationRow | null>;
   listParticipationsForEvent(eventId: string): Promise<ParticipationRow[]>;
-  /** Status-only or profile patch (section 3.5 dematerialize + 4.1 profile). */
+  /**
+   * Status-only or profile patch (section 3.5 dematerialize + 4.1 profile).
+   * Optimistic: WHERE id AND version = patch.version - 1 (callers bump by 1).
+   * Returns null on missing row or version conflict (no row changed).
+   */
   updateParticipation(
     id: string,
     patch: {
@@ -141,6 +148,10 @@ export type DecisionsStore = {
     eventId: string,
     trigger?: "on_accept" | "manual",
   ): Promise<TaskTemplateRow[]>;
+  /**
+   * Conditional update: WHERE id AND version = expectedVersion.
+   * Returns null on missing row or version conflict (no row changed).
+   */
   updateTaskTemplate(
     id: string,
     patch: {
@@ -148,6 +159,8 @@ export type DecisionsStore = {
       description?: string | null;
       trigger?: "on_accept" | "manual";
       dueOffsetDays?: number;
+      version: number;
+      expectedVersion: number;
     },
   ): Promise<TaskTemplateRow | null>;
   deleteTaskTemplate(id: string): Promise<boolean>;
@@ -164,6 +177,10 @@ export type DecisionsStore = {
   listSpeakerTasksForParticipations(
     participationIds: string[],
   ): Promise<SpeakerTaskRow[]>;
+  /**
+   * Optimistic: WHERE id AND version = patch.version - 1 (callers bump by 1).
+   * Returns null on missing row or version conflict (no row changed).
+   */
   updateSpeakerTask(
     id: string,
     patch: {
@@ -282,6 +299,8 @@ export class MemoryDecisionsStore implements DecisionsStore {
   ): Promise<ParticipationRow | null> {
     const existing = this.participations.get(id);
     if (!existing) return null;
+    // Atomic optimistic concurrency: reject stale expected version
+    if (patch.version !== existing.version + 1) return null;
     const next: ParticipationRow = {
       ...existing,
       version: patch.version,
@@ -412,12 +431,17 @@ export class MemoryDecisionsStore implements DecisionsStore {
       description?: string | null;
       trigger?: "on_accept" | "manual";
       dueOffsetDays?: number;
+      version: number;
+      expectedVersion: number;
     },
   ): Promise<TaskTemplateRow | null> {
     const existing = this.templates.get(id);
     if (!existing) return null;
+    if (existing.version !== patch.expectedVersion) return null;
+    if (patch.version !== patch.expectedVersion + 1) return null;
     const next: TaskTemplateRow = {
       ...existing,
+      version: patch.version,
       ...(patch.title !== undefined ? { title: patch.title } : {}),
       ...(patch.description !== undefined
         ? { description: patch.description }
@@ -487,6 +511,8 @@ export class MemoryDecisionsStore implements DecisionsStore {
   ): Promise<SpeakerTaskRow | null> {
     const existing = this.tasks.get(id);
     if (!existing) return null;
+    // Atomic optimistic concurrency: reject stale expected version
+    if (patch.version !== existing.version + 1) return null;
     const next: SpeakerTaskRow = {
       ...existing,
       status: patch.status,
@@ -632,6 +658,8 @@ export class D1DecisionsStore implements DecisionsStore {
       headshotFileId?: string | null;
     },
   ): Promise<ParticipationRow | null> {
+    // Callers always set version = prior + 1; include prior in WHERE for E1 atomicity.
+    const expectedVersion = patch.version - 1;
     const set: Record<string, unknown> = {
       version: patch.version,
       updatedAt: patch.updatedAt,
@@ -644,10 +672,16 @@ export class D1DecisionsStore implements DecisionsStore {
     if (patch.headshotFileId !== undefined) {
       set.headshotFileId = patch.headshotFileId;
     }
-    await this.db
+    const result = await this.db
       .update(eventParticipations)
       .set(set)
-      .where(eq(eventParticipations.id, id));
+      .where(
+        and(
+          eq(eventParticipations.id, id),
+          eq(eventParticipations.version, expectedVersion),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
     return this.findParticipationById(id);
   }
 
@@ -832,6 +866,7 @@ export class D1DecisionsStore implements DecisionsStore {
       description: row.description,
       trigger: row.trigger,
       dueOffsetDays: row.dueOffsetDays,
+      version: row.version,
       createdAt: row.createdAt,
     });
     return row;
@@ -852,6 +887,7 @@ export class D1DecisionsStore implements DecisionsStore {
       description: r.description,
       trigger: r.trigger as TaskTemplateRow["trigger"],
       dueOffsetDays: r.dueOffsetDays,
+      version: r.version ?? 1,
       createdAt: r.createdAt,
     };
   }
@@ -873,6 +909,7 @@ export class D1DecisionsStore implements DecisionsStore {
         description: r.description,
         trigger: r.trigger as TaskTemplateRow["trigger"],
         dueOffsetDays: r.dueOffsetDays,
+        version: r.version ?? 1,
         createdAt: r.createdAt,
       }));
   }
@@ -884,20 +921,27 @@ export class D1DecisionsStore implements DecisionsStore {
       description?: string | null;
       trigger?: "on_accept" | "manual";
       dueOffsetDays?: number;
+      version: number;
+      expectedVersion: number;
     },
   ): Promise<TaskTemplateRow | null> {
-    const existing = await this.findTaskTemplateById(id);
-    if (!existing) return null;
-    const set: Record<string, unknown> = {};
+    const set: Record<string, unknown> = {
+      version: patch.version,
+    };
     if (patch.title !== undefined) set.title = patch.title;
     if (patch.description !== undefined) set.description = patch.description;
     if (patch.trigger !== undefined) set.trigger = patch.trigger;
     if (patch.dueOffsetDays !== undefined) set.dueOffsetDays = patch.dueOffsetDays;
-    if (Object.keys(set).length === 0) return existing;
-    await this.db
+    const result = await this.db
       .update(taskTemplates)
       .set(set)
-      .where(eq(taskTemplates.id, id));
+      .where(
+        and(
+          eq(taskTemplates.id, id),
+          eq(taskTemplates.version, patch.expectedVersion),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
     return this.findTaskTemplateById(id);
   }
 
@@ -1013,6 +1057,8 @@ export class D1DecisionsStore implements DecisionsStore {
       completedAt?: string | null;
     },
   ): Promise<SpeakerTaskRow | null> {
+    // Callers always set version = prior + 1; include prior in WHERE for E1 atomicity.
+    const expectedVersion = patch.version - 1;
     const set: {
       status: string;
       version: number;
@@ -1026,10 +1072,16 @@ export class D1DecisionsStore implements DecisionsStore {
     if (patch.completedAt !== undefined) {
       set.completedAt = patch.completedAt;
     }
-    await this.db
+    const result = await this.db
       .update(speakerTasks)
       .set(set)
-      .where(eq(speakerTasks.id, id));
+      .where(
+        and(
+          eq(speakerTasks.id, id),
+          eq(speakerTasks.version, expectedVersion),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
     const rows = await this.db
       .select()
       .from(speakerTasks)

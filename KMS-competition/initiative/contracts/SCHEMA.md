@@ -77,7 +77,7 @@
 `session_id, participation_id, is_primary`
 
 ### task_templates / speaker_tasks
-templates: `id, event_id, title, description, trigger (on_accept|manual), due_offset_days`  
+templates: `id, event_id, title, description, trigger (on_accept|manual), due_offset_days, version`  
 tasks: `id, template_id, participation_id, status, due_at, completed_at, version`
 
 ### file_assets

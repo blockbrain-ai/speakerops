@@ -270,6 +270,7 @@ describe("4.1 portal API", () => {
       description: "Upload photo",
       trigger: "on_accept",
       dueOffsetDays: 7,
+      version: 1,
       createdAt: new Date().toISOString(),
     });
 
@@ -620,14 +621,37 @@ describe("4.1 portal API", () => {
           cookie: admin.cookie,
           "x-correlation-id": "corr-tpl-update",
         },
-        body: JSON.stringify({ title: "Upload final slides", dueOffsetDays: 5 }),
+        body: JSON.stringify({
+          title: "Upload final slides",
+          dueOffsetDays: 5,
+          expectedVersion: created.template.version,
+        }),
       },
       env,
     );
     expect(update.status).toBe(200);
-    expect(
-      TaskTemplateResponseSchema.parse(await update.json()).template.title,
-    ).toBe("Upload final slides");
+    const updatedTpl = TaskTemplateResponseSchema.parse(await update.json());
+    expect(updatedTpl.template.title).toBe("Upload final slides");
+    expect(updatedTpl.template.version).toBe(created.template.version + 1);
+
+    // Stale expectedVersion → 409
+    const stale = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates/${created.template.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          title: "Stale",
+          expectedVersion: created.template.version,
+        }),
+      },
+      env,
+    );
+    expect(stale.status).toBe(409);
+    expect(ErrorEnvelopeSchema.parse(await stale.json()).code).toBe(CONFLICT);
 
     // Speaker cannot CRUD
     const speaker = await magicLinkSession(
