@@ -6,7 +6,8 @@
  * + Submissions decisions (section 3.5)
  * + Portal APIs / task templates / admin speakers (section 4.1)
  * + Speaker portal UI G01–G08 (section 4.3)
- * + Comms email templates (section 5.1) + trust-before-send UI (section 5.3).
+ * + Comms email templates (section 5.1) + trust-before-send UI (section 5.3)
+ * + Schedule Studio five views I01–I16 (section 6.2).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -26,11 +27,11 @@ import { SubmissionsPage } from "./pages/Submissions.js";
 import { TaskTemplatesSettingsPage } from "./pages/TaskTemplatesSettings.js";
 import { SpeakersPage } from "./pages/Speakers.js";
 import { CommsPage } from "./pages/Comms.js";
+import { ScheduleStudioPage } from "./pages/schedule/ScheduleStudio.js";
 import {
   BareLayout,
   NotFoundPage,
   OverviewPage,
-  SchedulePage,
 } from "./routes/placeholders.js";
 import type { ReactNode } from "react";
 
@@ -126,7 +127,7 @@ export function AppRoutes() {
         path="/admin/schedule"
         element={
           <AdminGuard>
-            <SchedulePage />
+            <ScheduleStudioPage />
           </AdminGuard>
         }
       />

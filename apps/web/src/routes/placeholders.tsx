@@ -82,13 +82,14 @@ export function SpeakersPage() {
   );
 }
 
+/** @deprecated Replaced by ScheduleStudioPage (section 6.2). */
 export function SchedulePage() {
   return (
     <PageStub
       overline="Schedule"
       title="Schedule"
-      body="Schedule Studio hero surface lands in section 6.2."
-      testId="page-schedule"
+      body="Schedule Studio is ScheduleStudioPage at /admin/schedule (section 6.2)."
+      testId="page-schedule-placeholder"
     />
   );
 }

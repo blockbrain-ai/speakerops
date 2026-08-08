@@ -35,6 +35,9 @@ export const SchedulePlacementSchema = z.object({
   startsAt: z.string().min(1),
   endsAt: z.string().min(1),
   version: z.number().int().positive(),
+  /** Joined from program_sessions for Schedule.List / Studio (6.2). */
+  title: z.string().min(1).optional(),
+  trackId: z.string().nullable().optional(),
 });
 export type SchedulePlacementDto = z.infer<typeof SchedulePlacementSchema>;
 

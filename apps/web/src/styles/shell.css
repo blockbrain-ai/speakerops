@@ -1659,3 +1659,270 @@
     aspect-ratio: 1;
   }
 }
+
+/* Section 6.2 — Schedule Studio (Lumen tokens only; schedule tile + conflict toast) */
+.schedule-studio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-4);
+  max-width: 1200px;
+}
+
+.schedule-studio__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lumen-space-3);
+}
+
+.schedule-studio__tz,
+.schedule-studio__count {
+  font-size: 13px;
+  color: var(--lumen-text-secondary);
+}
+
+.schedule-studio__btn-secondary {
+  background: var(--lumen-surface);
+  color: var(--lumen-brand);
+  border: 1px solid var(--lumen-border);
+}
+
+.schedule-studio__views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+}
+
+.schedule-studio__view-tab {
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-pill);
+  background: var(--lumen-surface);
+  color: var(--lumen-text-secondary);
+  font-family: var(--lumen-font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.schedule-studio__view-tab--active {
+  background: var(--lumen-brand-soft);
+  color: var(--lumen-brand);
+  border-color: var(--lumen-brand);
+}
+
+.schedule-studio__layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) 1fr;
+  gap: var(--lumen-space-4);
+}
+
+@media (max-width: 800px) {
+  .schedule-studio__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.schedule-studio__subhead {
+  margin: 0 0 var(--lumen-space-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.schedule-tray-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lumen-space-1);
+  width: 100%;
+  text-align: left;
+  padding: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface);
+  color: var(--lumen-text);
+  font-family: var(--lumen-font);
+  cursor: grab;
+}
+
+.schedule-tray-item:hover {
+  border-color: var(--lumen-brand);
+}
+
+.schedule-tray-item--selected {
+  border-color: var(--lumen-brand);
+  background: var(--lumen-brand-soft);
+  box-shadow: var(--lumen-focus-ring);
+}
+
+.schedule-tray-item__title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.schedule-tray-item__meta {
+  font-size: 12px;
+  color: var(--lumen-text-secondary);
+}
+
+/* Schedule tile (component checklist — Lumen lock) */
+.schedule-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--lumen-space-2);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-brand-soft);
+  border: 1px solid var(--lumen-border);
+  color: var(--lumen-text);
+  font-family: var(--lumen-font);
+  font-size: 13px;
+  cursor: grab;
+}
+
+.schedule-tile--selected {
+  box-shadow: var(--lumen-focus-ring);
+  border-color: var(--lumen-brand);
+}
+
+.schedule-tile--compact {
+  cursor: default;
+}
+
+.schedule-tile__title {
+  font-weight: 600;
+}
+
+.schedule-tile__meta {
+  font-size: 11px;
+  color: var(--lumen-text-secondary);
+}
+
+.schedule-studio__slot {
+  min-height: 56px;
+  padding: var(--lumen-space-2);
+  border: 1px dashed var(--lumen-border);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-bg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+  cursor: pointer;
+}
+
+.schedule-studio__slot--over {
+  border-color: var(--lumen-brand);
+  background: var(--lumen-brand-soft);
+}
+
+.schedule-studio__slot--filled {
+  border-style: solid;
+  background: var(--lumen-surface);
+}
+
+.schedule-studio__slot-time {
+  font-size: 11px;
+  color: var(--lumen-text-secondary);
+  font-weight: 600;
+}
+
+.schedule-studio__slot-empty {
+  font-size: 12px;
+  color: var(--lumen-text-secondary);
+}
+
+.schedule-studio__grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+  overflow-x: auto;
+}
+
+.schedule-studio__grid-header,
+.schedule-studio__grid-row {
+  display: grid;
+  grid-template-columns: 64px repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--lumen-space-2);
+  align-items: stretch;
+}
+
+.schedule-studio__grid-corner,
+.schedule-studio__grid-time {
+  font-size: 12px;
+  color: var(--lumen-text-secondary);
+  font-weight: 600;
+  padding-top: var(--lumen-space-2);
+}
+
+.schedule-studio__grid-room {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-text);
+}
+
+.schedule-studio__week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-4);
+}
+
+.schedule-studio__week-list {
+  margin: 0 0 var(--lumen-space-2);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.schedule-studio__room-slot-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--lumen-space-2);
+}
+
+.schedule-studio__toast {
+  padding: var(--lumen-space-3) var(--lumen-space-4);
+  border-radius: var(--lumen-radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--lumen-shadow-sm);
+  z-index: var(--lumen-z-toast);
+}
+
+.schedule-studio__toast--conflict,
+.schedule-studio__toast--error {
+  background: var(--lumen-danger-soft);
+  color: var(--lumen-danger);
+  border: 1px solid var(--lumen-border);
+}
+
+.schedule-studio__toast--ok {
+  background: var(--lumen-success-soft);
+  color: var(--lumen-success);
+  border: 1px solid var(--lumen-border);
+}
+
+.schedule-studio__stale {
+  padding: var(--lumen-space-4);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-warn-soft);
+  color: var(--lumen-text);
+  border: 1px solid var(--lumen-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.schedule-studio__ghost {
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-info-soft);
+  color: var(--lumen-info);
+  font-size: 13px;
+  font-weight: 600;
+}

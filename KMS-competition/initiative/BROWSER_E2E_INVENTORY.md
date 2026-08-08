@@ -147,22 +147,22 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| I01 | admin | Schedule | List view shows sessions | e2e/sched/list | — | REQUIRED | OPEN |
-| I02 | admin | Schedule | Day view | e2e/sched/day | — | REQUIRED | OPEN |
-| I03 | admin | Schedule | Week view | e2e/sched/week | — | REQUIRED | OPEN |
-| I04 | admin | Schedule | Track view | e2e/sched/track | — | REQUIRED | OPEN |
-| I05 | admin | Schedule | Room view | e2e/sched/room | — | REQUIRED | OPEN |
-| I06 | admin | Schedule | Drag place into empty slot | e2e/sched/drag-place | — | REQUIRED | OPEN |
-| I07 | admin | Schedule | Drag causes speaker conflict; blocked with reason | e2e/sched/conflict-speaker | — | REQUIRED | OPEN |
-| I08 | admin | Schedule | Room overlap conflict | e2e/sched/conflict-room | — | REQUIRED | OPEN |
-| I09 | admin | Schedule | Keyboard move alternative | e2e/sched/keyboard | — | REQUIRED | OPEN |
-| I10 | admin | Schedule | Undo last move | e2e/sched/undo | — | REQUIRED | OPEN |
-| I11 | admin | Schedule | Unscheduled tray | e2e/sched/tray | — | REQUIRED | OPEN |
-| I12 | admin | Schedule | Timezone displayed | e2e/sched/tz | — | REQUIRED | OPEN |
-| I13 | admin | Schedule | Move already-placed session to new slot | e2e/sched/move | — | REQUIRED | OPEN |
-| I14 | admin | Schedule | Unschedule back to tray | e2e/sched/unschedule | — | REQUIRED | OPEN |
-| I15 | admin | Schedule | Stale version conflict shows recovery UI | e2e/sched/stale | No silent overwrite | REQUIRED | OPEN |
-| I16 | admin | Schedule | After place, all five views + reload consistent | e2e/sched/persist | — | REQUIRED | OPEN |
+| I01 | admin | Schedule | List view shows sessions | e2e/sched/list | — | REQUIRED | PASS |
+| I02 | admin | Schedule | Day view | e2e/sched/day | — | REQUIRED | PASS |
+| I03 | admin | Schedule | Week view | e2e/sched/week | — | REQUIRED | PASS |
+| I04 | admin | Schedule | Track view | e2e/sched/track | — | REQUIRED | PASS |
+| I05 | admin | Schedule | Room view | e2e/sched/room | — | REQUIRED | PASS |
+| I06 | admin | Schedule | Drag place into empty slot | e2e/sched/drag-place | — | REQUIRED | PASS |
+| I07 | admin | Schedule | Drag causes speaker conflict; blocked with reason | e2e/sched/conflict-speaker | — | REQUIRED | PASS |
+| I08 | admin | Schedule | Room overlap conflict | e2e/sched/conflict-room | — | REQUIRED | PASS |
+| I09 | admin | Schedule | Keyboard move alternative | e2e/sched/keyboard | — | REQUIRED | PASS |
+| I10 | admin | Schedule | Undo last move | e2e/sched/undo | — | REQUIRED | PASS |
+| I11 | admin | Schedule | Unscheduled tray | e2e/sched/tray | — | REQUIRED | PASS |
+| I12 | admin | Schedule | Timezone displayed | e2e/sched/tz | — | REQUIRED | PASS |
+| I13 | admin | Schedule | Move already-placed session to new slot | e2e/sched/move | — | REQUIRED | PASS |
+| I14 | admin | Schedule | Unschedule back to tray | e2e/sched/unschedule | — | REQUIRED | PASS |
+| I15 | admin | Schedule | Stale version conflict shows recovery UI | e2e/sched/stale | No silent overwrite | REQUIRED | PASS |
+| I16 | admin | Schedule | After place, all five views + reload consistent | e2e/sched/persist | — | REQUIRED | PASS |
 
 ---
 

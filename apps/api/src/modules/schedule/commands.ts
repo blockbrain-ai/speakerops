@@ -47,7 +47,10 @@ export type CommandErr = {
   details?: unknown;
 };
 
-function toPlacementDto(row: PlacementRow): SchedulePlacementDto {
+function toPlacementDto(
+  row: PlacementRow,
+  sessionMeta?: { title?: string; trackId?: string | null },
+): SchedulePlacementDto {
   return {
     id: row.id,
     eventId: row.eventId,
@@ -56,6 +59,10 @@ function toPlacementDto(row: PlacementRow): SchedulePlacementDto {
     startsAt: row.startsAt,
     endsAt: row.endsAt,
     version: row.version,
+    ...(sessionMeta?.title ? { title: sessionMeta.title } : {}),
+    ...(sessionMeta && "trackId" in sessionMeta
+      ? { trackId: sessionMeta.trackId ?? null }
+      : {}),
   };
 }
 
@@ -327,7 +334,15 @@ export async function placeSession(
     createdAt: now,
   });
 
-  return { ok: true, value: { placement: toPlacementDto(placed) } };
+  return {
+    ok: true,
+    value: {
+      placement: toPlacementDto(placed, {
+        title: session.title,
+        trackId: session.trackId,
+      }),
+    },
+  };
 }
 
 export type MoveInput = ScheduleMoveBody & {
@@ -458,7 +473,16 @@ export async function movePlacement(
     createdAt: now,
   });
 
-  return { ok: true, value: { placement: toPlacementDto(updated) } };
+  const session = await deps.decisions.findSessionById(updated.sessionId);
+  return {
+    ok: true,
+    value: {
+      placement: toPlacementDto(updated, {
+        title: session?.title,
+        trackId: session?.trackId ?? null,
+      }),
+    },
+  };
 }
 
 export type UnscheduleInput = ScheduleUnscheduleBody & {
@@ -542,6 +566,8 @@ export async function listSchedule(
   const placedSessionIds = new Set(placements.map((p) => p.sessionId));
 
   const sessions = await deps.decisions.listSessionsForEvent(input.eventId);
+  const sessionById = new Map(sessions.map((s) => [s.id, s]));
+
   const unscheduled: UnscheduledSessionDto[] = sessions
     .filter(
       (s) => s.status !== "cancelled" && !placedSessionIds.has(s.id),
@@ -556,12 +582,19 @@ export async function listSchedule(
     }));
 
   // Stable order: placements by startsAt, unscheduled by title
+  // Join session title/track for Schedule Studio five views (6.2 / I01–I16).
   const placementDtos = placements
     .slice()
     .sort((a, b) =>
       a.startsAt < b.startsAt ? -1 : a.startsAt > b.startsAt ? 1 : 0,
     )
-    .map(toPlacementDto);
+    .map((p) => {
+      const s = sessionById.get(p.sessionId);
+      return toPlacementDto(p, {
+        title: s?.title,
+        trackId: s?.trackId ?? null,
+      });
+    });
   unscheduled.sort((a, b) => a.title.localeCompare(b.title));
 
   return {
