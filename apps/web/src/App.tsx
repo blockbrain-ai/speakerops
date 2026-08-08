@@ -1,6 +1,7 @@
 /**
  * App router + shared admin layout (section 1.4) + auth login (section 2.1)
- * + RequireRole admin guards (section 2.2) + event context (section 2.3).
+ * + RequireRole admin guards (section 2.2) + event context (section 2.3)
+ * + Design Kit (section 2.4).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -10,6 +11,8 @@ import { EventProvider } from "./events/EventContext.js";
 import { LoginPage } from "./pages/Login.js";
 import { PortalHomePage } from "./pages/PortalHome.js";
 import { EventSettingsPage } from "./pages/EventSettings.js";
+import { DesignKitPage } from "./pages/DesignKit.js";
+import { PublicCfpPage } from "./pages/PublicCfp.js";
 import {
   BareLayout,
   CfpFormsPage,
@@ -17,7 +20,6 @@ import {
   EvaluationsPage,
   NotFoundPage,
   OverviewPage,
-  PublicCfpStubPage,
   SchedulePage,
   SpeakersPage,
   SubmissionsPage,
@@ -120,10 +122,18 @@ export function AppRoutes() {
         }
       />
       <Route
+        path="/admin/settings/design"
+        element={
+          <AdminGuard>
+            <DesignKitPage />
+          </AdminGuard>
+        }
+      />
+      <Route
         path="/cfp/:slug"
         element={
           <BareLayout>
-            <PublicCfpStubPage />
+            <PublicCfpPage />
           </BareLayout>
         }
       />
@@ -142,7 +152,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <BrowserRouter>
-      <div id="speakerops-root" data-section="2.3" data-testid="app-root">
+      <div id="speakerops-root" data-section="2.4" data-testid="app-root">
         <AppRoutes />
       </div>
     </BrowserRouter>

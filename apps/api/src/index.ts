@@ -5,6 +5,7 @@
  * Section 2.1: Auth magic-link routes (session cookies)
  * Section 2.2: requireRole + Event.List / Schedule.Place role gates
  * Section 2.3: Event.Create/Update + Room/Track upsert + active event data
+ * Section 2.4: Design Kit draft/publish + logo presign + public tokens
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -28,6 +29,11 @@ import { createAuthRoutes } from "./modules/auth/routes.js";
 import { createEventsRoutes } from "./modules/events/routes.js";
 import { createScheduleRoutes } from "./modules/schedule/routes.js";
 import {
+  createDesignRoutes,
+  createPublicDesignRoutes,
+  createFileRoutes,
+} from "./modules/design/routes.js";
+import {
   MemoryAuthStore,
   MagicLinkTestOutbox,
   type AuthStore,
@@ -36,6 +42,10 @@ import {
   MemoryEventsStore,
   type EventsStore,
 } from "./modules/events/store.js";
+import {
+  MemoryDesignStore,
+  type DesignStore,
+} from "./modules/design/store.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
 
@@ -47,6 +57,8 @@ export type CreateAppOptions = {
   authStore?: AuthStore;
   /** Inject events store (defaults to in-memory for local/test). */
   eventsStore?: EventsStore;
+  /** Inject design store (defaults to in-memory for local/test). */
+  designStore?: DesignStore;
   /** Shared test outbox for magic-link capture. */
   magicLinkOutbox?: MagicLinkTestOutbox;
   /** Cookie Secure flag (default true). */
@@ -71,6 +83,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
 
   const authStore = options.authStore ?? new MemoryAuthStore();
   const eventsStore = options.eventsStore ?? new MemoryEventsStore();
+  const designStore = options.designStore ?? new MemoryDesignStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -114,9 +127,39 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     createEventsRoutes({ store: authStore, events: eventsStore }),
   );
 
+  // Section 2.4 — Design.Get/SetDraft/Publish under /api/events/:eventId/design
+  app.route(
+    "/api/events",
+    createDesignRoutes({
+      store: authStore,
+      events: eventsStore,
+      design: designStore,
+    }),
+  );
+
   // Section 2.2 — Schedule.Place under /api/events/:eventId/... (admin role gate)
   // Mounted at /api/events so path is /:eventId/schedule/place
   app.route("/api/events", createScheduleRoutes({ store: authStore }));
+
+  // Section 2.4 — public published design tokens (never draft)
+  app.route(
+    "/api/public",
+    createPublicDesignRoutes({
+      store: authStore,
+      events: eventsStore,
+      design: designStore,
+    }),
+  );
+
+  // Section 2.4 — File.PresignUpload (logo PNG only)
+  app.route(
+    "/api/files",
+    createFileRoutes({
+      store: authStore,
+      events: eventsStore,
+      design: designStore,
+    }),
+  );
 
   app.notFound(notFoundHandler);
   app.onError(onErrorHandler);
@@ -134,19 +177,22 @@ export function createAppWithAuth(
   app: Hono<ApiEnv>;
   store: AuthStore;
   events: EventsStore;
+  design: DesignStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
   const events = options.eventsStore ?? new MemoryEventsStore();
+  const design = options.designStore ?? new MemoryDesignStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
     authStore: store,
     eventsStore: events,
+    designStore: design,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
   });
-  return { app, store, events, outbox };
+  return { app, store, events, design, outbox };
 }
 
 /** Default export for Cloudflare Workers (wrangler main). */

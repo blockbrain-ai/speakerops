@@ -61,14 +61,14 @@
 |----|------|---------|---------|---------|----------|--------|
 | C01 | admin | Events | Create event; timezone; dates | e2e/admin/event-create | Validation fail | REQUIRED | IMPLEMENTED |
 | C02 | admin | Events | Switch active event context | e2e/admin/event-switch | — | REQUIRED | IMPLEMENTED |
-| C03 | admin | Design Kit | Set brand color; live preview updates | e2e/admin/design-color | Invalid hex | REQUIRED | OPEN |
-| C04 | admin | Design Kit | Upload logo; preview | e2e/admin/design-logo | Bad type rejected | REQUIRED | OPEN |
-| C05 | admin | Design Kit | Publish tokens; public CFP shows brand | e2e/admin/design-publish | Draft not public until publish | REQUIRED | OPEN |
-| C06 | admin | Design Kit | Cannot inject freeform CSS field (control absent) | e2e/admin/design-no-css | — | REQUIRED | OPEN |
+| C03 | admin | Design Kit | Set brand color; live preview updates | e2e/admin/design-color | Invalid hex | REQUIRED | IMPLEMENTED |
+| C04 | admin | Design Kit | Upload logo; preview | e2e/admin/design-logo | Bad type rejected | REQUIRED | IMPLEMENTED |
+| C05 | admin | Design Kit | Publish tokens; public CFP shows brand | e2e/admin/design-publish | Draft not public until publish | REQUIRED | IMPLEMENTED |
+| C06 | admin | Design Kit | Cannot inject freeform CSS field (control absent) | e2e/admin/design-no-css | — | REQUIRED | IMPLEMENTED |
 | C07 | admin | Settings | Edit event name/close dates for CFP window | e2e/admin/settings-cfp-window | — | REQUIRED | IMPLEMENTED |
-| C08 | admin | Design Kit | Near-white brand → contrast warn/block or derived text on public CFP | e2e/admin/design-contrast | Publish blocked or safe fg | REQUIRED | OPEN |
-| C09 | admin | Design Kit | SVG/scripty logo rejected; never executes | e2e/admin/design-logo-xss | Rejected or inert | REQUIRED | OPEN |
-| C10 | admin | Design Kit | Draft tokens not visible on public CFP until publish | e2e/admin/design-draft-isolation | — | REQUIRED | OPEN |
+| C08 | admin | Design Kit | Near-white brand → contrast warn/block or derived text on public CFP | e2e/admin/design-contrast | Publish blocked or safe fg | REQUIRED | IMPLEMENTED |
+| C09 | admin | Design Kit | SVG/scripty logo rejected; never executes | e2e/admin/design-logo-xss | Rejected or inert | REQUIRED | IMPLEMENTED |
+| C10 | admin | Design Kit | Draft tokens not visible on public CFP until publish | e2e/admin/design-draft-isolation | — | REQUIRED | IMPLEMENTED |
 | C11 | admin | Events | Switch event A→B; no A data in B lists | e2e/admin/event-isolation | Cross-event leak | REQUIRED | IMPLEMENTED |
 
 ---

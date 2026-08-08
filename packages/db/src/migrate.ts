@@ -249,3 +249,10 @@ export const MEMBERSHIP_TABLES = ["event_memberships"] as const;
 
 /** Rooms/tracks table names required by section 2.3 AC. */
 export const EVENT_SETTINGS_TABLES = ["rooms", "tracks"] as const;
+
+/** Design Kit table names required by section 2.4 AC. */
+export const DESIGN_TABLES = [
+  "design_token_drafts",
+  "design_token_published",
+  "file_assets",
+] as const;

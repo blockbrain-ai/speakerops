@@ -17,6 +17,7 @@ import {
   AUTH_TABLES,
   MEMBERSHIP_TABLES,
   EVENT_SETTINGS_TABLES,
+  DESIGN_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -38,6 +39,9 @@ import {
   eventMemberships,
   rooms,
   tracks,
+  designTokenDrafts,
+  designTokenPublished,
+  fileAssets,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -186,6 +190,34 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(tracks).toBeDefined();
       expect(schema.rooms).toBe(rooms);
       expect(schema.tracks).toBe(tracks);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("2.4 migration creates design token tables and file_assets", async () => {
+    const { dir, dbPath } = tempDbPath();
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0005_design_tokens.sql");
+      for (const table of DESIGN_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.design_token_drafts).toContain("event_id");
+      expect(columns.design_token_drafts).toContain("tokens_json");
+      expect(columns.design_token_drafts).toContain("version");
+      expect(columns.design_token_published).toContain("event_id");
+      expect(columns.design_token_published).toContain("published_at");
+      expect(columns.file_assets).toContain("event_id");
+      expect(columns.file_assets).toContain("mime");
+      expect(columns.file_assets).toContain("purpose");
+      expect(designTokenDrafts).toBeDefined();
+      expect(designTokenPublished).toBeDefined();
+      expect(fileAssets).toBeDefined();
+      expect(schema.designTokenDrafts).toBe(designTokenDrafts);
+      expect(schema.designTokenPublished).toBe(designTokenPublished);
+      expect(schema.fileAssets).toBe(fileAssets);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

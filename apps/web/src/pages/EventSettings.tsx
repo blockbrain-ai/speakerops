@@ -337,7 +337,14 @@ export function EventSettingsPage() {
       <p className="page-stub__overline">Settings</p>
       <h2 className="page-stub__title">Event settings</h2>
       <p className="page-stub__body">
-        Create events, edit name/timezone/dates, and manage rooms and tracks.
+        Create events, edit name/timezone/dates, and manage rooms and tracks.{" "}
+        <a
+          href="/admin/settings/design"
+          className="design-kit__link lumen-focusable"
+          data-testid="settings-design-link"
+        >
+          Design Kit →
+        </a>
       </p>
 
       {/* C01 — Create event */}

@@ -1,9 +1,9 @@
 /**
  * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships
- * + 2.3 rooms/tracks.
+ * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4. Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
@@ -246,6 +246,59 @@ export const eventSettingsTables = {
   tracks,
 } as const;
 
+/**
+ * design_token_drafts — admin draft Design Kit tokens (section 2.4).
+ * tokens_json: { brand, brandSoft, radius, wordmark, logoFileId, brandFg? }
+ * Optimistic version for SetDraft / Publish.
+ */
+export const designTokenDrafts = sqliteTable("design_token_drafts", {
+  eventId: text("event_id").primaryKey().notNull(),
+  tokensJson: text("tokens_json").notNull(),
+  version: integer("version").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * design_token_published — public CFP tokens only after Design.Publish (section 2.4).
+ * Draft never leaks here (C10 / S-THEME).
+ */
+export const designTokenPublished = sqliteTable("design_token_published", {
+  eventId: text("event_id").primaryKey().notNull(),
+  tokensJson: text("tokens_json").notNull(),
+  version: integer("version").notNull().default(1),
+  publishedAt: text("published_at").notNull(),
+  publishedBy: text("published_by"),
+});
+
+/**
+ * file_assets — logo presign metadata (section 2.4 logo; portal files expand in 4.2).
+ * SCHEMA.md: purpose headshot|slides|other — dogfood also uses purpose=logo.
+ */
+export const fileAssets = sqliteTable(
+  "file_assets",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    ownerParticipationId: text("owner_participation_id"),
+    r2Key: text("r2_key").notNull(),
+    filename: text("filename").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    checksum: text("checksum"),
+    purpose: text("purpose").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("idx_file_assets_event_id").on(t.eventId)],
+);
+
+/** Design Kit tables owned by section 2.4. */
+export const designTables = {
+  designTokenDrafts,
+  designTokenPublished,
+  fileAssets,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -268,6 +321,12 @@ export type Room = typeof rooms.$inferSelect;
 export type NewRoom = typeof rooms.$inferInsert;
 export type Track = typeof tracks.$inferSelect;
 export type NewTrack = typeof tracks.$inferInsert;
+export type DesignTokenDraft = typeof designTokenDrafts.$inferSelect;
+export type NewDesignTokenDraft = typeof designTokenDrafts.$inferInsert;
+export type DesignTokenPublishedRow = typeof designTokenPublished.$inferSelect;
+export type NewDesignTokenPublished = typeof designTokenPublished.$inferInsert;
+export type FileAsset = typeof fileAssets.$inferSelect;
+export type NewFileAsset = typeof fileAssets.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -282,4 +341,7 @@ export const schema = {
   eventMemberships,
   rooms,
   tracks,
+  designTokenDrafts,
+  designTokenPublished,
+  fileAssets,
 } as const;

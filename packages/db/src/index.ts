@@ -17,10 +17,14 @@ export {
   eventMemberships,
   rooms,
   tracks,
+  designTokenDrafts,
+  designTokenPublished,
+  fileAssets,
   baselineTables,
   authTables,
   membershipTables,
   eventSettingsTables,
+  designTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -44,6 +48,12 @@ export {
   type NewRoom,
   type Track,
   type NewTrack,
+  type DesignTokenDraft,
+  type NewDesignTokenDraft,
+  type DesignTokenPublishedRow,
+  type NewDesignTokenPublished,
+  type FileAsset,
+  type NewFileAsset,
 } from "../schema.js";
 
 export {
@@ -72,6 +82,8 @@ export {
   BASELINE_TABLES,
   AUTH_TABLES,
   MEMBERSHIP_TABLES,
+  EVENT_SETTINGS_TABLES,
+  DESIGN_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

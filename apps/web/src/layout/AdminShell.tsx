@@ -48,6 +48,7 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
 }
 
 function titleForPath(pathname: string): string {
+  if (pathname.startsWith("/admin/settings/design")) return "Design Kit";
   const exact = ADMIN_NAV_ITEMS.find((item) => item.path === pathname);
   if (exact) return exact.label;
   const nested = ADMIN_NAV_ITEMS.find(
