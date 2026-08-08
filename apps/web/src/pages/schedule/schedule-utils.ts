@@ -3,6 +3,9 @@
  *
  * Slot grid generation, duration defaults, undo inverse planning,
  * conflict message formatting — no React / fetch.
+ *
+ * Calendar day keys and working windows are computed in the event timezone
+ * (not UTC-only). Labels and drop targets share the same semantics.
  */
 
 import type {
@@ -62,8 +65,84 @@ export function addMinutesIso(startsAt: string, minutes: number): string {
 }
 
 /**
+ * Calendar day key (YYYY-MM-DD) for an instant in the given IANA timezone.
+ * Uses en-CA so the formatted date is ISO-ordered YYYY-MM-DD.
+ */
+export function zonedDayKey(iso: string, timeZone: string = "UTC"): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Offset of `timeZone` at instant `date`: wall_as_utc_ms - utc_ms.
+ * wall = utc + offset ⇒ utc = wall - offset.
+ */
+function timeZoneOffsetMs(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = dtf.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+  const asUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second),
+  );
+  return asUtc - date.getTime();
+}
+
+/**
+ * Convert a wall-clock local time on dayKey in timeZone to UTC ISO.
+ * dayKey is YYYY-MM-DD in the event timezone.
+ */
+export function zonedWallToUtcIso(
+  dayKey: string,
+  hour: number,
+  minute: number,
+  timeZone: string = "UTC",
+): string {
+  const [ys, ms, ds] = dayKey.split("-");
+  const y = Number(ys);
+  const m = Number(ms);
+  const d = Number(ds);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+    return `${dayKey}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00.000Z`;
+  }
+  // Interpret wall components as if UTC, then subtract TZ offset (refine for DST).
+  let utcMs = Date.UTC(y, m - 1, d, hour, minute, 0, 0);
+  for (let i = 0; i < 2; i++) {
+    const offset = timeZoneOffsetMs(new Date(utcMs), timeZone);
+    utcMs = Date.UTC(y, m - 1, d, hour, minute, 0, 0) - offset;
+  }
+  return new Date(utcMs).toISOString();
+}
+
+/**
  * Build hourly (or custom step) slot start times for a half-open day window.
- * Uses UTC wall clock of the ISO instants (event times stored as ISO).
+ * Window bounds are absolute instants (ISO); step advances by wall minutes.
  */
 export function buildTimeSlots(
   dayStartIso: string,
@@ -84,63 +163,78 @@ export function buildTimeSlots(
 }
 
 /**
- * Calendar day keys (YYYY-MM-DD from UTC ISO) spanning event starts→ends inclusive.
- * Caps at 7 days for week view.
+ * Calendar day keys (YYYY-MM-DD in event timezone) spanning event starts→ends.
+ * Caps at maxDays for week view.
  */
 export function buildDayKeys(
   startsAt: string | null | undefined,
   endsAt: string | null | undefined,
   maxDays = 7,
+  timeZone: string = "UTC",
 ): string[] {
   const fallbackStart = "2026-09-01T09:00:00.000Z";
   const fallbackEnd = "2026-09-01T17:00:00.000Z";
   const s = Date.parse(startsAt || fallbackStart);
   const e = Date.parse(endsAt || fallbackEnd);
   if (!Number.isFinite(s) || !Number.isFinite(e)) {
-    return [fallbackStart.slice(0, 10)];
+    return [zonedDayKey(fallbackStart, timeZone)];
   }
-  const startDay = new Date(s);
-  startDay.setUTCHours(0, 0, 0, 0);
-  const endDay = new Date(e);
-  endDay.setUTCHours(0, 0, 0, 0);
+  const startKey = zonedDayKey(new Date(s).toISOString(), timeZone);
+  const endKey = zonedDayKey(new Date(e).toISOString(), timeZone);
   const keys: string[] = [];
-  for (
-    let d = startDay.getTime();
-    d <= endDay.getTime() && keys.length < maxDays;
-    d += 24 * 60 * 60 * 1000
-  ) {
-    keys.push(new Date(d).toISOString().slice(0, 10));
+  // Walk day-by-day via noon UTC-ish of each local day to avoid DST edge skips.
+  let cursor = zonedWallToUtcIso(startKey, 12, 0, timeZone);
+  const endNoon = zonedWallToUtcIso(endKey, 12, 0, timeZone);
+  let guard = 0;
+  while (Date.parse(cursor) <= Date.parse(endNoon) && keys.length < maxDays && guard < 366) {
+    const key = zonedDayKey(cursor, timeZone);
+    if (!keys.includes(key)) keys.push(key);
+    // Advance ~24h then re-snap to local noon of next calendar day.
+    const nextMs = Date.parse(cursor) + 24 * 60 * 60 * 1000;
+    const nextKey = zonedDayKey(new Date(nextMs).toISOString(), timeZone);
+    cursor = zonedWallToUtcIso(nextKey, 12, 0, timeZone);
+    // If nextKey didn't advance (pathological TZ), force key step via string.
+    if (nextKey === key) {
+      const [ys, ms, ds] = key.split("-").map(Number) as [number, number, number];
+      const nd = new Date(Date.UTC(ys, ms - 1, ds + 1, 12, 0, 0));
+      cursor = zonedWallToUtcIso(nd.toISOString().slice(0, 10), 12, 0, timeZone);
+    }
+    guard += 1;
   }
   if (keys.length === 0) {
-    keys.push(new Date(s).toISOString().slice(0, 10));
+    keys.push(startKey);
   }
   return keys;
 }
 
-/** Default working-day window on a YYYY-MM-DD (UTC 09:00–17:00). */
-export function dayWindowUtc(dayKey: string): {
+/** Default working-day window on a YYYY-MM-DD in the event timezone (09:00–17:00). */
+export function dayWindowUtc(
+  dayKey: string,
+  timeZone: string = "UTC",
+): {
   dayStart: string;
   dayEnd: string;
 } {
   return {
-    dayStart: `${dayKey}T09:00:00.000Z`,
-    dayEnd: `${dayKey}T17:00:00.000Z`,
+    dayStart: zonedWallToUtcIso(dayKey, 9, 0, timeZone),
+    dayEnd: zonedWallToUtcIso(dayKey, 17, 0, timeZone),
   };
 }
 
-/** Prefer event day bounds when they fall on the same calendar day. */
+/** Prefer event day bounds when they fall on the same calendar day (event TZ). */
 export function dayWindowForEvent(
   dayKey: string,
   eventStartsAt: string | null | undefined,
   eventEndsAt: string | null | undefined,
+  timeZone: string = "UTC",
 ): { dayStart: string; dayEnd: string } {
-  const def = dayWindowUtc(dayKey);
+  const def = dayWindowUtc(dayKey, timeZone);
   if (!eventStartsAt || !eventEndsAt) return def;
   const s = Date.parse(eventStartsAt);
   const e = Date.parse(eventEndsAt);
   if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return def;
-  const sKey = new Date(s).toISOString().slice(0, 10);
-  const eKey = new Date(e).toISOString().slice(0, 10);
+  const sKey = zonedDayKey(eventStartsAt, timeZone);
+  const eKey = zonedDayKey(eventEndsAt, timeZone);
   // Multi-day event: clamp this day to working hours unless single-day.
   if (sKey === eKey && sKey === dayKey) {
     return {
@@ -192,12 +286,25 @@ export function slotKey(roomId: string, startsAt: string): string {
   return `${roomId}|${startsAt}`;
 }
 
+/**
+ * True when placement belongs in this grid slot.
+ * Occupies the slot whose [startsAt, startsAt+step) window contains placement.startsAt
+ * (not only exact equality), so off-hour placements like 10:30 remain visible.
+ */
 export function placementInSlot(
   p: SchedulePlacementDto,
   roomId: string,
   startsAt: string,
+  stepMinutes: number = DEFAULT_SLOT_MINUTES,
 ): boolean {
-  return p.roomId === roomId && p.startsAt === startsAt;
+  if (p.roomId !== roomId) return false;
+  const slotStart = Date.parse(startsAt);
+  const pStart = Date.parse(p.startsAt);
+  if (!Number.isFinite(slotStart) || !Number.isFinite(pStart)) {
+    return p.startsAt === startsAt;
+  }
+  const slotEnd = slotStart + Math.max(1, stepMinutes) * 60_000;
+  return pStart >= slotStart && pStart < slotEnd;
 }
 
 /**
@@ -272,12 +379,13 @@ export function groupByTrack(
   return map;
 }
 
-/** Placements whose startsAt falls on dayKey (UTC). */
+/** Placements whose startsAt falls on dayKey in the event timezone. */
 export function placementsOnDay(
   placements: SchedulePlacementDto[],
   dayKey: string,
+  timeZone: string = "UTC",
 ): SchedulePlacementDto[] {
-  return placements.filter((p) => p.startsAt.slice(0, 10) === dayKey);
+  return placements.filter((p) => zonedDayKey(p.startsAt, timeZone) === dayKey);
 }
 
 export function isScheduleView(v: string): v is ScheduleViewMode {

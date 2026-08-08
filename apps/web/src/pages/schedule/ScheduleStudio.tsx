@@ -45,10 +45,12 @@ import {
   buildDayKeys,
   buildTimeSlots,
   dayWindowForEvent,
+  durationMinutes,
   formatConflictMessage,
   formatTimeLabel,
   groupByRoom,
   groupByTrack,
+  placementInSlot,
   placementsOnDay,
   slotKey,
   undoForMove,
@@ -124,8 +126,8 @@ export function ScheduleStudioPage() {
   const eventEndsAt = activeEvent?.endsAt ?? null;
 
   const dayKeys = useMemo(
-    () => buildDayKeys(eventStartsAt, eventEndsAt, 7),
-    [eventStartsAt, eventEndsAt],
+    () => buildDayKeys(eventStartsAt, eventEndsAt, 7, timezone),
+    [eventStartsAt, eventEndsAt, timezone],
   );
   const primaryDay = dayKeys[0] ?? "2026-09-01";
 
@@ -478,9 +480,9 @@ export function ScheduleStudioPage() {
 
   const applyToSlot = useCallback(
     async (roomId: string, startsAt: string) => {
-      const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
       const drag = dragPayloadRef.current;
       if (drag?.source === "tray") {
+        const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
         await placeSession({
           sessionId: drag.sessionId,
           roomId,
@@ -491,6 +493,11 @@ export function ScheduleStudioPage() {
         return;
       }
       if (drag?.source === "placement") {
+        // Preserve existing duration on move (do not reset to DEFAULT_SLOT_MINUTES).
+        const endsAt = addMinutesIso(
+          startsAt,
+          durationMinutes(drag.startsAt, drag.endsAt),
+        );
         await movePlacement({
           placementId: drag.placementId,
           roomId,
@@ -507,6 +514,7 @@ export function ScheduleStudioPage() {
         return;
       }
       if (selectedSessionId) {
+        const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
         await placeSession({
           sessionId: selectedSessionId,
           roomId,
@@ -518,6 +526,10 @@ export function ScheduleStudioPage() {
       if (selectedPlacementId) {
         const p = placements.find((x) => x.id === selectedPlacementId);
         if (p) {
+          const endsAt = addMinutesIso(
+            startsAt,
+            durationMinutes(p.startsAt, p.endsAt),
+          );
           await movePlacement({
             placementId: p.id,
             roomId,
@@ -614,8 +626,8 @@ export function ScheduleStudioPage() {
     }
     if (!payload) return;
     setDrag(payload);
-    const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
     if (payload.source === "tray") {
+      const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
       void placeSession({
         sessionId: payload.sessionId,
         roomId,
@@ -623,6 +635,11 @@ export function ScheduleStudioPage() {
         endsAt,
       }).finally(() => setDrag(null));
     } else {
+      // Preserve duration from the dragged placement.
+      const endsAt = addMinutesIso(
+        startsAt,
+        durationMinutes(payload.startsAt, payload.endsAt),
+      );
       void movePlacement({
         placementId: payload.placementId,
         roomId,
@@ -643,8 +660,9 @@ export function ScheduleStudioPage() {
 
   const renderSlot = (roomId: string, startsAt: string) => {
     const key = slotKey(roomId, startsAt);
-    const occupant = placements.find(
-      (p) => p.roomId === roomId && p.startsAt === startsAt,
+    // Match by slot window (not exact ISO equality) so e.g. 10:30 appears in 10:00 hour.
+    const occupant = placements.find((p) =>
+      placementInSlot(p, roomId, startsAt, DEFAULT_SLOT_MINUTES),
     );
     const isOver = dragOverSlot === key;
     return (
@@ -722,6 +740,7 @@ export function ScheduleStudioPage() {
       dayKey,
       eventStartsAt,
       eventEndsAt,
+      timezone,
     );
     const slots = buildTimeSlots(dayStart, dayEnd, DEFAULT_SLOT_MINUTES);
     const roomList =
@@ -856,10 +875,10 @@ export function ScheduleStudioPage() {
         >
           <h4 className="schedule-studio__subhead">{dk}</h4>
           <ul className="schedule-studio__week-list">
-            {placementsOnDay(placements, dk).length === 0 ? (
+            {placementsOnDay(placements, dk, timezone).length === 0 ? (
               <li className="eval-queue__muted">No sessions</li>
             ) : (
-              placementsOnDay(placements, dk).map((p) => (
+              placementsOnDay(placements, dk, timezone).map((p) => (
                 <li
                   key={p.id}
                   data-testid={`schedule-week-placement-${p.id}`}
@@ -875,8 +894,10 @@ export function ScheduleStudioPage() {
           {/* Slots for keyboard/drag place on each week day (first room). */}
           {rooms[0]
             ? buildTimeSlots(
-                dayWindowForEvent(dk, eventStartsAt, eventEndsAt).dayStart,
-                dayWindowForEvent(dk, eventStartsAt, eventEndsAt).dayEnd,
+                dayWindowForEvent(dk, eventStartsAt, eventEndsAt, timezone)
+                  .dayStart,
+                dayWindowForEvent(dk, eventStartsAt, eventEndsAt, timezone)
+                  .dayEnd,
               )
                 .slice(0, 4)
                 .map((startsAt) => renderSlot(rooms[0]!.id, startsAt))
@@ -944,9 +965,18 @@ export function ScheduleStudioPage() {
           <h4 className="schedule-studio__subhead">{r.name} slots</h4>
           <div className="schedule-studio__room-slot-row">
             {buildTimeSlots(
-              dayWindowForEvent(primaryDay, eventStartsAt, eventEndsAt)
-                .dayStart,
-              dayWindowForEvent(primaryDay, eventStartsAt, eventEndsAt).dayEnd,
+              dayWindowForEvent(
+                primaryDay,
+                eventStartsAt,
+                eventEndsAt,
+                timezone,
+              ).dayStart,
+              dayWindowForEvent(
+                primaryDay,
+                eventStartsAt,
+                eventEndsAt,
+                timezone,
+              ).dayEnd,
             )
               .slice(0, 6)
               .map((startsAt) => renderSlot(r.id, startsAt))}

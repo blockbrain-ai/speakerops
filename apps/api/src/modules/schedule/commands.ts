@@ -27,6 +27,7 @@ import {
   type PlacementWriteBundle,
   newPlacementId,
   newReservationId,
+  normalizeIsoUtc,
 } from "./store.js";
 
 export type ScheduleCommandDeps = {
@@ -157,35 +158,40 @@ function buildBundle(input: {
   participationIds: string[];
   createdAt?: string;
 }): PlacementWriteBundle {
+  // Canonical UTC ISO so offset-equivalent instants share one storage form.
+  const startsAt = normalizeIsoUtc(input.startsAt);
+  const endsAt = normalizeIsoUtc(input.endsAt);
+  const now = normalizeIsoUtc(input.now);
+  const createdAt = normalizeIsoUtc(input.createdAt ?? input.now);
   return {
     placement: {
       id: input.placementId,
       eventId: input.eventId,
       sessionId: input.sessionId,
       roomId: input.roomId,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
+      startsAt,
+      endsAt,
       version: input.version,
-      createdAt: input.createdAt ?? input.now,
-      updatedAt: input.now,
+      createdAt,
+      updatedAt: now,
     },
     roomReservation: {
       id: newReservationId(),
       eventId: input.eventId,
       roomId: input.roomId,
       placementId: input.placementId,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
-      createdAt: input.now,
+      startsAt,
+      endsAt,
+      createdAt: now,
     },
     speakerReservations: input.participationIds.map((participationId) => ({
       id: newReservationId(),
       eventId: input.eventId,
       participationId,
       placementId: input.placementId,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
-      createdAt: input.now,
+      startsAt,
+      endsAt,
+      createdAt: now,
     })),
   };
 }
@@ -247,11 +253,14 @@ export async function placeSession(
   const speakers = await deps.decisions.listSessionSpeakers(input.sessionId);
   const participationIds = speakers.map((s) => s.participationId);
 
+  const startsAt = normalizeIsoUtc(input.startsAt);
+  const endsAt = normalizeIsoUtc(input.endsAt);
+
   const conflicts = await detectConflicts(deps, {
     eventId: input.eventId,
     roomId: input.roomId,
-    startsAt: input.startsAt,
-    endsAt: input.endsAt,
+    startsAt,
+    endsAt,
     participationIds,
   });
   if (conflicts.length > 0) {
@@ -265,8 +274,8 @@ export async function placeSession(
     eventId: input.eventId,
     sessionId: input.sessionId,
     roomId: input.roomId,
-    startsAt: input.startsAt,
-    endsAt: input.endsAt,
+    startsAt,
+    endsAt,
     version: 1,
     now,
     participationIds,
@@ -287,12 +296,12 @@ export async function placeSession(
         },
       ]);
     }
-    // Re-detect conflicts for concurrent room/speaker race
+    // Re-detect conflicts for concurrent room/speaker race (write boundary lost)
     const again = await detectConflicts(deps, {
       eventId: input.eventId,
       roomId: input.roomId,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
+      startsAt,
+      endsAt,
       participationIds,
     });
     if (again.length > 0) return conflictErr(again);
@@ -386,11 +395,14 @@ export async function movePlacement(
   const speakers = await deps.decisions.listSessionSpeakers(existing.sessionId);
   const participationIds = speakers.map((s) => s.participationId);
 
+  const startsAt = normalizeIsoUtc(input.startsAt);
+  const endsAt = normalizeIsoUtc(input.endsAt);
+
   const conflicts = await detectConflicts(deps, {
     eventId: input.eventId,
     roomId: input.roomId,
-    startsAt: input.startsAt,
-    endsAt: input.endsAt,
+    startsAt,
+    endsAt,
     participationIds,
     excludePlacementId: existing.id,
   });
@@ -404,8 +416,8 @@ export async function movePlacement(
     eventId: existing.eventId,
     sessionId: existing.sessionId,
     roomId: input.roomId,
-    startsAt: input.startsAt,
-    endsAt: input.endsAt,
+    startsAt,
+    endsAt,
     version: existing.version + 1,
     now,
     participationIds,
@@ -417,7 +429,8 @@ export async function movePlacement(
     bundle,
   );
   if (!updated) {
-    // Version race or reservation unique
+    // Version race, write-boundary overlap, or concurrent reservation conflict.
+    // Placement+reservations remain intact (atomic batch / memory all-or-nothing).
     const latest = await deps.schedule.findPlacementById(input.placementId);
     if (!latest || latest.version !== input.expectedVersion) {
       return versionErr(
@@ -428,8 +441,8 @@ export async function movePlacement(
     const again = await detectConflicts(deps, {
       eventId: input.eventId,
       roomId: input.roomId,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
+      startsAt,
+      endsAt,
       participationIds,
       excludePlacementId: existing.id,
     });

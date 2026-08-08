@@ -190,6 +190,24 @@ describe("6.1 schedule conflict engine", () => {
         "2026-09-01T12:00:00.000Z",
       ),
     ).toBe(false);
+    // Offset-equivalent instants: 06:30-04:00–07:30-04:00 overlaps 10:00Z–11:00Z
+    expect(
+      intervalsOverlap(
+        "2026-09-01T06:30:00.000-04:00",
+        "2026-09-01T07:30:00.000-04:00",
+        "2026-09-01T10:00:00.000Z",
+        "2026-09-01T11:00:00.000Z",
+      ),
+    ).toBe(true);
+    // Pure lexicographic would miss this; epoch compare must not.
+    expect(
+      intervalsOverlap(
+        "2026-09-01T06:30:00-04:00",
+        "2026-09-01T07:30:00-04:00",
+        "2026-09-01T10:00:00.000Z",
+        "2026-09-01T11:00:00.000Z",
+      ),
+    ).toBe(true);
   });
 
   it("assert double-book speaker returns 409 CONFLICT", async () => {

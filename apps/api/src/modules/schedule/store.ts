@@ -5,11 +5,16 @@
  * D1ScheduleStore — production SoR.
  * Event-scoped queries take eventId (E2).
  *
- * Conflict integrity: unique exact-block indexes + domain overlap checks before write.
- * Place/Move/Unschedule write placement + reservations as a single logical unit
- * (memory is transactional; D1 deletes then inserts in fixed order, reverse on failure).
+ * Conflict integrity:
+ * - Timestamps normalized to UTC ISO before storage/compare.
+ * - intervalsOverlap uses numeric epochs (offset-equivalent instants match).
+ * - Overlap re-checked at the write boundary (not only command pre-check).
+ * - Memory: single critical-section all-or-nothing apply.
+ * - D1: single db.batch() for placement + reservations; conditional inserts
+ *   with NOT EXISTS overlap + integrity abort so concurrent overlapping
+ *   intervals cannot both commit and partial writes never stick.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import {
   createDb,
@@ -89,14 +94,15 @@ export type ScheduleStore = {
   ): Promise<SpeakerReservationRow[]>;
 
   /**
-   * Insert placement + reservations. Fails closed if any unique constraint hits.
-   * Returns false on constraint / version race.
+   * Insert placement + reservations. Fails closed if any unique/overlap hits.
+   * Returns false on constraint / version race / hard conflict.
    */
   insertPlacementBundle(bundle: PlacementWriteBundle): Promise<boolean>;
 
   /**
    * Conditional update: WHERE id AND version = expectedVersion, then replace reservations.
-   * Returns null on missing row or version conflict.
+   * Returns null on missing row, version conflict, or hard conflict.
+   * Never leaves a placement without its reservations.
    */
   updatePlacementBundle(
     expectedVersion: number,
@@ -106,6 +112,7 @@ export type ScheduleStore = {
   /**
    * Conditional delete: WHERE id AND version = expectedVersion; frees reservations.
    * Returns false on missing / version conflict.
+   * Never frees reservations without deleting the placement (and vice versa).
    */
   deletePlacementBundle(
     placementId: string,
@@ -120,14 +127,66 @@ export function newReservationId(): string {
   return uuidv7();
 }
 
-/** Half-open style overlap: A starts before B ends AND A ends after B starts. */
+/**
+ * Normalize any Date.parse-compatible instant to canonical UTC ISO.
+ * Ensures equivalent offsets compare equal and store under one form.
+ */
+export function normalizeIsoUtc(iso: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return iso;
+  return new Date(ms).toISOString();
+}
+
+/** Half-open style overlap via numeric epochs (not string lexicographic). */
 export function intervalsOverlap(
   aStart: string,
   aEnd: string,
   bStart: string,
   bEnd: string,
 ): boolean {
-  return aStart < bEnd && aEnd > bStart;
+  const as = Date.parse(aStart);
+  const ae = Date.parse(aEnd);
+  const bs = Date.parse(bStart);
+  const be = Date.parse(bEnd);
+  if (
+    !Number.isFinite(as) ||
+    !Number.isFinite(ae) ||
+    !Number.isFinite(bs) ||
+    !Number.isFinite(be)
+  ) {
+    // Fall back to lexicographic only for unparseable inputs (should not happen).
+    return aStart < bEnd && aEnd > bStart;
+  }
+  return as < be && ae > bs;
+}
+
+/** Normalize all interval timestamps in a write bundle to UTC ISO. */
+export function normalizePlacementBundle(
+  bundle: PlacementWriteBundle,
+): PlacementWriteBundle {
+  const startsAt = normalizeIsoUtc(bundle.placement.startsAt);
+  const endsAt = normalizeIsoUtc(bundle.placement.endsAt);
+  return {
+    placement: {
+      ...bundle.placement,
+      startsAt,
+      endsAt,
+      createdAt: normalizeIsoUtc(bundle.placement.createdAt),
+      updatedAt: normalizeIsoUtc(bundle.placement.updatedAt),
+    },
+    roomReservation: {
+      ...bundle.roomReservation,
+      startsAt,
+      endsAt,
+      createdAt: normalizeIsoUtc(bundle.roomReservation.createdAt),
+    },
+    speakerReservations: bundle.speakerReservations.map((s) => ({
+      ...s,
+      startsAt,
+      endsAt,
+      createdAt: normalizeIsoUtc(s.createdAt),
+    })),
+  };
 }
 
 /**
@@ -165,6 +224,8 @@ export class MemoryScheduleStore implements ScheduleStore {
     endsAt: string;
     excludePlacementId?: string;
   }): Promise<RoomReservationRow[]> {
+    const startsAt = normalizeIsoUtc(input.startsAt);
+    const endsAt = normalizeIsoUtc(input.endsAt);
     return [...this.roomRes.values()]
       .filter(
         (r) =>
@@ -173,12 +234,7 @@ export class MemoryScheduleStore implements ScheduleStore {
           (input.excludePlacementId
             ? r.placementId !== input.excludePlacementId
             : true) &&
-          intervalsOverlap(
-            input.startsAt,
-            input.endsAt,
-            r.startsAt,
-            r.endsAt,
-          ),
+          intervalsOverlap(startsAt, endsAt, r.startsAt, r.endsAt),
       )
       .map((r) => ({ ...r }));
   }
@@ -190,6 +246,8 @@ export class MemoryScheduleStore implements ScheduleStore {
     endsAt: string;
     excludePlacementId?: string;
   }): Promise<SpeakerReservationRow[]> {
+    const startsAt = normalizeIsoUtc(input.startsAt);
+    const endsAt = normalizeIsoUtc(input.endsAt);
     return [...this.speakerRes.values()]
       .filter(
         (r) =>
@@ -198,12 +256,7 @@ export class MemoryScheduleStore implements ScheduleStore {
           (input.excludePlacementId
             ? r.placementId !== input.excludePlacementId
             : true) &&
-          intervalsOverlap(
-            input.startsAt,
-            input.endsAt,
-            r.startsAt,
-            r.endsAt,
-          ),
+          intervalsOverlap(startsAt, endsAt, r.startsAt, r.endsAt),
       )
       .map((r) => ({ ...r }));
   }
@@ -216,19 +269,24 @@ export class MemoryScheduleStore implements ScheduleStore {
       .map((r) => ({ ...r }));
   }
 
-  async insertPlacementBundle(bundle: PlacementWriteBundle): Promise<boolean> {
-    if (this.placements.has(bundle.placement.id)) return false;
-    if (this.bySession.has(bundle.placement.sessionId)) return false;
-
-    // Exact unique simulation for room/speaker
+  /** Write-boundary hard conflict (room + speaker overlap). */
+  private hasHardConflict(
+    bundle: PlacementWriteBundle,
+    excludePlacementId?: string,
+  ): boolean {
     for (const r of this.roomRes.values()) {
       if (
         r.eventId === bundle.roomReservation.eventId &&
         r.roomId === bundle.roomReservation.roomId &&
-        r.startsAt === bundle.roomReservation.startsAt &&
-        r.endsAt === bundle.roomReservation.endsAt
+        (excludePlacementId ? r.placementId !== excludePlacementId : true) &&
+        intervalsOverlap(
+          bundle.roomReservation.startsAt,
+          bundle.roomReservation.endsAt,
+          r.startsAt,
+          r.endsAt,
+        )
       ) {
-        return false;
+        return true;
       }
     }
     for (const s of bundle.speakerReservations) {
@@ -236,21 +294,31 @@ export class MemoryScheduleStore implements ScheduleStore {
         if (
           existing.eventId === s.eventId &&
           existing.participationId === s.participationId &&
-          existing.startsAt === s.startsAt &&
-          existing.endsAt === s.endsAt
+          (excludePlacementId
+            ? existing.placementId !== excludePlacementId
+            : true) &&
+          intervalsOverlap(s.startsAt, s.endsAt, existing.startsAt, existing.endsAt)
         ) {
-          return false;
+          return true;
         }
       }
     }
+    return false;
+  }
+
+  async insertPlacementBundle(bundle: PlacementWriteBundle): Promise<boolean> {
+    const b = normalizePlacementBundle(bundle);
+    if (this.placements.has(b.placement.id)) return false;
+    if (this.bySession.has(b.placement.sessionId)) return false;
+
+    // Write-boundary overlap (not only exact unique keys).
+    if (this.hasHardConflict(b)) return false;
 
     // Atomic: all-or-nothing
-    this.placements.set(bundle.placement.id, { ...bundle.placement });
-    this.bySession.set(bundle.placement.sessionId, bundle.placement.id);
-    this.roomRes.set(bundle.roomReservation.id, {
-      ...bundle.roomReservation,
-    });
-    for (const s of bundle.speakerReservations) {
+    this.placements.set(b.placement.id, { ...b.placement });
+    this.bySession.set(b.placement.sessionId, b.placement.id);
+    this.roomRes.set(b.roomReservation.id, { ...b.roomReservation });
+    for (const s of b.speakerReservations) {
       this.speakerRes.set(s.id, { ...s });
     }
     return true;
@@ -260,41 +328,30 @@ export class MemoryScheduleStore implements ScheduleStore {
     expectedVersion: number,
     bundle: PlacementWriteBundle,
   ): Promise<PlacementRow | null> {
-    const existing = this.placements.get(bundle.placement.id);
+    const b = normalizePlacementBundle(bundle);
+    const existing = this.placements.get(b.placement.id);
     if (!existing || existing.version !== expectedVersion) return null;
-    if (existing.sessionId !== bundle.placement.sessionId) return null;
+    if (existing.sessionId !== b.placement.sessionId) return null;
 
-    // Free old reservations
-    for (const [id, r] of [...this.roomRes.entries()]) {
-      if (r.placementId === bundle.placement.id) this.roomRes.delete(id);
-    }
-    for (const [id, r] of [...this.speakerRes.entries()]) {
-      if (r.placementId === bundle.placement.id) this.speakerRes.delete(id);
-    }
-
-    // Exact unique against others
-    for (const r of this.roomRes.values()) {
-      if (
-        r.eventId === bundle.roomReservation.eventId &&
-        r.roomId === bundle.roomReservation.roomId &&
-        r.startsAt === bundle.roomReservation.startsAt &&
-        r.endsAt === bundle.roomReservation.endsAt
-      ) {
-        // restore would be complex; domain checks overlaps first — fail closed
-        return null;
-      }
-    }
+    // Check conflicts against others *before* mutating maps (no partial free).
+    if (this.hasHardConflict(b, b.placement.id)) return null;
 
     const next: PlacementRow = {
-      ...bundle.placement,
+      ...b.placement,
       version: expectedVersion + 1,
     };
+
+    // Atomic replace: remove old reservations then install new state together.
+    for (const [id, r] of [...this.roomRes.entries()]) {
+      if (r.placementId === b.placement.id) this.roomRes.delete(id);
+    }
+    for (const [id, r] of [...this.speakerRes.entries()]) {
+      if (r.placementId === b.placement.id) this.speakerRes.delete(id);
+    }
     this.placements.set(next.id, next);
     this.bySession.set(next.sessionId, next.id);
-    this.roomRes.set(bundle.roomReservation.id, {
-      ...bundle.roomReservation,
-    });
-    for (const s of bundle.speakerReservations) {
+    this.roomRes.set(b.roomReservation.id, { ...b.roomReservation });
+    for (const s of b.speakerReservations) {
       this.speakerRes.set(s.id, { ...s });
     }
     return { ...next };
@@ -307,6 +364,7 @@ export class MemoryScheduleStore implements ScheduleStore {
     const existing = this.placements.get(placementId);
     if (!existing || existing.version !== expectedVersion) return false;
 
+    // Atomic free: placement + all reservations together.
     this.placements.delete(placementId);
     this.bySession.delete(existing.sessionId);
     for (const [id, r] of [...this.roomRes.entries()]) {
@@ -321,6 +379,12 @@ export class MemoryScheduleStore implements ScheduleStore {
 
 /**
  * D1-backed schedule store (production SoR).
+ *
+ * All multi-row mutations use a single db.batch() so placement + reservations
+ * commit or roll back together. Reservation inserts are gated with
+ * NOT EXISTS (overlap) and an integrity SELECT aborts the batch if counts
+ * do not match, so concurrent overlapping intervals cannot both land and
+ * placements are never left without reservations.
  */
 export class D1ScheduleStore implements ScheduleStore {
   private db: SpeakerOpsDb;
@@ -364,6 +428,8 @@ export class D1ScheduleStore implements ScheduleStore {
     endsAt: string;
     excludePlacementId?: string;
   }): Promise<RoomReservationRow[]> {
+    const startsAt = normalizeIsoUtc(input.startsAt);
+    const endsAt = normalizeIsoUtc(input.endsAt);
     // Pull room's reservations for event then filter overlap (D1 has no range operators).
     const rows = await this.db
       .select()
@@ -380,12 +446,7 @@ export class D1ScheduleStore implements ScheduleStore {
           (input.excludePlacementId
             ? r.placementId !== input.excludePlacementId
             : true) &&
-          intervalsOverlap(
-            input.startsAt,
-            input.endsAt,
-            r.startsAt,
-            r.endsAt,
-          ),
+          intervalsOverlap(startsAt, endsAt, r.startsAt, r.endsAt),
       )
       .map((r) => this.mapRoomRes(r));
   }
@@ -397,6 +458,8 @@ export class D1ScheduleStore implements ScheduleStore {
     endsAt: string;
     excludePlacementId?: string;
   }): Promise<SpeakerReservationRow[]> {
+    const startsAt = normalizeIsoUtc(input.startsAt);
+    const endsAt = normalizeIsoUtc(input.endsAt);
     const rows = await this.db
       .select()
       .from(speakerBlockReservations)
@@ -415,12 +478,7 @@ export class D1ScheduleStore implements ScheduleStore {
           (input.excludePlacementId
             ? r.placementId !== input.excludePlacementId
             : true) &&
-          intervalsOverlap(
-            input.startsAt,
-            input.endsAt,
-            r.startsAt,
-            r.endsAt,
-          ),
+          intervalsOverlap(startsAt, endsAt, r.startsAt, r.endsAt),
       )
       .map((r) => this.mapSpeakerRes(r));
   }
@@ -435,57 +493,140 @@ export class D1ScheduleStore implements ScheduleStore {
     return rows.map((r) => this.mapSpeakerRes(r));
   }
 
+  /**
+   * Integrity abort: 1/0 if placement lacks exactly one room res and N speaker res.
+   * Aborts the surrounding D1 batch → full rollback (no partial write).
+   */
+  private integrityGuard(placementId: string, speakerCount: number) {
+    return this.db.run(sql`
+      SELECT 1 / (
+        CASE
+          WHEN (
+            SELECT COUNT(*) FROM room_block_reservations
+            WHERE placement_id = ${placementId}
+          ) = 1
+          AND (
+            SELECT COUNT(*) FROM speaker_block_reservations
+            WHERE placement_id = ${placementId}
+          ) = ${speakerCount}
+          THEN 1
+          ELSE 0
+        END
+      )
+    `);
+  }
+
+  /** Room insert gated on placement existing + no overlapping room block. */
+  private roomResInsertSelect(
+    r: RoomReservationRow,
+    placementVersion: number,
+  ) {
+    return this.db.insert(roomBlockReservations).select(
+      this.db
+        .select({
+          id: sql<string>`${r.id}`.as("id"),
+          eventId: sql<string>`${r.eventId}`.as("event_id"),
+          roomId: sql<string>`${r.roomId}`.as("room_id"),
+          placementId: sql<string>`${r.placementId}`.as("placement_id"),
+          startsAt: sql<string>`${r.startsAt}`.as("starts_at"),
+          endsAt: sql<string>`${r.endsAt}`.as("ends_at"),
+          createdAt: sql<string>`${r.createdAt}`.as("created_at"),
+        })
+        .from(schedulePlacements)
+        .where(
+          and(
+            eq(schedulePlacements.id, r.placementId),
+            eq(schedulePlacements.version, placementVersion),
+            sql`NOT EXISTS (
+              SELECT 1 FROM room_block_reservations rbr
+              WHERE rbr.event_id = ${r.eventId}
+                AND rbr.room_id = ${r.roomId}
+                AND rbr.placement_id != ${r.placementId}
+                AND rbr.starts_at < ${r.endsAt}
+                AND rbr.ends_at > ${r.startsAt}
+            )`,
+          ),
+        )
+        .limit(1),
+    );
+  }
+
+  /** Speaker insert gated on placement version + no overlapping speaker block. */
+  private speakerResInsertSelect(
+    s: SpeakerReservationRow,
+    placementVersion: number,
+  ) {
+    return this.db.insert(speakerBlockReservations).select(
+      this.db
+        .select({
+          id: sql<string>`${s.id}`.as("id"),
+          eventId: sql<string>`${s.eventId}`.as("event_id"),
+          participationId: sql<string>`${s.participationId}`.as(
+            "participation_id",
+          ),
+          placementId: sql<string>`${s.placementId}`.as("placement_id"),
+          startsAt: sql<string>`${s.startsAt}`.as("starts_at"),
+          endsAt: sql<string>`${s.endsAt}`.as("ends_at"),
+          createdAt: sql<string>`${s.createdAt}`.as("created_at"),
+        })
+        .from(schedulePlacements)
+        .where(
+          and(
+            eq(schedulePlacements.id, s.placementId),
+            eq(schedulePlacements.version, placementVersion),
+            sql`NOT EXISTS (
+              SELECT 1 FROM speaker_block_reservations sbr
+              WHERE sbr.event_id = ${s.eventId}
+                AND sbr.participation_id = ${s.participationId}
+                AND sbr.placement_id != ${s.placementId}
+                AND sbr.starts_at < ${s.endsAt}
+                AND sbr.ends_at > ${s.startsAt}
+            )`,
+          ),
+        )
+        .limit(1),
+    );
+  }
+
   async insertPlacementBundle(bundle: PlacementWriteBundle): Promise<boolean> {
+    const b = normalizePlacementBundle(bundle);
+    const speakerCount = b.speakerReservations.length;
+    const placementInsert = this.db.insert(schedulePlacements).values({
+      id: b.placement.id,
+      eventId: b.placement.eventId,
+      sessionId: b.placement.sessionId,
+      roomId: b.placement.roomId,
+      startsAt: b.placement.startsAt,
+      endsAt: b.placement.endsAt,
+      version: b.placement.version,
+      createdAt: b.placement.createdAt,
+      updatedAt: b.placement.updatedAt,
+    });
+    const roomInsert = this.roomResInsertSelect(
+      b.roomReservation,
+      b.placement.version,
+    );
+    const speakerInserts = b.speakerReservations.map((s) =>
+      this.speakerResInsertSelect(s, b.placement.version),
+    );
+    const guard = this.integrityGuard(b.placement.id, speakerCount);
+
     try {
-      await this.db.insert(schedulePlacements).values({
-        id: bundle.placement.id,
-        eventId: bundle.placement.eventId,
-        sessionId: bundle.placement.sessionId,
-        roomId: bundle.placement.roomId,
-        startsAt: bundle.placement.startsAt,
-        endsAt: bundle.placement.endsAt,
-        version: bundle.placement.version,
-        createdAt: bundle.placement.createdAt,
-        updatedAt: bundle.placement.updatedAt,
-      });
-      await this.db.insert(roomBlockReservations).values({
-        id: bundle.roomReservation.id,
-        eventId: bundle.roomReservation.eventId,
-        roomId: bundle.roomReservation.roomId,
-        placementId: bundle.roomReservation.placementId,
-        startsAt: bundle.roomReservation.startsAt,
-        endsAt: bundle.roomReservation.endsAt,
-        createdAt: bundle.roomReservation.createdAt,
-      });
-      for (const s of bundle.speakerReservations) {
-        await this.db.insert(speakerBlockReservations).values({
-          id: s.id,
-          eventId: s.eventId,
-          participationId: s.participationId,
-          placementId: s.placementId,
-          startsAt: s.startsAt,
-          endsAt: s.endsAt,
-          createdAt: s.createdAt,
-        });
+      // Single transactional batch: all-or-nothing (incl. integrity abort).
+      if (speakerInserts.length === 0) {
+        await this.db.batch([placementInsert, roomInsert, guard]);
+      } else {
+        await this.db.batch([
+          placementInsert,
+          roomInsert,
+          speakerInserts[0]!,
+          ...speakerInserts.slice(1),
+          guard,
+        ]);
       }
       return true;
     } catch {
-      // Unique constraint or FK — roll back partial placement if present
-      try {
-        await this.db
-          .delete(speakerBlockReservations)
-          .where(
-            eq(speakerBlockReservations.placementId, bundle.placement.id),
-          );
-        await this.db
-          .delete(roomBlockReservations)
-          .where(eq(roomBlockReservations.placementId, bundle.placement.id));
-        await this.db
-          .delete(schedulePlacements)
-          .where(eq(schedulePlacements.id, bundle.placement.id));
-      } catch {
-        // best-effort cleanup
-      }
+      // Unique constraint, integrity abort (overlap), or FK — nothing committed.
       return false;
     }
   }
@@ -494,78 +635,120 @@ export class D1ScheduleStore implements ScheduleStore {
     expectedVersion: number,
     bundle: PlacementWriteBundle,
   ): Promise<PlacementRow | null> {
+    const b = normalizePlacementBundle(bundle);
     const nextVersion = expectedVersion + 1;
-    const result = await this.db
+    const speakerCount = b.speakerReservations.length;
+
+    // Version CAS — gates subsequent deletes/inserts via EXISTS on new version.
+    const placementUpdate = this.db
       .update(schedulePlacements)
       .set({
-        roomId: bundle.placement.roomId,
-        startsAt: bundle.placement.startsAt,
-        endsAt: bundle.placement.endsAt,
+        roomId: b.placement.roomId,
+        startsAt: b.placement.startsAt,
+        endsAt: b.placement.endsAt,
         version: nextVersion,
-        updatedAt: bundle.placement.updatedAt,
+        updatedAt: b.placement.updatedAt,
       })
       .where(
         and(
-          eq(schedulePlacements.id, bundle.placement.id),
+          eq(schedulePlacements.id, b.placement.id),
           eq(schedulePlacements.version, expectedVersion),
         ),
       );
-    if (d1Changes(result) === 0) return null;
 
-    // Replace reservations (delete old, insert new)
-    await this.db
+    // Free old reservations only if version CAS won (same batch visibility).
+    const delSpeaker = this.db
       .delete(speakerBlockReservations)
-      .where(eq(speakerBlockReservations.placementId, bundle.placement.id));
-    await this.db
+      .where(
+        and(
+          eq(speakerBlockReservations.placementId, b.placement.id),
+          sql`EXISTS (
+            SELECT 1 FROM schedule_placements
+            WHERE id = ${b.placement.id} AND version = ${nextVersion}
+          )`,
+        ),
+      );
+    const delRoom = this.db
       .delete(roomBlockReservations)
-      .where(eq(roomBlockReservations.placementId, bundle.placement.id));
+      .where(
+        and(
+          eq(roomBlockReservations.placementId, b.placement.id),
+          sql`EXISTS (
+            SELECT 1 FROM schedule_placements
+            WHERE id = ${b.placement.id} AND version = ${nextVersion}
+          )`,
+        ),
+      );
+
+    const roomInsert = this.roomResInsertSelect(
+      b.roomReservation,
+      nextVersion,
+    );
+    const speakerInserts = b.speakerReservations.map((s) =>
+      this.speakerResInsertSelect(s, nextVersion),
+    );
+    const guard = this.integrityGuard(b.placement.id, speakerCount);
 
     try {
-      await this.db.insert(roomBlockReservations).values({
-        id: bundle.roomReservation.id,
-        eventId: bundle.roomReservation.eventId,
-        roomId: bundle.roomReservation.roomId,
-        placementId: bundle.roomReservation.placementId,
-        startsAt: bundle.roomReservation.startsAt,
-        endsAt: bundle.roomReservation.endsAt,
-        createdAt: bundle.roomReservation.createdAt,
-      });
-      for (const s of bundle.speakerReservations) {
-        await this.db.insert(speakerBlockReservations).values({
-          id: s.id,
-          eventId: s.eventId,
-          participationId: s.participationId,
-          placementId: s.placementId,
-          startsAt: s.startsAt,
-          endsAt: s.endsAt,
-          createdAt: s.createdAt,
-        });
+      let results: unknown[];
+      if (speakerInserts.length === 0) {
+        results = await this.db.batch([
+          placementUpdate,
+          delSpeaker,
+          delRoom,
+          roomInsert,
+          guard,
+        ]);
+      } else {
+        results = await this.db.batch([
+          placementUpdate,
+          delSpeaker,
+          delRoom,
+          roomInsert,
+          speakerInserts[0]!,
+          ...speakerInserts.slice(1),
+          guard,
+        ]);
       }
+      if (d1Changes(results[0]) === 0) {
+        // Lost version CAS — batch may have no-op'd deletes/inserts; nothing applied.
+        return null;
+      }
+      return this.findPlacementById(b.placement.id);
     } catch {
-      // Reservation unique failed after version claim — leave placement at new version
-      // without conflicting reservations; caller re-detects via find. Fail closed.
+      // Integrity abort (overlap) or unique — full batch rolled back; placement unchanged.
       return null;
     }
-
-    return this.findPlacementById(bundle.placement.id);
   }
 
   async deletePlacementBundle(
     placementId: string,
     expectedVersion: number,
   ): Promise<boolean> {
-    // Free reservations first so FK is clean; version gate on placement delete.
-    const existing = await this.findPlacementById(placementId);
-    if (!existing || existing.version !== expectedVersion) return false;
-
-    await this.db
+    // Version-gate every delete so a lost CAS never frees reservations alone.
+    const delSpeaker = this.db
       .delete(speakerBlockReservations)
-      .where(eq(speakerBlockReservations.placementId, placementId));
-    await this.db
+      .where(
+        and(
+          eq(speakerBlockReservations.placementId, placementId),
+          sql`EXISTS (
+            SELECT 1 FROM schedule_placements
+            WHERE id = ${placementId} AND version = ${expectedVersion}
+          )`,
+        ),
+      );
+    const delRoom = this.db
       .delete(roomBlockReservations)
-      .where(eq(roomBlockReservations.placementId, placementId));
-
-    const result = await this.db
+      .where(
+        and(
+          eq(roomBlockReservations.placementId, placementId),
+          sql`EXISTS (
+            SELECT 1 FROM schedule_placements
+            WHERE id = ${placementId} AND version = ${expectedVersion}
+          )`,
+        ),
+      );
+    const delPlacement = this.db
       .delete(schedulePlacements)
       .where(
         and(
@@ -573,11 +756,13 @@ export class D1ScheduleStore implements ScheduleStore {
           eq(schedulePlacements.version, expectedVersion),
         ),
       );
-    if (d1Changes(result) === 0) {
-      // Race: version changed after read — reservations already cleared; rare
+
+    try {
+      const results = await this.db.batch([delSpeaker, delRoom, delPlacement]);
+      return d1Changes(results[2]) > 0;
+    } catch {
       return false;
     }
-    return true;
   }
 
   private mapPlacement(row: {
@@ -644,4 +829,3 @@ export class D1ScheduleStore implements ScheduleStore {
     };
   }
 }
-
