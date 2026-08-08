@@ -474,14 +474,18 @@ export type RecordDecisionInput = DecisionRecordBody & {
  * Decision.Record — accept | reject | waitlist.
  *
  * Ordering for concurrency + partial-failure safety:
- * 1. Optimistic submission status update FIRST (claims the version race).
- *    Side effects only run after the claim so a concurrent loser never
- *    materializes a session for a non-accepted submission.
+ * 1. Optimistic submission status update FIRST when status must change (claims
+ *    the version race). Side effects only run after the claim so a concurrent
+ *    loser never materializes a session for a non-accepted submission.
  * 2. Accept: materialize session/tasks (idempotent; unique source_submission_id).
  *    Reject/waitlist after accept: dematerialize (tasks only if speaker free).
- * 3. Upsert decision, then ensure audit (idempotent retries repair missing audit).
- * 4. Same decision already recorded + status matches: re-run side-effect repair
- *    + ensure audit, return idempotent=true without bumping version.
+ * 3. Upsert decision (reason is contract input — reject/waitlist reason updates
+ *    are not silently dropped), then write audit.
+ * 4. Same decision + same reason already recorded + status matches: re-run
+ *    side-effect repair + ensure audit, return idempotent=true without bumping.
+ * 5. Partial apply repair: if status already matches the target decision but a
+ *    later write failed, retries (including with the original expectedVersion)
+ *    complete remaining artifacts/decision/audit instead of hard-409.
  */
 export async function recordDecision(
   deps: DecisionCommandDeps,
@@ -508,22 +512,6 @@ export async function recordDecision(
     };
   }
 
-  if (
-    input.expectedVersion !== undefined &&
-    submission.version !== input.expectedVersion
-  ) {
-    return {
-      ok: false,
-      status: 409,
-      error: "Version conflict",
-      code: "CONFLICT",
-      details: {
-        expectedVersion: input.expectedVersion,
-        actual: submission.version,
-      },
-    };
-  }
-
   const existingDecision = await deps.decisions.findDecisionBySubmission(
     submission.id,
   );
@@ -540,13 +528,38 @@ export async function recordDecision(
 
   const now = new Date().toISOString();
   const nextStatus = decisionToStatus(input.decision);
+  const nextReason = input.reason ?? null;
 
-  // Idempotent same decision + matching status: repair side effects + audit
+  const statusAlreadyTarget = submission.status === nextStatus;
+  const decisionMatches =
+    existingDecision != null && existingDecision.decision === input.decision;
+  const reasonMatches =
+    existingDecision != null && existingDecision.reason === nextReason;
+
+  // Version conflict — allow repair when a prior attempt already advanced status
+  // toward this same decision (partial apply; client still holds pre-claim version).
   if (
-    existingDecision &&
-    existingDecision.decision === input.decision &&
-    submission.status === nextStatus
+    input.expectedVersion !== undefined &&
+    submission.version !== input.expectedVersion
   ) {
+    const repairablePartial =
+      statusAlreadyTarget && (!existingDecision || decisionMatches);
+    if (!repairablePartial) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Version conflict",
+        code: "CONFLICT",
+        details: {
+          expectedVersion: input.expectedVersion,
+          actual: submission.version,
+        },
+      };
+    }
+  }
+
+  // Pure idempotent: same decision + reason + matching status → repair only
+  if (decisionMatches && statusAlreadyTarget && reasonMatches) {
     let sessionDto: ProgramSessionDto | null = null;
     let tasks: SpeakerTaskDto[] = [];
     let participations: EventParticipationDto[] = [];
@@ -579,11 +592,11 @@ export async function recordDecision(
       before: {
         status: submission.status,
         version: submission.version,
-        priorDecision: existingDecision.decision,
+        priorDecision: existingDecision!.decision,
       },
       after: {
         decision: input.decision,
-        reason: input.reason ?? existingDecision.reason,
+        reason: nextReason,
         status: nextStatus,
         version: submission.version,
         sessionId: sessionDto?.id ?? null,
@@ -594,7 +607,7 @@ export async function recordDecision(
     return {
       ok: true,
       value: {
-        decision: toDecisionDto(existingDecision),
+        decision: toDecisionDto(existingDecision!),
         submission: toSubmissionDto(submission),
         session: sessionDto,
         tasks,
@@ -604,25 +617,34 @@ export async function recordDecision(
     };
   }
 
-  const nextVersion = submission.version + 1;
+  // Claim version/status when transitioning, or when updating reason on an
+  // already-applied same decision. Skip re-claim when repairing a partial where
+  // status already matches and the decision row is still missing.
+  let updated = submission;
+  let nextVersion = submission.version;
+  const needsStatusClaim =
+    !statusAlreadyTarget || (decisionMatches && !reasonMatches);
 
-  // Claim version / status first — losers return 409 with no side effects
-  const updated = await deps.submissions.updateSubmission(
-    submission.id,
-    { status: nextStatus, version: nextVersion },
-    submission.version,
-  );
-  if (!updated) {
-    return {
-      ok: false,
-      status: 409,
-      error: "Version conflict",
-      code: "CONFLICT",
-      details: {
-        expectedVersion: submission.version,
-        actual: "changed",
-      },
-    };
+  if (needsStatusClaim) {
+    nextVersion = submission.version + 1;
+    const claimed = await deps.submissions.updateSubmission(
+      submission.id,
+      { status: nextStatus, version: nextVersion },
+      submission.version,
+    );
+    if (!claimed) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Version conflict",
+        code: "CONFLICT",
+        details: {
+          expectedVersion: submission.version,
+          actual: "changed",
+        },
+      };
+    }
+    updated = claimed;
   }
 
   let sessionDto: ProgramSessionDto | null = null;
@@ -652,13 +674,13 @@ export async function recordDecision(
     id: existingDecision?.id ?? newDecisionId(),
     submissionId: submission.id,
     decision: input.decision,
-    reason: input.reason ?? null,
+    reason: nextReason,
     decidedBy: input.actorUserId,
     createdAt: now,
   });
 
-  // Always insert on a real status transition (re-decide keeps full audit trail).
-  // Idempotent retries use ensureDecisionAudit above to repair a missing row only.
+  // Real transitions and reason updates insert a full audit trail.
+  // Pure idempotent retries (above) only ensure a missing audit row.
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: submission.eventId,
@@ -671,10 +693,11 @@ export async function recordDecision(
       status: submission.status,
       version: submission.version,
       priorDecision: existingDecision?.decision ?? null,
+      priorReason: existingDecision?.reason ?? null,
     }),
     afterJson: JSON.stringify({
       decision: input.decision,
-      reason: input.reason ?? null,
+      reason: nextReason,
       status: nextStatus,
       version: nextVersion,
       sessionId: sessionDto?.id ?? null,

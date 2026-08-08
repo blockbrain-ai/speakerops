@@ -480,6 +480,130 @@ describe("3.5 Decision.Record", () => {
     expect(body.tasks).toEqual([]);
   });
 
+  it("repeat reject with changed reason updates decision reason", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-reject-reason@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Reject Reason Update Event",
+    );
+    const { submissionId } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Reason Flip Talk",
+    );
+
+    const first = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-reject-r1",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Out of scope",
+        }),
+      },
+      env,
+    );
+    expect(first.status).toBe(200);
+    const firstBody = DecisionRecordResponseSchema.parse(await first.json());
+    expect(firstBody.decision.reason).toBe("Out of scope");
+    expect(firstBody.idempotent).toBe(false);
+
+    const second = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-reject-r2",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Capacity full",
+        }),
+      },
+      env,
+    );
+    expect(second.status).toBe(200);
+    const secondBody = DecisionRecordResponseSchema.parse(await second.json());
+    expect(secondBody.idempotent).toBe(false);
+    expect(secondBody.decision.decision).toBe("reject");
+    expect(secondBody.decision.reason).toBe("Capacity full");
+    expect(secondBody.submission.status).toBe("rejected");
+
+    const stored = await admin.decisions.findDecisionBySubmission(submissionId);
+    expect(stored?.reason).toBe("Capacity full");
+  });
+
+  it("partial decision repair succeeds with original expectedVersion", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-partial-repair@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Partial Repair Event",
+    );
+    const { submissionId, version } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Partial Repair Talk",
+    );
+
+    // Simulate claim-before-decision crash: status advanced, no decision row
+    const claimed = await admin.submissions.updateSubmission(
+      submissionId,
+      { status: "accepted", version: version + 1 },
+      version,
+    );
+    expect(claimed).toBeTruthy();
+    expect(
+      await admin.decisions.findDecisionBySubmission(submissionId),
+    ).toBeNull();
+
+    const repair = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-partial-repair",
+        },
+        body: JSON.stringify({
+          decision: "accept",
+          expectedVersion: version, // client still holds pre-claim version
+        }),
+      },
+      env,
+    );
+    expect(repair.status).toBe(200);
+    const body = DecisionRecordResponseSchema.parse(await repair.json());
+    expect(body.decision.decision).toBe("accept");
+    expect(body.submission.status).toBe("accepted");
+    expect(body.session).not.toBeNull();
+    expect(body.idempotent).toBe(false);
+
+    const decision = await admin.decisions.findDecisionBySubmission(
+      submissionId,
+    );
+    expect(decision?.decision).toBe("accept");
+  });
+
   it("accept then reject dematerializes session speakers and tasks", async () => {
     const admin = await magicLinkSession(
       "admin",

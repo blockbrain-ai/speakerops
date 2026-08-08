@@ -23,6 +23,9 @@
 import { Hono } from "hono";
 import {
   HealthResponseSchema,
+  TURNSTILE_TEST_SECRET_FAIL,
+  TURNSTILE_TEST_SECRET_PASS,
+  TURNSTILE_TEST_SITE_KEY,
   type HealthResponse,
 } from "@speakerops/shared";
 import { createDbMarker, SCHEMA_READY, type D1DatabaseLike } from "@speakerops/db";
@@ -378,6 +381,9 @@ export function createAppWithAuth(
  * Throws if DB binding is missing — Memory stores are never used in production.
  * Throws if TURNSTILE_SECRET_KEY is missing — production must not fall open to the
  * public TURNSTILE_DEV_PASS_TOKEN (bots can supply it from the SPA constant).
+ * Throws if TURNSTILE_SITE_KEY is missing or is the always-pass test key while the
+ * secret is a real production secret — otherwise the public CFP SPA falls back to
+ * the test UI and submits TURNSTILE_DEV_PASS_TOKEN, which Cloudflare rejects.
  */
 export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
   if (!env.DB) {
@@ -393,6 +399,27 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     throw new Error(
       "Worker binding TURNSTILE_SECRET_KEY is required for production CFP bot protection (E10). " +
         "Omitting it would accept the public development pass token and disable effective protection.",
+    );
+  }
+  const turnstileSiteKey =
+    typeof env.TURNSTILE_SITE_KEY === "string"
+      ? env.TURNSTILE_SITE_KEY.trim()
+      : "";
+  if (!turnstileSiteKey) {
+    throw new Error(
+      "Worker binding TURNSTILE_SITE_KEY is required for production CFP bot protection (E10). " +
+        "Omitting it serves the Cloudflare always-pass test site key; the SPA then submits " +
+        "TURNSTILE_DEV_PASS_TOKEN, which a real TURNSTILE_SECRET_KEY rejects and blocks all CFP submissions.",
+    );
+  }
+  const isTestSecret =
+    turnstileSecret === TURNSTILE_TEST_SECRET_PASS ||
+    turnstileSecret === TURNSTILE_TEST_SECRET_FAIL;
+  if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY && !isTestSecret) {
+    throw new Error(
+      "Worker binding TURNSTILE_SITE_KEY must not be the Cloudflare always-pass test site key " +
+        "when TURNSTILE_SECRET_KEY is a real production secret (E10). That pairing makes the SPA " +
+        "submit TURNSTILE_DEV_PASS_TOKEN, which siteverify rejects.",
     );
   }
   const d1 = env.DB as D1DatabaseLike;

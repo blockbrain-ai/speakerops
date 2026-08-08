@@ -7,9 +7,10 @@
  * Local/e2e (createApp / createAppWithAuth): when the secret is absent, only
  * the explicit development pass token is accepted. Arbitrary tokens fail closed.
  *
- * Production (createAppFromBindings): TURNSTILE_SECRET_KEY is required at
- * construction — a missing secret must not deploy with the public
- * TURNSTILE_DEV_PASS_TOKEN accepted (bots can supply it from the SPA).
+ * Production (createAppFromBindings): TURNSTILE_SECRET_KEY and TURNSTILE_SITE_KEY
+ * are both required at construction — a missing secret must not deploy with the
+ * public TURNSTILE_DEV_PASS_TOKEN accepted, and a missing/test site key with a
+ * real secret must not serve the SPA test UI that submits that token.
  */
 import {
   TURNSTILE_DEV_FAIL_TOKEN,

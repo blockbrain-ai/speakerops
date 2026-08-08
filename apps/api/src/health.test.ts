@@ -118,6 +118,7 @@ describe("1.2 Worker API health", () => {
   it("createAppFromBindings rejects missing TURNSTILE_SECRET_KEY (fail closed)", () => {
     const env = {
       DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SITE_KEY: "prod-site-key",
       // TURNSTILE_SECRET_KEY omitted intentionally
     } as WorkerBindings;
     expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SECRET_KEY/);
@@ -127,7 +128,36 @@ describe("1.2 Worker API health", () => {
     const env = {
       DB: {} as WorkerBindings["DB"],
       TURNSTILE_SECRET_KEY: "   ",
+      TURNSTILE_SITE_KEY: "prod-site-key",
     } as WorkerBindings;
     expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SECRET_KEY/);
+  });
+
+  it("createAppFromBindings rejects missing TURNSTILE_SITE_KEY (fail closed)", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: "prod-secret",
+      // TURNSTILE_SITE_KEY omitted — would fall back to test UI + DEV_PASS_TOKEN
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SITE_KEY/);
+  });
+
+  it("createAppFromBindings rejects empty TURNSTILE_SITE_KEY", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: "prod-secret",
+      TURNSTILE_SITE_KEY: "   ",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SITE_KEY/);
+  });
+
+  it("createAppFromBindings rejects test site key with real secret", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: "prod-secret",
+      // Cloudflare always-pass test site key constant
+      TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SITE_KEY/);
   });
 });

@@ -32,7 +32,7 @@
 
 ## Public CFP / Turnstile (section 3.3) — names only
 - `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. **Required** for production Worker construction (`createAppFromBindings` throws if missing/empty) so deployments cannot fall open to the public development pass token. Local/e2e (`createApp` / `createAppWithAuth`) may omit it: then only the explicit pass token (`XXXX.DUMMY.TOKEN`) is accepted; all other tokens fail closed.
-- `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). When unset, Cloudflare always-pass test site key is used for local/e2e (interactive test control). When set to a real site key, the SPA loads the Cloudflare widget and submits the returned token.
+- `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). **Required** for production Worker construction together with the secret: omitting it (or pairing a real secret with the Cloudflare always-pass test site key) makes the SPA fall back to the test UI and submit `XXXX.DUMMY.TOKEN`, which a real secret rejects — blocking all CFP submissions. Local/e2e may omit it: the always-pass test site key is used for the interactive test control.
 - Never commit Turnstile secrets or log full captcha tokens.
 
 ## Base

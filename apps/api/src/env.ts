@@ -48,7 +48,8 @@ export type WorkerBindings = {
   TURNSTILE_SECRET_KEY?: string;
   /**
    * Public Turnstile site key for SPA widget. Env **name** only.
-   * Defaults to Cloudflare always-pass test site key when unset.
+   * Required in production (`createAppFromBindings`) with TURNSTILE_SECRET_KEY.
+   * Local/e2e may omit — public CFP falls back to Cloudflare always-pass test key.
    */
   TURNSTILE_SITE_KEY?: string;
 };

@@ -499,8 +499,14 @@ test("@inv:O04 e2e/settings/rubric Eval rubric edit", async ({
   await expect(page.getByTestId("page-rubric-settings")).toBeVisible({
     timeout: 15_000,
   });
-  // Re-select in case EventProvider reloaded
-  await switcher.selectOption({ value: event.id });
+  // Full navigation remounts EventProvider: event-context is briefly the
+  // fallback <div> until Event.List reloads. Wait for the target option on a
+  // fresh locator before selectOption (stale switcher may still be a div).
+  const switcherAfterNav = page.getByTestId("event-context");
+  await expect(
+    switcherAfterNav.locator(`option[value="${event.id}"]`),
+  ).toHaveCount(1, { timeout: 10_000 });
+  await switcherAfterNav.selectOption({ value: event.id });
   await expect(page.getByTestId("rubric-form")).toBeVisible({
     timeout: 10_000,
   });
