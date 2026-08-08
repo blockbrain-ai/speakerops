@@ -11,6 +11,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 | [`docs/governance/0.1-programme-contract.md`](./docs/governance/0.1-programme-contract.md) | North star, stack lock, non-goals, soul pointers, clean-room, dogfood_ready |
 | [`docs/governance/0.2-lumen-lock.md`](./docs/governance/0.2-lumen-lock.md) | **E6 Lumen lock** — tokens, contrast gate, SVG reject, retheme blast radius, component checklist |
 | [`docs/governance/0.3-e2e-inventory-law.md`](./docs/governance/0.3-e2e-inventory-law.md) | **S-E2E-INV / S-E2E-RUN** — REQUIRED PASS for dogfood, `@inv` tags, Phase 8 full run, no shrinkage, discovery crawl |
+| [`docs/governance/0.4-domain-map.md`](./docs/governance/0.4-domain-map.md) | **S-CLI** — Person≠Speaker, command registry summary, scope default-deny (send/decisions/keys) |
 | [`docs/CONTRACTS.md`](./docs/CONTRACTS.md) | Index of binding contracts |
 | [`KMS-competition/initiative/00_CONSTITUTION.md`](./KMS-competition/initiative/00_CONSTITUTION.md) | Binding constitution (souls, stack, anti-dilution) |
 
@@ -30,6 +31,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 - Schema: `KMS-competition/initiative/contracts/SCHEMA.md`
 - Commands: `KMS-competition/initiative/contracts/COMMANDS.md`
 - Scopes: `KMS-competition/initiative/contracts/SCOPES.md`
+- Domain map (workspace): `docs/governance/0.4-domain-map.md`
 - Browser E2E inventory (canonical): `KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`
 - Browser E2E inventory law (workspace): `docs/governance/0.3-e2e-inventory-law.md`
 - Lumen (initiative): `KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`
