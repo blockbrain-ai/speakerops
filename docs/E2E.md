@@ -65,10 +65,13 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 |------|------|
 | `playwright.config.ts` | Playwright project config (Chromium) |
 | `playwright/e2e/**/*.spec.ts` | Browser tests with `@inv` tags |
+| `playwright/e2e/foundation_smoke.spec.ts` | Section **1.6** I12 keystone (health + shell) |
+| `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
 | `scripts/e2e-inventory-required-baseline.json` | Anti-shrinkage baseline (108 IDs) |
 | `reports/playwright/` | HTML report (CI) |
+| `KMS-competition/initiative/evidence/phase1.txt` | Phase 1 keystone evidence (1.6) |
 
 ---
 
@@ -87,7 +90,9 @@ Env **names** only (E10) — never commit secret values:
 |------|---------|
 | `E2E_BASE_URL` | Override base URL (default `http://127.0.0.1:5173`) |
 | `E2E_WEB_PORT` | Vite port for optional webServer |
-| `E2E_WEB_SERVER=1` | Enable Playwright webServer (Vite SPA for product journeys) |
+| `E2E_API_PORT` | Local Hono API port for e2e health (default `8787`) |
+| `E2E_WEB_SERVER=1` | Enable Playwright webServer (API + Vite). Set by `pnpm test:e2e` by default |
+| `E2E_WEB_SERVER=0` | Opt out of auto webServer (external servers already up) |
 | `E2E_INVENTORY_GATE=phase8` | Full inventory gate |
 | `E2E_PLAYWRIGHT_RUN_REPORT` | Path to JSON run report (Phase 8) |
 | `CI` | Enables forbidOnly, single worker, HTML reporter |
@@ -103,6 +108,8 @@ Env **names** only (E10) — never commit secret values:
 - Report artifact: `reports/e2e-coverage.html` (Phase 9 consumers)
 
 Section **1.5** only scaffolds the harness and inventory lint entry — it does not claim `dogfood_ready` or full REQUIRED green.
+
+Section **1.6** adds foundation smoke (`foundation_smoke.spec.ts`): health 200 + Lumen admin shell (CFP / Forms) without `pageerror`. Evidence: `KMS-competition/initiative/evidence/phase1.txt`.
 
 ---
 

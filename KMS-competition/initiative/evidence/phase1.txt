@@ -1,0 +1,124 @@
+# Phase 1 foundation evidence — section 1.6 (I12 keystone)
+
+Section: 1.6 Foundation e2e proof
+Workspace: speakerops-build
+Date: 2026-08-08
+
+## Claim
+
+Health 200 + SPA admin shell loads Lumen chrome (CFP / Forms) without pageerror.
+
+## Evidence path
+
+This file: KMS-competition/initiative/evidence/phase1.txt
+Section notes: docs/sections/1.6-foundation-e2e-proof.md
+Smoke: playwright/e2e/foundation_smoke.spec.ts
+
+## Notes
+
+- No secrets, API keys, or magic-link tokens in this evidence file.
+- Product inventory journeys remain OPEN; foundation smoke does not claim A01/L04 PASS.
+- Local e2e uses E2E_WEB_SERVER=1 (Vite + scripts/e2e-api-server.mjs).
+
+## Gate command outputs
+
+### pnpm typecheck
+```
+(node:1290626) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+> speakerops@0.1.0 typecheck /mnt/HC_Volume_105994188/speakerops-build
+> tsc -b --pretty false
+
+exit: 0
+```
+
+### pnpm test:ci (summary)
+```
+      duration_ms: 0.575538
+      ...
+    # Subtest: no secrets committed in 1.6 e2e artifacts
+    ok 7 - no secrets committed in 1.6 e2e artifacts
+      ---
+      duration_ms: 0.981078
+      ...
+    1..7
+ok 11 - 1.6 foundation e2e proof
+  ---
+  duration_ms: 12.907072
+  type: 'suite'
+  ...
+1..11
+# tests 151
+# suites 11
+# pass 151
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4620.552324
+
+ RUN  v2.1.9 /mnt/HC_Volume_105994188/speakerops-build
+
+(node:1291123) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/1.5-inventory-lint.test.ts (6 tests) 16ms
+ ✓ apps/api/src/health.test.ts (5 tests) 44ms
+ ✓ packages/db/src/migrate.test.ts (8 tests) 177ms
+ ✓ apps/web/src/layout/AdminShell.test.tsx (3 tests) 66ms
+ ✓ apps/web/src/styles/lumen.test.ts (4 tests) 5ms
+ ✓ packages/shared/src/errors.test.ts (4 tests) 9ms
+ ✓ packages/shared/src/health.test.ts (3 tests) 4ms
+
+ Test Files  7 passed (7)
+      Tests  33 passed (33)
+   Start at  13:39:19
+   Duration  1.22s (transform 431ms, setup 0ms, collect 1.10s, tests 320ms, environment 2ms, prepare 644ms)
+
+exit: 0
+```
+
+### pnpm test:e2e:inventory
+```
+(node:1291432) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+> speakerops@0.1.0 test:e2e:inventory /mnt/HC_Volume_105994188/speakerops-build
+> tsx scripts/inventory-lint.ts
+
+(node:1291451) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[test:e2e:inventory] OK: baseline 108 IDs intact (108 REQUIRED non-DEFER, 0 DEFER); inventory 108 REQUIRED, 108 unique IDs, 108 unique test_ids; fingerprints match
+[test:e2e:inventory] note: no status-owned IDs require @inv yet — tag coverage deferred until harness / IMPLEMENTED rows (Phase 1.5+)
+exit: 0
+```
+
+### pnpm test:e2e
+```
+(node:1291507) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+> speakerops@0.1.0 test:e2e /mnt/HC_Volume_105994188/speakerops-build
+> node scripts/e2e-run.mjs
+
+[test:e2e] running Playwright with /mnt/HC_Volume_105994188/speakerops-build/playwright.config.ts (E2E_WEB_SERVER=1)
+(node:1291531) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] [e2e-api] listening on http://127.0.0.1:8787 (health: /health)
+[WebServer] (node:1291622) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 
+[WebServer]   VITE v5.4.21  ready in 165 ms
+[WebServer] 
+[WebServer]   ➜  Local:   http://127.0.0.1:5173/
+[WebServer] (node:1291692) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › playwright/e2e/_harness_example.spec.ts:18:1 › @inv:A01 e2e/public/cfp-load harness documents @inv tagging convention (154ms)
+  ✓  2 [chromium] › playwright/e2e/foundation_smoke.spec.ts:28:3 › 1.6 foundation smoke (I12 keystone) › foundation: health 200 + shell CFP chrome without pageerror (348ms)
+
+  2 passed (2.6s)
+exit: 0
+```

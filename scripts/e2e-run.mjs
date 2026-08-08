@@ -1,10 +1,12 @@
 /**
  * Browser E2E gate: `pnpm test:e2e`
  *
- * Pre-scaffold: documents that full REQUIRED suite is Phase 8 (S-E2E-RUN).
- * Post-scaffold: when Playwright config exists, delegates to playwright test.
+ * When Playwright config exists, ensures API dist is built, enables local
+ * webServer (Vite + Hono health) for foundation smoke (section 1.6), then
+ * runs Playwright.
  *
- * Section 0.3 does not claim full-suite green — only wires the command name.
+ * Full REQUIRED suite green remains Phase 8 (S-E2E-RUN).
+ * Env names only (E10): E2E_WEB_SERVER, E2E_BASE_URL, E2E_WEB_PORT, E2E_API_PORT.
  */
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -37,10 +39,38 @@ if (!config) {
   process.exit(0);
 }
 
-console.log(`[test:e2e] running Playwright with ${config}`);
+// Foundation smoke (1.6) needs Vite + local API. Allow explicit opt-out:
+// E2E_WEB_SERVER=0 pnpm test:e2e  (e.g. external servers already up)
+if (process.env.E2E_WEB_SERVER === undefined) {
+  process.env.E2E_WEB_SERVER = "1";
+}
+
+// Prefer built Worker app for e2e-api-server (stable ESM, no strip-types).
+const apiDist = join(root, "apps", "api", "dist", "index.js");
+if (!existsSync(apiDist)) {
+  console.log("[test:e2e] building @speakerops/api (dist missing)…");
+  const build = spawnSync(
+    "pnpm",
+    ["--filter", "@speakerops/api", "build"],
+    { cwd: root, stdio: "inherit", shell: false },
+  );
+  if (build.status !== 0) {
+    console.error("[test:e2e] API build failed — cannot start e2e health server");
+    process.exit(build.status === null ? 1 : build.status);
+  }
+}
+
+console.log(
+  `[test:e2e] running Playwright with ${config} (E2E_WEB_SERVER=${process.env.E2E_WEB_SERVER})`,
+);
 const result = spawnSync(
   "pnpm",
   ["exec", "playwright", "test", "--config", config],
-  { cwd: root, stdio: "inherit", shell: false },
+  {
+    cwd: root,
+    stdio: "inherit",
+    shell: false,
+    env: process.env,
+  },
 );
 process.exit(result.status === null ? 1 : result.status);
