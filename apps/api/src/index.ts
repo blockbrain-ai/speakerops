@@ -379,11 +379,12 @@ export function createAppWithAuth(
 /**
  * Build production app from Worker bindings (D1 SoR).
  * Throws if DB binding is missing — Memory stores are never used in production.
- * Throws if TURNSTILE_SECRET_KEY is missing — production must not fall open to the
- * public TURNSTILE_DEV_PASS_TOKEN (bots can supply it from the SPA constant).
- * Throws if TURNSTILE_SITE_KEY is missing or is the always-pass test key while the
- * secret is a real production secret — otherwise the public CFP SPA falls back to
- * the test UI and submits TURNSTILE_DEV_PASS_TOKEN, which Cloudflare rejects.
+ * Throws if TURNSTILE_SECRET_KEY is missing/empty or is a known development/Cloudflare
+ * test secret (literal "test", always-pass, always-fail) — production must not fall
+ * open to the public TURNSTILE_DEV_PASS_TOKEN or always-pass siteverify modes.
+ * Throws if TURNSTILE_SITE_KEY is missing/empty or is the always-pass test site key —
+ * otherwise the public CFP SPA falls back to the test UI and submits
+ * TURNSTILE_DEV_PASS_TOKEN, which disables or breaks effective bot protection.
  */
 export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
   if (!env.DB) {
@@ -401,6 +402,19 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
         "Omitting it would accept the public development pass token and disable effective protection.",
     );
   }
+  // verifyTurnstile treats these as local/always-pass/always-fail modes; production
+  // must use a real Cloudflare siteverify secret only.
+  const isDevOrTestSecret =
+    turnstileSecret === "test" ||
+    turnstileSecret === TURNSTILE_TEST_SECRET_PASS ||
+    turnstileSecret === TURNSTILE_TEST_SECRET_FAIL;
+  if (isDevOrTestSecret) {
+    throw new Error(
+      "Worker binding TURNSTILE_SECRET_KEY must not be a development or Cloudflare test secret (E10). " +
+        "Known test values (literal \"test\", always-pass, always-fail) disable effective CFP bot " +
+        "protection by accepting public development tokens or always-pass siteverify modes.",
+    );
+  }
   const turnstileSiteKey =
     typeof env.TURNSTILE_SITE_KEY === "string"
       ? env.TURNSTILE_SITE_KEY.trim()
@@ -412,14 +426,10 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
         "TURNSTILE_DEV_PASS_TOKEN, which a real TURNSTILE_SECRET_KEY rejects and blocks all CFP submissions.",
     );
   }
-  const isTestSecret =
-    turnstileSecret === TURNSTILE_TEST_SECRET_PASS ||
-    turnstileSecret === TURNSTILE_TEST_SECRET_FAIL;
-  if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY && !isTestSecret) {
+  if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
     throw new Error(
-      "Worker binding TURNSTILE_SITE_KEY must not be the Cloudflare always-pass test site key " +
-        "when TURNSTILE_SECRET_KEY is a real production secret (E10). That pairing makes the SPA " +
-        "submit TURNSTILE_DEV_PASS_TOKEN, which siteverify rejects.",
+      "Worker binding TURNSTILE_SITE_KEY must not be the Cloudflare always-pass test site key (E10). " +
+        "That key makes the SPA submit TURNSTILE_DEV_PASS_TOKEN and disables effective CFP bot protection.",
     );
   }
   const d1 = env.DB as D1DatabaseLike;

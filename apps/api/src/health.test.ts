@@ -13,6 +13,9 @@ import {
   HealthResponseSchema,
   NOT_FOUND,
   INTERNAL_ERROR,
+  TURNSTILE_TEST_SECRET_FAIL,
+  TURNSTILE_TEST_SECRET_PASS,
+  TURNSTILE_TEST_SITE_KEY,
 } from "@speakerops/shared";
 import { createApp, createAppFromBindings, DEFAULT_APP_VERSION } from "./index.js";
 import { onErrorHandler } from "./middleware/errors.js";
@@ -151,13 +154,48 @@ describe("1.2 Worker API health", () => {
     expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SITE_KEY/);
   });
 
-  it("createAppFromBindings rejects test site key with real secret", () => {
+  it("createAppFromBindings rejects test site key", () => {
     const env = {
       DB: {} as WorkerBindings["DB"],
       TURNSTILE_SECRET_KEY: "prod-secret",
-      // Cloudflare always-pass test site key constant
-      TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+      TURNSTILE_SITE_KEY: TURNSTILE_TEST_SITE_KEY,
     } as WorkerBindings;
     expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SITE_KEY/);
+  });
+
+  it("createAppFromBindings rejects literal development secret \"test\"", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: "test",
+      TURNSTILE_SITE_KEY: "prod-site-key",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SECRET_KEY/);
+  });
+
+  it("createAppFromBindings rejects Cloudflare always-pass test secret", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET_PASS,
+      TURNSTILE_SITE_KEY: "prod-site-key",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SECRET_KEY/);
+  });
+
+  it("createAppFromBindings rejects Cloudflare always-fail test secret", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET_FAIL,
+      TURNSTILE_SITE_KEY: "prod-site-key",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SECRET_KEY/);
+  });
+
+  it("createAppFromBindings accepts real production Turnstile bindings", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: "prod-secret-not-a-test-value",
+      TURNSTILE_SITE_KEY: "prod-site-key-not-a-test-value",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).not.toThrow();
   });
 });

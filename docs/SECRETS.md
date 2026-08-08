@@ -31,8 +31,8 @@
 - Never commit magic-link tokens, session values, or log them.
 
 ## Public CFP / Turnstile (section 3.3) — names only
-- `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. **Required** for production Worker construction (`createAppFromBindings` throws if missing/empty) so deployments cannot fall open to the public development pass token. Local/e2e (`createApp` / `createAppWithAuth`) may omit it: then only the explicit pass token (`XXXX.DUMMY.TOKEN`) is accepted; all other tokens fail closed.
-- `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). **Required** for production Worker construction together with the secret: omitting it (or pairing a real secret with the Cloudflare always-pass test site key) makes the SPA fall back to the test UI and submit `XXXX.DUMMY.TOKEN`, which a real secret rejects — blocking all CFP submissions. Local/e2e may omit it: the always-pass test site key is used for the interactive test control.
+- `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. **Required** for production Worker construction (`createAppFromBindings` throws if missing/empty **or** set to a known development/Cloudflare test value: literal `test`, always-pass `1x0000…AA`, always-fail `2x0000…AA`) so deployments cannot fall open to the public development pass token or always-pass modes. Local/e2e (`createApp` / `createAppWithAuth`) may omit it: then only the explicit pass token (`XXXX.DUMMY.TOKEN`) is accepted; all other tokens fail closed.
+- `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). **Required** for production Worker construction together with the secret: omitting it or using the Cloudflare always-pass test site key makes the SPA fall back to the test UI and submit `XXXX.DUMMY.TOKEN` — blocking real protection or all CFP submissions. Local/e2e may omit it: the always-pass test site key is used for the interactive test control.
 - Never commit Turnstile secrets or log full captcha tokens.
 
 ## Base

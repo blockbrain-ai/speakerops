@@ -43,12 +43,16 @@ export type WorkerBindings = {
   BOOTSTRAP_ADMIN_EMAIL?: string;
   /**
    * Cloudflare Turnstile secret for public CFP (section 3.3).
-   * Env **name** only — never commit values (E10). Unset → local test-token path.
+   * Env **name** only — never commit values (E10).
+   * Production (`createAppFromBindings`): required; rejects empty and known
+   * development/Cloudflare test secrets (`test`, always-pass, always-fail).
+   * Local/e2e may omit → local test-token path only.
    */
   TURNSTILE_SECRET_KEY?: string;
   /**
    * Public Turnstile site key for SPA widget. Env **name** only.
-   * Required in production (`createAppFromBindings`) with TURNSTILE_SECRET_KEY.
+   * Production (`createAppFromBindings`): required with TURNSTILE_SECRET_KEY;
+   * rejects empty and the Cloudflare always-pass test site key.
    * Local/e2e may omit — public CFP falls back to Cloudflare always-pass test key.
    */
   TURNSTILE_SITE_KEY?: string;
