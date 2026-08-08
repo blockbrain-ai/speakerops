@@ -19,6 +19,7 @@ import {
   EVENT_SETTINGS_TABLES,
   DESIGN_TABLES,
   FORM_TABLES,
+  SUBMISSION_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -47,6 +48,10 @@ import {
   formVersions,
   formFields,
   formRules,
+  people,
+  submissions,
+  submissionAnswers,
+  submissionSpeakers,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -267,6 +272,38 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(schema.formVersions).toBe(formVersions);
       expect(schema.formFields).toBe(formFields);
       expect(schema.formRules).toBe(formRules);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("applies 0008_submissions and exposes people + submissions tables", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "speakerops-db-3.3-"));
+    const dbPath = join(dir, "test.sqlite");
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0008_submissions.sql");
+      for (const table of SUBMISSION_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.people).toContain("org_id");
+      expect(columns.people).toContain("email");
+      expect(columns.submissions).toContain("form_version_id");
+      expect(columns.submissions).toContain("title");
+      expect(columns.submissions).toContain("status");
+      expect(columns.submission_answers).toContain("field_key");
+      expect(columns.submission_answers).toContain("value_json");
+      expect(columns.submission_speakers).toContain("person_id");
+      expect(columns.submission_speakers).toContain("is_primary");
+      expect(people).toBeDefined();
+      expect(submissions).toBeDefined();
+      expect(submissionAnswers).toBeDefined();
+      expect(submissionSpeakers).toBeDefined();
+      expect(schema.people).toBe(people);
+      expect(schema.submissions).toBe(submissions);
+      expect(schema.submissionAnswers).toBe(submissionAnswers);
+      expect(schema.submissionSpeakers).toBe(submissionSpeakers);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

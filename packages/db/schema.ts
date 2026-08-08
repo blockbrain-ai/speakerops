@@ -1,9 +1,10 @@
 /**
  * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships
- * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets + 3.1 forms.
+ * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets + 3.1 forms
+ * + 3.3 people / submissions.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3. Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
@@ -391,6 +392,95 @@ export const formTables = {
   formRules,
 } as const;
 
+/**
+ * people — canonical identity (section 3.3). Person ≠ Speaker (join rows).
+ * Email unique per org for upsert on multi-speaker CFP submit.
+ */
+export const people = sqliteTable(
+  "people",
+  {
+    id: text("id").primaryKey().notNull(),
+    orgId: text("org_id").notNull(),
+    email: text("email").notNull(),
+    name: text("name").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_people_org_id").on(t.orgId),
+    uniqueIndex("idx_people_org_email").on(t.orgId, t.email),
+  ],
+);
+
+/**
+ * submissions — CFP applications pinned to form_version_id (section 3.3).
+ * status: draft|submitted|in_review|accepted|rejected|waitlist|withdrawn
+ * Public create writes status=submitted.
+ */
+export const submissions = sqliteTable(
+  "submissions",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    formVersionId: text("form_version_id").notNull(),
+    title: text("title").notNull(),
+    category: text("category"),
+    status: text("status").notNull(),
+    submittedAt: text("submitted_at").notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (t) => [
+    index("idx_submissions_event_id").on(t.eventId),
+    index("idx_submissions_form_version_id").on(t.formVersionId),
+    index("idx_submissions_status").on(t.eventId, t.status),
+  ],
+);
+
+/**
+ * submission_answers — field_key → value_json (stable keys from form_fields).
+ */
+export const submissionAnswers = sqliteTable(
+  "submission_answers",
+  {
+    id: text("id").primaryKey().notNull(),
+    submissionId: text("submission_id").notNull(),
+    fieldKey: text("field_key").notNull(),
+    valueJson: text("value_json").notNull(),
+  },
+  (t) => [
+    index("idx_submission_answers_submission_id").on(t.submissionId),
+    uniqueIndex("idx_submission_answers_submission_key").on(
+      t.submissionId,
+      t.fieldKey,
+    ),
+  ],
+);
+
+/**
+ * submission_speakers — Person on a CFP submission (pre-accept).
+ */
+export const submissionSpeakers = sqliteTable(
+  "submission_speakers",
+  {
+    submissionId: text("submission_id").notNull(),
+    personId: text("person_id").notNull(),
+    isPrimary: integer("is_primary").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [
+    index("idx_submission_speakers_person_id").on(t.personId),
+    uniqueIndex("idx_submission_speakers_pk").on(t.submissionId, t.personId),
+  ],
+);
+
+/** Submissions tables owned by section 3.3. */
+export const submissionTables = {
+  people,
+  submissions,
+  submissionAnswers,
+  submissionSpeakers,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -427,6 +517,14 @@ export type FormField = typeof formFields.$inferSelect;
 export type NewFormField = typeof formFields.$inferInsert;
 export type FormRule = typeof formRules.$inferSelect;
 export type NewFormRule = typeof formRules.$inferInsert;
+export type Person = typeof people.$inferSelect;
+export type NewPerson = typeof people.$inferInsert;
+export type Submission = typeof submissions.$inferSelect;
+export type NewSubmission = typeof submissions.$inferInsert;
+export type SubmissionAnswer = typeof submissionAnswers.$inferSelect;
+export type NewSubmissionAnswer = typeof submissionAnswers.$inferInsert;
+export type SubmissionSpeaker = typeof submissionSpeakers.$inferSelect;
+export type NewSubmissionSpeaker = typeof submissionSpeakers.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -448,4 +546,8 @@ export const schema = {
   formVersions,
   formFields,
   formRules,
+  people,
+  submissions,
+  submissionAnswers,
+  submissionSpeakers,
 } as const;

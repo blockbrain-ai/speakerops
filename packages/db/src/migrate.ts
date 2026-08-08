@@ -267,3 +267,11 @@ export const FORM_TABLES = [
   "form_fields",
   "form_rules",
 ] as const;
+
+/** Submissions / people table names required by section 3.3 AC. */
+export const SUBMISSION_TABLES = [
+  "people",
+  "submissions",
+  "submission_answers",
+  "submission_speakers",
+] as const;

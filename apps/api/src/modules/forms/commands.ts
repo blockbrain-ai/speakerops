@@ -9,6 +9,12 @@ import {
   uuidv7,
   FORM_DRAFT_VERSION_NUM,
   FormSnapshotSchema,
+  CFP_MIN_SPEAKERS,
+  CFP_MAX_SPEAKERS,
+  CFP_FILE_MIME_ALLOWLIST,
+  CFP_FILE_MAX_BYTES,
+  TURNSTILE_TEST_SITE_KEY,
+  computeCfpWindowState,
   type FormCreateBody,
   type FormUpdateDraftBody,
   type FormFieldDto,
@@ -17,6 +23,7 @@ import {
   type FormDto,
   type FormSnapshot,
   type FormCondition,
+  type CfpWindowState,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
@@ -599,21 +606,54 @@ async function seedPublishedContent(
   await store.replaceRules(versionId, ruleRows);
 }
 
+export type PublicFormResult = {
+  eventId: string;
+  slug: string;
+  form: FormDto | null;
+  formVersion: FormVersionDto | null;
+  windowState: CfpWindowState;
+  minSpeakers: number;
+  maxSpeakers: number;
+  turnstileSiteKey: string;
+  fileMimeAllowlist: string[];
+  fileMaxBytes: number;
+};
+
+function publicMeta(
+  hasPublishedForm: boolean,
+  opensAt: string | null | undefined,
+  closesAt: string | null | undefined,
+): Pick<
+  PublicFormResult,
+  | "windowState"
+  | "minSpeakers"
+  | "maxSpeakers"
+  | "turnstileSiteKey"
+  | "fileMimeAllowlist"
+  | "fileMaxBytes"
+> {
+  return {
+    windowState: computeCfpWindowState({
+      hasPublishedForm,
+      opensAt,
+      closesAt,
+    }),
+    minSpeakers: CFP_MIN_SPEAKERS,
+    maxSpeakers: CFP_MAX_SPEAKERS,
+    turnstileSiteKey: TURNSTILE_TEST_SITE_KEY,
+    fileMimeAllowlist: [...CFP_FILE_MIME_ALLOWLIST],
+    fileMaxBytes: CFP_FILE_MAX_BYTES,
+  };
+}
+
 /**
  * Form.GetPublic — latest published form for event slug (never draft).
+ * Section 3.3 enriches with windowState + speaker/file meta for public SPA.
  */
 export async function getPublicForm(
   deps: FormCommandDeps,
   slug: string,
-): Promise<
-  CommandOk<{
-    eventId: string;
-    slug: string;
-    form: FormDto | null;
-    formVersion: FormVersionDto | null;
-  }>
-  | CommandErr
-> {
+): Promise<CommandOk<PublicFormResult> | CommandErr> {
   const event = await deps.events.findEventBySlug(slug);
   if (!event) {
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
@@ -630,6 +670,7 @@ export async function getPublicForm(
         slug: event.slug,
         form: null,
         formVersion: null,
+        ...publicMeta(false, null, null),
       },
     };
   }
@@ -646,6 +687,7 @@ export async function getPublicForm(
         slug: event.slug,
         form: toFormDto(form),
         formVersion: null,
+        ...publicMeta(false, null, null),
       },
     };
   }
@@ -657,6 +699,7 @@ export async function getPublicForm(
       slug: event.slug,
       form: toFormDto(form),
       formVersion: await toVersionDto(deps, version),
+      ...publicMeta(true, version.opensAt, version.closesAt),
     },
   };
 }

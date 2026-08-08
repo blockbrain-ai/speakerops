@@ -30,6 +30,11 @@
 - Session cookie name is code constant `speakerops_session` (HttpOnly Secure SameSite=Lax) — not an env secret.
 - Never commit magic-link tokens, session values, or log them.
 
+## Public CFP / Turnstile (section 3.3) — names only
+- `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. When unset, API accepts local/e2e test tokens (`XXXX.DUMMY.TOKEN`) only — never enable weak path as production dogfood default.
+- `TURNSTILE_SITE_KEY` — public site key for the SPA widget (not a secret). When unset, Cloudflare always-pass test site key is used for local/e2e.
+- Never commit Turnstile secrets or log full captcha tokens.
+
 ## Base
 Dogfood base id is in AIRTABLE_BASE_ID. Tables:
 SpeakerOps_Submissions, SpeakerOps_Speakers, SpeakerOps_Sessions, SpeakerOps_Tasks, SpeakerOps_Schedule.

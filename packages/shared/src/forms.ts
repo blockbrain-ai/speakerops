@@ -199,12 +199,22 @@ export type FormPublishResponse = z.infer<typeof FormPublishResponseSchema>;
 /**
  * Form.GetPublic response — GET /api/public/cfp/:slug
  * Published form only (never draft). Design tokens optional until Design.Publish.
+ * Section 3.3 adds window/meta for public submit UX (additive, optional for 3.1 tests).
  */
 export const PublicCfpResponseSchema = z.object({
   eventId: z.string().min(1),
   slug: z.string().min(1),
   form: FormSchema.nullable(),
   formVersion: FormVersionSchema.nullable(),
+  /** CFP open/closed window (3.3). */
+  windowState: z
+    .enum(["open", "closed", "not_yet_open", "no_form"])
+    .optional(),
+  minSpeakers: z.number().int().positive().optional(),
+  maxSpeakers: z.number().int().positive().optional(),
+  turnstileSiteKey: z.string().min(1).optional(),
+  fileMimeAllowlist: z.array(z.string()).optional(),
+  fileMaxBytes: z.number().int().positive().optional(),
 });
 export type PublicCfpResponse = z.infer<typeof PublicCfpResponseSchema>;
 

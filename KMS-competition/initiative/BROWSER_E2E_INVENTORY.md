@@ -28,17 +28,17 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| A01 | public | `/cfp/:slug` | Load form; see welcome; brand tokens visible | e2e/public/cfp-load | 404 invalid slug | REQUIRED | OPEN |
-| A02 | public | CFP | Fill required fields; conditional field appears when rule met | e2e/public/cfp-conditional | Hidden field not submitted | REQUIRED | OPEN |
-| A03 | public | CFP | Select category; observe routing metadata on submit payload | e2e/public/cfp-category | Invalid category rejected | REQUIRED | OPEN |
-| A04 | public | CFP | Add second speaker block; min/max speaker rules | e2e/public/cfp-multi-speaker | Min speakers enforced | REQUIRED | OPEN |
-| A05 | public | CFP | Upload supporting file within type/size | e2e/public/cfp-file | Oversize/type rejected | REQUIRED | OPEN |
-| A06 | public | CFP | Pass Turnstile (test key); submit success + confirmation | e2e/public/cfp-submit | Missing captcha blocked | REQUIRED | OPEN |
-| A07 | public | CFP | Closed window shows closed state; no submit | e2e/public/cfp-closed | — | REQUIRED | OPEN |
-| A08 | public | CFP | Validation errors inline; focus management | e2e/public/cfp-validation | — | REQUIRED | OPEN |
-| A09 | public | CFP | Mobile viewport complete submit | e2e/public/cfp-mobile | — | REQUIRED | OPEN |
-| A10 | public | CFP | XSS string in abstract renders as text not script | e2e/public/cfp-xss | Script not executed | REQUIRED | OPEN |
-| A11 | public | CFP | Keyboard-only complete valid submit | e2e/public/cfp-keyboard | — | REQUIRED | OPEN |
+| A01 | public | `/cfp/:slug` | Load form; see welcome; brand tokens visible | e2e/public/cfp-load | 404 invalid slug | REQUIRED | PASS |
+| A02 | public | CFP | Fill required fields; conditional field appears when rule met | e2e/public/cfp-conditional | Hidden field not submitted | REQUIRED | PASS |
+| A03 | public | CFP | Select category; observe routing metadata on submit payload | e2e/public/cfp-category | Invalid category rejected | REQUIRED | PASS |
+| A04 | public | CFP | Add second speaker block; min/max speaker rules | e2e/public/cfp-multi-speaker | Min speakers enforced | REQUIRED | PASS |
+| A05 | public | CFP | Upload supporting file within type/size | e2e/public/cfp-file | Oversize/type rejected | REQUIRED | PASS |
+| A06 | public | CFP | Pass Turnstile (test key); submit success + confirmation | e2e/public/cfp-submit | Missing captcha blocked | REQUIRED | PASS |
+| A07 | public | CFP | Closed window shows closed state; no submit | e2e/public/cfp-closed | — | REQUIRED | PASS |
+| A08 | public | CFP | Validation errors inline; focus management | e2e/public/cfp-validation | — | REQUIRED | PASS |
+| A09 | public | CFP | Mobile viewport complete submit | e2e/public/cfp-mobile | — | REQUIRED | PASS |
+| A10 | public | CFP | XSS string in abstract renders as text not script | e2e/public/cfp-xss | Script not executed | REQUIRED | PASS |
+| A11 | public | CFP | Keyboard-only complete valid submit | e2e/public/cfp-keyboard | — | REQUIRED | PASS |
 
 ---
 

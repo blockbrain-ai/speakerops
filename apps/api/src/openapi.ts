@@ -151,7 +151,8 @@ export const FORM_OPENAPI_PATHS = {
     get: {
       operationId: "Form.GetPublic",
       summary: "Form.GetPublic",
-      description: "Latest published form for event slug (never draft)",
+      description:
+        "Latest published form for event slug (never draft) + window/meta (3.3)",
       tags: ["Form"],
       parameters: [
         {
@@ -167,6 +168,73 @@ export const FORM_OPENAPI_PATHS = {
       },
     },
   },
+  "/api/public/cfp/{slug}/submissions": {
+    post: {
+      operationId: "Submission.Create",
+      summary: "Submission.Create",
+      description:
+        "Public multi-speaker CFP submit with Turnstile, form_version pin, rate limit",
+      tags: ["Submission"],
+      parameters: [
+        {
+          name: "slug",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["formVersionId", "title", "speakers", "turnstileToken"],
+              properties: {
+                formVersionId: { type: "string" },
+                title: { type: "string" },
+                answers: { type: "array" },
+                speakers: { type: "array" },
+                turnstileToken: { type: "string" },
+                category: { type: "string", nullable: true },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "201": { description: "Submission created" },
+        "400": {
+          description:
+            "Validation / closed window / Turnstile / wrong form_version pin",
+        },
+        "404": { description: "Event slug not found" },
+        "429": { description: "Rate limited (X-RateLimit-* headers)" },
+      },
+    },
+  },
+  "/api/public/cfp/{slug}/files": {
+    post: {
+      operationId: "Cfp.FileUpload",
+      summary: "Cfp.FileUpload",
+      description: "Public supporting file upload (mime allowlist + size)",
+      tags: ["Submission"],
+      parameters: [
+        {
+          name: "slug",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "201": { description: "File stored" },
+        "400": { description: "Type/size rejected" },
+        "404": { description: "Event slug not found" },
+        "429": { description: "Rate limited" },
+      },
+    },
+  },
 } as const;
 
 /** Commands registered in the OpenAPI document (expand per section). */
@@ -175,6 +243,8 @@ export const OPENAPI_COMMANDS = [
   "Form.UpdateDraftFields",
   "Form.Publish",
   "Form.GetPublic",
+  "Submission.Create",
+  "Cfp.FileUpload",
 ] as const;
 
 export function buildOpenApiDocument(): Record<string, unknown> {
@@ -184,12 +254,15 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Section 3.1 Form builder commands included.",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
     },
-    tags: [{ name: "Form", description: "CFP form builder (S-CFP / 3.1)" }],
+    tags: [
+      { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },
+      { name: "Submission", description: "Public CFP submit (S-CFP / 3.3)" },
+    ],
     "x-speakerops-commands": [...OPENAPI_COMMANDS],
   };
 }

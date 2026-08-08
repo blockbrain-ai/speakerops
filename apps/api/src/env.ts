@@ -41,6 +41,16 @@ export type WorkerBindings = {
    * When set under controlled bootstrap, only this email may self-bootstrap admin.
    */
   BOOTSTRAP_ADMIN_EMAIL?: string;
+  /**
+   * Cloudflare Turnstile secret for public CFP (section 3.3).
+   * Env **name** only — never commit values (E10). Unset → local test-token path.
+   */
+  TURNSTILE_SECRET_KEY?: string;
+  /**
+   * Public Turnstile site key for SPA widget. Env **name** only.
+   * Defaults to Cloudflare always-pass test site key when unset.
+   */
+  TURNSTILE_SITE_KEY?: string;
 };
 
 import type { MembershipRow } from "./modules/auth/store.js";
