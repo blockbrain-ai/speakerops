@@ -390,10 +390,18 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
   const { store, events, submissions, decisions, comms, keys } = options;
   const deps = { comms, events, auth: store, submissions, decisions };
   const bearerDraft = keys
-    ? { keysStore: keys, bearerScopes: ["comms:draft"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["comms:draft"] as const,
+        eventsStore: events,
+      }
     : {};
   const bearerSend = keys
-    ? { keysStore: keys, bearerScopes: ["comms:send"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["comms:send"] as const,
+        eventsStore: events,
+      }
     : {};
 
   /**

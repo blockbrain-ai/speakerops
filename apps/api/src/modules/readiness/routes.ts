@@ -72,7 +72,11 @@ export function createReadinessRoutes(
   const { store, events, submissions, decisions, keys } = options;
   const deps = { decisions, events, auth: store, submissions };
   const bearer = keys
-    ? { keysStore: keys, bearerScopes: ["reports:read"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["reports:read"] as const,
+        eventsStore: events,
+      }
     : {};
 
   /**

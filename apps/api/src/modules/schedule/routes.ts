@@ -105,10 +105,15 @@ export function createScheduleRoutes(
     ? {
         keysStore: keys,
         bearerScopes: ["schedule:read", "schedule:write"] as const,
+        eventsStore: events,
       }
     : {};
   const bearerWrite = keys
-    ? { keysStore: keys, bearerScopes: ["schedule:write"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["schedule:write"] as const,
+        eventsStore: events,
+      }
     : {};
 
   /**

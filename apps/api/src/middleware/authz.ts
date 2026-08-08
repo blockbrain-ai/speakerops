@@ -83,6 +83,11 @@ export function actorFromContext(c: Context<ApiEnv>): RequestActor | null {
   };
 }
 
+/** Minimal event lookup used for org-scoped API key isolation (E2). */
+export type EventOrgLookup = {
+  findEventById(id: string): Promise<{ orgId: string } | null>;
+};
+
 export type RequireRoleOptions = {
   /**
    * How to resolve eventId for membership lookup.
@@ -102,6 +107,12 @@ export type RequireRoleOptions = {
   bearerScopes?: readonly string[];
   /** Required when bearerScopes is set. */
   keysStore?: KeysStore;
+  /**
+   * When set, org-scoped Bearer keys (eventId === null) are constrained to
+   * events whose orgId matches principal.orgId. Required for E2 isolation —
+   * without this, org-scoped keys would be effectively global on event routes.
+   */
+  eventsStore?: EventOrgLookup;
 };
 
 /** Extract raw secret from Authorization: Bearer header (or null). */
@@ -249,21 +260,47 @@ export function requireRole(
           403,
         );
       }
-      // Optional event binding: when key is event-scoped and route has eventId
+      // Event / org binding (E2): never allow cross-event or cross-org access.
       const eventId = resolveEventId(c, {
         eventIdFrom: options.eventIdFrom ?? "param",
         eventIdParam: options.eventIdParam,
       });
-      if (
-        principal.eventId &&
-        eventId &&
-        options.eventIdFrom !== "none" &&
-        principal.eventId !== eventId
-      ) {
-        return c.json(
-          errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
-          404,
-        );
+      if (eventId && options.eventIdFrom !== "none") {
+        if (principal.eventId && principal.eventId !== eventId) {
+          return c.json(
+            errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+            404,
+          );
+        }
+        // Org-scoped key (eventId === null): target event must belong to key.orgId.
+        // Event-scoped keys already match a single event; still verify org when
+        // lookup is available so a mismatched orgId cannot widen access.
+        if (!principal.eventId) {
+          if (!options.eventsStore) {
+            return c.json(
+              errorEnvelope("Insufficient scope", FORBIDDEN, {
+                required: [...options.bearerScopes],
+                reason: "org_scoped_key_requires_event_lookup",
+              }),
+              403,
+            );
+          }
+          const event = await options.eventsStore.findEventById(eventId);
+          if (!event || event.orgId !== principal.orgId) {
+            return c.json(
+              errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+              404,
+            );
+          }
+        } else if (options.eventsStore) {
+          const event = await options.eventsStore.findEventById(eventId);
+          if (event && event.orgId !== principal.orgId) {
+            return c.json(
+              errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+              404,
+            );
+          }
+        }
       }
       await next();
       return;

@@ -115,6 +115,11 @@ export type AuthStore = {
   ): Promise<MembershipRow | null>;
   listMembershipsForUser(userId: string): Promise<MembershipRow[]>;
   listMemberships(): Promise<MembershipRow[]>;
+  /**
+   * Hard-delete membership for transactional-outbox compensation after a
+   * failed Event.Create unit (E7). Not a product command.
+   */
+  deleteMembership(eventId: string, userId: string): Promise<boolean>;
   /** Count memberships with role (controlled first-admin bootstrap). */
   countMembershipsByRole(role: EventRole): Promise<number>;
 };
@@ -283,6 +288,11 @@ export class MemoryAuthStore implements AuthStore {
 
   async listMemberships(): Promise<MembershipRow[]> {
     return [...this.memberships.values()];
+  }
+
+  async deleteMembership(eventId: string, userId: string): Promise<boolean> {
+    const key = this.membershipKey(eventId, userId);
+    return this.memberships.delete(key);
   }
 
   async countMembershipsByRole(role: EventRole): Promise<number> {
@@ -626,6 +636,18 @@ export class D1AuthStore implements AuthStore {
       role: r.role as EventRole,
       createdAt: r.createdAt,
     }));
+  }
+
+  async deleteMembership(eventId: string, userId: string): Promise<boolean> {
+    const result = await this.db
+      .delete(eventMemberships)
+      .where(
+        and(
+          eq(eventMemberships.eventId, eventId),
+          eq(eventMemberships.userId, userId),
+        ),
+      );
+    return d1Changes(result) > 0;
   }
 
   async countMembershipsByRole(role: EventRole): Promise<number> {

@@ -124,7 +124,16 @@ export function keyVisibleToScope(
 }
 
 export type CreateKeyInput = KeysCreateBody & {
+  /**
+   * Human user id stored as api_keys.created_by (membership context for child keys).
+   * Must always be a users.id — never an api_keys.id (E2 / FK).
+   */
   actorUserId: string;
+  /**
+   * Audit actor id: session user id or minting api key id.
+   * Defaults to actorUserId when omitted.
+   */
+  actorId?: string;
   actorType?: "user" | "api_key";
   correlationId: string;
   /** Caller authorization boundary — required for event/org isolation. */
@@ -170,6 +179,8 @@ export async function createKey(
   }
 
   let eventId = input.eventId ?? null;
+  /** Session path sets adminEventIds; API-key path sets callerOrgId / callerEventId. */
+  const isSessionCaller = Array.isArray(input.scope.adminEventIds);
 
   // Event-scoped caller cannot mint unscoped or cross-event keys
   if (input.scope.callerEventId) {
@@ -186,45 +197,72 @@ export async function createKey(
     eventId = input.scope.callerEventId;
   }
 
+  // Session admins must never mint organization-wide (unscoped) keys (E2):
+  // event-scoped browser role must not escalate to org-wide Bearer privileges.
+  if (!eventId && isSessionCaller) {
+    const adminIds = input.scope.adminEventIds ?? [];
+    if (adminIds.length === 1) {
+      eventId = adminIds[0]!;
+    } else if (adminIds.length > 1) {
+      return {
+        ok: false,
+        status: 400,
+        error: "eventId is required when administering multiple events",
+        code: "VALIDATION_ERROR",
+        details: { adminEventIds: adminIds },
+      };
+    } else {
+      return {
+        ok: false,
+        status: 403,
+        error: "Insufficient authorization to create keys",
+        code: "FORBIDDEN",
+      };
+    }
+  }
+
   if (eventId) {
     const event = await deps.events.findEventById(eventId);
     if (!event) {
-      return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
-    }
-    // Session admin must administer the target event
-    if (
-      !input.scope.callerEventId &&
-      !input.scope.callerOrgId &&
-      input.scope.adminEventIds &&
-      !input.scope.adminEventIds.includes(eventId)
-    ) {
-      return {
-        ok: false,
-        status: 403,
-        error: "Cannot create key for an event you do not administer",
-        code: "FORBIDDEN",
-        details: { eventId },
-      };
-    }
-    // Org-scoped key must stay in org
-    if (
-      input.scope.callerOrgId &&
-      event.orgId !== input.scope.callerOrgId
-    ) {
-      return {
-        ok: false,
-        status: 403,
-        error: "Cannot create key outside key organization",
-        code: "FORBIDDEN",
-      };
+      // Bootstrap membership may exist without an Event.Create row — allow
+      // binding only when the session (or event-scoped key) administers it.
+      const allowedBootstrap =
+        (input.scope.adminEventIds?.includes(eventId) ?? false) ||
+        input.scope.callerEventId === eventId;
+      if (!allowedBootstrap) {
+        return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+      }
+    } else {
+      // Session admin must administer the target event
+      if (
+        isSessionCaller &&
+        input.scope.adminEventIds &&
+        !input.scope.adminEventIds.includes(eventId)
+      ) {
+        return {
+          ok: false,
+          status: 403,
+          error: "Cannot create key for an event you do not administer",
+          code: "FORBIDDEN",
+          details: { eventId },
+        };
+      }
+      // Org-scoped key must stay in org
+      if (
+        input.scope.callerOrgId &&
+        event.orgId !== input.scope.callerOrgId
+      ) {
+        return {
+          ok: false,
+          status: 403,
+          error: "Cannot create key outside key organization",
+          code: "FORBIDDEN",
+        };
+      }
     }
   } else {
-    // Unscoped key create: session admin OK; org-scoped key OK; event key already forced
-    if (
-      !input.scope.callerEventId &&
-      !input.scope.callerOrgId &&
-      (!input.scope.adminEventIds || input.scope.adminEventIds.length === 0)
-    ) {
+    // Unscoped key create: only org-scoped API keys (keys:admin) — never session
+    if (!input.scope.callerOrgId) {
       return {
         ok: false,
         status: 403,
@@ -282,8 +320,9 @@ export async function createKey(
   const keyHash = await hashToken(secret);
   const id = uuidv7();
 
-  // createdBy: human user when session; for api_key actor use actorUserId which
-  // routes pass as key id — store createdBy as the acting principal id.
+  // createdBy is always a human users.id (membership context for resolveBearer).
+  // Audit actorId may be the minting API key id when actorType is api_key.
+  const auditActorId = input.actorId ?? input.actorUserId;
   const row: ApiKeyRow = {
     id,
     orgId,
@@ -305,7 +344,7 @@ export async function createKey(
     id: uuidv7(),
     eventId,
     actorType: input.actorType ?? "user",
-    actorId: input.actorUserId,
+    actorId: auditActorId,
     action: "Keys.Create",
     entityType: "api_key",
     entityId: id,

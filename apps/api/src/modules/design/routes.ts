@@ -75,10 +75,18 @@ export function createDesignRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
   const { store, events, design: designStore, keys } = options;
   const deps = { design: designStore, events, auth: store };
   const bearerRead = keys
-    ? { keysStore: keys, bearerScopes: ["design:read", "design:write"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["design:read", "design:write"] as const,
+        eventsStore: events,
+      }
     : {};
   const bearerWrite = keys
-    ? { keysStore: keys, bearerScopes: ["design:write"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["design:write"] as const,
+        eventsStore: events,
+      }
     : {};
 
   /**

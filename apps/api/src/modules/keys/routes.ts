@@ -171,7 +171,10 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
 
     const result = await createKey(deps, {
       ...parsed.data,
-      actorUserId: actor.actorId,
+      // createdBy must be the human user (session id or parent key.createdBy)
+      // so child keys retain membership context (E2). Audit uses actorId.
+      actorUserId: actor.userId,
+      actorId: actor.actorId,
       actorType: actor.actorType,
       correlationId: c.get("correlationId"),
       scope,

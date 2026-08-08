@@ -78,10 +78,18 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
   const { store, events: eventsStore, keys, airtable } = options;
   const deps = { events: eventsStore, auth: store, airtable };
   const bearer = keys
-    ? { keysStore: keys, bearerScopes: ["events:read"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["events:read"] as const,
+        eventsStore,
+      }
     : {};
   const bearerWrite = keys
-    ? { keysStore: keys, bearerScopes: ["events:write"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["events:write"] as const,
+        eventsStore,
+      }
     : {};
 
   /**
@@ -193,10 +201,11 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
 
   /**
    * GET /api/events/:eventId — Event.Get
+   * Role: admin · Bearer: events:read (SCOPES.md / OpenAPI Event.Get)
    */
   events.get(
     "/:eventId",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearer }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const result = await getEvent(deps, eventId);

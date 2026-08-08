@@ -71,7 +71,11 @@ export function createAirtableRoutes(
   const { store, events, airtable, keys, clientEnv } = options;
   const deps = { airtable, events, clientEnv };
   const bearer = keys
-    ? { keysStore: keys, bearerScopes: ["airtable:read"] as const }
+    ? {
+        keysStore: keys,
+        bearerScopes: ["airtable:read"] as const,
+        eventsStore: events,
+      }
     : {};
 
   /**

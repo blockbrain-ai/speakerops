@@ -538,4 +538,137 @@ describe("7.1 API keys", () => {
     expect(minted.eventId).toBe(eventA.id);
     void events;
   });
+
+  it("session admin cannot mint unscoped org-wide keys by omitting eventId", async () => {
+    const { app, cookie, keys, userId } = await magicLinkSession(
+      "admin",
+      "keys-no-unscoped@example.com",
+    );
+
+    // Create a real event so admin has multiple memberships (bootstrap + new)
+    const e1 = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ name: "Scoped Only", timezone: "UTC" }),
+      },
+      env,
+    );
+    expect(e1.status).toBe(201);
+    const event = (await e1.json() as { event: { id: string } }).event;
+
+    // Omitting eventId with multiple admin events → 400 (must not mint unscoped)
+    const multi = await app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "try-org-wide",
+          scopes: ["events:read"],
+        }),
+      },
+      env,
+    );
+    expect(multi.status).toBe(400);
+    expect(ErrorEnvelopeSchema.parse(await multi.json()).code).toBe(
+      VALIDATION_ERROR,
+    );
+
+    // Explicit eventId still works and binds
+    const ok = await app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "event-bound",
+          scopes: ["events:read"],
+          eventId: event.id,
+        }),
+      },
+      env,
+    );
+    expect(ok.status).toBe(201);
+    const body = KeysCreateResponseSchema.parse(await ok.json());
+    expect(body.eventId).toBe(event.id);
+    const row = await keys.findById(body.id);
+    expect(row!.eventId).toBe(event.id);
+    expect(row!.createdBy).toBe(userId);
+  });
+
+  it("child key created by parent API key inherits human createdBy", async () => {
+    const { app, cookie, keys, userId, store } = await magicLinkSession(
+      "admin",
+      "keys-child-createdby@example.com",
+    );
+
+    // Real event so creator membership list is non-empty for unscoped child
+    const ev = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ name: "Child Key Event", timezone: "UTC" }),
+      },
+      env,
+    );
+    expect(ev.status).toBe(201);
+    const event = (await ev.json() as { event: { id: string } }).event;
+
+    // Seed org-scoped parent (eventId null) with keys:admin so child can be unscoped
+    const { hashToken } = await import("../auth/crypto.js");
+    const { uuidv7, DEFAULT_ORG_ID } = await import("@speakerops/shared");
+    const parentSecret = "spk_feedface_parentkeysecretvalue01";
+    const parentId = uuidv7();
+    await keys.insertKey({
+      id: parentId,
+      orgId: DEFAULT_ORG_ID,
+      name: "parent-org-admin",
+      keyPrefix: "spk_feedface",
+      keyHash: await hashToken(parentSecret),
+      scopesJson: JSON.stringify(["keys:admin", "events:read"]),
+      eventId: null,
+      expiresAt: null,
+      revokedAt: null,
+      createdBy: userId,
+      lastUsedAt: null,
+    });
+
+    const childRes = await app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${parentSecret}`,
+        },
+        body: JSON.stringify({
+          name: "child-read",
+          scopes: ["events:read"],
+        }),
+      },
+      env,
+    );
+    expect(childRes.status).toBe(201);
+    const child = KeysCreateResponseSchema.parse(await childRes.json());
+    const childRow = await keys.findById(child.id);
+    // Human identity retained — not parent key id (FK + membership context)
+    expect(childRow!.createdBy).toBe(userId);
+    expect(childRow!.createdBy).not.toBe(parentId);
+    // Org-scoped parent may mint unscoped child
+    expect(child.eventId).toBeNull();
+
+    // Child events:read lists via creator membership context (not empty)
+    const list = await app.request(
+      "http://localhost/api/events",
+      { headers: { authorization: `Bearer ${child.secret}` } },
+      env,
+    );
+    expect(list.status).toBe(200);
+    const listed = (await list.json()) as { events: { id: string }[] };
+    expect(listed.events.some((e) => e.id === event.id)).toBe(true);
+    void store;
+  });
 });

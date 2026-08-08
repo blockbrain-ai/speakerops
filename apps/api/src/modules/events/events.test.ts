@@ -622,4 +622,154 @@ describe("2.3 event settings same-store isolation", () => {
     expect(updateAudit).toBeTruthy();
     expect(updateAudit!.actorType).toBe("api_key");
   });
+
+  it("Event.Get accepts events:read Bearer key", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin",
+      "events-get-bearer@example.com",
+    );
+
+    const create = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ name: "Get Bearer Event", timezone: "UTC" }),
+      },
+      env,
+    );
+    expect(create.status).toBe(201);
+    const event = EventResponseSchema.parse(await create.json()).event;
+
+    const keyRes = await app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "get-read",
+          scopes: ["events:read"],
+          eventId: event.id,
+        }),
+      },
+      env,
+    );
+    expect(keyRes.status).toBe(201);
+    const key = (await keyRes.json()) as { secret: string };
+
+    const get = await app.request(
+      `http://localhost/api/events/${event.id}`,
+      { headers: { authorization: `Bearer ${key.secret}` } },
+      env,
+    );
+    expect(get.status).toBe(200);
+    const body = EventResponseSchema.parse(await get.json());
+    expect(body.event.id).toBe(event.id);
+  });
+
+  it("org-scoped Bearer cannot access events in another organization", async () => {
+    // Single app so both events and the org-scoped key share stores.
+    const ctx = createAppWithAuth({ cookieSecure: true });
+    const { app, store, keys, events, outbox } = ctx;
+
+    async function session(email: string): Promise<string> {
+      await app.request(
+        "http://localhost/api/auth/magic-link",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, purpose: "admin" }),
+        },
+        env,
+      );
+      const token = outbox.lastForEmail(email)!.token;
+      const exchange = await app.request(
+        "http://localhost/api/auth/exchange",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token }),
+        },
+        env,
+      );
+      expect(exchange.status).toBe(200);
+      const setCookie = exchange.headers.get("set-cookie")!;
+      const sessionValue = setCookie
+        .split(";")[0]!
+        .split("=")
+        .slice(1)
+        .join("=");
+      return `${SESSION_COOKIE_NAME}=${sessionValue}`;
+    }
+
+    const cookieA = await session("events-org-a2@example.com");
+    const cookieB = await session("events-org-b2@example.com");
+
+    const createA = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: cookieA },
+        body: JSON.stringify({ name: "Org A Event", timezone: "UTC" }),
+      },
+      env,
+    );
+    expect(createA.status).toBe(201);
+    const eventA = EventResponseSchema.parse(await createA.json()).event;
+
+    const createB = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: cookieB },
+        body: JSON.stringify({
+          name: "Org B Event",
+          timezone: "UTC",
+          orgId: "org_other",
+        }),
+      },
+      env,
+    );
+    expect(createB.status).toBe(201);
+    const eventB = EventResponseSchema.parse(await createB.json()).event;
+    expect(eventB.orgId).toBe("org_other");
+    expect(eventA.orgId).not.toBe(eventB.orgId);
+
+    // Seed true org-scoped (unscoped) key for default org with events:read
+    const { hashToken } = await import("../auth/crypto.js");
+    const { uuidv7, DEFAULT_ORG_ID } = await import("@speakerops/shared");
+    const secret = "spk_cafebabe_orgscopedcrossorgtest01";
+    const userA = await store.findUserByEmail("events-org-a2@example.com");
+    await events.ensureOrg({ id: DEFAULT_ORG_ID });
+    await keys.insertKey({
+      id: uuidv7(),
+      orgId: DEFAULT_ORG_ID,
+      name: "org-scoped-read",
+      keyPrefix: "spk_cafebabe",
+      keyHash: await hashToken(secret),
+      scopesJson: JSON.stringify(["events:read"]),
+      eventId: null,
+      expiresAt: null,
+      revokedAt: null,
+      createdBy: userA!.id,
+      lastUsedAt: null,
+    });
+
+    // Same-org Event.Get succeeds
+    const ok = await app.request(
+      `http://localhost/api/events/${eventA.id}`,
+      { headers: { authorization: `Bearer ${secret}` } },
+      env,
+    );
+    expect(ok.status).toBe(200);
+
+    // Cross-org Event.Get is isolated (404, not 403)
+    const denied = await app.request(
+      `http://localhost/api/events/${eventB.id}`,
+      { headers: { authorization: `Bearer ${secret}` } },
+      env,
+    );
+    expect(denied.status).toBe(404);
+    expect(ErrorEnvelopeSchema.parse(await denied.json()).code).toBe(NOT_FOUND);
+  });
 });

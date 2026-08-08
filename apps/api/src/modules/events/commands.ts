@@ -179,6 +179,7 @@ export async function createEvent(
 
   await deps.events.insertEvent(row);
   let outboxId: string | null = null;
+  let membershipWritten = false;
   try {
     // Creator is admin of the new event (E2 membership)
     await deps.auth.upsertMembership({
@@ -186,6 +187,7 @@ export async function createEvent(
       userId: input.actorUserId,
       role: "admin",
     });
+    membershipWritten = true;
 
     // S-AIRTABLE outbox before audit — both are part of the unit; failure
     // compensates the event so we never leave SoR without projection.
@@ -224,7 +226,12 @@ export async function createEvent(
       createdAt: now,
     });
   } catch (err) {
-    // Compensate: remove event (+ partial outbox) so error ⇒ no durable mutation.
+    // Compensate full unit: membership + event + partial outbox (E7).
+    // Order: membership first so we never leave an orphan membership row
+    // after event delete (event_id is not FK-cascaded).
+    if (membershipWritten) {
+      await deps.auth.deleteMembership(id, input.actorUserId);
+    }
     await deps.events.deleteEvent(id);
     if (outboxId && deps.airtable) {
       await deps.airtable.deleteUnprocessedOutbox(outboxId);
@@ -346,10 +353,43 @@ export async function updateEvent(
     });
   } catch (err) {
     // Compensate event CAS so error response leaves prior version intact.
-    await deps.events.updateEvent(existing, next.version);
-    if (outboxId && deps.airtable) {
-      await deps.airtable.deleteUnprocessedOutbox(outboxId);
+    // If another writer already moved past next.version, CAS fails — then
+    // ensure the committed change still has a projection outbox row (E7).
+    let restored = false;
+    try {
+      restored = await deps.events.updateEvent(existing, next.version);
+    } catch {
+      restored = false;
     }
+    if (restored) {
+      if (outboxId && deps.airtable) {
+        await deps.airtable.deleteUnprocessedOutbox(outboxId);
+      }
+    } else if (deps.airtable && !outboxId) {
+      // Event change remained (or concurrent update advanced version).
+      // Best-effort: project the latest durable version so SoR ≠ missing outbox.
+      try {
+        const latest =
+          (await deps.events.findEventById(input.eventId)) ?? next;
+        await enqueueAirtableProjection(deps.airtable, {
+          eventId: latest.id,
+          entityType: "event",
+          internalId: latest.id,
+          sourceVersion: latest.version,
+          fields: {
+            name: latest.name,
+            slug: latest.slug,
+            timezone: latest.timezone,
+            starts_at: latest.startsAt,
+            ends_at: latest.endsAt,
+          },
+          correlationId: input.correlationId,
+        });
+      } catch {
+        // best-effort only — original error is rethrown
+      }
+    }
+    // If outboxId was set and restore failed, leave the outbox (covers next).
     throw err;
   }
 

@@ -163,6 +163,8 @@ async function mintKey(
   cookie: string,
   name: string,
   scopes: ApiScope[],
+  /** Required when admin has multiple events (session cannot mint unscoped). */
+  eventId?: string,
 ): Promise<{ secret: string; id: string }> {
   const res = await app.request(
     "http://localhost/api/keys",
@@ -173,7 +175,11 @@ async function mintKey(
         cookie,
         "x-correlation-id": `corr-mint-${name}`,
       },
-      body: JSON.stringify({ name, scopes }),
+      body: JSON.stringify({
+        name,
+        scopes,
+        ...(eventId ? { eventId } : {}),
+      }),
     },
     env,
   );
@@ -215,8 +221,8 @@ describe("7.2 exit code mapping", () => {
 
 describe("7.2 CLI01–CLI12 inventory", () => {
   it("CLI01 speakerops events list --json returns events array", async () => {
-    const { app, cookie } = await adminSession("cli01@example.com");
-    const key = await mintKey(app, cookie, "events-read", ["events:read"]);
+    const { app, cookie, eventId } = await adminSession("cli01@example.com");
+    const key = await mintKey(app, cookie, "events-read", ["events:read"], eventId);
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -230,7 +236,7 @@ describe("7.2 CLI01–CLI12 inventory", () => {
 
   it("CLI02 reports readiness --json parses outstanding[] shape", async () => {
     const { app, cookie, eventId } = await adminSession("cli02@example.com");
-    const key = await mintKey(app, cookie, "reports-read", ["reports:read"]);
+    const key = await mintKey(app, cookie, "reports-read", ["reports:read"], eventId);
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -250,10 +256,13 @@ describe("7.2 CLI01–CLI12 inventory", () => {
 
   it("CLI03 design get --json returns draft+published", async () => {
     const { app, cookie, eventId } = await adminSession("cli03@example.com");
-    const key = await mintKey(app, cookie, "design-read", [
-      "design:read",
-      "design:write",
-    ]);
+    const key = await mintKey(
+      app,
+      cookie,
+      "design-read",
+      ["design:read", "design:write"],
+      eventId,
+    );
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -271,7 +280,7 @@ describe("7.2 CLI01–CLI12 inventory", () => {
 
   it("CLI04 design set --brand updates draft", async () => {
     const { app, cookie, eventId } = await adminSession("cli04@example.com");
-    const key = await mintKey(app, cookie, "design-write", ["design:write"]);
+    const key = await mintKey(app, cookie, "design-write", ["design:write"], eventId);
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -288,7 +297,7 @@ describe("7.2 CLI01–CLI12 inventory", () => {
 
   it("CLI05 design publish works (contrast gate may 400)", async () => {
     const { app, cookie, eventId } = await adminSession("cli05@example.com");
-    const key = await mintKey(app, cookie, "design-pub", ["design:write"]);
+    const key = await mintKey(app, cookie, "design-pub", ["design:write"], eventId);
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
     // Seed draft with AA-safe brand from defaults
@@ -325,10 +334,13 @@ describe("7.2 CLI01–CLI12 inventory", () => {
 
   it("CLI06 schedule place returns 0 or exit 3 conflict", async () => {
     const { app, cookie, eventId } = await adminSession("cli06@example.com");
-    const key = await mintKey(app, cookie, "sched-write", [
-      "schedule:write",
-      "events:read",
-    ]);
+    const key = await mintKey(
+      app,
+      cookie,
+      "sched-write",
+      ["schedule:write", "events:read"],
+      eventId,
+    );
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -358,10 +370,13 @@ describe("7.2 CLI01–CLI12 inventory", () => {
 
   it("CLI07 reports-only key schedule place exit code 2", async () => {
     const { app, cookie, eventId } = await adminSession("cli07@example.com");
-    const key = await mintKey(app, cookie, "reports-only", [
-      "reports:read",
-      "events:read",
-    ]);
+    const key = await mintKey(
+      app,
+      cookie,
+      "reports-only",
+      ["reports:read", "events:read"],
+      eventId,
+    );
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -390,7 +405,7 @@ describe("7.2 CLI01–CLI12 inventory", () => {
 
   it("CLI08 files upload returns file id", async () => {
     const { app, cookie, eventId } = await adminSession("cli08@example.com");
-    const key = await mintKey(app, cookie, "files-write", ["files:write"]);
+    const key = await mintKey(app, cookie, "files-write", ["files:write"], eventId);
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -449,7 +464,7 @@ describe("7.2 CLI01–CLI12 inventory", () => {
     expect([200, 201]).toContain(tpl.status);
     const tplBody = (await tpl.json()) as { template: { id: string } };
 
-    const key = await mintKey(app, cookie, "comms-draft", ["comms:draft"]);
+    const key = await mintKey(app, cookie, "comms-draft", ["comms:draft"], eventId);
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -474,11 +489,14 @@ describe("7.2 CLI01–CLI12 inventory", () => {
   });
 
   it("CLI10 comms send without comms:send exit code 2", async () => {
-    const { app, cookie } = await adminSession("cli10@example.com");
-    const key = await mintKey(app, cookie, "no-send", [
-      "comms:draft",
-      "reports:read",
-    ]);
+    const { app, cookie, eventId } = await adminSession("cli10@example.com");
+    const key = await mintKey(
+      app,
+      cookie,
+      "no-send",
+      ["comms:draft", "reports:read"],
+      eventId,
+    );
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
@@ -500,11 +518,14 @@ describe("7.2 CLI01–CLI12 inventory", () => {
   });
 
   it("CLI11 keys create without keys:admin exit code 2", async () => {
-    const { app, cookie } = await adminSession("cli11@example.com");
-    const key = await mintKey(app, cookie, "no-keys-admin", [
-      "events:read",
-      "reports:read",
-    ]);
+    const { app, cookie, eventId } = await adminSession("cli11@example.com");
+    const key = await mintKey(
+      app,
+      cookie,
+      "no-keys-admin",
+      ["events:read", "reports:read"],
+      eventId,
+    );
     const cap = captureIo();
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
