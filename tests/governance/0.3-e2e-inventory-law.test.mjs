@@ -702,6 +702,97 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 
+  it("extractPlaywrightTestBindings rejects import type { test } (type-only)", () => {
+    // Auditor regression: top-level `import type` is erased at runtime and must
+    // not be treated as a Playwright binding (prior regex allowed optional type).
+    const typeOnly = "import type { test } from '@playwright/test';\n";
+    const typeOnlyAs =
+      "import type { test as base } from '@playwright/test';\n" +
+      "const test = base.extend({});\n";
+    const typeOnlyDouble =
+      'import type { test } from "@playwright/test";\n';
+    const inlineTypeOnly =
+      "import { type test } from '@playwright/test';\n";
+    const valueImport = "import { test } from '@playwright/test';\n";
+    const mixedValueAndType =
+      "import { type expect, test } from '@playwright/test';\n";
+
+    assert.equal(
+      extractPlaywrightTestBindings(typeOnly).size,
+      0,
+      "import type { test } must yield no bindings",
+    );
+    assert.equal(
+      extractPlaywrightTestBindings(typeOnlyAs).has("test"),
+      false,
+      "import type { test as base } + rebind must not create test binding",
+    );
+    assert.equal(
+      extractPlaywrightTestBindings(typeOnlyAs).has("base"),
+      false,
+      "import type { test as base } must not bind base",
+    );
+    assert.equal(
+      extractPlaywrightTestBindings(typeOnlyDouble).size,
+      0,
+      'import type { test } with double quotes must yield no bindings',
+    );
+    assert.equal(
+      extractPlaywrightTestBindings(inlineTypeOnly).size,
+      0,
+      "import { type test } must yield no bindings",
+    );
+    assert.equal(
+      extractPlaywrightTestBindings(valueImport).has("test"),
+      true,
+      "value import { test } must still bind test",
+    );
+    assert.equal(
+      extractPlaywrightTestBindings(mixedValueAndType).has("test"),
+      true,
+      "mixed import { type expect, test } must still bind value test",
+    );
+  });
+
+  it("rejects import type { test } as Playwright-bound coverage for IMPLEMENTED row", () => {
+    // Tagged spec with type-only import must fail intermediate gate — `test` is
+    // erased at runtime and the file cannot compile or collect.
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import type { test } from '@playwright/test';\n" +
+          'test("@inv:A01 e2e/public/cfp-load type-only import", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `import type { test } must not satisfy @inv coverage:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /Playwright-bound|@playwright\/test|no-op|missing @inv|A01/i,
+      `must explain type-only import rejection:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects import { type test } inline type-only as Playwright-bound coverage", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { type test } from '@playwright/test';\n" +
+          'test("@inv:A01 e2e/public/cfp-load inline type-only", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `import { type test } must not satisfy @inv coverage:\n${fmtResult(r)}`,
+    );
+  });
+
   it("rejects comment-only @inv tags for IMPLEMENTED row (not 1:1)", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,

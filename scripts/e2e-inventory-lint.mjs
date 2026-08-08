@@ -1041,10 +1041,15 @@ export function extractPlaywrightTestBindings(code) {
   const bindings = new Set();
   const scan = maskStringLiterals(code);
 
-  // ESM: import { test } from '@playwright/test'
+  // ESM value import only — `import type { test }` is type-erased at runtime
+  // and must not count as a Playwright binding (cannot compile/collect tests).
+  //      import { test } from '@playwright/test'
   //      import { test as base, expect } from "@playwright/test"
+  // Inline type-only named imports (`import { type test }`) are skipped below.
+  // Do not permit the optional `type` keyword after `import` (that is a
+  // type-only import statement, not a runtime binding).
   const importRe =
-    /import\s*(?:type\s*)?\{([^}]+)\}\s*from\s*['"]@playwright\/test['"]/g;
+    /import\s*\{([^}]+)\}\s*from\s*['"]@playwright\/test['"]/g;
   let im;
   while ((im = importRe.exec(scan)) !== null) {
     for (const part of im[1].split(",")) {
