@@ -2,7 +2,7 @@
  * App router + shared admin layout (section 1.4) + auth login (section 2.1)
  * + RequireRole admin guards (section 2.2) + event context (section 2.3)
  * + Design Kit (section 2.4) + Form builder (section 3.2)
- * + Public CFP submit (section 3.3).
+ * + Public CFP submit (section 3.3) + Eval queue / rubric (section 3.4).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -15,10 +15,12 @@ import { EventSettingsPage } from "./pages/EventSettings.js";
 import { DesignKitPage } from "./pages/DesignKit.js";
 import { PublicCfpPage } from "./pages/PublicCfp.js";
 import { FormBuilderPage } from "./pages/FormBuilder.js";
+import { EvaluatorQueuePage } from "./pages/EvaluatorQueue.js";
+import { RubricSettingsPage } from "./pages/RubricSettings.js";
+import { AdminEvaluationsPage } from "./pages/AdminEvaluations.js";
 import {
   BareLayout,
   CommsPage,
-  EvaluationsPage,
   NotFoundPage,
   OverviewPage,
   SchedulePage,
@@ -34,6 +36,15 @@ function AdminGuard({ children }: { children: ReactNode }) {
       <EventProvider>
         <AdminShell>{children}</AdminShell>
       </EventProvider>
+    </RequireRole>
+  );
+}
+
+/** Evaluator surface — queue only; server enforces assignment ownership. */
+function EvaluatorGuard({ children }: { children: ReactNode }) {
+  return (
+    <RequireRole roles={["evaluator"]}>
+      <BareLayout>{children}</BareLayout>
     </RequireRole>
   );
 }
@@ -56,6 +67,14 @@ export function AppRoutes() {
           <BareLayout>
             <PortalHomePage />
           </BareLayout>
+        }
+      />
+      <Route
+        path="/eval"
+        element={
+          <EvaluatorGuard>
+            <EvaluatorQueuePage />
+          </EvaluatorGuard>
         }
       />
       <Route
@@ -86,7 +105,7 @@ export function AppRoutes() {
         path="/admin/evaluations"
         element={
           <AdminGuard>
-            <EvaluationsPage />
+            <AdminEvaluationsPage />
           </AdminGuard>
         }
       />
@@ -131,6 +150,14 @@ export function AppRoutes() {
         }
       />
       <Route
+        path="/admin/settings/rubric"
+        element={
+          <AdminGuard>
+            <RubricSettingsPage />
+          </AdminGuard>
+        }
+      />
+      <Route
         path="/cfp/:slug"
         element={
           <BareLayout>
@@ -153,7 +180,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <BrowserRouter>
-      <div id="speakerops-root" data-section="3.3" data-testid="app-root">
+      <div id="speakerops-root" data-section="3.4" data-testid="app-root">
         <AppRoutes />
       </div>
     </BrowserRouter>

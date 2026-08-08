@@ -20,6 +20,7 @@ import {
   DESIGN_TABLES,
   FORM_TABLES,
   SUBMISSION_TABLES,
+  EVAL_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -52,6 +53,10 @@ import {
   submissions,
   submissionAnswers,
   submissionSpeakers,
+  evalRounds,
+  evalCriteria,
+  evalAssignments,
+  scores,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -304,6 +309,39 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(schema.submissions).toBe(submissions);
       expect(schema.submissionAnswers).toBe(submissionAnswers);
       expect(schema.submissionSpeakers).toBe(submissionSpeakers);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("3.4 migration creates eval_rounds, eval_criteria, eval_assignments, scores", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "speakerops-db-3.4-"));
+    const dbPath = join(dir, "test.sqlite");
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0009_eval.sql");
+      for (const table of EVAL_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.eval_rounds).toContain("event_id");
+      expect(columns.eval_rounds).toContain("status");
+      expect(columns.eval_criteria).toContain("round_id");
+      expect(columns.eval_criteria).toContain("max_score");
+      expect(columns.eval_criteria).toContain("weight");
+      expect(columns.eval_assignments).toContain("submission_id");
+      expect(columns.eval_assignments).toContain("evaluator_user_id");
+      expect(columns.scores).toContain("assignment_id");
+      expect(columns.scores).toContain("criterion_id");
+      expect(columns.scores).toContain("value");
+      expect(evalRounds).toBeDefined();
+      expect(evalCriteria).toBeDefined();
+      expect(evalAssignments).toBeDefined();
+      expect(scores).toBeDefined();
+      expect(schema.evalRounds).toBe(evalRounds);
+      expect(schema.evalCriteria).toBe(evalCriteria);
+      expect(schema.evalAssignments).toBe(evalAssignments);
+      expect(schema.scores).toBe(scores);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

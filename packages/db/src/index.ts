@@ -28,6 +28,10 @@ export {
   submissions,
   submissionAnswers,
   submissionSpeakers,
+  evalRounds,
+  evalCriteria,
+  evalAssignments,
+  scores,
   baselineTables,
   authTables,
   membershipTables,
@@ -35,6 +39,7 @@ export {
   designTables,
   formTables,
   submissionTables,
+  evalTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -80,6 +85,14 @@ export {
   type NewSubmissionAnswer,
   type SubmissionSpeaker,
   type NewSubmissionSpeaker,
+  type EvalRound,
+  type NewEvalRound,
+  type EvalCriterion,
+  type NewEvalCriterion,
+  type EvalAssignment,
+  type NewEvalAssignment,
+  type Score,
+  type NewScore,
 } from "../schema.js";
 
 export {
@@ -112,6 +125,7 @@ export {
   DESIGN_TABLES,
   FORM_TABLES,
   SUBMISSION_TABLES,
+  EVAL_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

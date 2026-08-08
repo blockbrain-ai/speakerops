@@ -55,6 +55,28 @@ async function probeAdminAccess(): Promise<
   }
 }
 
+/**
+ * Probe evaluator access via GET /api/me/eval-queue (section 3.4).
+ * 401 unauthenticated · 403 wrong role · 200 ok.
+ */
+async function probeEvaluatorAccess(): Promise<
+  "ok" | "unauthenticated" | "forbidden" | "error"
+> {
+  try {
+    const res = await fetch("/api/me/eval-queue", {
+      method: "GET",
+      credentials: "include",
+      headers: { accept: "application/json" },
+    });
+    if (res.status === 401) return "unauthenticated";
+    if (res.status === 403) return "forbidden";
+    if (res.ok) return "ok";
+    return "error";
+  } catch {
+    return "error";
+  }
+}
+
 export function AccessDenied({
   message = "You do not have access to this area.",
 }: {
@@ -95,8 +117,32 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     setState({ status: "loading" });
     // Admin surfaces use Event.List probe (server enforceRole)
     const needsAdmin = roles.includes("admin");
+    const needsEvaluator =
+      roles.includes("evaluator") && !roles.includes("admin");
+
+    if (needsEvaluator) {
+      const result = await probeEvaluatorAccess();
+      if (result === "ok") {
+        setState({ status: "ok" });
+        return;
+      }
+      if (result === "unauthenticated") {
+        setState({ status: "unauthenticated" });
+        return;
+      }
+      if (result === "forbidden") {
+        setState({
+          status: "forbidden",
+          message: "Evaluator role required for this area.",
+        });
+        return;
+      }
+      setState({ status: "error", message: "Unable to verify access" });
+      return;
+    }
+
     if (!needsAdmin) {
-      // Non-admin role surfaces land with dedicated probes in later sections
+      // Speaker / other surfaces land with dedicated probes in later sections
       setState({ status: "ok" });
       return;
     }

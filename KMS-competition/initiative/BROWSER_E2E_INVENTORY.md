@@ -109,10 +109,10 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| F01 | evaluator | Queue | See only assigned | e2e/eval/queue | Unassigned hidden | REQUIRED | OPEN |
-| F02 | evaluator | Score | Score criteria + comment; save | e2e/eval/score | Out-of-range rejected | REQUIRED | OPEN |
-| F03 | evaluator | Score | Cannot accept/reject | e2e/eval/no-decide | Control absent/403 | REQUIRED | OPEN |
-| F04 | evaluator | Score | Keyboard-only complete score | e2e/eval/a11y-keyboard | — | REQUIRED | OPEN |
+| F01 | evaluator | Queue | See only assigned | e2e/eval/queue | Unassigned hidden | REQUIRED | PASS |
+| F02 | evaluator | Score | Score criteria + comment; save | e2e/eval/score | Out-of-range rejected | REQUIRED | PASS |
+| F03 | evaluator | Score | Cannot accept/reject | e2e/eval/no-decide | Control absent/403 | REQUIRED | PASS |
+| F04 | evaluator | Score | Keyboard-only complete score | e2e/eval/a11y-keyboard | — | REQUIRED | PASS |
 
 ---
 
@@ -224,7 +224,7 @@
 | O01 | admin | Settings | Event name/dates/tz | e2e/settings/event | Validation | REQUIRED | PASS |
 | O02 | admin | Settings | Rooms CRUD | e2e/settings/rooms | — | REQUIRED | PASS |
 | O03 | admin | Settings | Tracks CRUD | e2e/settings/tracks | — | REQUIRED | PASS |
-| O04 | admin | Settings | Eval rubric edit | e2e/settings/rubric | — | REQUIRED | OPEN |
+| O04 | admin | Settings | Eval rubric edit | e2e/settings/rubric | — | REQUIRED | PASS |
 | O05 | admin | Settings | Task templates on accept | e2e/settings/task-templates | — | REQUIRED | OPEN |
 | O06 | admin | Settings | Airtable projection status read | e2e/settings/airtable-status | — | REQUIRED | OPEN |
 

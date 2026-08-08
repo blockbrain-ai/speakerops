@@ -345,6 +345,14 @@ export function EventSettingsPage() {
         >
           Design Kit →
         </a>
+        {" · "}
+        <a
+          href="/admin/settings/rubric"
+          className="design-kit__link lumen-focusable"
+          data-testid="settings-rubric-link"
+        >
+          Eval rubric →
+        </a>
       </p>
 
       {/* C01 — Create event */}

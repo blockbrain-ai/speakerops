@@ -237,6 +237,208 @@ export const FORM_OPENAPI_PATHS = {
   },
 } as const;
 
+/** Eval + assignment OpenAPI paths (section 3.4 / S-EVAL). */
+export const EVAL_OPENAPI_PATHS = {
+  "/api/events/{eventId}/eval/rubric": {
+    put: {
+      operationId: "Eval.UpsertRubric",
+      summary: "Eval.UpsertRubric",
+      description: "Admin create/update active eval round criteria (human rubric)",
+      tags: ["Eval"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["criteria"],
+              properties: {
+                roundId: { type: "string" },
+                name: { type: "string" },
+                criteria: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    required: ["name", "maxScore"],
+                    properties: {
+                      id: { type: "string" },
+                      name: { type: "string" },
+                      maxScore: { type: "number" },
+                      weight: { type: "number" },
+                      sortOrder: { type: "integer" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Rubric upserted" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+    get: {
+      operationId: "Eval.GetRubric",
+      summary: "Eval.GetRubric",
+      description: "Admin read active eval rubric for event",
+      tags: ["Eval"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Round + criteria (or empty)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+  "/api/events/{eventId}/eval/rollup": {
+    get: {
+      operationId: "Eval.AdminRollup",
+      summary: "Eval.AdminRollup",
+      description: "Admin aggregate scores per submission for active round",
+      tags: ["Eval"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Submission rollups with aggregateScore" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+  "/api/assignments/{assignmentId}/scores": {
+    post: {
+      operationId: "Eval.Score",
+      summary: "Eval.Score",
+      description:
+        "Evaluator scores assigned submission criteria (rejects value > maxScore)",
+      tags: ["Eval"],
+      parameters: [
+        {
+          name: "assignmentId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["scores"],
+              properties: {
+                scores: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    required: ["criterionId", "value"],
+                    properties: {
+                      criterionId: { type: "string" },
+                      value: { type: "number" },
+                      comment: { type: "string", nullable: true },
+                    },
+                  },
+                },
+                comment: { type: "string", nullable: true },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Assignment scored" },
+        "400": { description: "Validation / score > max" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Not assigned evaluator" },
+        "404": { description: "Assignment not found" },
+      },
+    },
+  },
+  "/api/me/eval-queue": {
+    get: {
+      operationId: "Eval.GetQueue",
+      summary: "Eval.GetQueue",
+      description:
+        "Evaluator queue — only assignments for the current user (unassigned hidden)",
+      tags: ["Eval"],
+      responses: {
+        "200": { description: "Assigned queue items" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Not evaluator/admin" },
+      },
+    },
+  },
+  "/api/submissions/{submissionId}/assign": {
+    post: {
+      operationId: "Submission.AssignEvaluators",
+      summary: "Submission.AssignEvaluators",
+      description: "Admin assign evaluators to a submission for the active round",
+      tags: ["Eval"],
+      parameters: [
+        {
+          name: "submissionId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["userIds"],
+              properties: {
+                userIds: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Assignments created" },
+        "400": { description: "Validation / no rubric" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Submission not found" },
+      },
+    },
+  },
+} as const;
+
 /** Commands registered in the OpenAPI document (expand per section). */
 export const OPENAPI_COMMANDS = [
   "Form.Create",
@@ -245,6 +447,12 @@ export const OPENAPI_COMMANDS = [
   "Form.GetPublic",
   "Submission.Create",
   "Cfp.FileUpload",
+  "Eval.UpsertRubric",
+  "Eval.GetRubric",
+  "Eval.AdminRollup",
+  "Eval.Score",
+  "Eval.GetQueue",
+  "Submission.AssignEvaluators",
 ] as const;
 
 export function buildOpenApiDocument(): Record<string, unknown> {
@@ -254,14 +462,16 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
+      ...EVAL_OPENAPI_PATHS,
     },
     tags: [
       { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },
       { name: "Submission", description: "Public CFP submit (S-CFP / 3.3)" },
+      { name: "Eval", description: "Human evaluation scoring (S-EVAL / 3.4)" },
     ],
     "x-speakerops-commands": [...OPENAPI_COMMANDS],
   };

@@ -193,6 +193,8 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
               purpose: last.purpose,
               token: last.token,
               eventId: last.eventId,
+              /** User id for e2e assign flows (not a secret). */
+              userId: last.userId,
               createdAt: last.createdAt,
             },
           },

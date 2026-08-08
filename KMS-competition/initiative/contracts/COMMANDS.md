@@ -118,8 +118,10 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | GET | /api/submissions/:submissionId | Submission.Get |
 | POST | /api/submissions/:submissionId/assign | Submission.AssignEvaluators |
 | PUT | /api/events/:eventId/eval/rubric | Eval.UpsertRubric |
+| GET | /api/events/:eventId/eval/rubric | Eval.GetRubric (read active round) |
+| GET | /api/events/:eventId/eval/rollup | Eval.AdminRollup (aggregate scores) |
 | POST | /api/assignments/:assignmentId/scores | Eval.Score |
-| GET | /api/me/eval-queue | (query assignments) |
+| GET | /api/me/eval-queue | Eval.GetQueue (assigned only) |
 | POST | /api/submissions/:submissionId/decision | Decision.Record |
 | POST | /api/events/:eventId/sessions/direct | (direct session) |
 | GET | /api/portal/home | Portal.GetHome |

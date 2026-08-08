@@ -1,14 +1,21 @@
 /**
  * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships
  * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets + 3.1 forms
- * + 3.3 people / submissions.
+ * + 3.3 people / submissions + 3.4 eval rounds / criteria / assignments / scores.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4. Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
-import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /** organizations — multi-tenant org shell (single-org dogfood still uses this). */
 export const organizations = sqliteTable("organizations", {
@@ -481,6 +488,100 @@ export const submissionTables = {
   submissionSpeakers,
 } as const;
 
+/**
+ * eval_rounds — human evaluation round per event (section 3.4 / S-EVAL).
+ * status: open | closed
+ */
+export const evalRounds = sqliteTable(
+  "eval_rounds",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    name: text("name").notNull(),
+    status: text("status").notNull(),
+    closesAt: text("closes_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [index("idx_eval_rounds_event_id").on(t.eventId)],
+);
+
+/**
+ * eval_criteria — rubric rows for a round (name, max_score, weight).
+ */
+export const evalCriteria = sqliteTable(
+  "eval_criteria",
+  {
+    id: text("id").primaryKey().notNull(),
+    roundId: text("round_id").notNull(),
+    name: text("name").notNull(),
+    maxScore: real("max_score").notNull(),
+    weight: real("weight").notNull().default(1),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("idx_eval_criteria_round_id").on(t.roundId)],
+);
+
+/**
+ * eval_assignments — submission assigned to an evaluator for a round.
+ * status: pending | scored
+ * UNIQUE(round_id, submission_id, evaluator_user_id)
+ */
+export const evalAssignments = sqliteTable(
+  "eval_assignments",
+  {
+    id: text("id").primaryKey().notNull(),
+    roundId: text("round_id").notNull(),
+    submissionId: text("submission_id").notNull(),
+    evaluatorUserId: text("evaluator_user_id").notNull(),
+    status: text("status").notNull(),
+    overallComment: text("overall_comment"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_eval_assignments_round_id").on(t.roundId),
+    index("idx_eval_assignments_evaluator").on(t.evaluatorUserId),
+    index("idx_eval_assignments_submission").on(t.submissionId),
+    uniqueIndex("idx_eval_assignments_unique").on(
+      t.roundId,
+      t.submissionId,
+      t.evaluatorUserId,
+    ),
+  ],
+);
+
+/**
+ * scores — per-criterion value on an assignment.
+ * UNIQUE(assignment_id, criterion_id)
+ */
+export const scores = sqliteTable(
+  "scores",
+  {
+    id: text("id").primaryKey().notNull(),
+    assignmentId: text("assignment_id").notNull(),
+    criterionId: text("criterion_id").notNull(),
+    value: real("value").notNull(),
+    comment: text("comment"),
+  },
+  (t) => [
+    index("idx_scores_assignment_id").on(t.assignmentId),
+    index("idx_scores_criterion_id").on(t.criterionId),
+    uniqueIndex("idx_scores_assignment_criterion").on(
+      t.assignmentId,
+      t.criterionId,
+    ),
+  ],
+);
+
+/** Eval tables owned by section 3.4. */
+export const evalTables = {
+  evalRounds,
+  evalCriteria,
+  evalAssignments,
+  scores,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -525,6 +626,14 @@ export type SubmissionAnswer = typeof submissionAnswers.$inferSelect;
 export type NewSubmissionAnswer = typeof submissionAnswers.$inferInsert;
 export type SubmissionSpeaker = typeof submissionSpeakers.$inferSelect;
 export type NewSubmissionSpeaker = typeof submissionSpeakers.$inferInsert;
+export type EvalRound = typeof evalRounds.$inferSelect;
+export type NewEvalRound = typeof evalRounds.$inferInsert;
+export type EvalCriterion = typeof evalCriteria.$inferSelect;
+export type NewEvalCriterion = typeof evalCriteria.$inferInsert;
+export type EvalAssignment = typeof evalAssignments.$inferSelect;
+export type NewEvalAssignment = typeof evalAssignments.$inferInsert;
+export type Score = typeof scores.$inferSelect;
+export type NewScore = typeof scores.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -550,4 +659,8 @@ export const schema = {
   submissions,
   submissionAnswers,
   submissionSpeakers,
+  evalRounds,
+  evalCriteria,
+  evalAssignments,
+  scores,
 } as const;

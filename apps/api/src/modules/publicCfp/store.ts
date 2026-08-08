@@ -59,6 +59,8 @@ export type SubmissionsStore = {
   insertAnswers(rows: SubmissionAnswerRow[]): Promise<void>;
   insertSpeakers(rows: SubmissionSpeakerRow[]): Promise<void>;
   findSubmissionById(submissionId: string): Promise<SubmissionRow | null>;
+  /** Event-scoped list (E2) — section 3.4 assign / admin rollup. */
+  listSubmissionsForEvent(eventId: string): Promise<SubmissionRow[]>;
   listAnswers(submissionId: string): Promise<SubmissionAnswerRow[]>;
   listSpeakers(submissionId: string): Promise<SubmissionSpeakerRow[]>;
   /** Count submitted rows for event (submission_limit check). */
@@ -148,6 +150,12 @@ export class MemorySubmissionsStore implements SubmissionsStore {
   ): Promise<SubmissionRow | null> {
     const row = this.submissions.get(submissionId);
     return row ? { ...row } : null;
+  }
+
+  async listSubmissionsForEvent(eventId: string): Promise<SubmissionRow[]> {
+    return [...this.submissions.values()]
+      .filter((s) => s.eventId === eventId)
+      .map((s) => ({ ...s }));
   }
 
   async listAnswers(submissionId: string): Promise<SubmissionAnswerRow[]> {
@@ -290,6 +298,23 @@ export class D1SubmissionsStore implements SubmissionsStore {
       submittedAt: row.submittedAt,
       version: row.version,
     };
+  }
+
+  async listSubmissionsForEvent(eventId: string): Promise<SubmissionRow[]> {
+    const rows = await this.db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.eventId, eventId));
+    return rows.map((row) => ({
+      id: row.id,
+      eventId: row.eventId,
+      formVersionId: row.formVersionId,
+      title: row.title,
+      category: row.category,
+      status: row.status,
+      submittedAt: row.submittedAt,
+      version: row.version,
+    }));
   }
 
   async listAnswers(submissionId: string): Promise<SubmissionAnswerRow[]> {

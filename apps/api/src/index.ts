@@ -8,6 +8,7 @@
  * Section 2.4: Design Kit draft/publish + logo presign + public tokens
  * Section 3.1: Form builder Create/UpdateDraft/Publish + public CFP get + OpenAPI
  * Section 3.3: Public CFP Submission.Create + file upload + Turnstile + rate limit
+ * Section 3.4: Eval rubric / assignments / queue / scoring (S-EVAL)
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -71,6 +72,17 @@ import {
   type SubmissionsStore,
 } from "./modules/publicCfp/store.js";
 import { createPublicCfpRoutes } from "./modules/publicCfp/routes.js";
+import {
+  MemoryEvalStore,
+  D1EvalStore,
+  type EvalStore,
+} from "./modules/eval/store.js";
+import {
+  createEventEvalRoutes,
+  createAssignmentRoutes,
+  createMeEvalRoutes,
+  createSubmissionAssignRoutes,
+} from "./modules/eval/routes.js";
 import { registerOpenApiRoute } from "./openapi.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
@@ -89,6 +101,8 @@ export type CreateAppOptions = {
   formsStore?: FormsStore;
   /** Inject submissions store (defaults to in-memory for local/test). */
   submissionsStore?: SubmissionsStore;
+  /** Inject eval store (defaults to in-memory for local/test). */
+  evalStore?: EvalStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /** Shared test outbox for magic-link capture. */
@@ -127,6 +141,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const formsStore = options.formsStore ?? new MemoryFormsStore();
   const submissionsStore =
     options.submissionsStore ?? new MemorySubmissionsStore();
+  const evalStore = options.evalStore ?? new MemoryEvalStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -251,7 +266,26 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
-  // Section 3.1 / 3.3 — OpenAPI lists Form + Submission commands
+  const evalRouteOpts = {
+    store: authStore,
+    events: eventsStore,
+    submissions: submissionsStore,
+    eval: evalStore,
+  };
+
+  // Section 3.4 — Eval.UpsertRubric + admin rollup under /api/events/:eventId/eval/*
+  app.route("/api/events", createEventEvalRoutes(evalRouteOpts));
+
+  // Section 3.4 — Eval.Score
+  app.route("/api/assignments", createAssignmentRoutes(evalRouteOpts));
+
+  // Section 3.4 — evaluator queue (assigned only)
+  app.route("/api/me", createMeEvalRoutes(evalRouteOpts));
+
+  // Section 3.4 — Submission.AssignEvaluators
+  app.route("/api/submissions", createSubmissionAssignRoutes(evalRouteOpts));
+
+  // Section 3.1 / 3.3 / 3.4 — OpenAPI lists Form + Submission + Eval commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);
@@ -274,6 +308,7 @@ export function createAppWithAuth(
   design: DesignStore;
   forms: FormsStore;
   submissions: SubmissionsStore;
+  eval: EvalStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
@@ -281,6 +316,7 @@ export function createAppWithAuth(
   const design = options.designStore ?? new MemoryDesignStore();
   const forms = options.formsStore ?? new MemoryFormsStore();
   const submissions = options.submissionsStore ?? new MemorySubmissionsStore();
+  const evalStore = options.evalStore ?? new MemoryEvalStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
@@ -289,12 +325,22 @@ export function createAppWithAuth(
     designStore: design,
     formsStore: forms,
     submissionsStore: submissions,
+    evalStore,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
     // Open bootstrap for e2e/unit tests only — never production.
     bootstrapPolicy: options.bootstrapPolicy ?? "open",
   });
-  return { app, store, events, design, forms, submissions, outbox };
+  return {
+    app,
+    store,
+    events,
+    design,
+    forms,
+    submissions,
+    eval: evalStore,
+    outbox,
+  };
 }
 
 /**
@@ -314,6 +360,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     designStore: new D1DesignStore(d1, env.FILES),
     formsStore: new D1FormsStore(d1),
     submissionsStore: new D1SubmissionsStore(d1),
+    evalStore: new D1EvalStore(d1),
     turnstileSecret:
       typeof env.TURNSTILE_SECRET_KEY === "string"
         ? env.TURNSTILE_SECRET_KEY

@@ -57,13 +57,14 @@ export function SubmissionsPage() {
   );
 }
 
+/** @deprecated Replaced by AdminEvaluationsPage (section 3.4). */
 export function EvaluationsPage() {
   return (
     <PageStub
       overline="Evaluations"
       title="Evaluations"
-      body="Evaluator queue and admin evaluation progress land in evaluation sections."
-      testId="page-evaluations"
+      body="Admin evaluation rollup is AdminEvaluationsPage at /admin/evaluations (section 3.4)."
+      testId="page-evaluations-placeholder"
     />
   );
 }

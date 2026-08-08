@@ -275,3 +275,11 @@ export const SUBMISSION_TABLES = [
   "submission_answers",
   "submission_speakers",
 ] as const;
+
+/** Eval table names required by section 3.4 AC. */
+export const EVAL_TABLES = [
+  "eval_rounds",
+  "eval_criteria",
+  "eval_assignments",
+  "scores",
+] as const;
