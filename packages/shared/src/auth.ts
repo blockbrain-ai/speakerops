@@ -67,10 +67,22 @@ export const SESSION_TTL_DAYS = 14 as const;
  */
 export const DEFAULT_BOOTSTRAP_EVENT_ID = "evt_dogfood" as const;
 
-/** Event.List item (minimal until full events module). */
+/**
+ * Event.List item — id + name always; full fields optional for 2.3+ consumers.
+ * Keep backward-compatible with earlier admin list probes.
+ */
 export const EventListItemSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
+  orgId: z.string().min(1).optional(),
+  slug: z.string().min(1).optional(),
+  timezone: z.string().min(1).optional(),
+  startsAt: z.string().nullable().optional(),
+  endsAt: z.string().nullable().optional(),
+  settingsJson: z.string().nullable().optional(),
+  createdAt: z.string().min(1).optional(),
+  updatedAt: z.string().min(1).optional(),
+  version: z.number().int().positive().optional(),
 });
 export type EventListItem = z.infer<typeof EventListItemSchema>;
 

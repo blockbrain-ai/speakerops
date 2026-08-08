@@ -16,6 +16,7 @@ import {
   BASELINE_TABLES,
   AUTH_TABLES,
   MEMBERSHIP_TABLES,
+  EVENT_SETTINGS_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -35,6 +36,8 @@ import {
   authSessions,
   magicLinks,
   eventMemberships,
+  rooms,
+  tracks,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -159,6 +162,30 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(columns.event_memberships).toContain("role");
       expect(eventMemberships).toBeDefined();
       expect(schema.eventMemberships).toBe(eventMemberships);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("2.3 migration creates rooms and tracks with event_id", async () => {
+    const { dir, dbPath } = tempDbPath();
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0004_rooms_tracks.sql");
+      for (const table of EVENT_SETTINGS_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.rooms).toContain("event_id");
+      expect(columns.rooms).toContain("name");
+      expect(columns.rooms).toContain("version");
+      expect(columns.tracks).toContain("event_id");
+      expect(columns.tracks).toContain("name");
+      expect(columns.tracks).toContain("version");
+      expect(rooms).toBeDefined();
+      expect(tracks).toBeDefined();
+      expect(schema.rooms).toBe(rooms);
+      expect(schema.tracks).toBe(tracks);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

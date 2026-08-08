@@ -1,8 +1,9 @@
 /**
- * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships.
+ * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships
+ * + 2.3 rooms/tracks.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3. Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
@@ -203,6 +204,48 @@ export const membershipTables = {
   eventMemberships,
 } as const;
 
+/**
+ * rooms — event-scoped venues (section 2.3).
+ * Queries must filter by event_id at repository layer (E2).
+ */
+export const rooms = sqliteTable(
+  "rooms",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    name: text("name").notNull(),
+    capacity: integer("capacity"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (t) => [index("idx_rooms_event_id").on(t.eventId)],
+);
+
+/**
+ * tracks — event-scoped programme tracks (section 2.3).
+ * Queries must filter by event_id at repository layer (E2).
+ */
+export const tracks = sqliteTable(
+  "tracks",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    name: text("name").notNull(),
+    color: text("color"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (t) => [index("idx_tracks_event_id").on(t.eventId)],
+);
+
+/** Rooms/tracks tables owned by section 2.3. */
+export const eventSettingsTables = {
+  rooms,
+  tracks,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -221,6 +264,10 @@ export type MagicLink = typeof magicLinks.$inferSelect;
 export type NewMagicLink = typeof magicLinks.$inferInsert;
 export type EventMembership = typeof eventMemberships.$inferSelect;
 export type NewEventMembership = typeof eventMemberships.$inferInsert;
+export type Room = typeof rooms.$inferSelect;
+export type NewRoom = typeof rooms.$inferInsert;
+export type Track = typeof tracks.$inferSelect;
+export type NewTrack = typeof tracks.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -233,4 +280,6 @@ export const schema = {
   authSessions,
   magicLinks,
   eventMemberships,
+  rooms,
+  tracks,
 } as const;

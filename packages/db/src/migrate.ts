@@ -246,3 +246,6 @@ export const AUTH_TABLES = ["users", "auth_sessions", "magic_links"] as const;
 
 /** Membership table names required by section 2.2 AC. */
 export const MEMBERSHIP_TABLES = ["event_memberships"] as const;
+
+/** Rooms/tracks table names required by section 2.3 AC. */
+export const EVENT_SETTINGS_TABLES = ["rooms", "tracks"] as const;

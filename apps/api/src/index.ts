@@ -4,6 +4,7 @@
  * Section 1.2: GET /health, E4 errors, correlation
  * Section 2.1: Auth magic-link routes (session cookies)
  * Section 2.2: requireRole + Event.List / Schedule.Place role gates
+ * Section 2.3: Event.Create/Update + Room/Track upsert + active event data
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -31,6 +32,10 @@ import {
   MagicLinkTestOutbox,
   type AuthStore,
 } from "./modules/auth/store.js";
+import {
+  MemoryEventsStore,
+  type EventsStore,
+} from "./modules/events/store.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
 
@@ -40,6 +45,8 @@ export const DEFAULT_APP_VERSION = "0.1.0";
 export type CreateAppOptions = {
   /** Inject auth store (defaults to in-memory for local/test). */
   authStore?: AuthStore;
+  /** Inject events store (defaults to in-memory for local/test). */
+  eventsStore?: EventsStore;
   /** Shared test outbox for magic-link capture. */
   magicLinkOutbox?: MagicLinkTestOutbox;
   /** Cookie Secure flag (default true). */
@@ -63,6 +70,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   void SCHEMA_READY;
 
   const authStore = options.authStore ?? new MemoryAuthStore();
+  const eventsStore = options.eventsStore ?? new MemoryEventsStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -100,8 +108,11 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
-  // Section 2.2 — Event.List (admin role gate)
-  app.route("/api/events", createEventsRoutes({ store: authStore }));
+  // Section 2.3 — Event.Create/Update/List + rooms/tracks (admin role gate)
+  app.route(
+    "/api/events",
+    createEventsRoutes({ store: authStore, events: eventsStore }),
+  );
 
   // Section 2.2 — Schedule.Place under /api/events/:eventId/... (admin role gate)
   // Mounted at /api/events so path is /:eventId/schedule/place
@@ -122,17 +133,20 @@ export function createAppWithAuth(
 ): {
   app: Hono<ApiEnv>;
   store: AuthStore;
+  events: EventsStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
+  const events = options.eventsStore ?? new MemoryEventsStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
     authStore: store,
+    eventsStore: events,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
   });
-  return { app, store, outbox };
+  return { app, store, events, outbox };
 }
 
 /** Default export for Cloudflare Workers (wrangler main). */

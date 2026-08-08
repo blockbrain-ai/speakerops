@@ -15,9 +15,12 @@ export {
   authSessions,
   magicLinks,
   eventMemberships,
+  rooms,
+  tracks,
   baselineTables,
   authTables,
   membershipTables,
+  eventSettingsTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -37,6 +40,10 @@ export {
   type NewMagicLink,
   type EventMembership,
   type NewEventMembership,
+  type Room,
+  type NewRoom,
+  type Track,
+  type NewTrack,
 } from "../schema.js";
 
 export {

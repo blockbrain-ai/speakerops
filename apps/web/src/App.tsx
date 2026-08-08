@@ -1,13 +1,15 @@
 /**
  * App router + shared admin layout (section 1.4) + auth login (section 2.1)
- * + RequireRole admin guards (section 2.2).
+ * + RequireRole admin guards (section 2.2) + event context (section 2.3).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminShell } from "./layout/AdminShell.js";
 import { RequireRole } from "./auth/RequireRole.js";
+import { EventProvider } from "./events/EventContext.js";
 import { LoginPage } from "./pages/Login.js";
 import { PortalHomePage } from "./pages/PortalHome.js";
+import { EventSettingsPage } from "./pages/EventSettings.js";
 import {
   BareLayout,
   CfpFormsPage,
@@ -17,17 +19,18 @@ import {
   OverviewPage,
   PublicCfpStubPage,
   SchedulePage,
-  SettingsPage,
   SpeakersPage,
   SubmissionsPage,
 } from "./routes/placeholders.js";
 import type { ReactNode } from "react";
 
-/** Wrap admin chrome with server-backed admin role guard (B04/B05). */
+/** Wrap admin chrome with server-backed admin role guard (B04/B05) + event context. */
 function AdminGuard({ children }: { children: ReactNode }) {
   return (
     <RequireRole roles={["admin"]}>
-      <AdminShell>{children}</AdminShell>
+      <EventProvider>
+        <AdminShell>{children}</AdminShell>
+      </EventProvider>
     </RequireRole>
   );
 }
@@ -112,7 +115,7 @@ export function AppRoutes() {
         path="/admin/settings"
         element={
           <AdminGuard>
-            <SettingsPage />
+            <EventSettingsPage />
           </AdminGuard>
         }
       />
@@ -139,7 +142,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <BrowserRouter>
-      <div id="speakerops-root" data-section="2.2" data-testid="app-root">
+      <div id="speakerops-root" data-section="2.3" data-testid="app-root">
         <AppRoutes />
       </div>
     </BrowserRouter>

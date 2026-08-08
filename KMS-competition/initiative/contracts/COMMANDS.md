@@ -15,9 +15,12 @@ Auth: session cookie **or** API key with scopes.
 | Command | Scope | Input | Output |
 |---------|-------|-------|--------|
 | `Event.Create` | admin / events:write | name, timezone, dates | event |
+| `Event.Get` | admin / events:read | eventId | event |
 | `Event.Update` | admin / events:write | eventId, patch, expectedVersion | event |
 | `Event.List` | admin / events:read | — | events[] |
+| `Room.List` / `Room.Get` | admin | eventId [, roomId] | rooms[] / room |
 | `Room.Upsert` / `Track.Upsert` | admin | eventId, … | entity |
+| `Track.List` / `Track.Get` | admin | eventId [, trackId] | tracks[] / track |
 | `Design.Get` | design:read | eventId | { draft, published } |
 | `Design.SetDraft` | design:write | eventId, tokens, expectedVersion | draft |
 | `Design.Publish` | design:write | eventId, expectedVersion | published (contrast validated) |
@@ -93,8 +96,13 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/auth/logout | Auth.Logout |
 | GET | /api/events | Event.List |
 | POST | /api/events | Event.Create |
+| GET | /api/events/:eventId | Event.Get |
 | PATCH | /api/events/:eventId | Event.Update |
+| GET | /api/events/:eventId/rooms | Room.List |
+| GET | /api/events/:eventId/rooms/:roomId | Room.Get |
 | PUT | /api/events/:eventId/rooms/:roomId | Room.Upsert |
+| GET | /api/events/:eventId/tracks | Track.List |
+| GET | /api/events/:eventId/tracks/:trackId | Track.Get |
 | PUT | /api/events/:eventId/tracks/:trackId | Track.Upsert |
 | GET | /api/events/:eventId/design | Design.Get |
 | PUT | /api/events/:eventId/design | Design.SetDraft |
