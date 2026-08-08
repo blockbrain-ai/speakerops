@@ -18,6 +18,7 @@ import {
   MEMBERSHIP_TABLES,
   EVENT_SETTINGS_TABLES,
   DESIGN_TABLES,
+  FORM_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -42,6 +43,10 @@ import {
   designTokenDrafts,
   designTokenPublished,
   fileAssets,
+  forms,
+  formVersions,
+  formFields,
+  formRules,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -231,6 +236,37 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       const { columns } = await inspectSchema({ dbPath, migrationsDir });
       expect(columns.file_assets).toContain("uploaded");
       expect(columns.file_assets).toContain("checksum");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("3.1 migration creates forms, form_versions, form_fields, form_rules", async () => {
+    const { dir, dbPath } = tempDbPath();
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0007_forms.sql");
+      for (const table of FORM_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.forms).toContain("event_id");
+      expect(columns.forms).toContain("status");
+      expect(columns.form_versions).toContain("version_num");
+      expect(columns.form_versions).toContain("snapshot_json");
+      expect(columns.form_versions).toContain("published_at");
+      expect(columns.form_fields).toContain("field_key");
+      expect(columns.form_fields).toContain("conditions_json");
+      expect(columns.form_rules).toContain("when_json");
+      expect(columns.form_rules).toContain("route_to_category");
+      expect(forms).toBeDefined();
+      expect(formVersions).toBeDefined();
+      expect(formFields).toBeDefined();
+      expect(formRules).toBeDefined();
+      expect(schema.forms).toBe(forms);
+      expect(schema.formVersions).toBe(formVersions);
+      expect(schema.formFields).toBe(formFields);
+      expect(schema.formRules).toBe(formRules);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -259,3 +259,11 @@ export const DESIGN_TABLES = [
 
 /** file_assets readiness column (phase-audit fix; migration 0006). */
 export const FILE_ASSETS_UPLOADED_COLUMN = "uploaded" as const;
+
+/** Forms table names required by section 3.1 AC. */
+export const FORM_TABLES = [
+  "forms",
+  "form_versions",
+  "form_fields",
+  "form_rules",
+] as const;

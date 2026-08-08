@@ -120,6 +120,30 @@ if (existsSync(membershipSql)) {
   console.log("[db:generate] 0003_event_memberships.sql present (event_memberships)");
 }
 
+// Section 3.1 forms (additive)
+const formsSql = join(migrationsDir, "0007_forms.sql");
+if (existsSync(formsSql)) {
+  const fSrc = readFileSync(formsSql, "utf8");
+  for (const table of ["forms", "form_versions", "form_fields", "form_rules"]) {
+    if (!new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, "i").test(fSrc)) {
+      fail(`0007_forms.sql must CREATE TABLE ${table}`);
+    }
+  }
+  for (const [name, re] of [
+    ["forms", /export const forms/],
+    ["form_versions", /export const formVersions/],
+    ["form_fields", /export const formFields/],
+    ["form_rules", /export const formRules/],
+  ]) {
+    if (!re.test(schemaSrc)) {
+      fail(`schema.ts must export table for ${name}`);
+    }
+  }
+  console.log(
+    "[db:generate] 0007_forms.sql present (forms, form_versions, form_fields, form_rules)",
+  );
+}
+
 console.log("[db:generate] schema.ts exports baseline tables");
 console.log("[db:generate] 0001_baseline.sql present and lists required tables");
 console.log(`[db:generate] migrations: ${files.sort().join(", ")}`);

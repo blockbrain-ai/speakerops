@@ -1,9 +1,9 @@
 /**
  * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth + 2.2 memberships
- * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets.
+ * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets + 3.1 forms.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1. Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
@@ -306,6 +306,91 @@ export const designTables = {
   fileAssets,
 } as const;
 
+/**
+ * forms — event-scoped CFP form shell (section 3.1).
+ * status: draft | published. Draft working copy lives on form_versions version_num=0.
+ */
+export const forms = sqliteTable(
+  "forms",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    name: text("name").notNull(),
+    status: text("status").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("idx_forms_event_id").on(t.eventId)],
+);
+
+/**
+ * form_versions — draft (version_num=0, published_at NULL) + immutable published snapshots.
+ * Publish freezes snapshot_json and never mutates published rows (S-CFP / 3.1).
+ */
+export const formVersions = sqliteTable(
+  "form_versions",
+  {
+    id: text("id").primaryKey().notNull(),
+    formId: text("form_id").notNull(),
+    versionNum: integer("version_num").notNull(),
+    welcomeMd: text("welcome_md"),
+    thankYouMd: text("thank_you_md"),
+    opensAt: text("opens_at"),
+    closesAt: text("closes_at"),
+    submissionLimit: integer("submission_limit"),
+    publishedAt: text("published_at"),
+    /** Immutable JSON snapshot of fields+rules+meta at publish time. */
+    snapshotJson: text("snapshot_json"),
+  },
+  (t) => [
+    index("idx_form_versions_form_id").on(t.formId),
+    uniqueIndex("idx_form_versions_form_version_num").on(t.formId, t.versionNum),
+  ],
+);
+
+/**
+ * form_fields — fields on a form_version; field_key is stable for submission_answers.
+ */
+export const formFields = sqliteTable(
+  "form_fields",
+  {
+    id: text("id").primaryKey().notNull(),
+    formVersionId: text("form_version_id").notNull(),
+    fieldKey: text("field_key").notNull(),
+    type: text("type").notNull(),
+    label: text("label").notNull(),
+    required: integer("required").notNull().default(0),
+    optionsJson: text("options_json"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    conditionsJson: text("conditions_json"),
+  },
+  (t) => [
+    index("idx_form_fields_form_version_id").on(t.formVersionId),
+    uniqueIndex("idx_form_fields_version_key").on(t.formVersionId, t.fieldKey),
+  ],
+);
+
+/**
+ * form_rules — category routing rules (when_json → route_to_category).
+ */
+export const formRules = sqliteTable(
+  "form_rules",
+  {
+    id: text("id").primaryKey().notNull(),
+    formVersionId: text("form_version_id").notNull(),
+    whenJson: text("when_json").notNull(),
+    routeToCategory: text("route_to_category").notNull(),
+  },
+  (t) => [index("idx_form_rules_form_version_id").on(t.formVersionId)],
+);
+
+/** Forms tables owned by section 3.1. */
+export const formTables = {
+  forms,
+  formVersions,
+  formFields,
+  formRules,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -334,6 +419,14 @@ export type DesignTokenPublishedRow = typeof designTokenPublished.$inferSelect;
 export type NewDesignTokenPublished = typeof designTokenPublished.$inferInsert;
 export type FileAsset = typeof fileAssets.$inferSelect;
 export type NewFileAsset = typeof fileAssets.$inferInsert;
+export type Form = typeof forms.$inferSelect;
+export type NewForm = typeof forms.$inferInsert;
+export type FormVersion = typeof formVersions.$inferSelect;
+export type NewFormVersion = typeof formVersions.$inferInsert;
+export type FormField = typeof formFields.$inferSelect;
+export type NewFormField = typeof formFields.$inferInsert;
+export type FormRule = typeof formRules.$inferSelect;
+export type NewFormRule = typeof formRules.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -351,4 +444,8 @@ export const schema = {
   designTokenDrafts,
   designTokenPublished,
   fileAssets,
+  forms,
+  formVersions,
+  formFields,
+  formRules,
 } as const;

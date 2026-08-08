@@ -6,6 +6,7 @@
  * Section 2.2: requireRole + Event.List / Schedule.Place role gates
  * Section 2.3: Event.Create/Update + Room/Track upsert + active event data
  * Section 2.4: Design Kit draft/publish + logo presign + public tokens
+ * Section 3.1: Form builder Create/UpdateDraft/Publish + public CFP get + OpenAPI
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -37,6 +38,11 @@ import {
   createFileRoutes,
 } from "./modules/design/routes.js";
 import {
+  createEventFormsRoutes,
+  createFormsRoutes,
+  createPublicFormsRoutes,
+} from "./modules/forms/routes.js";
+import {
   MemoryAuthStore,
   D1AuthStore,
   MagicLinkTestOutbox,
@@ -53,6 +59,12 @@ import {
   D1DesignStore,
   type DesignStore,
 } from "./modules/design/store.js";
+import {
+  MemoryFormsStore,
+  D1FormsStore,
+  type FormsStore,
+} from "./modules/forms/store.js";
+import { registerOpenApiRoute } from "./openapi.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
 
@@ -66,6 +78,8 @@ export type CreateAppOptions = {
   eventsStore?: EventsStore;
   /** Inject design store (defaults to in-memory for local/test). */
   designStore?: DesignStore;
+  /** Inject forms store (defaults to in-memory for local/test). */
+  formsStore?: FormsStore;
   /** Shared test outbox for magic-link capture. */
   magicLinkOutbox?: MagicLinkTestOutbox;
   /** Cookie Secure flag (default true). */
@@ -99,6 +113,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const authStore = options.authStore ?? new MemoryAuthStore();
   const eventsStore = options.eventsStore ?? new MemoryEventsStore();
   const designStore = options.designStore ?? new MemoryDesignStore();
+  const formsStore = options.formsStore ?? new MemoryFormsStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -179,6 +194,39 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
+  // Section 3.1 — Form.Create under /api/events/:eventId/forms
+  app.route(
+    "/api/events",
+    createEventFormsRoutes({
+      store: authStore,
+      events: eventsStore,
+      forms: formsStore,
+    }),
+  );
+
+  // Section 3.1 — Form.UpdateDraftFields / Form.Publish
+  app.route(
+    "/api/forms",
+    createFormsRoutes({
+      store: authStore,
+      events: eventsStore,
+      forms: formsStore,
+    }),
+  );
+
+  // Section 3.1 — Form.GetPublic (published only)
+  app.route(
+    "/api/public",
+    createPublicFormsRoutes({
+      store: authStore,
+      events: eventsStore,
+      forms: formsStore,
+    }),
+  );
+
+  // Section 3.1 — OpenAPI lists Form commands
+  registerOpenApiRoute(app);
+
   app.notFound(notFoundHandler);
   app.onError(onErrorHandler);
 
@@ -197,23 +245,26 @@ export function createAppWithAuth(
   store: AuthStore;
   events: EventsStore;
   design: DesignStore;
+  forms: FormsStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
   const events = options.eventsStore ?? new MemoryEventsStore();
   const design = options.designStore ?? new MemoryDesignStore();
+  const forms = options.formsStore ?? new MemoryFormsStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
     authStore: store,
     eventsStore: events,
     designStore: design,
+    formsStore: forms,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
     // Open bootstrap for e2e/unit tests only — never production.
     bootstrapPolicy: options.bootstrapPolicy ?? "open",
   });
-  return { app, store, events, design, outbox };
+  return { app, store, events, design, forms, outbox };
 }
 
 /**
@@ -231,6 +282,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     authStore: new D1AuthStore(d1),
     eventsStore: new D1EventsStore(d1),
     designStore: new D1DesignStore(d1, env.FILES),
+    formsStore: new D1FormsStore(d1),
     enableDevOutbox: false,
     bootstrapPolicy: "controlled",
   });
