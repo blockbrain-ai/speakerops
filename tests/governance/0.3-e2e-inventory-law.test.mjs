@@ -304,3 +304,38 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 });
+
+// Regression: empty E2E root + IMPLEMENTED status must fail intermediate gate (auditor REVISE)
+import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync, readFileSync as rf } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+
+const __root = join(dirname(fileURLToPath(import.meta.url)), "../..");
+
+test("rejects empty intermediate E2E tree when IMPLEMENTED requires @inv", () => {
+  const probe = mkdtempSync(join(tmpdir(), "spo-e2e-empty-"));
+  try {
+    mkdirSync(join(probe, "scripts"), { recursive: true });
+    mkdirSync(join(probe, "KMS-competition/initiative"), { recursive: true });
+    mkdirSync(join(probe, "playwright/e2e"), { recursive: true });
+    cpSync(join(__root, "scripts/e2e-inventory-lint.mjs"), join(probe, "scripts/e2e-inventory-lint.mjs"));
+    cpSync(
+      join(__root, "scripts/e2e-inventory-required-baseline.json"),
+      join(probe, "scripts/e2e-inventory-required-baseline.json"),
+    );
+    let inv = rf(join(__root, "KMS-competition/initiative/BROWSER_E2E_INVENTORY.md"), "utf8");
+    inv = inv.replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |");
+    writeFileSync(join(probe, "KMS-competition/initiative/BROWSER_E2E_INVENTORY.md"), inv);
+    const r = spawnSync(process.execPath, [join(probe, "scripts/e2e-inventory-lint.mjs")], {
+      cwd: probe,
+      encoding: "utf8",
+    });
+    assert.notEqual(r.status, 0, "expected fail on empty e2e tree with IMPLEMENTED A01");
+    assert.match(r.stderr + r.stdout, /no test files|@inv/i);
+  } finally {
+    rmSync(probe, { recursive: true, force: true });
+  }
+});

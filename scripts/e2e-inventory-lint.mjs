@@ -334,30 +334,36 @@ if (fullGate) {
   }
 }
 
+// Compute tag targets for intermediate vs phase8 before branching on file presence.
+/** IDs that must have @inv tags under current gate mode. */
+let tagTargets;
+let modeLabel;
+if (fullGate) {
+  tagTargets = journeys
+    .filter((j) => j.required && j.status !== "DEFER")
+    .map((j) => j.id);
+  modeLabel = "phase8 full REQUIRED";
+} else {
+  tagTargets = journeys
+    .filter(
+      (j) =>
+        j.required &&
+        j.status !== "DEFER" &&
+        TAG_REQUIRED_STATUSES.has(j.status),
+    )
+    .map((j) => j.id);
+  modeLabel = "implemented/status-owned";
+}
+
+// Intermediate: E2E root exists but no test files — still enforce if any status-owned targets exist.
+if (!fullGate && existingRoots.length > 0 && files.length === 0 && tagTargets.length > 0) {
+  fail(
+    `E2E root(s) present but no test files (*.ts|js|mjs|tsx), while ${tagTargets.length} ${modeLabel} IDs require @inv tags: ${tagTargets.slice(0, 20).join(", ")}${tagTargets.length > 20 ? ` …(+${tagTargets.length - 20})` : ""}`,
+  );
+}
+
 if (existingRoots.length > 0 && files.length > 0) {
   const blob = files.map((f) => readFileSync(f, "utf8")).join("\n");
-
-  /** IDs that must have @inv tags under current gate mode. */
-  let tagTargets;
-  let modeLabel;
-  if (fullGate) {
-    // Phase 8: every non-DEFER REQUIRED journey
-    tagTargets = journeys
-      .filter((j) => j.required && j.status !== "DEFER")
-      .map((j) => j.id);
-    modeLabel = "phase8 full REQUIRED";
-  } else {
-    // Intermediate (1.5–7): only implemented / status-owned rows
-    tagTargets = journeys
-      .filter(
-        (j) =>
-          j.required &&
-          j.status !== "DEFER" &&
-          TAG_REQUIRED_STATUSES.has(j.status),
-      )
-      .map((j) => j.id);
-    modeLabel = "implemented/status-owned";
-  }
 
   const missing = tagTargets.filter((id) => !blob.includes(`@inv:${id}`));
   if (missing.length > 0) {
