@@ -1,11 +1,12 @@
 # SpeakerOps — contract map
 
 **Purpose:** Single index of binding programme contracts so builders do not invent a second source of truth.  
-**Sections:** 0.1 programme contract · 0.2 Lumen design system lock · 0.3 Browser E2E inventory law · **0.4 Domain and command map** (governance).  
+**Sections:** 0.1 programme contract · 0.2 Lumen design system lock · 0.3 Browser E2E inventory law · 0.4 Domain and command map · **0.5 Docs and onboarding outline** (governance).  
 **Programme contract summary:** [`docs/governance/0.1-programme-contract.md`](./governance/0.1-programme-contract.md)  
 **Lumen lock (E6):** [`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md)  
 **E2E inventory law (S-E2E-INV / S-E2E-RUN):** [`docs/governance/0.3-e2e-inventory-law.md`](./governance/0.3-e2e-inventory-law.md)  
-**Domain and command map (S-CLI / SCHEMA+COMMANDS+SCOPES):** [`docs/governance/0.4-domain-map.md`](./governance/0.4-domain-map.md)
+**Domain and command map (S-CLI / SCHEMA+COMMANDS+SCOPES):** [`docs/governance/0.4-domain-map.md`](./governance/0.4-domain-map.md)  
+**Docs and onboarding outline (S-ONB-HUMAN / S-ONB-AGENT / S-DOCS):** [`docs/governance/0.5-docs-onboarding-outline.md`](./governance/0.5-docs-onboarding-outline.md)
 
 ---
 
@@ -18,6 +19,7 @@
 | **Lumen lock (E6 frontend freeze)** | [`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md) | Token CSS vars, contrast gate, SVG reject, retheme blast radius, component checklist |
 | **Browser E2E inventory law (0.3)** | [`docs/governance/0.3-e2e-inventory-law.md`](./governance/0.3-e2e-inventory-law.md) | REQUIRED PASS for dogfood, @inv tags, Phase 8 full run, no shrinkage, discovery crawl, phase letter map |
 | **Domain and command map (0.4)** | [`docs/governance/0.4-domain-map.md`](./governance/0.4-domain-map.md) | Person≠Speaker; command summary; scope default-deny; FE/CLI/API alignment |
+| **Docs and onboarding outline (0.5)** | [`docs/governance/0.5-docs-onboarding-outline.md`](./governance/0.5-docs-onboarding-outline.md) | Phase 9 `docs/` tree + `reports/` HTML portal; human vs agent paths; 9.6 evidence |
 | Schema | [`KMS-competition/initiative/contracts/SCHEMA.md`](../KMS-competition/initiative/contracts/SCHEMA.md) | D1 tables; section ownership; no invented columns |
 | Commands | [`KMS-competition/initiative/contracts/COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) | Named domain commands; HTTP/CLI 1:1 |
 | Scopes | [`KMS-competition/initiative/contracts/SCOPES.md`](../KMS-competition/initiative/contracts/SCOPES.md) | API key scopes; default-deny high-risk |
@@ -56,6 +58,14 @@ Constitution soul **S-CLI** requires a scoped CLI over the **same** domain comma
 Canonical sources: [`SCHEMA.md`](../KMS-competition/initiative/contracts/SCHEMA.md) · [`COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) · [`SCOPES.md`](../KMS-competition/initiative/contracts/SCOPES.md).  
 **Person ≠ Speaker.** Default-deny on new keys: `comms:send`, `decisions:write`, `keys:admin`.
 
+### S-ONB-HUMAN / S-ONB-AGENT / S-DOCS → docs and onboarding outline
+
+Constitution souls **S-ONB-HUMAN**, **S-ONB-AGENT**, and **S-DOCS** require human onboarding, agent setup, and a coherent docs + HTML report portal. Workspace pre-declaration (Phase 9 shape locked so execution is not invention):
+
+**[`docs/governance/0.5-docs-onboarding-outline.md`](./governance/0.5-docs-onboarding-outline.md)**
+
+Required leaves include `docs/ONBOARDING.md`, `docs/AGENT_SETUP.md`, and **`reports/index.html`**. Final prose and `pnpm docs:reports` land in Phase 9.1–9.6; 9.6 proves BC13–BC15.
+
 ---
 
 ## Stack lock (quick reference)
@@ -85,3 +95,4 @@ See programme contract §3 for full table and non-goals. Lumen tokens / retheme 
 6. UI chrome uses Lumen tokens from the 0.2 lock only — no freeform CSS/HTML; retheme public CFP + speaker portal only.
 7. Do not shrink REQUIRED inventory; no wildcard-only acceptance; Phase 8 runs full suite + discovery crawl.
 8. HTTP and CLI map 1:1 to named domain commands; never invent a parallel god-mode CLI. New API keys **default-deny** `comms:send`, `decisions:write`, and `keys:admin`.
+9. Phase 9 docs must follow the [0.5 onboarding outline](./governance/0.5-docs-onboarding-outline.md) tree — do not invent alternate top-level leaves or skip `reports/index.html`.

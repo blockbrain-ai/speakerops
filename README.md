@@ -12,6 +12,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 | [`docs/governance/0.2-lumen-lock.md`](./docs/governance/0.2-lumen-lock.md) | **E6 Lumen lock** — tokens, contrast gate, SVG reject, retheme blast radius, component checklist |
 | [`docs/governance/0.3-e2e-inventory-law.md`](./docs/governance/0.3-e2e-inventory-law.md) | **S-E2E-INV / S-E2E-RUN** — REQUIRED PASS for dogfood, `@inv` tags, Phase 8 full run, no shrinkage, discovery crawl |
 | [`docs/governance/0.4-domain-map.md`](./docs/governance/0.4-domain-map.md) | **S-CLI** — Person≠Speaker, command registry summary, scope default-deny (send/decisions/keys) |
+| [`docs/governance/0.5-docs-onboarding-outline.md`](./docs/governance/0.5-docs-onboarding-outline.md) | **S-ONB-HUMAN / S-ONB-AGENT / S-DOCS** — Phase 9 docs tree + reports portal outline |
 | [`docs/CONTRACTS.md`](./docs/CONTRACTS.md) | Index of binding contracts |
 | [`KMS-competition/initiative/00_CONSTITUTION.md`](./KMS-competition/initiative/00_CONSTITUTION.md) | Binding constitution (souls, stack, anti-dilution) |
 
@@ -32,6 +33,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 - Commands: `KMS-competition/initiative/contracts/COMMANDS.md`
 - Scopes: `KMS-competition/initiative/contracts/SCOPES.md`
 - Domain map (workspace): `docs/governance/0.4-domain-map.md`
+- Docs and onboarding outline (workspace): `docs/governance/0.5-docs-onboarding-outline.md`
 - Browser E2E inventory (canonical): `KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`
 - Browser E2E inventory law (workspace): `docs/governance/0.3-e2e-inventory-law.md`
 - Lumen (initiative): `KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`
@@ -52,8 +54,8 @@ Inventory lint is live from section **0.3**. Full browser suite runs after Playw
 
 | Phase | Focus |
 |-------|--------|
-| 0 | Governance contracts (this phase starts at 0.1) |
+| 0 | Governance contracts (0.1–0.5; docs tree pre-declared in 0.5) |
 | 1 | Monorepo, Worker, D1, Lumen shell, Playwright harness |
 | 2–7 | Auth, CFP/eval, portal, comms, schedule, CLI/Airtable |
 | 8 | Full browser E2E, security, seed, CF dogfood deploy |
-| 9 | Onboarding docs + HTML reports (exit gate for dogfood_ready) |
+| 9 | Onboarding docs + HTML reports (exit gate for dogfood_ready; tree locked in 0.5) |
