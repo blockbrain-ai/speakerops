@@ -22,8 +22,13 @@ export function LoginPage() {
   const navigate = useNavigate();
   const tokenFromUrl = searchParams.get("token");
   const purposeParam = searchParams.get("purpose");
+  const eventIdFromUrl = searchParams.get("eventId");
   const initialPurpose: MagicLinkPurpose =
-    purposeParam === "speaker" ? "speaker" : "admin";
+    purposeParam === "speaker"
+      ? "speaker"
+      : purposeParam === "evaluator"
+        ? "evaluator"
+        : "admin";
 
   const [email, setEmail] = useState("");
   const [purpose, setPurpose] = useState<MagicLinkPurpose>(initialPurpose);
@@ -63,9 +68,15 @@ export function LoginPage() {
         }
         setSessionEmail(parsed.data.email);
         setState("idle");
-        // Admin → shell; speaker → portal; evaluator → eval queue lands later (portal-ish)
-        if (parsed.data.purpose === "speaker" || parsed.data.purpose === "evaluator") {
-          navigate("/portal", { replace: true });
+        // Admin → shell; speaker → portal (preserve eventId for portal home); evaluator → eval
+        if (parsed.data.purpose === "speaker") {
+          const q =
+            eventIdFromUrl && eventIdFromUrl.trim().length > 0
+              ? `?eventId=${encodeURIComponent(eventIdFromUrl.trim())}`
+              : "";
+          navigate(`/portal${q}`, { replace: true });
+        } else if (parsed.data.purpose === "evaluator") {
+          navigate("/eval", { replace: true });
         } else {
           navigate("/admin", { replace: true });
         }
@@ -74,7 +85,7 @@ export function LoginPage() {
         setState("error");
       }
     },
-    [navigate],
+    [navigate, eventIdFromUrl],
   );
 
   useEffect(() => {

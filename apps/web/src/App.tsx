@@ -4,7 +4,8 @@
  * + Design Kit (section 2.4) + Form builder (section 3.2)
  * + Public CFP submit (section 3.3) + Eval queue / rubric (section 3.4)
  * + Submissions decisions (section 3.5)
- * + Portal APIs / task templates / admin speakers (section 4.1).
+ * + Portal APIs / task templates / admin speakers (section 4.1)
+ * + Speaker portal UI G01–G08 (section 4.3).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -191,7 +192,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <BrowserRouter>
-      <div id="speakerops-root" data-section="4.1" data-testid="app-root">
+      <div id="speakerops-root" data-section="4.3" data-testid="app-root">
         <AppRoutes />
       </div>
     </BrowserRouter>

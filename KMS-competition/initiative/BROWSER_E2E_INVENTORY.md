@@ -120,14 +120,14 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| G01 | speaker | Portal | Land on next incomplete task | e2e/portal/home | — | REQUIRED | OPEN |
-| G02 | speaker | Profile | Edit bio; save | e2e/portal/bio | XSS text-only | REQUIRED | OPEN |
-| G03 | speaker | Files | Upload headshot; preview | e2e/portal/headshot | Bad type rejected | REQUIRED | OPEN |
-| G04 | speaker | Files | Upload slides | e2e/portal/slides | — | REQUIRED | OPEN |
-| G05 | speaker | Tasks | Complete task; status flips | e2e/portal/task-complete | — | REQUIRED | OPEN |
-| G06 | speaker | Tasks | Overdue visual state | e2e/portal/task-overdue | — | REQUIRED | OPEN |
-| G07 | speaker | Sessions | View own session status | e2e/portal/session | No other speakers’ private data | REQUIRED | OPEN |
-| G08 | speaker | Portal | Mobile complete bio+task | e2e/portal/mobile | — | REQUIRED | OPEN |
+| G01 | speaker | Portal | Land on next incomplete task | e2e/portal/home | — | REQUIRED | PASS |
+| G02 | speaker | Profile | Edit bio; save | e2e/portal/bio | XSS text-only | REQUIRED | PASS |
+| G03 | speaker | Files | Upload headshot; preview | e2e/portal/headshot | Bad type rejected | REQUIRED | PASS |
+| G04 | speaker | Files | Upload slides | e2e/portal/slides | — | REQUIRED | PASS |
+| G05 | speaker | Tasks | Complete task; status flips | e2e/portal/task-complete | — | REQUIRED | PASS |
+| G06 | speaker | Tasks | Overdue visual state | e2e/portal/task-overdue | — | REQUIRED | PASS |
+| G07 | speaker | Sessions | View own session status | e2e/portal/session | No other speakers’ private data | REQUIRED | PASS |
+| G08 | speaker | Portal | Mobile complete bio+task | e2e/portal/mobile | — | REQUIRED | PASS |
 
 ---
 
