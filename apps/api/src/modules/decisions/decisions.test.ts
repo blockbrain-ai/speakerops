@@ -480,6 +480,95 @@ describe("3.5 Decision.Record", () => {
     expect(body.tasks).toEqual([]);
   });
 
+  it("accept then reject dematerializes session speakers and tasks", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-accept-reject@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Accept Then Reject Event",
+    );
+    const { submissionId } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Flip Talk",
+    );
+
+    await admin.decisions.insertTaskTemplate({
+      id: newTaskTemplateId(),
+      eventId: event.id,
+      title: "Headshot",
+      description: null,
+      trigger: "on_accept",
+      dueOffsetDays: 7,
+      createdAt: new Date().toISOString(),
+    });
+
+    const accept = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-flip-accept",
+        },
+        body: JSON.stringify({ decision: "accept" }),
+      },
+      env,
+    );
+    expect(accept.status).toBe(200);
+    const acceptBody = DecisionRecordResponseSchema.parse(await accept.json());
+    expect(acceptBody.session).not.toBeNull();
+    expect(acceptBody.tasks.length).toBeGreaterThan(0);
+    const sessionId = acceptBody.session!.id;
+
+    const reject = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-flip-reject",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Changed mind",
+        }),
+      },
+      env,
+    );
+    expect(reject.status).toBe(200);
+    const rejectBody = DecisionRecordResponseSchema.parse(await reject.json());
+    expect(rejectBody.submission.status).toBe("rejected");
+    expect(rejectBody.session).toBeNull();
+    expect(rejectBody.tasks).toEqual([]);
+
+    // Program artifacts no longer active
+    const session = await admin.decisions.findSessionById(sessionId);
+    expect(session?.status).toBe("cancelled");
+    const speakers = await admin.decisions.listSessionSpeakers(sessionId);
+    expect(speakers).toEqual([]);
+
+    // Detail view must not expose cancelled accept session
+    const detail = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(detail.status).toBe(200);
+    const detailBody = SubmissionDetailResponseSchema.parse(
+      await detail.json(),
+    );
+    expect(detailBody.session).toBeNull();
+    expect(detailBody.submission.status).toBe("rejected");
+  });
+
   it("waitlist status updates submission", async () => {
     const admin = await magicLinkSession("admin", "dec-admin-wait@example.com");
     const event = await createEvent(admin.app, admin.cookie, "Waitlist Event");

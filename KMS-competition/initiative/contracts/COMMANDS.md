@@ -33,16 +33,19 @@ Auth: session cookie **or** API key with scopes.
 | `Form.Publish` | cfp:write | formId | formVersion immutable |
 | `Form.GetPublic` | public | eventSlug / form slug | published form + tokens |
 | `Submission.Create` | public | formVersionId, answers, speakers[], turnstile | submission |
+| `Cfp.FileUpload` | public | eventSlug, filename, mime, size, contentBase64 | { fileId, mime, size, filename } — supporting file for public CFP; mime/size allowlist enforced |
 | `Submission.List` | submissions:read | eventId, filters | page |
 | `Submission.Get` | submissions:read | submissionId | detail |
 | `Submission.AssignEvaluators` | admin | submissionId, userIds[] | assignments |
+| `Submission.BulkPreview` | admin / decisions:write | eventId, submissionIds[], decision | preview items (no writes) |
 
 ## Evaluation & decisions
 | Command | Scope | Input | Output |
 |---------|-------|-------|--------|
 | `Eval.UpsertRubric` | admin | roundId, criteria[] | rubric |
 | `Eval.Score` | evaluator | assignmentId, scores[], comment | assignment |
-| `Decision.Record` | decisions:write | submissionId, decision, reason | decision (+ side effects on accept) |
+| `Decision.Record` | decisions:write | submissionId, decision, reason | decision (+ side effects on accept; dematerialize on leave-accept) |
+| `Session.CreateDirect` | admin / decisions:write | eventId, title, description?, trackId?, speakers[] | session + participations + on_accept tasks |
 
 ## Portal & files
 | Command | Scope | Input | Output |
@@ -114,16 +117,18 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/forms/:formId/publish | Form.Publish |
 | GET | /api/public/cfp/:slug | Form.GetPublic |
 | POST | /api/public/cfp/:slug/submissions | Submission.Create |
+| POST | /api/public/cfp/:slug/files | Cfp.FileUpload |
 | GET | /api/events/:eventId/submissions | Submission.List |
 | GET | /api/submissions/:submissionId | Submission.Get |
 | POST | /api/submissions/:submissionId/assign | Submission.AssignEvaluators |
+| POST | /api/events/:eventId/submissions/bulk-preview | Submission.BulkPreview |
 | PUT | /api/events/:eventId/eval/rubric | Eval.UpsertRubric |
 | GET | /api/events/:eventId/eval/rubric | Eval.GetRubric (read active round) |
 | GET | /api/events/:eventId/eval/rollup | Eval.AdminRollup (aggregate scores) |
 | POST | /api/assignments/:assignmentId/scores | Eval.Score |
 | GET | /api/me/eval-queue | Eval.GetQueue (assigned only) |
 | POST | /api/submissions/:submissionId/decision | Decision.Record |
-| POST | /api/events/:eventId/sessions/direct | (direct session) |
+| POST | /api/events/:eventId/sessions/direct | Session.CreateDirect |
 | GET | /api/portal/home | Portal.GetHome |
 | PATCH | /api/portal/participations/:id | Participation.UpdateProfile |
 | POST | /api/portal/tasks/:taskId/complete | Task.Complete |

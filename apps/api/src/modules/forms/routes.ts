@@ -16,6 +16,7 @@ import {
   FormUpdateDraftResponseSchema,
   FormPublishResponseSchema,
   PublicCfpResponseSchema,
+  TURNSTILE_TEST_SITE_KEY,
   errorEnvelope,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
@@ -306,6 +307,7 @@ export function createPublicFormsRoutes(
   /**
    * GET /cfp/:slug — Form.GetPublic (no auth).
    * Never returns draft fields/rules (S-CFP published surface only).
+   * turnstileSiteKey comes from TURNSTILE_SITE_KEY env when set (production widget).
    */
   app.get("/cfp/:slug", async (c) => {
     const slug = c.req.param("slug");
@@ -313,7 +315,16 @@ export function createPublicFormsRoutes(
     if (!result.ok) {
       return commandError(c, result);
     }
-    const out = PublicCfpResponseSchema.safeParse(result.value);
+    const envSiteKey =
+      typeof c.env?.TURNSTILE_SITE_KEY === "string" &&
+      c.env.TURNSTILE_SITE_KEY.trim().length > 0
+        ? c.env.TURNSTILE_SITE_KEY.trim()
+        : undefined;
+    const payload = {
+      ...result.value,
+      turnstileSiteKey: envSiteKey ?? result.value.turnstileSiteKey ?? TURNSTILE_TEST_SITE_KEY,
+    };
+    const out = PublicCfpResponseSchema.safeParse(payload);
     if (!out.success) {
       return c.json(
         errorEnvelope("Response validation failed", INTERNAL_ERROR),

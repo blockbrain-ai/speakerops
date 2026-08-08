@@ -3,6 +3,10 @@
  *
  * Env name only: TURNSTILE_SECRET_KEY (E10 — never commit values).
  * Test keys from Cloudflare docs are constants in @speakerops/shared.
+ *
+ * Fail-closed: when the secret is absent, only the explicit development
+ * pass token is accepted. A configuration omission must never accept
+ * arbitrary tokens (would silently disable bot protection).
  */
 import {
   TURNSTILE_DEV_FAIL_TOKEN,
@@ -18,10 +22,14 @@ export type TurnstileVerifyResult =
 /**
  * Verify a Turnstile response token.
  *
- * Local/e2e path (secret unset or Cloudflare always-pass test secret):
+ * Local/e2e path (secret unset or literal "test"):
  * - empty → fail
- * - TURNSTILE_DEV_FAIL_TOKEN or always-fail site responses → fail
- * - non-empty → pass
+ * - TURNSTILE_DEV_FAIL_TOKEN / explicit fail tokens → fail
+ * - TURNSTILE_DEV_PASS_TOKEN only → pass
+ * - any other non-empty token → fail (fail-closed)
+ *
+ * Cloudflare always-pass test secret: same deterministic local tokens,
+ * then siteverify for real widget tokens.
  *
  * Production: POST https://challenges.cloudflare.com/turnstile/v0/siteverify
  */
@@ -45,34 +53,6 @@ export async function verifyTurnstile(input: {
 
   const secret = input.secret?.trim() || undefined;
 
-  // Local / e2e: no secret or always-pass test secret → deterministic path.
-  if (
-    !secret ||
-    secret === "test" ||
-    secret === TURNSTILE_TEST_SECRET_PASS
-  ) {
-    if (
-      token === TURNSTILE_DEV_FAIL_TOKEN ||
-      token === "invalid" ||
-      token === "fail"
-    ) {
-      return {
-        ok: false,
-        error: "Turnstile verification failed",
-        code: "VALIDATION_ERROR",
-      };
-    }
-    // Accept Cloudflare always-pass style tokens and dev dummy.
-    if (token === TURNSTILE_DEV_PASS_TOKEN || token.length > 0) {
-      return { ok: true };
-    }
-    return {
-      ok: false,
-      error: "Turnstile verification failed",
-      code: "VALIDATION_ERROR",
-    };
-  }
-
   // Explicit always-fail test secret
   if (secret === TURNSTILE_TEST_SECRET_FAIL) {
     return {
@@ -82,7 +62,36 @@ export async function verifyTurnstile(input: {
     };
   }
 
-  // Production siteverify
+  // Local / e2e: no secret or placeholder "test" → deterministic fail-closed path.
+  // Only the explicit development pass token is allowed (docs/SECRETS.md).
+  if (!secret || secret === "test") {
+    if (token === TURNSTILE_DEV_PASS_TOKEN) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: "Turnstile verification failed",
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  // Cloudflare always-pass test secret: accept explicit dev token without network;
+  // otherwise verify via siteverify (always-pass widget tokens work there).
+  if (secret === TURNSTILE_TEST_SECRET_PASS) {
+    if (token === TURNSTILE_DEV_FAIL_TOKEN || token === "invalid" || token === "fail") {
+      return {
+        ok: false,
+        error: "Turnstile verification failed",
+        code: "VALIDATION_ERROR",
+      };
+    }
+    if (token === TURNSTILE_DEV_PASS_TOKEN) {
+      return { ok: true };
+    }
+    // Fall through to siteverify for real widget tokens under the test secret.
+  }
+
+  // Production (or test-secret widget tokens): siteverify
   const fetchFn = input.fetchImpl ?? fetch;
   const body = new URLSearchParams();
   body.set("secret", secret);

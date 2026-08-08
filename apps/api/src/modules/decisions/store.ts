@@ -100,6 +100,10 @@ export type DecisionsStore = {
   ): Promise<ParticipationRow | null>;
   findParticipationById(id: string): Promise<ParticipationRow | null>;
   listParticipationsForEvent(eventId: string): Promise<ParticipationRow[]>;
+  updateParticipation(
+    id: string,
+    patch: { status: string; version: number; updatedAt: string },
+  ): Promise<ParticipationRow | null>;
 
   insertSession(row: ProgramSessionRow): Promise<ProgramSessionRow>;
   findSessionById(id: string): Promise<ProgramSessionRow | null>;
@@ -107,9 +111,15 @@ export type DecisionsStore = {
     submissionId: string,
   ): Promise<ProgramSessionRow | null>;
   listSessionsForEvent(eventId: string): Promise<ProgramSessionRow[]>;
+  updateSession(
+    id: string,
+    patch: { status: string; version: number; updatedAt: string },
+  ): Promise<ProgramSessionRow | null>;
 
   insertSessionSpeaker(row: SessionSpeakerRow): Promise<SessionSpeakerRow>;
   listSessionSpeakers(sessionId: string): Promise<SessionSpeakerRow[]>;
+  /** Remove all session_speakers rows for a session (accept rollback). */
+  deleteSessionSpeakers(sessionId: string): Promise<void>;
 
   insertTaskTemplate(row: TaskTemplateRow): Promise<TaskTemplateRow>;
   listTaskTemplates(
@@ -128,6 +138,15 @@ export type DecisionsStore = {
   listSpeakerTasksForParticipations(
     participationIds: string[],
   ): Promise<SpeakerTaskRow[]>;
+  updateSpeakerTask(
+    id: string,
+    patch: {
+      status: string;
+      version: number;
+      updatedAt: string;
+      completedAt?: string | null;
+    },
+  ): Promise<SpeakerTaskRow | null>;
 };
 
 export function newDecisionId(): string {
@@ -222,6 +241,22 @@ export class MemoryDecisionsStore implements DecisionsStore {
       .map((p) => ({ ...p }));
   }
 
+  async updateParticipation(
+    id: string,
+    patch: { status: string; version: number; updatedAt: string },
+  ): Promise<ParticipationRow | null> {
+    const existing = this.participations.get(id);
+    if (!existing) return null;
+    const next: ParticipationRow = {
+      ...existing,
+      status: patch.status,
+      version: patch.version,
+      updatedAt: patch.updatedAt,
+    };
+    this.participations.set(id, next);
+    return { ...next };
+  }
+
   async insertSession(row: ProgramSessionRow): Promise<ProgramSessionRow> {
     this.sessions.set(row.id, { ...row });
     if (row.sourceSubmissionId) {
@@ -250,6 +285,22 @@ export class MemoryDecisionsStore implements DecisionsStore {
       .map((s) => ({ ...s }));
   }
 
+  async updateSession(
+    id: string,
+    patch: { status: string; version: number; updatedAt: string },
+  ): Promise<ProgramSessionRow | null> {
+    const existing = this.sessions.get(id);
+    if (!existing) return null;
+    const next: ProgramSessionRow = {
+      ...existing,
+      status: patch.status,
+      version: patch.version,
+      updatedAt: patch.updatedAt,
+    };
+    this.sessions.set(id, next);
+    return { ...next };
+  }
+
   async insertSessionSpeaker(
     row: SessionSpeakerRow,
   ): Promise<SessionSpeakerRow> {
@@ -263,6 +314,10 @@ export class MemoryDecisionsStore implements DecisionsStore {
 
   async listSessionSpeakers(sessionId: string): Promise<SessionSpeakerRow[]> {
     return (this.sessionSpeakers.get(sessionId) ?? []).map((r) => ({ ...r }));
+  }
+
+  async deleteSessionSpeakers(sessionId: string): Promise<void> {
+    this.sessionSpeakers.delete(sessionId);
   }
 
   async insertTaskTemplate(row: TaskTemplateRow): Promise<TaskTemplateRow> {
@@ -315,6 +370,31 @@ export class MemoryDecisionsStore implements DecisionsStore {
     return [...this.tasks.values()]
       .filter((t) => set.has(t.participationId))
       .map((t) => ({ ...t }));
+  }
+
+  async updateSpeakerTask(
+    id: string,
+    patch: {
+      status: string;
+      version: number;
+      updatedAt: string;
+      completedAt?: string | null;
+    },
+  ): Promise<SpeakerTaskRow | null> {
+    const existing = this.tasks.get(id);
+    if (!existing) return null;
+    const next: SpeakerTaskRow = {
+      ...existing,
+      status: patch.status,
+      version: patch.version,
+      updatedAt: patch.updatedAt,
+      completedAt:
+        patch.completedAt !== undefined
+          ? patch.completedAt
+          : existing.completedAt,
+    };
+    this.tasks.set(id, next);
+    return { ...next };
   }
 }
 
@@ -435,6 +515,21 @@ export class D1DecisionsStore implements DecisionsStore {
     return rows.map((r) => this.mapParticipation(r));
   }
 
+  async updateParticipation(
+    id: string,
+    patch: { status: string; version: number; updatedAt: string },
+  ): Promise<ParticipationRow | null> {
+    await this.db
+      .update(eventParticipations)
+      .set({
+        status: patch.status,
+        version: patch.version,
+        updatedAt: patch.updatedAt,
+      })
+      .where(eq(eventParticipations.id, id));
+    return this.findParticipationById(id);
+  }
+
   private mapParticipation(row: {
     id: string;
     eventId: string;
@@ -511,6 +606,21 @@ export class D1DecisionsStore implements DecisionsStore {
     return rows.map((r) => this.mapSession(r));
   }
 
+  async updateSession(
+    id: string,
+    patch: { status: string; version: number; updatedAt: string },
+  ): Promise<ProgramSessionRow | null> {
+    await this.db
+      .update(programSessions)
+      .set({
+        status: patch.status,
+        version: patch.version,
+        updatedAt: patch.updatedAt,
+      })
+      .where(eq(programSessions.id, id));
+    return this.findSessionById(id);
+  }
+
   private mapSession(row: {
     id: string;
     eventId: string;
@@ -558,6 +668,12 @@ export class D1DecisionsStore implements DecisionsStore {
       participationId: r.participationId,
       isPrimary: r.isPrimary === 1,
     }));
+  }
+
+  async deleteSessionSpeakers(sessionId: string): Promise<void> {
+    await this.db
+      .delete(sessionSpeakers)
+      .where(eq(sessionSpeakers.sessionId, sessionId));
   }
 
   async insertTaskTemplate(row: TaskTemplateRow): Promise<TaskTemplateRow> {
@@ -667,5 +783,51 @@ export class D1DecisionsStore implements DecisionsStore {
       out.push(...(await this.listSpeakerTasksForParticipation(id)));
     }
     return out;
+  }
+
+  async updateSpeakerTask(
+    id: string,
+    patch: {
+      status: string;
+      version: number;
+      updatedAt: string;
+      completedAt?: string | null;
+    },
+  ): Promise<SpeakerTaskRow | null> {
+    const set: {
+      status: string;
+      version: number;
+      updatedAt: string;
+      completedAt?: string | null;
+    } = {
+      status: patch.status,
+      version: patch.version,
+      updatedAt: patch.updatedAt,
+    };
+    if (patch.completedAt !== undefined) {
+      set.completedAt = patch.completedAt;
+    }
+    await this.db
+      .update(speakerTasks)
+      .set(set)
+      .where(eq(speakerTasks.id, id));
+    const rows = await this.db
+      .select()
+      .from(speakerTasks)
+      .where(eq(speakerTasks.id, id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      templateId: row.templateId,
+      participationId: row.participationId,
+      status: row.status,
+      dueAt: row.dueAt,
+      completedAt: row.completedAt,
+      version: row.version,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
   }
 }

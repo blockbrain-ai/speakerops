@@ -16,6 +16,7 @@ import {
   submissionAnswers,
   submissionSpeakers,
 } from "@speakerops/db";
+import { d1Changes } from "../auth/store.js";
 
 export type PersonRow = {
   id: string;
@@ -398,7 +399,11 @@ export class D1SubmissionsStore implements SubmissionsStore {
     patch: { status: string; version: number },
     expectedVersion: number,
   ): Promise<SubmissionRow | null> {
-    await this.db
+    // Optimistic concurrency: must verify the UPDATE affected a row.
+    // Post-update read matching patch.version/status is insufficient — a
+    // concurrent request can advance to the same target and make a no-op
+    // UPDATE look successful (false 200 instead of 409).
+    const result = await this.db
       .update(submissions)
       .set({
         status: patch.status,
@@ -410,11 +415,10 @@ export class D1SubmissionsStore implements SubmissionsStore {
           eq(submissions.version, expectedVersion),
         ),
       );
-    const row = await this.findSubmissionById(submissionId);
-    if (!row || row.version !== patch.version || row.status !== patch.status) {
+    if (d1Changes(result) === 0) {
       return null;
     }
-    return row;
+    return this.findSubmissionById(submissionId);
   }
 
   async countSubmittedForEvent(eventId: string): Promise<number> {

@@ -26,6 +26,7 @@ import {
   CfpFileUploadResponseSchema,
   ErrorEnvelopeSchema,
   TURNSTILE_DEV_PASS_TOKEN,
+  TURNSTILE_TEST_SITE_KEY,
   CFP_MIN_SPEAKERS,
   CFP_MAX_SPEAKERS,
   isFieldVisible,
@@ -36,6 +37,64 @@ import {
   type FormRuleDto,
   type SubmissionSpeakerInput,
 } from "@speakerops/shared";
+
+/** Cloudflare Turnstile global (loaded from challenges.cloudflare.com). */
+type TurnstileApi = {
+  render: (
+    el: HTMLElement,
+    opts: {
+      sitekey: string;
+      callback: (token: string) => void;
+      "expired-callback"?: () => void;
+      "error-callback"?: () => void;
+      theme?: "light" | "dark" | "auto";
+    },
+  ) => string;
+  remove: (widgetId: string) => void;
+  reset: (widgetId?: string) => void;
+};
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+  }
+}
+
+const TURNSTILE_SCRIPT_SRC =
+  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+
+let turnstileScriptPromise: Promise<void> | null = null;
+
+function loadTurnstileScript(): Promise<void> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("no window"));
+  }
+  if (window.turnstile) return Promise.resolve();
+  if (turnstileScriptPromise) return turnstileScriptPromise;
+  turnstileScriptPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src^="https://challenges.cloudflare.com/turnstile/"]`,
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Turnstile script failed")),
+        { once: true },
+      );
+      // Already loaded
+      if (window.turnstile) resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = TURNSTILE_SCRIPT_SRC;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Turnstile script failed"));
+    document.head.appendChild(script);
+  });
+  return turnstileScriptPromise;
+}
 
 type LoadState = "loading" | "ok" | "error" | "not_found";
 type SubmitState = "idle" | "submitting" | "success" | "error";
@@ -76,6 +135,9 @@ export function PublicCfpPage() {
   const [maxSpeakers, setMaxSpeakers] = useState<number>(CFP_MAX_SPEAKERS);
   const [fileAllowlist, setFileAllowlist] = useState<string[]>([]);
   const [fileMaxBytes, setFileMaxBytes] = useState(5 * 1024 * 1024);
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string>(
+    TURNSTILE_TEST_SITE_KEY,
+  );
   const [loadState, setLoadState] = useState<LoadState>("loading");
 
   const [title, setTitle] = useState("");
@@ -83,6 +145,7 @@ export function PublicCfpPage() {
   const [speakers, setSpeakers] = useState<SpeakerDraft[]>([
     { clientId: newSpeakerId(), name: "", email: "" },
   ]);
+  /** True when captcha completed (widget callback or local test control). */
   const [turnstileChecked, setTurnstileChecked] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -100,6 +163,12 @@ export function PublicCfpPage() {
 
   const firstErrorRef = useRef<HTMLElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
+  const turnstileHostRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
+
+  /** Production site key → real CF widget; Cloudflare always-pass test key → e2e control. */
+  const useLiveTurnstileWidget =
+    turnstileSiteKey.length > 0 && turnstileSiteKey !== TURNSTILE_TEST_SITE_KEY;
 
   // Load design + form in parallel
   useEffect(() => {
@@ -151,6 +220,9 @@ export function PublicCfpPage() {
           setMaxSpeakers(formParsed.data.maxSpeakers ?? CFP_MAX_SPEAKERS);
           setFileAllowlist(formParsed.data.fileMimeAllowlist ?? []);
           setFileMaxBytes(formParsed.data.fileMaxBytes ?? 5 * 1024 * 1024);
+          setTurnstileSiteKey(
+            formParsed.data.turnstileSiteKey ?? TURNSTILE_TEST_SITE_KEY,
+          );
           setLoadState("ok");
         }
       } catch {
@@ -275,6 +347,11 @@ export function PublicCfpPage() {
     }
   };
 
+  /**
+   * Local/e2e path: Cloudflare always-pass test site key.
+   * Interactive control only — never auto-submit a token without user action.
+   * Server accepts TURNSTILE_DEV_PASS_TOKEN only when TURNSTILE_SECRET_KEY is unset.
+   */
   const onTurnstileToggle = () => {
     if (turnstileChecked) {
       setTurnstileChecked(false);
@@ -284,6 +361,76 @@ export function PublicCfpPage() {
       setTurnstileToken(TURNSTILE_DEV_PASS_TOKEN);
     }
   };
+
+  // Mount Cloudflare Turnstile widget for production site keys.
+  useEffect(() => {
+    if (loadState !== "ok" || !useLiveTurnstileWidget || !canSubmit) {
+      return;
+    }
+    let cancelled = false;
+    const host = turnstileHostRef.current;
+    if (!host) return;
+
+    void (async () => {
+      try {
+        await loadTurnstileScript();
+        if (cancelled || !window.turnstile || !turnstileHostRef.current) return;
+        // Clear previous widget
+        if (turnstileWidgetIdRef.current) {
+          try {
+            window.turnstile.remove(turnstileWidgetIdRef.current);
+          } catch {
+            /* ignore */
+          }
+          turnstileWidgetIdRef.current = null;
+        }
+        host.innerHTML = "";
+        const widgetId = window.turnstile.render(host, {
+          sitekey: turnstileSiteKey,
+          callback: (token: string) => {
+            setTurnstileToken(token);
+            setTurnstileChecked(true);
+            setFieldErrors((prev) => {
+              if (!prev.turnstile) return prev;
+              const next = { ...prev };
+              delete next.turnstile;
+              return next;
+            });
+          },
+          "expired-callback": () => {
+            setTurnstileToken("");
+            setTurnstileChecked(false);
+          },
+          "error-callback": () => {
+            setTurnstileToken("");
+            setTurnstileChecked(false);
+          },
+          theme: "auto",
+        });
+        turnstileWidgetIdRef.current = widgetId;
+      } catch {
+        // Widget failed to load — leave token empty; submit validation fails closed
+        if (!cancelled) {
+          setTurnstileToken("");
+          setTurnstileChecked(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (turnstileWidgetIdRef.current && window.turnstile) {
+        try {
+          window.turnstile.remove(turnstileWidgetIdRef.current);
+        } catch {
+          /* ignore */
+        }
+        turnstileWidgetIdRef.current = null;
+      }
+    };
+    // canSubmit is derived; re-render widget when form becomes submittable
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: remount when site key / load / form open state change
+  }, [loadState, useLiveTurnstileWidget, turnstileSiteKey, windowState, formVersion?.id]);
 
   const onFileSelected = async (
     fieldKey: string,
@@ -894,17 +1041,29 @@ export function PublicCfpPage() {
               <div
                 className="public-cfp__turnstile"
                 data-testid="cfp-turnstile"
+                data-sitekey={turnstileSiteKey}
+                data-turnstile-mode={
+                  useLiveTurnstileWidget ? "live" : "test"
+                }
               >
-                <label className="public-cfp__turnstile-label">
-                  <input
-                    type="checkbox"
-                    className="lumen-focusable"
-                    data-testid="cfp-turnstile-check"
-                    checked={turnstileChecked}
-                    onChange={onTurnstileToggle}
+                {useLiveTurnstileWidget ? (
+                  <div
+                    ref={turnstileHostRef}
+                    className="public-cfp__turnstile-widget"
+                    data-testid="cfp-turnstile-widget"
                   />
-                  <span>I am human (Turnstile test)</span>
-                </label>
+                ) : (
+                  <label className="public-cfp__turnstile-label">
+                    <input
+                      type="checkbox"
+                      className="lumen-focusable"
+                      data-testid="cfp-turnstile-check"
+                      checked={turnstileChecked}
+                      onChange={onTurnstileToggle}
+                    />
+                    <span>I am human (Turnstile test)</span>
+                  </label>
+                )}
                 {fieldErrors.turnstile ? (
                   <p
                     className="public-cfp__error"

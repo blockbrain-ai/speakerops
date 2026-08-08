@@ -325,6 +325,35 @@ describe("3.3 public CFP submit", () => {
     expect(err.error.toLowerCase()).toMatch(/turnstile/);
   });
 
+  it("assert turnstile fails closed when secret unset: non-dev tokens rejected", async () => {
+    // Without TURNSTILE_SECRET_KEY, only TURNSTILE_DEV_PASS_TOKEN is allowed.
+    // Arbitrary non-empty tokens must not pass (fail-closed bot protection).
+    const { app, cookie } = await magicLinkSession("admin-ts-closed@example.com");
+    const event = await createEvent(app, cookie, "TS Closed Event", "ts-closed");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id);
+
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-ts-fail-open",
+        },
+        body: JSON.stringify(
+          baseSubmitBody(formVersionId, {
+            turnstileToken: "forged-but-non-empty-token",
+          }),
+        ),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    const err = ErrorEnvelopeSchema.parse(await res.json());
+    expect(err.code).toBe(VALIDATION_ERROR);
+    expect(err.error.toLowerCase()).toMatch(/turnstile/);
+  });
+
   it("assert script in abstract not executed as JS (stored as text)", async () => {
     const { app, cookie, submissions } = await magicLinkSession(
       "admin-xss@example.com",

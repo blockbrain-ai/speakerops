@@ -8,6 +8,7 @@
  */
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type FormEvent,
@@ -86,6 +87,32 @@ export function FormBuilderPage() {
     () => fields.find((f) => f.clientId === selectedClientId) ?? null,
     [fields, selectedClientId],
   );
+
+  /**
+   * Reset builder state when the active event changes so Save/Publish cannot
+   * mutate a form belonging to a previous event while Copy public link uses
+   * the newly selected event slug.
+   */
+  useEffect(() => {
+    setFormName("CFP form");
+    setForm(null);
+    setDraftMeta(null);
+    setPublishedVersion(null);
+    setFields([]);
+    setRules([]);
+    setSelectedClientId(null);
+    setWelcomeMd("");
+    setThankYouMd("");
+    setOpensAt("");
+    setClosesAt("");
+    setSubmissionLimit("");
+    setCreateStatus(null);
+    setSaveStatus(null);
+    setPublishStatus(null);
+    setLinkStatus(null);
+    setBusy(false);
+    setDragIndex(null);
+  }, [activeEventId]);
 
   const blockReasons = useMemo(
     () =>

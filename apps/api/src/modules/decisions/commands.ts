@@ -167,6 +167,11 @@ async function ensureOnAcceptTemplates(
   return created;
 }
 
+/**
+ * Materialize accept side effects (session, speakers, participations, tasks).
+ * Fully idempotent and safe to re-run after a partial failure so retries repair
+ * missing artifacts instead of returning early without side effects.
+ */
 async function materializeAccept(
   deps: DecisionCommandDeps,
   input: {
@@ -197,6 +202,14 @@ async function materializeAccept(
       createdAt: now,
       updatedAt: now,
     });
+  } else if (session.status !== "confirmed") {
+    // Re-accept after reject/waitlist: reactivate cancelled program session
+    const reactivated = await deps.decisions.updateSession(session.id, {
+      status: "confirmed",
+      version: session.version + 1,
+      updatedAt: now,
+    });
+    if (reactivated) session = reactivated;
   }
 
   const speakers = await deps.submissions.listSpeakers(submission.id);
@@ -227,13 +240,23 @@ async function materializeAccept(
         createdAt: now,
         updatedAt: now,
       });
+    } else if (part.status !== "accepted") {
+      const updated = await deps.decisions.updateParticipation(part.id, {
+        status: "accepted",
+        version: part.version + 1,
+        updatedAt: now,
+      });
+      if (updated) part = updated;
     }
     participations.push(part);
-    await deps.decisions.insertSessionSpeaker({
-      sessionId: session.id,
-      participationId: part.id,
-      isPrimary: sp.isPrimary,
-    });
+    const existingLinks = await deps.decisions.listSessionSpeakers(session.id);
+    if (!existingLinks.some((l) => l.participationId === part.id)) {
+      await deps.decisions.insertSessionSpeaker({
+        sessionId: session.id,
+        participationId: part.id,
+        isPrimary: sp.isPrimary,
+      });
+    }
   }
 
   const templates = await ensureOnAcceptTemplates(deps, eventId, now);
@@ -243,6 +266,17 @@ async function materializeAccept(
     for (const tpl of templates) {
       const existing = await deps.decisions.findSpeakerTask(tpl.id, part.id);
       if (existing) {
+        // Reactivate cancelled tasks on re-accept
+        if (existing.status === "cancelled") {
+          const revived = await deps.decisions.updateSpeakerTask(existing.id, {
+            status: "pending",
+            version: existing.version + 1,
+            updatedAt: now,
+            completedAt: null,
+          });
+          tasks.push(revived ?? existing);
+          continue;
+        }
         tasks.push(existing);
         continue;
       }
@@ -264,6 +298,90 @@ async function materializeAccept(
   return { session, participations, tasks };
 }
 
+/**
+ * Invalidate accept-materialized program artifacts when decision moves off accept.
+ * Session → cancelled; session_speakers removed; on_accept tasks cancelled;
+ * participations that have no other confirmed session speakers → withdrawn.
+ */
+async function dematerializeAccept(
+  deps: DecisionCommandDeps,
+  input: {
+    submissionId: string;
+    eventId: string;
+    now: string;
+  },
+): Promise<void> {
+  const session = await deps.decisions.findSessionBySubmission(
+    input.submissionId,
+  );
+  if (!session) return;
+
+  const speakers = await deps.decisions.listSessionSpeakers(session.id);
+  const partIds = speakers.map((s) => s.participationId);
+
+  // Cancel speaker tasks tied to these participations
+  if (partIds.length > 0) {
+    const tasks =
+      await deps.decisions.listSpeakerTasksForParticipations(partIds);
+    for (const t of tasks) {
+      if (t.status === "cancelled") continue;
+      await deps.decisions.updateSpeakerTask(t.id, {
+        status: "cancelled",
+        version: t.version + 1,
+        updatedAt: input.now,
+        completedAt: t.completedAt,
+      });
+    }
+  }
+
+  // Drop session_speakers so the session no longer exposes accepted speakers
+  await deps.decisions.deleteSessionSpeakers(session.id);
+
+  if (session.status !== "cancelled") {
+    await deps.decisions.updateSession(session.id, {
+      status: "cancelled",
+      version: session.version + 1,
+      updatedAt: input.now,
+    });
+  }
+
+  // Withdraw participations that are no longer on any confirmed session
+  for (const partId of partIds) {
+    const part = await deps.decisions.findParticipationById(partId);
+    if (!part || part.status === "withdrawn") continue;
+
+    const eventSessions = await deps.decisions.listSessionsForEvent(
+      input.eventId,
+    );
+    let stillLinked = false;
+    for (const s of eventSessions) {
+      if (s.status !== "confirmed" || s.id === session.id) continue;
+      const links = await deps.decisions.listSessionSpeakers(s.id);
+      if (links.some((l) => l.participationId === partId)) {
+        stillLinked = true;
+        break;
+      }
+    }
+    if (!stillLinked) {
+      await deps.decisions.updateParticipation(partId, {
+        status: "withdrawn",
+        version: part.version + 1,
+        updatedAt: input.now,
+      });
+    }
+  }
+}
+
+/** Active (non-cancelled) session for a submission, if any. */
+async function findActiveSessionForSubmission(
+  deps: DecisionCommandDeps,
+  submissionId: string,
+): Promise<ProgramSessionRow | null> {
+  const session = await deps.decisions.findSessionBySubmission(submissionId);
+  if (!session || session.status === "cancelled") return null;
+  return session;
+}
+
 export type RecordDecisionInput = DecisionRecordBody & {
   submissionId: string;
   actorUserId: string;
@@ -272,8 +390,15 @@ export type RecordDecisionInput = DecisionRecordBody & {
 
 /**
  * Decision.Record — accept | reject | waitlist.
- * Accept materializes session + session_speakers + speaker_tasks from templates.
- * Second accept is idempotent (no duplicate session/tasks).
+ *
+ * Ordering for partial-failure safety:
+ * 1. Accept: materialize session/tasks first (idempotent), then optimistic
+ *    submission update + decision + audit. A retry after materialize-only
+ *    failure re-runs materialize and completes the write path.
+ * 2. Same accept already recorded: still re-runs materialize to repair any
+ *    missing side effects, then returns idempotent=true.
+ * 3. Accept → reject/waitlist: dematerialize session/speakers/tasks before
+ *    updating status so program artifacts are not left exposed.
  */
 export async function recordDecision(
   deps: DecisionCommandDeps,
@@ -320,39 +445,6 @@ export async function recordDecision(
     submission.id,
   );
 
-  // Idempotent accept: same decision already recorded
-  if (
-    existingDecision &&
-    existingDecision.decision === input.decision &&
-    input.decision === "accept"
-  ) {
-    const session = await deps.decisions.findSessionBySubmission(
-      submission.id,
-    );
-    const speakers = session
-      ? await deps.decisions.listSessionSpeakers(session.id)
-      : [];
-    const partIds = speakers.map((s) => s.participationId);
-    const tasks =
-      await deps.decisions.listSpeakerTasksForParticipations(partIds);
-    const participations: ParticipationRow[] = [];
-    for (const id of partIds) {
-      const p = await deps.decisions.findParticipationById(id);
-      if (p) participations.push(p);
-    }
-    return {
-      ok: true,
-      value: {
-        decision: toDecisionDto(existingDecision),
-        submission: toSubmissionDto(submission),
-        session: session ? toSessionDto(session) : null,
-        tasks: tasks.map(toTaskDto),
-        participations: participations.map(toParticipationDto),
-        idempotent: true,
-      },
-    };
-  }
-
   const event = await deps.events.findEventById(submission.eventId);
   if (!event) {
     return {
@@ -364,8 +456,63 @@ export async function recordDecision(
   }
 
   const now = new Date().toISOString();
+
+  // Idempotent accept: same decision already recorded — repair side effects if incomplete
+  if (
+    existingDecision &&
+    existingDecision.decision === input.decision &&
+    input.decision === "accept" &&
+    submission.status === "accepted"
+  ) {
+    const mat = await materializeAccept(deps, {
+      submission,
+      eventId: event.id,
+      orgId: event.orgId,
+      now,
+    });
+    return {
+      ok: true,
+      value: {
+        decision: toDecisionDto(existingDecision),
+        submission: toSubmissionDto(submission),
+        session: toSessionDto(mat.session),
+        tasks: mat.tasks.map(toTaskDto),
+        participations: mat.participations.map(toParticipationDto),
+        idempotent: true,
+      },
+    };
+  }
+
   const nextStatus = decisionToStatus(input.decision);
   const nextVersion = submission.version + 1;
+
+  let sessionDto: ProgramSessionDto | null = null;
+  let tasks: SpeakerTaskDto[] = [];
+  let participations: EventParticipationDto[] = [];
+
+  // Accept: materialize BEFORE mutating submission so a crash mid-materialize
+  // never leaves status=accepted without program artifacts. Retries repair.
+  if (input.decision === "accept") {
+    const mat = await materializeAccept(deps, {
+      submission,
+      eventId: event.id,
+      orgId: event.orgId,
+      now,
+    });
+    sessionDto = toSessionDto(mat.session);
+    tasks = mat.tasks.map(toTaskDto);
+    participations = mat.participations.map(toParticipationDto);
+  } else if (
+    existingDecision?.decision === "accept" ||
+    submission.status === "accepted"
+  ) {
+    // Leaving accept: invalidate previously materialized program artifacts
+    await dematerializeAccept(deps, {
+      submissionId: submission.id,
+      eventId: event.id,
+      now,
+    });
+  }
 
   const updated = await deps.submissions.updateSubmission(
     submission.id,
@@ -393,22 +540,6 @@ export async function recordDecision(
     decidedBy: input.actorUserId,
     createdAt: now,
   });
-
-  let sessionDto: ProgramSessionDto | null = null;
-  let tasks: SpeakerTaskDto[] = [];
-  let participations: EventParticipationDto[] = [];
-
-  if (input.decision === "accept") {
-    const mat = await materializeAccept(deps, {
-      submission: updated,
-      eventId: event.id,
-      orgId: event.orgId,
-      now,
-    });
-    sessionDto = toSessionDto(mat.session);
-    tasks = mat.tasks.map(toTaskDto);
-    participations = mat.participations.map(toParticipationDto);
-  }
 
   await deps.auth.insertAudit({
     id: uuidv7(),
@@ -705,8 +836,8 @@ export async function getSubmission(
   speakers.sort((a, b) => a.sortOrder - b.sortOrder);
 
   const decision = await deps.decisions.findDecisionBySubmission(submissionId);
-  const session =
-    await deps.decisions.findSessionBySubmission(submissionId);
+  // Do not expose cancelled accept-session artifacts on rejected/waitlisted rows
+  const session = await findActiveSessionForSubmission(deps, submissionId);
 
   return {
     ok: true,

@@ -31,8 +31,8 @@
 - Never commit magic-link tokens, session values, or log them.
 
 ## Public CFP / Turnstile (section 3.3) — names only
-- `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. When unset, API accepts local/e2e test tokens (`XXXX.DUMMY.TOKEN`) only — never enable weak path as production dogfood default.
-- `TURNSTILE_SITE_KEY` — public site key for the SPA widget (not a secret). When unset, Cloudflare always-pass test site key is used for local/e2e.
+- `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. When unset, API accepts **only** the explicit local/e2e pass token (`XXXX.DUMMY.TOKEN`); all other tokens fail closed. Never omit this in production — a missing secret does not disable bot protection by accepting arbitrary tokens.
+- `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). When unset, Cloudflare always-pass test site key is used for local/e2e (interactive test control). When set to a real site key, the SPA loads the Cloudflare widget and submits the returned token.
 - Never commit Turnstile secrets or log full captcha tokens.
 
 ## Base
