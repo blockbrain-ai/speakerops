@@ -17,6 +17,7 @@
  * Section 5.2: Send idempotency_keys + recipients + ICS UID/SEQUENCE + sandbox consumer
  * Section 5.3: Comms admin UI reads — ListTemplates/Jobs/Ics + IcsForPlacement HTTP
  * Section 6.1: Schedule.List/Place/Move/Unschedule + hard room/speaker conflict engine
+ * Section 6.3: Reports.Readiness outstanding + stats (S-READY live dashboard)
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -121,6 +122,7 @@ import {
   D1CommsStore,
   type CommsStore,
 } from "./modules/comms/store.js";
+import { createReadinessRoutes } from "./modules/readiness/routes.js";
 import {
   processCommsOutbox,
   type ProcessOutboxResult,
@@ -386,7 +388,18 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Section 5.1–5.2 — Comms.Preview + Comms.Send (enqueue only, no provider HTTP)
   app.route("/api/comms", createCommsRoutes(commsRouteOpts));
 
-  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 — OpenAPI lists domain commands
+  // Section 6.3 — Reports.Readiness under /api/events/:eventId/readiness
+  app.route(
+    "/api/events",
+    createReadinessRoutes({
+      store: authStore,
+      events: eventsStore,
+      submissions: submissionsStore,
+      decisions: decisionsStore,
+    }),
+  );
+
+  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 / 6.3 — OpenAPI lists domain commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);

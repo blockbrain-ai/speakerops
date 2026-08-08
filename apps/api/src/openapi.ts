@@ -1397,7 +1397,43 @@ export const OPENAPI_COMMANDS = [
   "Schedule.Place",
   "Schedule.Move",
   "Schedule.Unschedule",
+  "Reports.Readiness",
 ] as const;
+
+/** OpenAPI paths for Reports.Readiness (section 6.3 / S-READY). */
+export const READINESS_OPENAPI_PATHS = {
+  "/api/events/{eventId}/readiness": {
+    get: {
+      operationId: "Reports.Readiness",
+      summary: "Reports.Readiness",
+      description:
+        "Outstanding speaker tasks + readiness stats for live admin dashboard (S-READY / 6.3). Poll ≤5s for live update after portal complete.",
+      tags: ["Reports"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "overdueOnly",
+          in: "query",
+          required: false,
+          schema: { type: "string", enum: ["true", "1", "false", "0"] },
+          description: "When true/1, outstanding[] is overdue-only (H02)",
+        },
+      ],
+      responses: {
+        "200": { description: "stats + outstanding[]" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+} as const;
 
 /** OpenAPI paths for Schedule.* commands (section 6.1). */
 export const SCHEDULE_OPENAPI_PATHS = {
@@ -1577,7 +1613,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1) + readiness (6.3).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
@@ -1587,6 +1623,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...FILE_OPENAPI_PATHS,
       ...COMMS_OPENAPI_PATHS,
       ...SCHEDULE_OPENAPI_PATHS,
+      ...READINESS_OPENAPI_PATHS,
     },
     tags: [
       { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },
@@ -1608,6 +1645,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         name: "Schedule",
         description:
           "Placement commands + hard room/speaker conflict detection (S-SCHED / 6.1); no OR-Tools",
+      },
+      {
+        name: "Reports",
+        description:
+          "Readiness outstanding dashboard (S-READY / 6.3); live poll ≤5s",
       },
     ],
     "x-speakerops-commands": [...OPENAPI_COMMANDS],

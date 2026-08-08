@@ -1,10 +1,14 @@
 /**
- * Admin speakers list + detail (section 4.1 API surface for N01–N04).
+ * Admin speakers list + detail (section 4.1 API + 6.3 large list L05).
  *
- * Full speakers UX polish lands in 6.3; this page wires real Speakers.List/Get
- * so list/search/detail/files metadata are not placeholders.
+ * Inventory N01–N04 + L05:
+ *   N01 list · N02 search/filter · N03 detail tasks+files · N04 file metadata
+ *   L05 150-row seed list paginates (page size 25)
+ *
+ * Deep-link from readiness H03: ?participationId=
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   AdminSpeakersListResponseSchema,
   AdminSpeakerDetailResponseSchema,
@@ -13,19 +17,28 @@ import {
   type AdminSpeakerDetailResponse,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
+import {
+  SPEAKERS_PAGE_SIZE,
+  paginateSlice,
+  participationIdFromSearch,
+} from "./readiness-utils.js";
 
 export function SpeakersPage() {
   const { activeEventId } = useEventContext();
+  const location = useLocation();
   const [speakers, setSpeakers] = useState<AdminSpeakerListItem[]>([]);
   const [q, setQ] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminSpeakerDetailResponse | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   const loadList = useCallback(
     async (eventId: string, search: string) => {
       setLoadError(null);
+      setLoading(true);
       const params = new URLSearchParams();
       if (search.trim()) params.set("q", search.trim());
       const qs = params.toString();
@@ -41,17 +54,22 @@ export function SpeakersPage() {
           setLoadError(
             env.success ? env.data.error : `Load failed (${res.status})`,
           );
+          setSpeakers([]);
           return;
         }
         const raw: unknown = await res.json();
         const parsed = AdminSpeakersListResponseSchema.safeParse(raw);
         if (!parsed.success) {
           setLoadError("Unexpected speakers response");
+          setSpeakers([]);
           return;
         }
         setSpeakers(parsed.data.speakers);
       } catch {
         setLoadError("Network error");
+        setSpeakers([]);
+      } finally {
+        setLoading(false);
       }
     },
     [],
@@ -65,46 +83,72 @@ export function SpeakersPage() {
     }
   }, [activeEventId, q, loadList]);
 
-  async function openDetail(participationId: string) {
-    if (!activeEventId) return;
-    setSelectedId(participationId);
-    setDetail(null);
-    setDetailError(null);
-    try {
-      const res = await fetch(
-        `/api/events/${encodeURIComponent(activeEventId)}/speakers/${encodeURIComponent(participationId)}`,
-        {
-          credentials: "include",
-          headers: { accept: "application/json" },
-        },
-      );
-      if (!res.ok) {
-        const raw: unknown = await res.json().catch(() => null);
-        const env = ErrorEnvelopeSchema.safeParse(raw);
-        setDetailError(
-          env.success ? env.data.error : `Detail failed (${res.status})`,
+  // Reset page when filter or event changes
+  useEffect(() => {
+    setPage(1);
+  }, [q, activeEventId]);
+
+  const openDetail = useCallback(
+    async (participationId: string) => {
+      if (!activeEventId) return;
+      setSelectedId(participationId);
+      setDetail(null);
+      setDetailError(null);
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(activeEventId)}/speakers/${encodeURIComponent(participationId)}`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
         );
-        return;
+        if (!res.ok) {
+          const raw: unknown = await res.json().catch(() => null);
+          const env = ErrorEnvelopeSchema.safeParse(raw);
+          setDetailError(
+            env.success ? env.data.error : `Detail failed (${res.status})`,
+          );
+          return;
+        }
+        const raw: unknown = await res.json();
+        const parsed = AdminSpeakerDetailResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          setDetailError("Unexpected detail response");
+          return;
+        }
+        setDetail(parsed.data);
+      } catch {
+        setDetailError("Network error");
       }
-      const raw: unknown = await res.json();
-      const parsed = AdminSpeakerDetailResponseSchema.safeParse(raw);
-      if (!parsed.success) {
-        setDetailError("Unexpected detail response");
-        return;
-      }
-      setDetail(parsed.data);
-    } catch {
-      setDetailError("Network error");
+    },
+    [activeEventId],
+  );
+
+  // H03 deep-link from readiness drill
+  useEffect(() => {
+    const id = participationIdFromSearch(location.search);
+    if (id && activeEventId) {
+      void openDetail(id);
     }
-  }
+  }, [location.search, activeEventId, openDetail]);
+
+  const paged = useMemo(
+    () => paginateSlice(speakers, page, SPEAKERS_PAGE_SIZE),
+    [speakers, page],
+  );
 
   return (
-    <div className="event-settings" data-testid="page-speakers" data-section="4.1">
+    <div
+      className="event-settings"
+      data-testid="page-speakers"
+      data-section="6.3"
+    >
       <p className="page-stub__overline">Speakers</p>
       <h2 className="page-stub__title">Speakers</h2>
       <p className="page-stub__body">
         Event-scoped speaker list from accept/direct session participations.
-        Search filters by name, email, company, title, bio.
+        Search filters by name, email, company, title, bio. Lists paginate for
+        seed sizes up to 150 (L05).
       </p>
 
       {!activeEventId ? (
@@ -141,37 +185,102 @@ export function SpeakersPage() {
             </p>
           ) : null}
 
-          {speakers.length === 0 && !loadError ? (
+          {loading && speakers.length === 0 ? (
+            <p className="eval-queue__muted" data-testid="speakers-loading">
+              Loading speakers…
+            </p>
+          ) : null}
+
+          {speakers.length === 0 && !loadError && !loading ? (
             <p className="eval-queue__muted" data-testid="speakers-empty">
               No speakers for this event yet.
             </p>
-          ) : (
-            <ul className="event-settings__list" data-testid="speakers-list">
-              {speakers.map((s) => (
-                <li
-                  key={s.participation.id}
-                  className="event-settings__list-item"
-                  data-testid={`speaker-row-${s.participation.id}`}
-                  data-participation-id={s.participation.id}
+          ) : null}
+
+          {speakers.length > 0 ? (
+            <>
+              <div
+                className="speakers-list__meta"
+                data-testid="speakers-list-meta"
+                data-total={paged.total}
+                data-page={paged.page}
+                data-page-size={SPEAKERS_PAGE_SIZE}
+              >
+                <span className="eval-queue__muted">
+                  {paged.total} speaker{paged.total === 1 ? "" : "s"}
+                  {paged.totalPages > 1
+                    ? ` · page ${paged.page} of ${paged.totalPages}`
+                    : ""}
+                </span>
+              </div>
+
+              <ul
+                className="event-settings__list speakers-list__window"
+                data-testid="speakers-list"
+                data-total={paged.total}
+                data-visible={paged.pageItems.length}
+              >
+                {paged.pageItems.map((s) => (
+                  <li
+                    key={s.participation.id}
+                    className="event-settings__list-item"
+                    data-testid={`speaker-row-${s.participation.id}`}
+                    data-participation-id={s.participation.id}
+                  >
+                    <button
+                      type="button"
+                      className="eval-queue__link lumen-focusable"
+                      data-testid={`speaker-open-${s.participation.id}`}
+                      onClick={() => void openDetail(s.participation.id)}
+                    >
+                      {s.participation.personName ?? s.participation.personId}
+                    </button>
+                    <span className="eval-queue__muted">
+                      {" "}
+                      · {s.participation.personEmail ?? "—"} · tasks{" "}
+                      {s.completedTaskCount}/
+                      {s.pendingTaskCount + s.completedTaskCount} · sessions{" "}
+                      {s.sessionCount}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              {paged.totalPages > 1 ? (
+                <div
+                  className="speakers-list__pager"
+                  data-testid="speakers-pager"
                 >
                   <button
                     type="button"
-                    className="eval-queue__link lumen-focusable"
-                    data-testid={`speaker-open-${s.participation.id}`}
-                    onClick={() => void openDetail(s.participation.id)}
+                    className="event-settings__submit lumen-focusable"
+                    data-testid="speakers-page-prev"
+                    disabled={paged.page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
-                    {s.participation.personName ?? s.participation.personId}
+                    Previous
                   </button>
-                  <span className="eval-queue__muted">
-                    {" "}
-                    · {s.participation.personEmail ?? "—"} · tasks{" "}
-                    {s.completedTaskCount}/{s.pendingTaskCount + s.completedTaskCount}{" "}
-                    · sessions {s.sessionCount}
+                  <span
+                    className="eval-queue__muted"
+                    data-testid="speakers-page-label"
+                  >
+                    Page {paged.page} / {paged.totalPages}
                   </span>
-                </li>
-              ))}
-            </ul>
-          )}
+                  <button
+                    type="button"
+                    className="event-settings__submit lumen-focusable"
+                    data-testid="speakers-page-next"
+                    disabled={paged.page >= paged.totalPages}
+                    onClick={() =>
+                      setPage((p) => Math.min(paged.totalPages, p + 1))
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </section>
       ) : null}
 

@@ -135,11 +135,11 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| H01 | admin | Dashboard | Stats + outstanding list | e2e/dash/overview | — | REQUIRED | OPEN |
-| H02 | admin | Dashboard | Filter overdue | e2e/dash/filter | — | REQUIRED | OPEN |
-| H03 | admin | Dashboard | Drill to speaker | e2e/dash/drill | — | REQUIRED | OPEN |
-| H04 | admin | Dashboard | Live update after portal complete (same session or poll ≤5s) | e2e/dash/live | — | REQUIRED | OPEN |
-| H05 | admin | Dashboard | Empty state when all clear | e2e/dash/empty | — | REQUIRED | OPEN |
+| H01 | admin | Dashboard | Stats + outstanding list | e2e/dash/overview | — | REQUIRED | PASS |
+| H02 | admin | Dashboard | Filter overdue | e2e/dash/filter | — | REQUIRED | PASS |
+| H03 | admin | Dashboard | Drill to speaker | e2e/dash/drill | — | REQUIRED | PASS |
+| H04 | admin | Dashboard | Live update after portal complete (same session or poll ≤5s) | e2e/dash/live | — | REQUIRED | PASS |
+| H05 | admin | Dashboard | Empty state when all clear | e2e/dash/empty | — | REQUIRED | PASS |
 
 ---
 
@@ -202,7 +202,7 @@
 | L02 | admin | Network | Offline/API 500 shows error state not blank | e2e/states/error | — | REQUIRED | OPEN |
 | L03 | any | Slow | Loading skeletons not infinite hang | e2e/states/loading | — | REQUIRED | OPEN |
 | L04 | any | Happy paths | No uncaught console errors | e2e/states/console-clean | — | REQUIRED | OPEN |
-| L05 | admin | Lists | 150-row seed list paginates or virtualizes usable | e2e/states/large-list | — | REQUIRED | OPEN |
+| L05 | admin | Lists | 150-row seed list paginates or virtualizes usable | e2e/states/large-list | — | REQUIRED | PASS |
 
 ---
 
@@ -210,10 +210,10 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| N01 | admin | Speakers | List speakers for event | e2e/admin/speakers-list | — | REQUIRED | IMPLEMENTED |
-| N02 | admin | Speakers | Search/filter | e2e/admin/speakers-filter | — | REQUIRED | IMPLEMENTED |
-| N03 | admin | Speakers | Detail: tasks + files | e2e/admin/speakers-detail | — | REQUIRED | IMPLEMENTED |
-| N04 | admin | Speakers | Open headshot/slides metadata | e2e/admin/speakers-files | No cross-speaker leak | REQUIRED | IMPLEMENTED |
+| N01 | admin | Speakers | List speakers for event | e2e/admin/speakers-list | — | REQUIRED | PASS |
+| N02 | admin | Speakers | Search/filter | e2e/admin/speakers-filter | — | REQUIRED | PASS |
+| N03 | admin | Speakers | Detail: tasks + files | e2e/admin/speakers-detail | — | REQUIRED | PASS |
+| N04 | admin | Speakers | Open headshot/slides metadata | e2e/admin/speakers-files | No cross-speaker leak | REQUIRED | PASS |
 
 ---
 

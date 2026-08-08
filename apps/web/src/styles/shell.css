@@ -1926,3 +1926,124 @@
   font-size: 13px;
   font-weight: 600;
 }
+
+/* Section 6.3 — Readiness dashboard + speakers large list (Lumen tokens only) */
+.readiness-dashboard__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lumen-space-3);
+  margin-bottom: var(--lumen-space-4);
+}
+
+.readiness-dashboard__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  font-size: 14px;
+  color: var(--lumen-text);
+  cursor: pointer;
+}
+
+.readiness-dashboard__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--lumen-space-3);
+  margin-bottom: var(--lumen-space-4);
+}
+
+.readiness-dashboard__stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+  padding: var(--lumen-space-3) var(--lumen-space-4);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  box-shadow: var(--lumen-shadow-sm);
+}
+
+.readiness-dashboard__stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--lumen-text);
+  line-height: 1.2;
+}
+
+.readiness-dashboard__stat-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lumen-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.readiness-dashboard__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.readiness-dashboard__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lumen-space-2);
+  padding: var(--lumen-space-2) 0;
+}
+
+.readiness-dashboard__row--overdue {
+  border-left: 3px solid var(--lumen-danger);
+  padding-left: var(--lumen-space-3);
+}
+
+.readiness-dashboard__row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.readiness-dashboard__badge {
+  display: inline-block;
+  margin-right: var(--lumen-space-2);
+  padding: 2px var(--lumen-space-2);
+  border-radius: var(--lumen-radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--lumen-brand-soft);
+  color: var(--lumen-brand);
+}
+
+.readiness-dashboard__row--overdue .readiness-dashboard__badge {
+  background: var(--lumen-danger-soft);
+  color: var(--lumen-danger);
+}
+
+.readiness-dashboard__empty {
+  text-align: left;
+}
+
+.speakers-list__meta {
+  margin: var(--lumen-space-2) 0;
+}
+
+.speakers-list__window {
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.speakers-list__pager {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-3);
+  margin-top: var(--lumen-space-3);
+  flex-wrap: wrap;
+}
+
+.speakers-list__pager .event-settings__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

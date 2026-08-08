@@ -8,6 +8,7 @@
  * + Speaker portal UI G01–G08 (section 4.3)
  * + Comms email templates (section 5.1) + trust-before-send UI (section 5.3)
  * + Schedule Studio five views I01–I16 (section 6.2).
+ * + Readiness dashboard H01–H05 + speakers L05 (section 6.3 / S-READY).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -28,10 +29,10 @@ import { TaskTemplatesSettingsPage } from "./pages/TaskTemplatesSettings.js";
 import { SpeakersPage } from "./pages/Speakers.js";
 import { CommsPage } from "./pages/Comms.js";
 import { ScheduleStudioPage } from "./pages/schedule/ScheduleStudio.js";
+import { ReadinessPage } from "./pages/Readiness.js";
 import {
   BareLayout,
   NotFoundPage,
-  OverviewPage,
 } from "./routes/placeholders.js";
 import type { ReactNode } from "react";
 
@@ -87,7 +88,7 @@ export function AppRoutes() {
         path="/admin"
         element={
           <AdminGuard>
-            <OverviewPage />
+            <ReadinessPage />
           </AdminGuard>
         }
       />
