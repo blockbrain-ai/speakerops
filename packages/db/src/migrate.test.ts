@@ -24,6 +24,7 @@ import {
   DECISION_TABLES,
   COMMS_TABLES,
   COMMS_SEND_TABLES,
+  SCHEDULE_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -71,6 +72,9 @@ import {
   messageRecipients,
   deliveryEvents,
   calendarInvites,
+  schedulePlacements,
+  roomBlockReservations,
+  speakerBlockReservations,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -468,6 +472,37 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       // idempotency_keys from baseline still present for Comms.Send
       expect(result.tables).toContain("idempotency_keys");
       expect(columns.idempotency_keys).toContain("request_hash");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("6.1 migration creates schedule_placements and reservation tables", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "speakerops-db-6.1-"));
+    const dbPath = join(dir, "test.sqlite");
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0017_schedule.sql");
+      for (const table of SCHEDULE_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.schedule_placements).toContain("event_id");
+      expect(columns.schedule_placements).toContain("session_id");
+      expect(columns.schedule_placements).toContain("room_id");
+      expect(columns.schedule_placements).toContain("starts_at");
+      expect(columns.schedule_placements).toContain("ends_at");
+      expect(columns.schedule_placements).toContain("version");
+      expect(columns.room_block_reservations).toContain("room_id");
+      expect(columns.room_block_reservations).toContain("placement_id");
+      expect(columns.speaker_block_reservations).toContain("participation_id");
+      expect(columns.speaker_block_reservations).toContain("placement_id");
+      expect(schedulePlacements).toBeDefined();
+      expect(roomBlockReservations).toBeDefined();
+      expect(speakerBlockReservations).toBeDefined();
+      expect(schema.schedulePlacements).toBe(schedulePlacements);
+      expect(schema.roomBlockReservations).toBe(roomBlockReservations);
+      expect(schema.speakerBlockReservations).toBe(speakerBlockReservations);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

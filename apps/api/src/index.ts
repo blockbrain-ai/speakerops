@@ -16,6 +16,7 @@
  * Section 5.1: Comms.UpsertTemplate / Preview / Send enqueue (S-COMMS outbox)
  * Section 5.2: Send idempotency_keys + recipients + ICS UID/SEQUENCE + sandbox consumer
  * Section 5.3: Comms admin UI reads — ListTemplates/Jobs/Ics + IcsForPlacement HTTP
+ * Section 6.1: Schedule.List/Place/Move/Unschedule + hard room/speaker conflict engine
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -44,6 +45,11 @@ import type { ApiEnv, WorkerBindings } from "./env.js";
 import { createAuthRoutes } from "./modules/auth/routes.js";
 import { createEventsRoutes } from "./modules/events/routes.js";
 import { createScheduleRoutes } from "./modules/schedule/routes.js";
+import {
+  MemoryScheduleStore,
+  D1ScheduleStore,
+  type ScheduleStore,
+} from "./modules/schedule/store.js";
 import {
   createDesignRoutes,
   createPublicDesignRoutes,
@@ -143,6 +149,8 @@ export type CreateAppOptions = {
   decisionsStore?: DecisionsStore;
   /** Inject comms store (defaults to in-memory for local/test). */
   commsStore?: CommsStore;
+  /** Inject schedule store (defaults to in-memory for local/test). */
+  scheduleStore?: ScheduleStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /** Shared test outbox for magic-link capture. */
@@ -184,6 +192,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const evalStore = options.evalStore ?? new MemoryEvalStore();
   const decisionsStore = options.decisionsStore ?? new MemoryDecisionsStore();
   const commsStore = options.commsStore ?? new MemoryCommsStore();
+  const scheduleStore = options.scheduleStore ?? new MemoryScheduleStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -241,9 +250,16 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
-  // Section 2.2 — Schedule.Place under /api/events/:eventId/... (admin role gate)
-  // Mounted at /api/events so path is /:eventId/schedule/place
-  app.route("/api/events", createScheduleRoutes({ store: authStore }));
+  // Section 2.2 role gate + 6.1 conflict engine — Schedule.* under /api/events/:eventId/schedule*
+  app.route(
+    "/api/events",
+    createScheduleRoutes({
+      store: authStore,
+      events: eventsStore,
+      decisions: decisionsStore,
+      schedule: scheduleStore,
+    }),
+  );
 
   // Section 2.4 — public published design tokens (never draft)
   app.route(
@@ -370,7 +386,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Section 5.1–5.2 — Comms.Preview + Comms.Send (enqueue only, no provider HTTP)
   app.route("/api/comms", createCommsRoutes(commsRouteOpts));
 
-  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 — OpenAPI lists domain commands
+  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 — OpenAPI lists domain commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);
@@ -396,6 +412,7 @@ export function createAppWithAuth(
   eval: EvalStore;
   decisions: DecisionsStore;
   comms: CommsStore;
+  schedule: ScheduleStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
@@ -406,6 +423,7 @@ export function createAppWithAuth(
   const evalStore = options.evalStore ?? new MemoryEvalStore();
   const decisionsStore = options.decisionsStore ?? new MemoryDecisionsStore();
   const commsStore = options.commsStore ?? new MemoryCommsStore();
+  const scheduleStore = options.scheduleStore ?? new MemoryScheduleStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
@@ -417,6 +435,7 @@ export function createAppWithAuth(
     evalStore,
     decisionsStore,
     commsStore,
+    scheduleStore,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
     // Open bootstrap for e2e/unit tests only — never production.
@@ -432,6 +451,7 @@ export function createAppWithAuth(
     eval: evalStore,
     decisions: decisionsStore,
     comms: commsStore,
+    schedule: scheduleStore,
     outbox,
   };
 }
@@ -502,6 +522,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     evalStore: new D1EvalStore(d1),
     decisionsStore: new D1DecisionsStore(d1),
     commsStore: new D1CommsStore(d1),
+    scheduleStore: new D1ScheduleStore(d1),
     turnstileSecret,
     enableDevOutbox: false,
     bootstrapPolicy: "controlled",

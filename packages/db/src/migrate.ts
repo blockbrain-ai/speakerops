@@ -306,3 +306,10 @@ export const COMMS_SEND_TABLES = [
   "delivery_events",
   "calendar_invites",
 ] as const;
+
+/** Schedule table names required by section 6.1 AC. */
+export const SCHEDULE_TABLES = [
+  "schedule_placements",
+  "room_block_reservations",
+  "speaker_block_reservations",
+] as const;

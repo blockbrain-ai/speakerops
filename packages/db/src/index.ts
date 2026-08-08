@@ -43,6 +43,9 @@ export {
   messageRecipients,
   deliveryEvents,
   calendarInvites,
+  schedulePlacements,
+  roomBlockReservations,
+  speakerBlockReservations,
   baselineTables,
   authTables,
   membershipTables,
@@ -53,6 +56,7 @@ export {
   evalTables,
   decisionTables,
   commsTables,
+  scheduleTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -128,6 +132,12 @@ export {
   type NewDeliveryEvent,
   type CalendarInvite,
   type NewCalendarInvite,
+  type SchedulePlacement,
+  type NewSchedulePlacement,
+  type RoomBlockReservation,
+  type NewRoomBlockReservation,
+  type SpeakerBlockReservation,
+  type NewSpeakerBlockReservation,
 } from "../schema.js";
 
 export {
@@ -164,6 +174,7 @@ export {
   DECISION_TABLES,
   COMMS_TABLES,
   COMMS_SEND_TABLES,
+  SCHEDULE_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

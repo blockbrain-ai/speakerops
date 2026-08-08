@@ -4,10 +4,11 @@
  * + 3.3 people / submissions + 3.4 eval rounds / criteria / assignments / scores
  * + 3.5 decisions / program sessions / participations / task_templates / speaker_tasks
  * + 5.1 email_templates / message_jobs (S-COMMS outbox enqueue)
- * + 5.2 message_recipients / delivery_events / calendar_invites (send + ICS).
+ * + 5.2 message_recipients / delivery_events / calendar_invites (send + ICS)
+ * + 6.1 schedule_placements / room_block_reservations / speaker_block_reservations.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1 / 5.2.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1 / 5.2 / 6.1.
  * Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
@@ -899,6 +900,100 @@ export const commsTables = {
   calendarInvites,
 } as const;
 
+/**
+ * schedule_placements — versioned session placement on a room/time (section 6.1 / S-SCHED).
+ * Unique session_id: one placement per program session (use Move to reschedule).
+ */
+export const schedulePlacements = sqliteTable(
+  "schedule_placements",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    sessionId: text("session_id").notNull(),
+    roomId: text("room_id").notNull(),
+    startsAt: text("starts_at").notNull(),
+    endsAt: text("ends_at").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_schedule_placements_session").on(t.sessionId),
+    index("idx_schedule_placements_event_id").on(t.eventId),
+    index("idx_schedule_placements_room").on(t.eventId, t.roomId),
+  ],
+);
+
+/**
+ * room_block_reservations — room occupancy for a placement (section 6.1).
+ * Unique (event_id, room_id, starts_at, ends_at); overlap checked in domain.
+ */
+export const roomBlockReservations = sqliteTable(
+  "room_block_reservations",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    roomId: text("room_id").notNull(),
+    placementId: text("placement_id")
+      .notNull()
+      .references(() => schedulePlacements.id),
+    startsAt: text("starts_at").notNull(),
+    endsAt: text("ends_at").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_room_block_reservations_unique").on(
+      t.eventId,
+      t.roomId,
+      t.startsAt,
+      t.endsAt,
+    ),
+    index("idx_room_block_reservations_room").on(t.eventId, t.roomId),
+    index("idx_room_block_reservations_placement").on(t.placementId),
+  ],
+);
+
+/**
+ * speaker_block_reservations — speaker occupancy for a placement (section 6.1).
+ * Unique (event_id, participation_id, starts_at, ends_at); overlap in domain.
+ */
+export const speakerBlockReservations = sqliteTable(
+  "speaker_block_reservations",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    participationId: text("participation_id").notNull(),
+    placementId: text("placement_id")
+      .notNull()
+      .references(() => schedulePlacements.id),
+    startsAt: text("starts_at").notNull(),
+    endsAt: text("ends_at").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_speaker_block_reservations_unique").on(
+      t.eventId,
+      t.participationId,
+      t.startsAt,
+      t.endsAt,
+    ),
+    index("idx_speaker_block_reservations_speaker").on(
+      t.eventId,
+      t.participationId,
+    ),
+    index("idx_speaker_block_reservations_placement").on(t.placementId),
+  ],
+);
+
+/** Schedule tables owned by section 6.1. */
+export const scheduleTables = {
+  schedulePlacements,
+  roomBlockReservations,
+  speakerBlockReservations,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -973,6 +1068,14 @@ export type DeliveryEvent = typeof deliveryEvents.$inferSelect;
 export type NewDeliveryEvent = typeof deliveryEvents.$inferInsert;
 export type CalendarInvite = typeof calendarInvites.$inferSelect;
 export type NewCalendarInvite = typeof calendarInvites.$inferInsert;
+export type SchedulePlacement = typeof schedulePlacements.$inferSelect;
+export type NewSchedulePlacement = typeof schedulePlacements.$inferInsert;
+export type RoomBlockReservation = typeof roomBlockReservations.$inferSelect;
+export type NewRoomBlockReservation = typeof roomBlockReservations.$inferInsert;
+export type SpeakerBlockReservation =
+  typeof speakerBlockReservations.$inferSelect;
+export type NewSpeakerBlockReservation =
+  typeof speakerBlockReservations.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -1013,4 +1116,7 @@ export const schema = {
   messageRecipients,
   deliveryEvents,
   calendarInvites,
+  schedulePlacements,
+  roomBlockReservations,
+  speakerBlockReservations,
 } as const;

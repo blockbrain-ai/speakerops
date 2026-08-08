@@ -93,29 +93,12 @@ export const EventListResponseSchema = z.object({
 export type EventListResponse = z.infer<typeof EventListResponseSchema>;
 
 /**
- * Schedule.Place input — POST /api/events/:eventId/schedule/place
- * Full conflict engine is section 6.1; 2.2 enforces role gate + Zod.
+ * Schedule DTOs live in schedule.ts (section 6.1).
+ * Re-exported here for backward-compatible imports from auth-era 2.2 gates.
  */
-export const SchedulePlaceBodySchema = z.object({
-  sessionId: z.string().min(1).max(128),
-  roomId: z.string().min(1).max(128),
-  startsAt: z.string().min(1).max(64),
-  endsAt: z.string().min(1).max(64),
-  expectedVersion: z.number().int().positive().optional(),
-});
-export type SchedulePlaceBody = z.infer<typeof SchedulePlaceBodySchema>;
-
-/** Schedule.Place success stub (placement id reserved; engine lands in 6.1). */
-export const SchedulePlaceResponseSchema = z.object({
-  ok: z.literal(true),
-  placement: z.object({
-    id: z.string().min(1),
-    eventId: z.string().min(1),
-    sessionId: z.string().min(1),
-    roomId: z.string().min(1),
-    startsAt: z.string().min(1),
-    endsAt: z.string().min(1),
-    version: z.number().int().positive(),
-  }),
-});
-export type SchedulePlaceResponse = z.infer<typeof SchedulePlaceResponseSchema>;
+export {
+  SchedulePlaceBodySchema,
+  type SchedulePlaceBody,
+  SchedulePlaceResponseSchema,
+  type SchedulePlaceResponse,
+} from "./schedule.js";

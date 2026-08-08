@@ -1393,7 +1393,182 @@ export const OPENAPI_COMMANDS = [
   "Comms.GetJob",
   "Comms.ListIcs",
   "Comms.IcsForPlacement",
+  "Schedule.List",
+  "Schedule.Place",
+  "Schedule.Move",
+  "Schedule.Unschedule",
 ] as const;
+
+/** OpenAPI paths for Schedule.* commands (section 6.1). */
+export const SCHEDULE_OPENAPI_PATHS = {
+  "/api/events/{eventId}/schedule": {
+    get: {
+      operationId: "Schedule.List",
+      summary: "Schedule.List",
+      description:
+        "List placements + unscheduled confirmed sessions for an event (S-SCHED / 6.1)",
+      tags: ["Schedule"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "view",
+          in: "query",
+          required: false,
+          schema: {
+            type: "string",
+            enum: ["list", "day", "week", "track", "room"],
+          },
+        },
+      ],
+      responses: {
+        "200": { description: "placements + unscheduled" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+  "/api/events/{eventId}/schedule/place": {
+    post: {
+      operationId: "Schedule.Place",
+      summary: "Schedule.Place",
+      description:
+        "Place unscheduled session into room/time; hard room/speaker conflict → 409 CONFLICT with conflicts[]",
+      tags: ["Schedule"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["sessionId", "roomId", "startsAt", "endsAt"],
+              properties: {
+                sessionId: { type: "string" },
+                roomId: { type: "string" },
+                startsAt: { type: "string", format: "date-time" },
+                endsAt: { type: "string", format: "date-time" },
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "201": { description: "Placement created" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Session/room not found" },
+        "409": {
+          description:
+            "CONFLICT with conflicts[] (room/speaker) or VERSION stale",
+        },
+      },
+    },
+  },
+  "/api/events/{eventId}/schedule/move": {
+    post: {
+      operationId: "Schedule.Move",
+      summary: "Schedule.Move",
+      description:
+        "Move placement; expectedVersion required; 409 VERSION on stale; 409 CONFLICT on overlap",
+      tags: ["Schedule"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: [
+                "placementId",
+                "roomId",
+                "startsAt",
+                "endsAt",
+                "expectedVersion",
+              ],
+              properties: {
+                placementId: { type: "string" },
+                roomId: { type: "string" },
+                startsAt: { type: "string", format: "date-time" },
+                endsAt: { type: "string", format: "date-time" },
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Placement updated" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Placement not found" },
+        "409": { description: "CONFLICT or VERSION" },
+      },
+    },
+  },
+  "/api/events/{eventId}/schedule/unschedule": {
+    post: {
+      operationId: "Schedule.Unschedule",
+      summary: "Schedule.Unschedule",
+      description:
+        "Remove placement and free room/speaker reservations; expectedVersion required",
+      tags: ["Schedule"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["placementId", "expectedVersion"],
+              properties: {
+                placementId: { type: "string" },
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Unscheduled; reservations freed" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Placement not found" },
+        "409": { description: "VERSION stale" },
+      },
+    },
+  },
+} as const;
 
 export function buildOpenApiDocument(): Record<string, unknown> {
   return {
@@ -1402,7 +1577,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
@@ -1411,6 +1586,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...PORTAL_OPENAPI_PATHS,
       ...FILE_OPENAPI_PATHS,
       ...COMMS_OPENAPI_PATHS,
+      ...SCHEDULE_OPENAPI_PATHS,
     },
     tags: [
       { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },
@@ -1427,6 +1603,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         name: "Comms",
         description:
           "Email templates + outbox enqueue (S-COMMS / 5.1); provider send (5.2); admin UI trust-before-send (5.3)",
+      },
+      {
+        name: "Schedule",
+        description:
+          "Placement commands + hard room/speaker conflict detection (S-SCHED / 6.1); no OR-Tools",
       },
     ],
     "x-speakerops-commands": [...OPENAPI_COMMANDS],

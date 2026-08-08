@@ -12,6 +12,7 @@ export {
   FORBIDDEN,
   NOT_FOUND,
   CONFLICT,
+  VERSION,
   INTERNAL_ERROR,
 } from "./errors.js";
 
@@ -40,11 +41,36 @@ export {
   type EventListItem,
   EventListResponseSchema,
   type EventListResponse,
+} from "./auth.js";
+
+export {
+  ScheduleConflictTypeSchema,
+  type ScheduleConflictType,
+  ScheduleConflictItemSchema,
+  type ScheduleConflictItem,
+  SchedulePlacementSchema,
+  type SchedulePlacementDto,
   SchedulePlaceBodySchema,
   type SchedulePlaceBody,
   SchedulePlaceResponseSchema,
   type SchedulePlaceResponse,
-} from "./auth.js";
+  ScheduleMoveBodySchema,
+  type ScheduleMoveBody,
+  ScheduleMoveResponseSchema,
+  type ScheduleMoveResponse,
+  ScheduleUnscheduleBodySchema,
+  type ScheduleUnscheduleBody,
+  ScheduleUnscheduleResponseSchema,
+  type ScheduleUnscheduleResponse,
+  ScheduleViewSchema,
+  type ScheduleView,
+  UnscheduledSessionSchema,
+  type UnscheduledSessionDto,
+  ScheduleListResponseSchema,
+  type ScheduleListResponse,
+  ScheduleConflictErrorSchema,
+  type ScheduleConflictError,
+} from "./schedule.js";
 
 export {
   DEFAULT_ORG_ID,

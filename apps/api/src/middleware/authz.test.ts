@@ -154,7 +154,7 @@ describe("2.2 roles and route guards", () => {
     );
   });
 
-  it("admin POST schedule place passes role gate then 501 (no fake placement)", async () => {
+  it("admin POST schedule place passes role gate then domain result (6.1)", async () => {
     const eventId = "evt_admin_place";
     const { app, store, cookie } = await magicLinkSession(
       "admin",
@@ -180,10 +180,11 @@ describe("2.2 roles and route guards", () => {
       },
       env,
     );
-    // Section 2.2: role gate only — no D1 schedule_placements until 6.1
-    expect(res.status).toBe(501);
+    // Role gate passed; domain rejects missing session/room (no fake 200 placement).
+    // Full place + audit coverage lives in schedule.test.ts (6.1).
+    expect(res.status).toBe(404);
     const body = ErrorEnvelopeSchema.parse(await res.json());
-    expect(body.code).toBe("NOT_IMPLEMENTED");
+    expect(body.code).toBe(NOT_FOUND);
 
     const audits = await store.listAudits();
     const placeAudit = audits.find((a) => a.action === "Schedule.Place");

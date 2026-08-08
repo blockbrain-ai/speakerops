@@ -164,8 +164,9 @@ test("@inv:B06 e2e/auth/role-guard-eval evaluator cannot mutate schedule", async
       },
     },
   );
-  // Admin passes role gate; Schedule.Place persistence is deferred to 6.1 (501).
-  expect(adminPlace.status()).toBe(501);
+  // Admin passes role gate; domain rejects missing session/room (6.1 conflict engine).
+  // Full place+conflict coverage: apps/api schedule.test.ts (no browser inventory for 6.1).
+  expect(adminPlace.status()).toBe(404);
   const body = await adminPlace.json();
-  expect(body).toMatchObject({ code: "NOT_IMPLEMENTED" });
+  expect(body).toMatchObject({ code: "NOT_FOUND" });
 });

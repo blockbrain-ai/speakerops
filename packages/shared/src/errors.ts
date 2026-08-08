@@ -19,6 +19,7 @@ export type ErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "VERSION"
   | "INTERNAL_ERROR"
   | (string & {});
 
@@ -27,6 +28,8 @@ export const UNAUTHORIZED = "UNAUTHORIZED" as const;
 export const FORBIDDEN = "FORBIDDEN" as const;
 export const NOT_FOUND = "NOT_FOUND" as const;
 export const CONFLICT = "CONFLICT" as const;
+/** Stale optimistic version on mutable aggregates (E1; schedule placements 6.1). */
+export const VERSION = "VERSION" as const;
 export const INTERNAL_ERROR = "INTERNAL_ERROR" as const;
 
 export function errorEnvelope(
