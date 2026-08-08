@@ -1,0 +1,21 @@
+{
+  "name": "@speakerops/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b --pretty false",
+    "build": "tsc -b",
+    "dev": "echo '[web] Vite dev lands with Lumen shell (1.4)' && exit 0"
+  },
+  "dependencies": {
+    "@speakerops/shared": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.4"
+  }
+}

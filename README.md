@@ -42,11 +42,16 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 ## Gates
 
 ```bash
-pnpm typecheck
-pnpm test:ci
+pnpm typecheck            # tsc -b monorepo project references (non-watch)
+pnpm test:ci              # governance node:test + vitest run (watch: false)
 pnpm test:e2e:inventory   # inventory law lint (from 0.3)
 pnpm test:e2e             # Playwright full suite (stub until harness; Phase 8 = all REQUIRED PASS)
+pnpm db:generate          # stub until 1.3
+pnpm db:migrate           # stub until 1.3
+pnpm docs:reports         # stub until Phase 9
 ```
+
+Monorepo layout (section **1.1**): `apps/{web,api}`, `packages/{shared,db,cli}`. Agent standards: [`AGENTS.md`](./AGENTS.md) → `speakerops-engineering-standards.md` (E1–E12).
 
 Inventory lint is live from section **0.3**. Full browser suite runs after Playwright scaffold (Phase 1.5+); **all REQUIRED** journeys + discovery crawl at **Phase 8**.
 

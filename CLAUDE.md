@@ -40,7 +40,7 @@ This file is loaded automatically by Claude Code at the start of every session. 
 
 ## Engineering Standards
 
-See RUNS_DIR `speakerops-engineering-standards.md` (**E1–E12**). Every change must comply unless explicitly deferred in the run plan.
+See RUNS_DIR `speakerops-engineering-standards.md` (**E1–E12**). Agent entrypoint: [`AGENTS.md`](./AGENTS.md). Every change must comply unless explicitly deferred in the run plan.
 
 Key cross-cutting rules:
 - **E1** Schema: D1 only; Person ≠ Speaker; optimistic `version` on mutable aggregates

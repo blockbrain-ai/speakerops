@@ -19,6 +19,7 @@ dist/
 coverage/
 .wrangler/
 .dev.vars
+*.tsbuildinfo
 
 # Audit scratch (auditor temp)
 .audit/

@@ -1,0 +1,28 @@
+{
+  "name": "@speakerops/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "speakerops": "./dist/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    }
+  },
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "typecheck": "tsc -b --pretty false",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@speakerops/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
