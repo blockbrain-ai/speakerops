@@ -5,17 +5,21 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -b --pretty false",
-    "build": "tsc -b",
-    "dev": "echo '[web] Vite dev lands with Lumen shell (1.4)' && exit 0"
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@speakerops/shared": "workspace:*",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "typescript": "^5.5.4"
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
   }
 }

@@ -12,6 +12,7 @@ export default defineConfig({
     include: [
       "packages/**/*.{test,spec}.ts",
       "apps/**/*.{test,spec}.ts",
+      "apps/**/*.{test,spec}.tsx",
       "tests/**/*.{test,spec}.ts",
     ],
     exclude: [

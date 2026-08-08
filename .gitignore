@@ -16,6 +16,7 @@ scripts/load-secrets.sh
 .DS_Store
 *.log
 dist/
+dist-types/
 coverage/
 .wrangler/
 .dev.vars

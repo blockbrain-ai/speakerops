@@ -1,0 +1,150 @@
+/**
+ * Lumen design tokens — section 1.4 (S-THEME foundation / E6).
+ * Source freeze: docs/governance/0.2-lumen-lock.md §2.1
+ * Initiative: KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md
+ *
+ * Light default only. No dark-mode default; ignore prefers-color-scheme: dark.
+ * Status soft pairs do not retheme with brand.
+ * Admin chrome always uses these Lumen defaults (retheme blast: public+portal only).
+ */
+
+:root {
+  --lumen-bg: #f5f5f7;
+  --lumen-surface: #ffffff;
+  --lumen-text: #1d1d1f;
+  --lumen-text-secondary: #6e6e73;
+  --lumen-border: rgba(0, 0, 0, 0.08);
+  --lumen-brand: #4f46e5; /* indigo — primary action */
+  --lumen-brand-soft: #eef2ff;
+  --lumen-accent: #0d9488; /* teal — healthy completion */
+  --lumen-success: #059669;
+  --lumen-warn: #d97706;
+  --lumen-danger: #dc2626;
+  --lumen-info: #0284c7;
+  --lumen-radius-sm: 8px;
+  --lumen-radius-md: 12px;
+  --lumen-radius-lg: 16px;
+  --lumen-radius-xl: 22px;
+  --lumen-radius-pill: 9999px;
+  --lumen-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --lumen-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --lumen-focus: #4f46e5;
+  --lumen-focus-ring: 0 0 0 3px rgba(79, 70, 229, 0.35);
+  --lumen-disabled-opacity: 0.45;
+  --lumen-space-1: 4px;
+  --lumen-space-2: 8px;
+  --lumen-space-3: 12px;
+  --lumen-space-4: 16px;
+  --lumen-space-6: 24px;
+  --lumen-z-dropdown: 40;
+  --lumen-z-modal: 50;
+  --lumen-z-toast: 60;
+  --lumen-motion: 150ms;
+  --lumen-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Status soft pairs (never retheme with brand) */
+  --lumen-success-soft: #d1fae5;
+  --lumen-warn-soft: #fef3c7;
+  --lumen-danger-soft: #fee2e2;
+  --lumen-info-soft: #e0f2fe;
+}
+
+/* Base: light canvas. Do not auto-switch to dark. */
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--lumen-font);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--lumen-text);
+  background: var(--lumen-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ---------------------------------------------------------------------------
+ * Focus ring utilities (E6 / MF focus)
+ * Required on all interactive controls — never browser-default-only focus.
+ * --------------------------------------------------------------------------- */
+
+.lumen-focusable:focus {
+  outline: none;
+}
+
+.lumen-focusable:focus-visible {
+  outline: 2px solid var(--lumen-focus);
+  outline-offset: 2px;
+  box-shadow: var(--lumen-focus-ring);
+}
+
+/* Buttons, links, inputs that opt into Lumen focus without a class cascade */
+a.lumen-focusable:focus-visible,
+button.lumen-focusable:focus-visible,
+input.lumen-focusable:focus-visible,
+select.lumen-focusable:focus-visible,
+textarea.lumen-focusable:focus-visible,
+[role="button"].lumen-focusable:focus-visible,
+[tabindex]:not([tabindex="-1"]).lumen-focusable:focus-visible {
+  outline: 2px solid var(--lumen-focus);
+  outline-offset: 2px;
+  box-shadow: var(--lumen-focus-ring);
+}
+
+/* Status badges: soft-bg + strong-fg pairs; always pair with a text label */
+.lumen-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lumen-space-1);
+  padding: var(--lumen-space-1) var(--lumen-space-2);
+  border-radius: var(--lumen-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.lumen-status--success {
+  background: var(--lumen-success-soft);
+  color: var(--lumen-success);
+}
+
+.lumen-status--warn {
+  background: var(--lumen-warn-soft);
+  color: var(--lumen-warn);
+}
+
+.lumen-status--danger {
+  background: var(--lumen-danger-soft);
+  color: var(--lumen-danger);
+}
+
+.lumen-status--info {
+  background: var(--lumen-info-soft);
+  color: var(--lumen-info);
+}
+
+/* Reduced motion: honor preference; still no dark theme */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Explicitly ignore dark preference for theming (light default lock) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Keep Lumen light tokens — do not invert to dark cockpit */
+    color-scheme: light;
+  }
+}
