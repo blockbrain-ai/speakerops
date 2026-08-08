@@ -20,6 +20,7 @@
  * Section 6.3: Reports.Readiness outstanding + stats (S-READY live dashboard)
  * Section 7.1: Keys.Create/Revoke/List + hashed secrets + Bearer auth (S-CLI)
  * Section 7.2: OpenAPI + speakerops CLI parity; bearerScopes on domain routes (S-CLI)
+ * Section 7.3: Airtable one-way projection outbox drain + Reports.AirtableStatus (S-AIRTABLE)
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -132,9 +133,19 @@ import {
   type KeysStore,
 } from "./modules/keys/store.js";
 import {
+  MemoryAirtableStore,
+  D1AirtableStore,
+  type AirtableStore,
+} from "./modules/airtable/store.js";
+import { createAirtableRoutes } from "./modules/airtable/routes.js";
+import {
   processCommsOutbox,
   type ProcessOutboxResult,
 } from "./workers/emailConsumer.js";
+import {
+  processAirtableOutbox,
+  type ProcessAirtableOutboxResult,
+} from "./workers/airtableConsumer.js";
 import { registerOpenApiRoute } from "./openapi.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
@@ -163,6 +174,8 @@ export type CreateAppOptions = {
   scheduleStore?: ScheduleStore;
   /** Inject API keys store (defaults to in-memory for local/test). */
   keysStore?: KeysStore;
+  /** Inject Airtable projection store (defaults to in-memory for local/test). */
+  airtableStore?: AirtableStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /** Shared test outbox for magic-link capture. */
@@ -206,6 +219,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const commsStore = options.commsStore ?? new MemoryCommsStore();
   const scheduleStore = options.scheduleStore ?? new MemoryScheduleStore();
   const keysStore = options.keysStore ?? new MemoryKeysStore();
+  const airtableStore = options.airtableStore ?? new MemoryAirtableStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -249,12 +263,14 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
 
   // Section 2.3 — Event.Create/Update/List + rooms/tracks (admin role gate)
   // Section 7.2 — Bearer events:read|write for CLI
+  // Section 7.3 — enqueue airtable.project on Event.Create/Update (S-AIRTABLE)
   app.route(
     "/api/events",
     createEventsRoutes({
       store: authStore,
       events: eventsStore,
       keys: keysStore,
+      airtable: airtableStore,
     }),
   );
 
@@ -425,6 +441,18 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
+  // Section 7.3 — Reports.AirtableStatus under /api/events/:eventId/airtable/status
+  // Bearer airtable:read; lag fields only — no request-path Airtable (E7)
+  app.route(
+    "/api/events",
+    createAirtableRoutes({
+      store: authStore,
+      events: eventsStore,
+      airtable: airtableStore,
+      keys: keysStore,
+    }),
+  );
+
   // Section 7.1 — Keys.List/Create/Revoke + Bearer keys:admin
   app.route(
     "/api/keys",
@@ -435,7 +463,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
-  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 / 6.3 / 7.1 / 7.2 — OpenAPI lists domain commands
+  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 / 6.3 / 7.1 / 7.2 / 7.3 — OpenAPI lists domain commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);
@@ -463,6 +491,7 @@ export function createAppWithAuth(
   comms: CommsStore;
   schedule: ScheduleStore;
   keys: KeysStore;
+  airtable: AirtableStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
@@ -475,6 +504,7 @@ export function createAppWithAuth(
   const commsStore = options.commsStore ?? new MemoryCommsStore();
   const scheduleStore = options.scheduleStore ?? new MemoryScheduleStore();
   const keysStore = options.keysStore ?? new MemoryKeysStore();
+  const airtableStore = options.airtableStore ?? new MemoryAirtableStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
@@ -488,6 +518,7 @@ export function createAppWithAuth(
     commsStore,
     scheduleStore,
     keysStore,
+    airtableStore,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
     // Open bootstrap for e2e/unit tests only — never production.
@@ -505,6 +536,7 @@ export function createAppWithAuth(
     comms: commsStore,
     schedule: scheduleStore,
     keys: keysStore,
+    airtable: airtableStore,
     outbox,
   };
 }
@@ -577,6 +609,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     commsStore: new D1CommsStore(d1),
     scheduleStore: new D1ScheduleStore(d1),
     keysStore: new D1KeysStore(d1),
+    airtableStore: new D1AirtableStore(d1),
     turnstileSecret,
     enableDevOutbox: false,
     bootstrapPolicy: "controlled",
@@ -611,6 +644,40 @@ export async function drainCommsOutboxFromEnv(
   }, options);
 }
 
+/**
+ * Drain `airtable.project` outbox with D1 stores + Airtable env.
+ * When AIRTABLE_API_KEY unset, pauses without crash (S-AIRTABLE).
+ * Never on the request path (E7).
+ */
+export async function drainAirtableOutboxFromEnv(
+  env: WorkerBindings,
+  options: { correlationId?: string; limit?: number } = {},
+): Promise<ProcessAirtableOutboxResult> {
+  if (!env.DB) {
+    throw new Error(
+      "Worker binding DB is required to drain airtable outbox (E1).",
+    );
+  }
+  const d1 = env.DB as D1DatabaseLike;
+  return processAirtableOutbox(
+    {
+      airtable: new D1AirtableStore(d1),
+      auth: new D1AuthStore(d1),
+      clientEnv: {
+        AIRTABLE_API_KEY: env.AIRTABLE_API_KEY,
+        AIRTABLE_BASE_ID: env.AIRTABLE_BASE_ID,
+        AIRTABLE_TABLE_SUBMISSIONS: env.AIRTABLE_TABLE_SUBMISSIONS,
+        AIRTABLE_TABLE_SPEAKERS: env.AIRTABLE_TABLE_SPEAKERS,
+        AIRTABLE_TABLE_SESSIONS: env.AIRTABLE_TABLE_SESSIONS,
+        AIRTABLE_TABLE_TASKS: env.AIRTABLE_TABLE_TASKS,
+        AIRTABLE_TABLE_SCHEDULE: env.AIRTABLE_TABLE_SCHEDULE,
+        AIRTABLE_TABLE_EVENTS: env.AIRTABLE_TABLE_EVENTS,
+      },
+    },
+    options,
+  );
+}
+
 /** Minimal queue batch surface (Cloudflare Queues consumer). */
 export type QueueMessageBatch = {
   messages: ReadonlyArray<{
@@ -624,7 +691,7 @@ export type QueueMessageBatch = {
 /**
  * Cloudflare Workers default export.
  * - fetch: Hono HTTP (D1-backed stores)
- * - queue: drain comms outbox after JOBS_QUEUE kicks from Comms.Send
+ * - queue: drain comms + airtable outbox after JOBS_QUEUE kicks
  * - scheduled: cron backup drain so rows are never permanently stuck
  */
 export default {
@@ -647,9 +714,10 @@ export default {
     env: WorkerBindings,
     _ctx?: unknown,
   ): Promise<void> {
-    await drainCommsOutboxFromEnv(env, {
-      correlationId: `queue:${batch.messages[0]?.id ?? "batch"}`,
-    });
+    const correlationId = `queue:${batch.messages[0]?.id ?? "batch"}`;
+    await drainCommsOutboxFromEnv(env, { correlationId });
+    // S-AIRTABLE: drain projection outbox (pauses safely when key unset)
+    await drainAirtableOutboxFromEnv(env, { correlationId });
     for (const msg of batch.messages) {
       msg.ack();
     }
@@ -660,8 +728,8 @@ export default {
     env: WorkerBindings,
     _ctx?: unknown,
   ): Promise<void> {
-    await drainCommsOutboxFromEnv(env, {
-      correlationId: `cron:${new Date().toISOString()}`,
-    });
+    const correlationId = `cron:${new Date().toISOString()}`;
+    await drainCommsOutboxFromEnv(env, { correlationId });
+    await drainAirtableOutboxFromEnv(env, { correlationId });
   },
 };

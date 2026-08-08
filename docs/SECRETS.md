@@ -47,6 +47,13 @@
 - Comms.Send request path never uses these bindings; only `emailConsumer` / queue drain does (E7).
 - Queue binding name: `JOBS_QUEUE` (wrangler.toml) — producer (kick after Comms.Send) + consumer; Worker `queue` / `scheduled` handlers drain `outbox_events` topic `comms.send` via `processCommsOutbox`.
 
+## Airtable one-way projection (section 7.3 / S-AIRTABLE) — names only
+- `AIRTABLE_API_KEY` — Airtable API key / PAT for projection **drain only**. When unset, drain **pauses** (outbox lags; product mutations still 200). Never on request path (E7). Never commit values.
+- `AIRTABLE_BASE_ID` — base id for one-way mirror. Required with `AIRTABLE_API_KEY` for live drain; unset → paused.
+- `AIRTABLE_TABLE_SUBMISSIONS`, `AIRTABLE_TABLE_SPEAKERS`, `AIRTABLE_TABLE_SESSIONS`, `AIRTABLE_TABLE_TASKS`, `AIRTABLE_TABLE_SCHEDULE`, `AIRTABLE_TABLE_EVENTS` — optional table name overrides (defaults: `SpeakerOps_*`).
+- Domain commands only insert `outbox_events` topic `airtable.project`; `airtableConsumer` / queue / cron drain upserts by `internal_id` into Airtable + `projection_records`.
+- Status API `GET /api/events/:eventId/airtable/status` is D1-only lag (no Airtable HTTP).
+
 ## CLI / agent (section 7.2) — names only
 - `SPEAKEROPS_API_KEY` — Bearer secret for `speakerops` CLI (`spk_…`). Minted via admin UI / `Keys.Create`; never commit values; never log full secret.
 - `SPEAKEROPS_API_URL` — optional API base URL for CLI (default `http://127.0.0.1:8787`). Not a secret.

@@ -369,6 +369,14 @@ export function EventSettingsPage() {
         >
           API keys →
         </a>
+        {" · "}
+        <a
+          href="/admin/settings/airtable"
+          className="design-kit__link lumen-focusable"
+          data-testid="settings-airtable-link"
+        >
+          Airtable status →
+        </a>
       </p>
 
       {/* C01 — Create event */}

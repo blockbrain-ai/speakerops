@@ -236,6 +236,40 @@
   color: var(--lumen-text-secondary);
 }
 
+.airtable-status__grid {
+  display: grid;
+  gap: var(--lumen-space-2);
+  margin: 0 0 var(--lumen-space-4);
+}
+
+.airtable-status__row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: var(--lumen-space-2);
+  align-items: baseline;
+}
+
+.airtable-status__row dt {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lumen-text-secondary);
+  font-weight: 500;
+}
+
+.airtable-status__row dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lumen-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.airtable-status__errors {
+  margin: 0 0 var(--lumen-space-4);
+  padding-left: var(--lumen-space-4);
+  color: var(--lumen-text);
+  font-size: 13px;
+}
+
 .event-settings__meta {
   margin: 0 0 var(--lumen-space-3);
   font-size: 12px;

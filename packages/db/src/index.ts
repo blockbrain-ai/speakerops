@@ -47,6 +47,7 @@ export {
   roomBlockReservations,
   speakerBlockReservations,
   apiKeys,
+  projectionRecords,
   baselineTables,
   authTables,
   membershipTables,
@@ -59,6 +60,7 @@ export {
   commsTables,
   scheduleTables,
   apiKeysTables,
+  projectionTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -142,6 +144,8 @@ export {
   type NewSpeakerBlockReservation,
   type ApiKey,
   type NewApiKey,
+  type ProjectionRecord,
+  type NewProjectionRecord,
 } from "../schema.js";
 
 export {
@@ -180,6 +184,7 @@ export {
   COMMS_SEND_TABLES,
   SCHEDULE_TABLES,
   API_KEYS_TABLES,
+  PROJECTION_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

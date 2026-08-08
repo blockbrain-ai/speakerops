@@ -10,6 +10,7 @@
  * + Schedule Studio five views I01–I16 (section 6.2).
  * + Readiness dashboard H01–H05 + speakers L05 (section 6.3 / S-READY).
  * + API keys mint/revoke K01–K04 (section 7.1 / S-CLI).
+ * + Airtable projection status O06 (section 7.3 / S-AIRTABLE).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -32,6 +33,7 @@ import { CommsPage } from "./pages/Comms.js";
 import { ScheduleStudioPage } from "./pages/schedule/ScheduleStudio.js";
 import { ReadinessPage } from "./pages/Readiness.js";
 import { ApiKeysPage } from "./pages/ApiKeys.js";
+import { AirtableStatusPage } from "./pages/AirtableStatus.js";
 import {
   BareLayout,
   NotFoundPage,
@@ -179,6 +181,14 @@ export function AppRoutes() {
         element={
           <AdminGuard>
             <ApiKeysPage />
+          </AdminGuard>
+        }
+      />
+      <Route
+        path="/admin/settings/airtable"
+        element={
+          <AdminGuard>
+            <AirtableStatusPage />
           </AdminGuard>
         }
       />

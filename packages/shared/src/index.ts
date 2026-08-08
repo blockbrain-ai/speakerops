@@ -469,3 +469,19 @@ export {
   scopesAreValid,
   keyHasScopes,
 } from "./keys.js";
+
+export {
+  AIRTABLE_OUTBOX_TOPIC,
+  AIRTABLE_PROJECTION_SYSTEM,
+  AirtableEntityTypeSchema,
+  type AirtableEntityType,
+  DEFAULT_AIRTABLE_TABLES,
+  AirtableProjectPayloadSchema,
+  type AirtableProjectPayload,
+  AirtableLagSchema,
+  type AirtableLag,
+  AirtableStatusErrorSchema,
+  type AirtableStatusError,
+  ReportsAirtableStatusResponseSchema,
+  type ReportsAirtableStatusResponse,
+} from "./airtable.js";

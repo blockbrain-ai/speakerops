@@ -52,6 +52,7 @@ function titleForPath(pathname: string): string {
   if (pathname.startsWith("/admin/settings/rubric")) return "Eval rubric";
   if (pathname.startsWith("/admin/settings/task-templates")) return "Task templates";
   if (pathname.startsWith("/admin/settings/api-keys")) return "API keys";
+  if (pathname.startsWith("/admin/settings/airtable")) return "Airtable status";
   const exact = ADMIN_NAV_ITEMS.find((item) => item.path === pathname);
   if (exact) return exact.label;
   const nested = ADMIN_NAV_ITEMS.find(

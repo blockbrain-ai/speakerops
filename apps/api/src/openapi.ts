@@ -1613,6 +1613,7 @@ export const OPENAPI_COMMANDS = [
   "Schedule.Move",
   "Schedule.Unschedule",
   "Reports.Readiness",
+  "Reports.AirtableStatus",
   "Keys.List",
   "Keys.Create",
   "Keys.Revoke",
@@ -1695,6 +1696,36 @@ export const KEYS_OPENAPI_PATHS = {
         "401": { description: "Unauthenticated" },
         "403": { description: "Forbidden role or scope" },
         "404": { description: "Key not found" },
+      },
+    },
+  },
+} as const;
+
+/** OpenAPI paths for Reports.AirtableStatus (section 7.3 / S-AIRTABLE). */
+export const AIRTABLE_OPENAPI_PATHS = {
+  "/api/events/{eventId}/airtable/status": {
+    get: {
+      operationId: "Reports.AirtableStatus",
+      summary: "Reports.AirtableStatus",
+      description:
+        "Airtable one-way projection lag + errors (S-AIRTABLE / 7.3). Never calls Airtable HTTP on request path; paused when AIRTABLE_API_KEY unset. Scope: airtable:read.",
+      tags: ["Reports"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": {
+          description:
+            "configured, paused, lag {pendingCount, oldestPendingAt, maxAttempts}, lastSuccessAt, projectedCount, recentErrors",
+        },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role or missing airtable:read" },
+        "404": { description: "Event not found" },
       },
     },
   },
@@ -1913,7 +1944,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. CLI parity via speakerops (7.2 / S-CLI). Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1) + readiness (6.3) + API keys (7.1) + OpenAPI/CLI (7.2).",
+        "Domain commands from COMMANDS.md. CLI parity via speakerops (7.2 / S-CLI). Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1) + readiness (6.3) + API keys (7.1) + OpenAPI/CLI (7.2) + Airtable projection (7.3).",
     },
     paths: {
       ...EVENT_OPENAPI_PATHS,
@@ -1926,6 +1957,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...COMMS_OPENAPI_PATHS,
       ...SCHEDULE_OPENAPI_PATHS,
       ...READINESS_OPENAPI_PATHS,
+      ...AIRTABLE_OPENAPI_PATHS,
       ...KEYS_OPENAPI_PATHS,
     },
     tags: [
@@ -1961,7 +1993,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       {
         name: "Reports",
         description:
-          "Readiness outstanding dashboard (S-READY / 6.3); CLI reports readiness (7.2)",
+          "Readiness outstanding dashboard (S-READY / 6.3); Airtable projection status (S-AIRTABLE / 7.3); CLI reports readiness (7.2)",
       },
       {
         name: "Keys",

@@ -6,10 +6,11 @@
  * + 5.1 email_templates / message_jobs (S-COMMS outbox enqueue)
  * + 5.2 message_recipients / delivery_events / calendar_invites (send + ICS)
  * + 6.1 schedule_placements / room_block_reservations / speaker_block_reservations
- * + 7.1 api_keys (hashed secrets + scopes; S-CLI).
+ * + 7.1 api_keys (hashed secrets + scopes; S-CLI)
+ * + 7.3 projection_records (Airtable one-way; S-AIRTABLE).
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1 / 5.2 / 6.1 / 7.1.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1 / 5.2 / 6.1 / 7.1 / 7.3.
  * Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
@@ -1030,6 +1031,38 @@ export const apiKeysTables = {
   apiKeys,
 } as const;
 
+/**
+ * projection_records — one-way external mirror state (section 7.3 / S-AIRTABLE).
+ * SCHEMA: id, system (airtable), entity_type, internal_id, external_id, source_version, updated_at
+ * Upsert key: (system, entity_type, internal_id). Never SoR; Airtable may lag.
+ */
+export const projectionRecords = sqliteTable(
+  "projection_records",
+  {
+    id: text("id").primaryKey().notNull(),
+    system: text("system").notNull(),
+    entityType: text("entity_type").notNull(),
+    internalId: text("internal_id").notNull(),
+    externalId: text("external_id"),
+    sourceVersion: integer("source_version").notNull().default(1),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_projection_records_system_entity_internal").on(
+      t.system,
+      t.entityType,
+      t.internalId,
+    ),
+    index("idx_projection_records_system").on(t.system),
+    index("idx_projection_records_internal_id").on(t.internalId),
+  ],
+);
+
+/** Projection tables owned by section 7.3. */
+export const projectionTables = {
+  projectionRecords,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -1114,6 +1147,8 @@ export type NewSpeakerBlockReservation =
   typeof speakerBlockReservations.$inferInsert;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
+export type ProjectionRecord = typeof projectionRecords.$inferSelect;
+export type NewProjectionRecord = typeof projectionRecords.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -1158,4 +1193,5 @@ export const schema = {
   roomBlockReservations,
   speakerBlockReservations,
   apiKeys,
+  projectionRecords,
 } as const;

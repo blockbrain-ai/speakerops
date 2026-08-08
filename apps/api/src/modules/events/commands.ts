@@ -14,6 +14,8 @@ import {
   type TrackUpsertBody,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
+import type { AirtableStore } from "../airtable/store.js";
+import { enqueueAirtableProjection } from "../airtable/enqueue.js";
 import {
   type EventsStore,
   type EventRow,
@@ -25,6 +27,12 @@ import {
 export type EventCommandDeps = {
   events: EventsStore;
   auth: AuthStore;
+  /**
+   * Optional Airtable projection store (section 7.3 / S-AIRTABLE).
+   * When set, Event.Create/Update enqueue airtable.project outbox rows.
+   * Request path never calls Airtable HTTP (E7); pause survival when key unset.
+   */
+  airtable?: AirtableStore;
 };
 
 export type CreateEventInput = EventCreateBody & {
@@ -169,6 +177,24 @@ export async function createEvent(
     createdAt: now,
   });
 
+  // S-AIRTABLE: outbox only — never Airtable HTTP on request path (E7).
+  if (deps.airtable) {
+    await enqueueAirtableProjection(deps.airtable, {
+      eventId: id,
+      entityType: "event",
+      internalId: id,
+      sourceVersion: row.version,
+      fields: {
+        name: row.name,
+        slug: row.slug,
+        timezone: row.timezone,
+        starts_at: row.startsAt,
+        ends_at: row.endsAt,
+      },
+      correlationId: input.correlationId,
+    });
+  }
+
   return { ok: true, value: { event: toEventDto(row) } };
 }
 
@@ -255,6 +281,24 @@ export async function updateEvent(
     correlationId: input.correlationId,
     createdAt: now,
   });
+
+  // S-AIRTABLE: outbox only — mutation 200 even when AIRTABLE_API_KEY unset.
+  if (deps.airtable) {
+    await enqueueAirtableProjection(deps.airtable, {
+      eventId: next.id,
+      entityType: "event",
+      internalId: next.id,
+      sourceVersion: next.version,
+      fields: {
+        name: next.name,
+        slug: next.slug,
+        timezone: next.timezone,
+        starts_at: next.startsAt,
+        ends_at: next.endsAt,
+      },
+      correlationId: input.correlationId,
+    });
+  }
 
   return { ok: true, value: { event: toEventDto(next) } };
 }

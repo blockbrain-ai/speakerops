@@ -25,6 +25,7 @@ import {
   COMMS_TABLES,
   COMMS_SEND_TABLES,
   SCHEDULE_TABLES,
+  PROJECTION_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -75,6 +76,7 @@ import {
   schedulePlacements,
   roomBlockReservations,
   speakerBlockReservations,
+  projectionRecords,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -503,6 +505,31 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(schema.schedulePlacements).toBe(schedulePlacements);
       expect(schema.roomBlockReservations).toBe(roomBlockReservations);
       expect(schema.speakerBlockReservations).toBe(speakerBlockReservations);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("7.3 migration creates projection_records with internal_id", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "speakerops-db-7.3-"));
+    const dbPath = join(dir, "test.sqlite");
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0019_projection_records.sql");
+      for (const table of PROJECTION_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.projection_records).toContain("system");
+      expect(columns.projection_records).toContain("entity_type");
+      expect(columns.projection_records).toContain("internal_id");
+      expect(columns.projection_records).toContain("external_id");
+      expect(columns.projection_records).toContain("source_version");
+      expect(columns.projection_records).toContain("updated_at");
+      expect(projectionRecords).toBeDefined();
+      expect(schema.projectionRecords).toBe(projectionRecords);
+      // outbox_events from baseline still present for airtable.project drain
+      expect(result.tables).toContain("outbox_events");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

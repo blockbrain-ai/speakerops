@@ -35,6 +35,7 @@ import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "./store.js";
 import type { KeysStore } from "../keys/store.js";
+import type { AirtableStore } from "../airtable/store.js";
 import { requireRole } from "../../middleware/authz.js";
 import {
   createEvent,
@@ -54,6 +55,8 @@ export type EventsRouteOptions = {
   events: EventsStore;
   /** When set, Bearer API keys with events:read|write are accepted (7.2). */
   keys?: KeysStore;
+  /** When set, Event.Create/Update enqueue airtable.project (7.3 / S-AIRTABLE). */
+  airtable?: AirtableStore;
 };
 
 function commandError(
@@ -71,8 +74,8 @@ function commandError(
 
 export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
   const events = new Hono<ApiEnv>();
-  const { store, events: eventsStore, keys } = options;
-  const deps = { events: eventsStore, auth: store };
+  const { store, events: eventsStore, keys, airtable } = options;
+  const deps = { events: eventsStore, auth: store, airtable };
   const bearer = keys
     ? { keysStore: keys, bearerScopes: ["events:read"] as const }
     : {};

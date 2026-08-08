@@ -316,3 +316,6 @@ export const SCHEDULE_TABLES = [
 
 /** API keys table names required by section 7.1 AC. */
 export const API_KEYS_TABLES = ["api_keys"] as const;
+
+/** Projection table names required by section 7.3 AC (S-AIRTABLE). */
+export const PROJECTION_TABLES = ["projection_records"] as const;

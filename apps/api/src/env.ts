@@ -75,6 +75,24 @@ export type WorkerBindings = {
    * Default From: address for provider sends. Env **name** only.
    */
   EMAIL_FROM?: string;
+  /**
+   * Airtable personal access token / API key (section 7.3 / S-AIRTABLE).
+   * Env **name** only — never commit values (E10).
+   * When unset, projection drain pauses; product mutations still succeed (outbox lags).
+   */
+  AIRTABLE_API_KEY?: string;
+  /**
+   * Airtable base id for one-way projection. Env **name** only.
+   * Required together with AIRTABLE_API_KEY for live drain; unset → paused.
+   */
+  AIRTABLE_BASE_ID?: string;
+  /** Optional table name overrides (defaults: SpeakerOps_*). Env names only. */
+  AIRTABLE_TABLE_SUBMISSIONS?: string;
+  AIRTABLE_TABLE_SPEAKERS?: string;
+  AIRTABLE_TABLE_SESSIONS?: string;
+  AIRTABLE_TABLE_TASKS?: string;
+  AIRTABLE_TABLE_SCHEDULE?: string;
+  AIRTABLE_TABLE_EVENTS?: string;
 };
 
 import type { MembershipRow } from "./modules/auth/store.js";
