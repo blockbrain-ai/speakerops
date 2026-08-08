@@ -40,7 +40,7 @@ test("@inv:A01 e2e/public/cfp-load public CFP loads form and brand tokens", asyn
 | Binding | Callee must be Playwright `test` from `@playwright/test` (`.extend()` OK) |
 | Not coverage | Comments, bare strings, local no-op `test`, `test.skip` / `fixme` / `fail` |
 
-**Example harness file:** `playwright/e2e/_harness_example.spec.ts`
+**Example harness file:** `playwright/e2e/_harness_example.spec.ts` (documents the convention; product `@inv` owners live on real journey specs — e.g. A01 in section 3.3)
 
 ---
 

@@ -82,6 +82,19 @@ describe("1.2 Worker API health", () => {
     expect(res.headers.get("x-correlation-id")).toBe("test-corr-1.2");
   });
 
+  it("generates UUIDv7 correlationId when header absent (E3)", async () => {
+    const app = createApp();
+    const res = await app.request("http://localhost/health");
+    expect(res.status).toBe(200);
+    const id = res.headers.get("x-correlation-id");
+    expect(id).toBeTruthy();
+    // UUIDv7: version nibble 7, RFC variant 8/9/a/b — not crypto.randomUUID() v4
+    expect(id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(id!.charAt(14)).toBe("7");
+  });
+
   it("health is the only product route registered in 1.2 (scope guard)", async () => {
     const app = createApp();
     // Auth / domain routes must remain 404 until their sections

@@ -21,7 +21,7 @@
  *
  * Convention: `@inv:A01` on Playwright `test()` titles (see docs/E2E.md).
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -29,7 +29,7 @@ import {
   runInventoryLint,
   type InventoryLintResult,
 } from "./e2e-inventory-lint.mjs";
-// Types: scripts/e2e-inventory-lint.d.ts
+// Types: scripts/e2e-inventory-lint.d.mts (matches .mjs specifier)
 
 const defaultRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 

@@ -13,6 +13,7 @@ import {
   errorEnvelope,
   INTERNAL_ERROR,
   NOT_FOUND,
+  uuidv7,
   type ErrorEnvelope,
 } from "@speakerops/shared";
 
@@ -22,11 +23,12 @@ export const CORRELATION_HEADER = "x-correlation-id";
 /**
  * Attach or generate a correlationId for the request.
  * Prefer client-provided id when present; never regenerate mid-chain (E3).
+ * Generated ids are UUIDv7 (RFC 9562) at request entry — not UUIDv4.
  */
 export const correlationMiddleware: MiddlewareHandler = async (c, next) => {
   const incoming = c.req.header(CORRELATION_HEADER)?.trim();
   const correlationId =
-    incoming && incoming.length > 0 ? incoming : crypto.randomUUID();
+    incoming && incoming.length > 0 ? incoming : uuidv7();
   c.set("correlationId", correlationId);
   c.header(CORRELATION_HEADER, correlationId);
   await next();

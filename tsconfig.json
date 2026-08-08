@@ -5,6 +5,7 @@
     { "path": "packages/db" },
     { "path": "packages/cli" },
     { "path": "apps/api" },
-    { "path": "apps/web" }
+    { "path": "apps/web" },
+    { "path": "tsconfig.tooling.json" }
   ]
 }

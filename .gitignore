@@ -21,6 +21,7 @@ coverage/
 .wrangler/
 .dev.vars
 *.tsbuildinfo
+.tsbuild/
 
 # Local D1-compatible SQLite from pnpm db:migrate (section 1.3)
 .data/

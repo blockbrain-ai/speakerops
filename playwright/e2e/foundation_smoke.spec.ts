@@ -5,6 +5,7 @@
  * - GET /health → 200 `{ ok: true, version }` (via SPA origin proxy or direct)
  * - SPA admin shell loads Lumen chrome (sidebar includes CFP / Forms)
  * - No uncaught pageerror events
+ * - No browser console.error messages (shell must not leave the console red)
  *
  * Inventory note: product journey IDs (A01, L04, …) stay owned by their
  * feature sections / Phase 8 proof. This file is the foundation smoke
@@ -13,6 +14,7 @@
  * Named assertions (spec 1.6):
  * - assert page.goto baseURL shows text matching /CFP|Forms/i
  * - assert no pageerror event
+ * - assert no console.error messages
  * - assert /health fetch ok
  *
  * @see docs/sections/1.6-foundation-e2e-proof.md
@@ -25,15 +27,21 @@ test.describe("1.6 foundation smoke (I12 keystone)", () => {
    * Single multi-step e2e covering foundation integration (health + shell).
    * Requires E2E_WEB_SERVER=1 (set by `pnpm test:e2e` / e2e-run.mjs).
    */
-  test("foundation: health 200 + shell CFP chrome without pageerror", async ({
+  test("foundation: health 200 + shell CFP chrome without pageerror or console.error", async ({
     page,
     request,
     baseURL,
   }) => {
-    // --- assert no pageerror event (collect for full journey) ---
+    // --- collect pageerror + console.error for full journey ---
     const pageErrors: string[] = [];
+    const consoleErrors: string[] = [];
     page.on("pageerror", (err) => {
       pageErrors.push(err.message);
+    });
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        consoleErrors.push(msg.text());
+      }
     });
 
     // --- assert /health fetch ok (baseURL → Vite proxy → local API) ---
@@ -68,10 +76,14 @@ test.describe("1.6 foundation smoke (I12 keystone)", () => {
     await expect(page.getByTestId("admin-page-title")).toBeVisible();
     await expect(page.getByTestId("admin-nav")).toBeVisible();
 
-    // --- assert no pageerror event ---
+    // --- assert no pageerror and no console.error ---
     expect(
       pageErrors,
       `uncaught pageerror events: ${pageErrors.join(" | ")}`,
+    ).toEqual([]);
+    expect(
+      consoleErrors,
+      `browser console.error messages: ${consoleErrors.join(" | ")}`,
     ).toEqual([]);
   });
 });
