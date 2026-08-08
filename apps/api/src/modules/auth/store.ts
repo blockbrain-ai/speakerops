@@ -7,7 +7,7 @@
  *
  * Tokens are stored only as hashes — callers must hash before insert.
  */
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, isNull, sql, desc } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import type { EventRole, MagicLinkPurpose } from "@speakerops/shared";
 import {
@@ -91,6 +91,15 @@ export type AuthStore = {
   deleteSessionByTokenHash(tokenHash: string): Promise<boolean>;
   insertAudit(row: AuditRow): Promise<void>;
   listAudits(): Promise<AuditRow[]>;
+  /**
+   * Find the most recent audit for a consequential action on an entity.
+   * Used to repair missing audit_events on idempotent command retries (E3).
+   */
+  findAuditByActionAndEntity(
+    action: string,
+    entityType: string,
+    entityId: string,
+  ): Promise<AuditRow | null>;
   /** All magic link rows (tests: assert hash-only storage). */
   listMagicLinks(): Promise<MagicLinkRow[]>;
   listSessions(): Promise<SessionRow[]>;
@@ -206,6 +215,24 @@ export class MemoryAuthStore implements AuthStore {
 
   async listAudits(): Promise<AuditRow[]> {
     return [...this.audits];
+  }
+
+  async findAuditByActionAndEntity(
+    action: string,
+    entityType: string,
+    entityId: string,
+  ): Promise<AuditRow | null> {
+    for (let i = this.audits.length - 1; i >= 0; i--) {
+      const a = this.audits[i]!;
+      if (
+        a.action === action &&
+        a.entityType === entityType &&
+        a.entityId === entityId
+      ) {
+        return a;
+      }
+    }
+    return null;
   }
 
   async listMagicLinks(): Promise<MagicLinkRow[]> {
@@ -460,6 +487,40 @@ export class D1AuthStore implements AuthStore {
       correlationId: r.correlationId,
       createdAt: r.createdAt,
     }));
+  }
+
+  async findAuditByActionAndEntity(
+    action: string,
+    entityType: string,
+    entityId: string,
+  ): Promise<AuditRow | null> {
+    const rows = await this.db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.action, action),
+          eq(auditEvents.entityType, entityType),
+          eq(auditEvents.entityId, entityId),
+        ),
+      )
+      .orderBy(desc(auditEvents.createdAt))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.id,
+      eventId: r.eventId ?? null,
+      actorType: r.actorType as AuditRow["actorType"],
+      actorId: r.actorId,
+      action: r.action,
+      entityType: r.entityType,
+      entityId: r.entityId,
+      beforeJson: r.beforeJson ?? null,
+      afterJson: r.afterJson ?? null,
+      correlationId: r.correlationId,
+      createdAt: r.createdAt,
+    };
   }
 
   async listMagicLinks(): Promise<MagicLinkRow[]> {

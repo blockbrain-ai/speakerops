@@ -4,9 +4,12 @@
  * Env name only: TURNSTILE_SECRET_KEY (E10 — never commit values).
  * Test keys from Cloudflare docs are constants in @speakerops/shared.
  *
- * Fail-closed: when the secret is absent, only the explicit development
- * pass token is accepted. A configuration omission must never accept
- * arbitrary tokens (would silently disable bot protection).
+ * Local/e2e (createApp / createAppWithAuth): when the secret is absent, only
+ * the explicit development pass token is accepted. Arbitrary tokens fail closed.
+ *
+ * Production (createAppFromBindings): TURNSTILE_SECRET_KEY is required at
+ * construction — a missing secret must not deploy with the public
+ * TURNSTILE_DEV_PASS_TOKEN accepted (bots can supply it from the SPA).
  */
 import {
   TURNSTILE_DEV_FAIL_TOKEN,

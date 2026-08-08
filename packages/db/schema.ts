@@ -653,7 +653,8 @@ export const programSessions = sqliteTable(
   },
   (t) => [
     index("idx_sessions_event_id").on(t.eventId),
-    index("idx_sessions_source_submission").on(t.sourceSubmissionId),
+    // One session per CFP submission; NULL allowed for direct/sponsor (SQLite UNIQUE + NULL).
+    uniqueIndex("idx_sessions_source_submission_unique").on(t.sourceSubmissionId),
   ],
 );
 

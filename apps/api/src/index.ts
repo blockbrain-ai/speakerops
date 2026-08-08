@@ -376,11 +376,23 @@ export function createAppWithAuth(
 /**
  * Build production app from Worker bindings (D1 SoR).
  * Throws if DB binding is missing — Memory stores are never used in production.
+ * Throws if TURNSTILE_SECRET_KEY is missing — production must not fall open to the
+ * public TURNSTILE_DEV_PASS_TOKEN (bots can supply it from the SPA constant).
  */
 export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
   if (!env.DB) {
     throw new Error(
       "Worker binding DB is required for production SoR (E1). Memory stores are test-only.",
+    );
+  }
+  const turnstileSecret =
+    typeof env.TURNSTILE_SECRET_KEY === "string"
+      ? env.TURNSTILE_SECRET_KEY.trim()
+      : "";
+  if (!turnstileSecret) {
+    throw new Error(
+      "Worker binding TURNSTILE_SECRET_KEY is required for production CFP bot protection (E10). " +
+        "Omitting it would accept the public development pass token and disable effective protection.",
     );
   }
   const d1 = env.DB as D1DatabaseLike;
@@ -392,10 +404,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     submissionsStore: new D1SubmissionsStore(d1),
     evalStore: new D1EvalStore(d1),
     decisionsStore: new D1DecisionsStore(d1),
-    turnstileSecret:
-      typeof env.TURNSTILE_SECRET_KEY === "string"
-        ? env.TURNSTILE_SECRET_KEY
-        : undefined,
+    turnstileSecret,
     enableDevOutbox: false,
     bootstrapPolicy: "controlled",
   });

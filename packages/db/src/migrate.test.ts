@@ -385,6 +385,8 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(schema.decisions).toBe(decisions);
       expect(schema.programSessions).toBe(programSessions);
       expect(schema.speakerTasks).toBe(speakerTasks);
+      // 0011: unique source_submission_id (one session per CFP submission)
+      expect(result.applied).toContain("0011_sessions_source_submission_unique.sql");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

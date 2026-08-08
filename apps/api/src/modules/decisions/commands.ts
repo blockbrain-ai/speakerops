@@ -299,9 +299,38 @@ async function materializeAccept(
 }
 
 /**
+ * True when participation remains on another confirmed program session
+ * (excluding `excludeSessionId`). Tasks are unique per template+participation,
+ * so they must only be cancelled when the speaker is no longer linked elsewhere.
+ */
+async function participationStillOnConfirmedSession(
+  deps: DecisionCommandDeps,
+  input: {
+    eventId: string;
+    participationId: string;
+    excludeSessionId: string;
+  },
+): Promise<boolean> {
+  const eventSessions = await deps.decisions.listSessionsForEvent(
+    input.eventId,
+  );
+  for (const s of eventSessions) {
+    if (s.status !== "confirmed" || s.id === input.excludeSessionId) continue;
+    const links = await deps.decisions.listSessionSpeakers(s.id);
+    if (links.some((l) => l.participationId === input.participationId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Invalidate accept-materialized program artifacts when decision moves off accept.
- * Session → cancelled; session_speakers removed; on_accept tasks cancelled;
- * participations that have no other confirmed session speakers → withdrawn.
+ * Session → cancelled; session_speakers removed.
+ * Tasks and participations are only cancelled/withdrawn when the speaker is not
+ * still linked to another confirmed session (another accepted talk or direct
+ * sponsor session). Cancel-all-tasks-before-link-check would break shared
+ * participation tasks still required by remaining sessions.
  */
 async function dematerializeAccept(
   deps: DecisionCommandDeps,
@@ -319,22 +348,8 @@ async function dematerializeAccept(
   const speakers = await deps.decisions.listSessionSpeakers(session.id);
   const partIds = speakers.map((s) => s.participationId);
 
-  // Cancel speaker tasks tied to these participations
-  if (partIds.length > 0) {
-    const tasks =
-      await deps.decisions.listSpeakerTasksForParticipations(partIds);
-    for (const t of tasks) {
-      if (t.status === "cancelled") continue;
-      await deps.decisions.updateSpeakerTask(t.id, {
-        status: "cancelled",
-        version: t.version + 1,
-        updatedAt: input.now,
-        completedAt: t.completedAt,
-      });
-    }
-  }
-
-  // Drop session_speakers so the session no longer exposes accepted speakers
+  // Drop session_speakers so this session no longer exposes accepted speakers
+  // before checking remaining links (exclude this session once cancelled).
   await deps.decisions.deleteSessionSpeakers(session.id);
 
   if (session.status !== "cancelled") {
@@ -345,31 +360,98 @@ async function dematerializeAccept(
     });
   }
 
-  // Withdraw participations that are no longer on any confirmed session
+  // Withdraw / cancel tasks only for participations with no remaining confirmed session
   for (const partId of partIds) {
-    const part = await deps.decisions.findParticipationById(partId);
-    if (!part || part.status === "withdrawn") continue;
+    const stillLinked = await participationStillOnConfirmedSession(deps, {
+      eventId: input.eventId,
+      participationId: partId,
+      excludeSessionId: session.id,
+    });
+    if (stillLinked) continue;
 
-    const eventSessions = await deps.decisions.listSessionsForEvent(
-      input.eventId,
-    );
-    let stillLinked = false;
-    for (const s of eventSessions) {
-      if (s.status !== "confirmed" || s.id === session.id) continue;
-      const links = await deps.decisions.listSessionSpeakers(s.id);
-      if (links.some((l) => l.participationId === partId)) {
-        stillLinked = true;
-        break;
-      }
-    }
-    if (!stillLinked) {
-      await deps.decisions.updateParticipation(partId, {
-        status: "withdrawn",
-        version: part.version + 1,
+    const tasks = await deps.decisions.listSpeakerTasksForParticipations([
+      partId,
+    ]);
+    for (const t of tasks) {
+      if (t.status === "cancelled") continue;
+      await deps.decisions.updateSpeakerTask(t.id, {
+        status: "cancelled",
+        version: t.version + 1,
         updatedAt: input.now,
+        completedAt: t.completedAt,
       });
     }
+
+    const part = await deps.decisions.findParticipationById(partId);
+    if (!part || part.status === "withdrawn") continue;
+    await deps.decisions.updateParticipation(partId, {
+      status: "withdrawn",
+      version: part.version + 1,
+      updatedAt: input.now,
+    });
   }
+}
+
+/**
+ * Ensure a Decision.Record audit exists for the *current* decision value (E3).
+ * Idempotent retries repair a missing audit when decision/submission already
+ * persisted but audit insert failed. Skips only when the latest Decision.Record
+ * audit already records the same decision (re-decide keeps a full trail via the
+ * non-idempotent insert path).
+ */
+async function ensureDecisionAudit(
+  deps: DecisionCommandDeps,
+  input: {
+    submissionId: string;
+    eventId: string;
+    actorUserId: string;
+    correlationId: string;
+    now: string;
+    before: {
+      status: string;
+      version: number;
+      priorDecision: string | null;
+    };
+    after: {
+      decision: DecisionValue;
+      reason: string | null;
+      status: SubmissionStatus;
+      version: number;
+      sessionId: string | null;
+      taskCount: number;
+    };
+  },
+): Promise<void> {
+  const existing = await deps.auth.findAuditByActionAndEntity(
+    "Decision.Record",
+    "submission",
+    input.submissionId,
+  );
+  if (existing?.afterJson) {
+    try {
+      const after = JSON.parse(existing.afterJson) as { decision?: string };
+      if (after.decision === input.after.decision) return;
+    } catch {
+      // fall through to insert
+    }
+  } else if (existing) {
+    // Legacy/empty afterJson — treat as present for this entity action
+    return;
+  }
+
+  await deps.auth.insertAudit({
+    id: uuidv7(),
+    eventId: input.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "Decision.Record",
+    entityType: "submission",
+    entityId: input.submissionId,
+    beforeJson: JSON.stringify(input.before),
+    afterJson: JSON.stringify(input.after),
+    correlationId: input.correlationId,
+    createdAt: input.now,
+  });
 }
 
 /** Active (non-cancelled) session for a submission, if any. */
@@ -391,14 +473,15 @@ export type RecordDecisionInput = DecisionRecordBody & {
 /**
  * Decision.Record — accept | reject | waitlist.
  *
- * Ordering for partial-failure safety:
- * 1. Accept: materialize session/tasks first (idempotent), then optimistic
- *    submission update + decision + audit. A retry after materialize-only
- *    failure re-runs materialize and completes the write path.
- * 2. Same accept already recorded: still re-runs materialize to repair any
- *    missing side effects, then returns idempotent=true.
- * 3. Accept → reject/waitlist: dematerialize session/speakers/tasks before
- *    updating status so program artifacts are not left exposed.
+ * Ordering for concurrency + partial-failure safety:
+ * 1. Optimistic submission status update FIRST (claims the version race).
+ *    Side effects only run after the claim so a concurrent loser never
+ *    materializes a session for a non-accepted submission.
+ * 2. Accept: materialize session/tasks (idempotent; unique source_submission_id).
+ *    Reject/waitlist after accept: dematerialize (tasks only if speaker free).
+ * 3. Upsert decision, then ensure audit (idempotent retries repair missing audit).
+ * 4. Same decision already recorded + status matches: re-run side-effect repair
+ *    + ensure audit, return idempotent=true without bumping version.
  */
 export async function recordDecision(
   deps: DecisionCommandDeps,
@@ -456,64 +539,74 @@ export async function recordDecision(
   }
 
   const now = new Date().toISOString();
+  const nextStatus = decisionToStatus(input.decision);
 
-  // Idempotent accept: same decision already recorded — repair side effects if incomplete
+  // Idempotent same decision + matching status: repair side effects + audit
   if (
     existingDecision &&
     existingDecision.decision === input.decision &&
-    input.decision === "accept" &&
-    submission.status === "accepted"
+    submission.status === nextStatus
   ) {
-    const mat = await materializeAccept(deps, {
-      submission,
-      eventId: event.id,
-      orgId: event.orgId,
+    let sessionDto: ProgramSessionDto | null = null;
+    let tasks: SpeakerTaskDto[] = [];
+    let participations: EventParticipationDto[] = [];
+
+    if (input.decision === "accept") {
+      const mat = await materializeAccept(deps, {
+        submission,
+        eventId: event.id,
+        orgId: event.orgId,
+        now,
+      });
+      sessionDto = toSessionDto(mat.session);
+      tasks = mat.tasks.map(toTaskDto);
+      participations = mat.participations.map(toParticipationDto);
+    } else {
+      // Repair: prior accept→reject may have crashed before dematerialize
+      await dematerializeAccept(deps, {
+        submissionId: submission.id,
+        eventId: event.id,
+        now,
+      });
+    }
+
+    await ensureDecisionAudit(deps, {
+      submissionId: submission.id,
+      eventId: submission.eventId,
+      actorUserId: input.actorUserId,
+      correlationId: input.correlationId,
       now,
+      before: {
+        status: submission.status,
+        version: submission.version,
+        priorDecision: existingDecision.decision,
+      },
+      after: {
+        decision: input.decision,
+        reason: input.reason ?? existingDecision.reason,
+        status: nextStatus,
+        version: submission.version,
+        sessionId: sessionDto?.id ?? null,
+        taskCount: tasks.length,
+      },
     });
+
     return {
       ok: true,
       value: {
         decision: toDecisionDto(existingDecision),
         submission: toSubmissionDto(submission),
-        session: toSessionDto(mat.session),
-        tasks: mat.tasks.map(toTaskDto),
-        participations: mat.participations.map(toParticipationDto),
+        session: sessionDto,
+        tasks,
+        participations,
         idempotent: true,
       },
     };
   }
 
-  const nextStatus = decisionToStatus(input.decision);
   const nextVersion = submission.version + 1;
 
-  let sessionDto: ProgramSessionDto | null = null;
-  let tasks: SpeakerTaskDto[] = [];
-  let participations: EventParticipationDto[] = [];
-
-  // Accept: materialize BEFORE mutating submission so a crash mid-materialize
-  // never leaves status=accepted without program artifacts. Retries repair.
-  if (input.decision === "accept") {
-    const mat = await materializeAccept(deps, {
-      submission,
-      eventId: event.id,
-      orgId: event.orgId,
-      now,
-    });
-    sessionDto = toSessionDto(mat.session);
-    tasks = mat.tasks.map(toTaskDto);
-    participations = mat.participations.map(toParticipationDto);
-  } else if (
-    existingDecision?.decision === "accept" ||
-    submission.status === "accepted"
-  ) {
-    // Leaving accept: invalidate previously materialized program artifacts
-    await dematerializeAccept(deps, {
-      submissionId: submission.id,
-      eventId: event.id,
-      now,
-    });
-  }
-
+  // Claim version / status first — losers return 409 with no side effects
   const updated = await deps.submissions.updateSubmission(
     submission.id,
     { status: nextStatus, version: nextVersion },
@@ -532,6 +625,29 @@ export async function recordDecision(
     };
   }
 
+  let sessionDto: ProgramSessionDto | null = null;
+  let tasks: SpeakerTaskDto[] = [];
+  let participations: EventParticipationDto[] = [];
+
+  if (input.decision === "accept") {
+    const mat = await materializeAccept(deps, {
+      submission: updated,
+      eventId: event.id,
+      orgId: event.orgId,
+      now,
+    });
+    sessionDto = toSessionDto(mat.session);
+    tasks = mat.tasks.map(toTaskDto);
+    participations = mat.participations.map(toParticipationDto);
+  } else {
+    // Leaving accept (or repairing): invalidate program artifacts for this submission
+    await dematerializeAccept(deps, {
+      submissionId: submission.id,
+      eventId: event.id,
+      now,
+    });
+  }
+
   const decisionRow = await deps.decisions.upsertDecision({
     id: existingDecision?.id ?? newDecisionId(),
     submissionId: submission.id,
@@ -541,6 +657,8 @@ export async function recordDecision(
     createdAt: now,
   });
 
+  // Always insert on a real status transition (re-decide keeps full audit trail).
+  // Idempotent retries use ensureDecisionAudit above to repair a missing row only.
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: submission.eventId,

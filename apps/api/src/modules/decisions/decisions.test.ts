@@ -852,4 +852,272 @@ describe("3.5 Decision.Record", () => {
     expect(OPENAPI_COMMANDS).toContain("Submission.List");
     expect(OPENAPI_COMMANDS).toContain("Submission.Get");
   });
+
+  it("rejecting one accept does not cancel tasks still required by another session", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-shared-speaker@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Shared Speaker Event",
+    );
+
+    // One published form, two submissions, same speaker email → one participation
+    const create = await admin.app.request(
+      `http://localhost/api/events/${event.id}/forms`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ name: "Shared CFP" }),
+      },
+      env,
+    );
+    expect(create.status).toBe(201);
+    const form = FormCreateResponseSchema.parse(await create.json());
+    const draft = await admin.app.request(
+      `http://localhost/api/forms/${form.form.id}/draft`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          fields: [
+            {
+              fieldKey: "talk_title",
+              type: "text",
+              label: "Talk title",
+              required: true,
+              sortOrder: 0,
+            },
+          ],
+          rules: [],
+        }),
+      },
+      env,
+    );
+    expect(draft.status).toBe(200);
+    const publish = await admin.app.request(
+      `http://localhost/api/forms/${form.form.id}/publish`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    expect(publish.status).toBe(200);
+    const published = FormPublishResponseSchema.parse(await publish.json());
+
+    const sharedEmail = "shared-speaker@example.com";
+    async function submitTalk(title: string): Promise<string> {
+      const submit = await admin.app.request(
+        `http://localhost/api/public/cfp/${event.slug}/submissions`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            formVersionId: published.formVersion.id,
+            title,
+            answers: [{ fieldKey: "talk_title", value: title }],
+            speakers: [
+              { name: "Shared Speaker", email: sharedEmail, isPrimary: true },
+            ],
+            turnstileToken: TURNSTILE_DEV_PASS_TOKEN,
+          }),
+        },
+        env,
+      );
+      expect(submit.status).toBe(201);
+      return SubmissionCreateResponseSchema.parse(await submit.json())
+        .submission.id;
+    }
+
+    const subA = await submitTalk("Talk Alpha");
+    const subB = await submitTalk("Talk Beta");
+
+    await admin.decisions.insertTaskTemplate({
+      id: newTaskTemplateId(),
+      eventId: event.id,
+      title: "Headshot",
+      description: null,
+      trigger: "on_accept",
+      dueOffsetDays: 7,
+      createdAt: new Date().toISOString(),
+    });
+
+    async function accept(id: string) {
+      const res = await admin.app.request(
+        `http://localhost/api/submissions/${id}/decision`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: admin.cookie,
+          },
+          body: JSON.stringify({ decision: "accept" }),
+        },
+        env,
+      );
+      expect(res.status).toBe(200);
+      return DecisionRecordResponseSchema.parse(await res.json());
+    }
+
+    await accept(subA);
+    const acceptB = await accept(subB);
+    expect(acceptB.tasks.length).toBeGreaterThan(0);
+    const taskIds = acceptB.tasks.map((t) => t.id);
+    const participationId = acceptB.participations[0]!.id;
+
+    const rejectA = await admin.app.request(
+      `http://localhost/api/submissions/${subA}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ decision: "reject", reason: "Drop one" }),
+      },
+      env,
+    );
+    expect(rejectA.status).toBe(200);
+
+    // Tasks for shared participation must remain (still linked to subB session)
+    const tasks = await admin.decisions.listSpeakerTasksForParticipations([
+      participationId,
+    ]);
+    for (const tid of taskIds) {
+      const t = tasks.find((x) => x.id === tid);
+      expect(t).toBeTruthy();
+      expect(t!.status).not.toBe("cancelled");
+    }
+    const part = await admin.decisions.findParticipationById(participationId);
+    expect(part?.status).toBe("accepted");
+  });
+
+  it("idempotent accept repairs missing Decision.Record audit", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-audit-repair@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Audit Repair Event",
+    );
+    const { submissionId } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Audit Repair Talk",
+    );
+
+    const first = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-audit-first",
+        },
+        body: JSON.stringify({ decision: "accept" }),
+      },
+      env,
+    );
+    expect(first.status).toBe(200);
+
+    // Simulate audit insert failure after decision persisted (memory store only)
+    const mem = admin.store as unknown as {
+      audits: Array<{ action: string; entityId: string }>;
+    };
+    mem.audits = mem.audits.filter(
+      (a) =>
+        !(a.action === "Decision.Record" && a.entityId === submissionId),
+    );
+    expect(
+      await admin.store.findAuditByActionAndEntity(
+        "Decision.Record",
+        "submission",
+        submissionId,
+      ),
+    ).toBeNull();
+
+    const second = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-audit-repair",
+        },
+        body: JSON.stringify({ decision: "accept" }),
+      },
+      env,
+    );
+    expect(second.status).toBe(200);
+    const secondBody = DecisionRecordResponseSchema.parse(await second.json());
+    expect(secondBody.idempotent).toBe(true);
+
+    const repaired = await admin.store.findAuditByActionAndEntity(
+      "Decision.Record",
+      "submission",
+      submissionId,
+    );
+    expect(repaired).toBeTruthy();
+    expect(repaired!.correlationId).toBe("corr-audit-repair");
+    const after = JSON.parse(repaired!.afterJson ?? "{}") as {
+      decision?: string;
+    };
+    expect(after.decision).toBe("accept");
+  });
+
+  it("version conflict on decision does not leave orphan accept session", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-race-409@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Race 409 Event");
+    const { submissionId, version } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Race Talk",
+    );
+
+    // Stale expectedVersion loses the claim before materialize
+    const stale = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          decision: "accept",
+          expectedVersion: version + 99,
+        }),
+      },
+      env,
+    );
+    expect(stale.status).toBe(409);
+
+    const session =
+      await admin.decisions.findSessionBySubmission(submissionId);
+    expect(session).toBeNull();
+  });
 });

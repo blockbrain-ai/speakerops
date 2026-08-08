@@ -258,6 +258,14 @@ export class MemoryDecisionsStore implements DecisionsStore {
   }
 
   async insertSession(row: ProgramSessionRow): Promise<ProgramSessionRow> {
+    // Unique source_submission_id: concurrent materialize reuses the winner.
+    if (row.sourceSubmissionId) {
+      const existingId = this.sessionBySubmission.get(row.sourceSubmissionId);
+      if (existingId) {
+        const existing = this.sessions.get(existingId);
+        if (existing) return { ...existing };
+      }
+    }
     this.sessions.set(row.id, { ...row });
     if (row.sourceSubmissionId) {
       this.sessionBySubmission.set(row.sourceSubmissionId, row.id);
@@ -563,19 +571,32 @@ export class D1DecisionsStore implements DecisionsStore {
   }
 
   async insertSession(row: ProgramSessionRow): Promise<ProgramSessionRow> {
-    await this.db.insert(programSessions).values({
-      id: row.id,
-      eventId: row.eventId,
-      sourceSubmissionId: row.sourceSubmissionId,
-      title: row.title,
-      description: row.description,
-      trackId: row.trackId,
-      status: row.status,
-      version: row.version,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    });
-    return row;
+    // Unique source_submission_id: on concurrent insert, re-read winner.
+    if (row.sourceSubmissionId) {
+      const existing = await this.findSessionBySubmission(row.sourceSubmissionId);
+      if (existing) return existing;
+    }
+    try {
+      await this.db.insert(programSessions).values({
+        id: row.id,
+        eventId: row.eventId,
+        sourceSubmissionId: row.sourceSubmissionId,
+        title: row.title,
+        description: row.description,
+        trackId: row.trackId,
+        status: row.status,
+        version: row.version,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      });
+      return row;
+    } catch (err) {
+      if (row.sourceSubmissionId) {
+        const raced = await this.findSessionBySubmission(row.sourceSubmissionId);
+        if (raced) return raced;
+      }
+      throw err;
+    }
   }
 
   async findSessionById(id: string): Promise<ProgramSessionRow | null> {

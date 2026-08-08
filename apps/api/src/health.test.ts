@@ -14,8 +14,9 @@ import {
   NOT_FOUND,
   INTERNAL_ERROR,
 } from "@speakerops/shared";
-import { createApp, DEFAULT_APP_VERSION } from "./index.js";
+import { createApp, createAppFromBindings, DEFAULT_APP_VERSION } from "./index.js";
 import { onErrorHandler } from "./middleware/errors.js";
+import type { WorkerBindings } from "./env.js";
 
 describe("1.2 Worker API health", () => {
   it("assert GET /health returns 200 and body.ok===true", async () => {
@@ -112,5 +113,21 @@ describe("1.2 Worker API health", () => {
     expect(res.status).toBe(401);
     const body = (await res.json()) as { code?: string };
     expect(body.code).toBe("UNAUTHORIZED");
+  });
+
+  it("createAppFromBindings rejects missing TURNSTILE_SECRET_KEY (fail closed)", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      // TURNSTILE_SECRET_KEY omitted intentionally
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SECRET_KEY/);
+  });
+
+  it("createAppFromBindings rejects empty TURNSTILE_SECRET_KEY", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: "   ",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/TURNSTILE_SECRET_KEY/);
   });
 });
