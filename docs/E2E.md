@@ -77,6 +77,9 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright/e2e/submissions_decisions.spec.ts` | Section **3.5** `@inv:E01`–`E08` submissions & decisions |
 | `playwright/e2e/cfp_eval_keystone.spec.ts` | Section **3.6** I12 keystone (form publish → submit → score → accept → tasks) |
 | `playwright/e2e/helpers/cfp-eval-seed.ts` | Section **3.6** seed helpers for keystone |
+| `playwright/e2e/portal_api_tasks.spec.ts` | Section **4.1** `@inv:O05` / `N01`–`N04` portal API + admin speakers |
+| `playwright/e2e/portal_ui.spec.ts` | Section **4.3** `@inv:G01`–`G08` speaker portal UI |
+| `playwright/e2e/portal_keystone.spec.ts` | Section **4.4** I12 keystone (seed accept → portal green) |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
@@ -85,6 +88,7 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `KMS-competition/initiative/evidence/phase1.txt` | Phase 1 keystone evidence (1.6) |
 | `KMS-competition/initiative/evidence/phase2-e2e.txt` | Phase 2 keystone evidence (2.5) |
 | `KMS-competition/initiative/evidence/phase3-e2e.txt` | Phase 3 keystone evidence (3.6) |
+| `KMS-competition/initiative/evidence/phase4-e2e.txt` | Phase 4 keystone evidence (4.4) |
 
 ---
 
@@ -127,6 +131,8 @@ Section **1.6** adds foundation smoke (`foundation_smoke.spec.ts`): health 200 +
 Section **2.5** adds the phase-2 I12 keystone (`auth_settings_keystone.spec.ts`): login → set design → publish → public brand; role guards. Inventory B01–B06 / C01–C11 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase2-e2e.txt`.
 
 Section **3.6** adds the phase-3 I12 keystone (`cfp_eval_keystone.spec.ts`): form publish → public submit → score → accept → tasks exist. Inventory A01–A11 / D01–D10 / E01–E08 / F01–F04 (O04) status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase3-e2e.txt`.
+
+Section **4.4** adds the phase-4 I12 keystone (`portal_keystone.spec.ts`): seed accept → speaker portal green (G01–G08). Inventory G01–G08 / O05 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase4-e2e.txt`.
 
 ---
 

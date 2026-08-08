@@ -225,7 +225,7 @@
 | O02 | admin | Settings | Rooms CRUD | e2e/settings/rooms | — | REQUIRED | PASS |
 | O03 | admin | Settings | Tracks CRUD | e2e/settings/tracks | — | REQUIRED | PASS |
 | O04 | admin | Settings | Eval rubric edit | e2e/settings/rubric | — | REQUIRED | PASS |
-| O05 | admin | Settings | Task templates on accept | e2e/settings/task-templates | — | REQUIRED | IMPLEMENTED |
+| O05 | admin | Settings | Task templates on accept | e2e/settings/task-templates | — | REQUIRED | PASS |
 | O06 | admin | Settings | Airtable projection status read | e2e/settings/airtable-status | — | REQUIRED | OPEN |
 
 ---

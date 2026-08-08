@@ -27,6 +27,7 @@
 | Foundation e2e proof (1.6) | [`docs/sections/1.6-foundation-e2e-proof.md`](./sections/1.6-foundation-e2e-proof.md) | I12 keystone: health + shell smoke; `playwright/e2e/foundation_smoke.spec.ts` |
 | Auth settings e2e proof (2.5) | [`docs/sections/2.5-auth-settings-e2e.md`](./sections/2.5-auth-settings-e2e.md) | I12 keystone: login → design publish → public brand; B*/C* PASS; `playwright/e2e/auth_settings_keystone.spec.ts` |
 | CFP eval e2e proof (3.6) | [`docs/sections/3.6-cfp-eval-e2e.md`](./sections/3.6-cfp-eval-e2e.md) | I12 keystone: form publish → submit → score → accept → tasks; A*/D*/E*/F* PASS; `playwright/e2e/cfp_eval_keystone.spec.ts` |
+| Portal e2e proof (4.4) | [`docs/sections/4.4-portal-e2e.md`](./sections/4.4-portal-e2e.md) | I12 keystone: seed accept → portal green; G*/O05 PASS; `playwright/e2e/portal_keystone.spec.ts` |
 | Commands | [`KMS-competition/initiative/contracts/COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) | Named domain commands; HTTP/CLI 1:1 |
 | Scopes | [`KMS-competition/initiative/contracts/SCOPES.md`](../KMS-competition/initiative/contracts/SCOPES.md) | API key scopes; default-deny high-risk |
 | CLI inventory | [`KMS-competition/initiative/contracts/CLI_INVENTORY.md`](../KMS-competition/initiative/contracts/CLI_INVENTORY.md) | CLI surface parity |
