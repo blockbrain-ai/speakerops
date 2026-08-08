@@ -30,8 +30,11 @@ coverage/
 .audit/
 .phase-audit/
 
-# Playwright (section 1.5) — local run artifacts
+# Playwright (section 1.5 / 8.2) — local run artifacts (paths recorded in evidence)
 test-results/
 playwright-report/
 blob-report/
 reports/playwright/
+reports/playwright-run.json
+reports/e2e-coverage.html
+reports/e2e-report-path.txt

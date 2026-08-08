@@ -88,13 +88,20 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright/e2e/api_keys.spec.ts` | Section **7.1** `@inv:K01`–`K04` API keys UI |
 | `playwright/e2e/airtable_status.spec.ts` | Section **7.3** `@inv:O06` Airtable status |
 | `playwright/e2e/phase7_keystone.spec.ts` | Section **7.4** I12 keystone (K* → CLI07 deny → airtable pause) |
+| `playwright/e2e/states_cross_cutting.spec.ts` | Section **8.2** L01–L04 empty/error/loading/console-clean |
+| `playwright/e2e/phase8_full_suite_keystone.spec.ts` | Section **8.2** full-suite soul path keystone |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (1.5) + admin discovery crawl (8.1) |
 | `scripts/ui-crawl-allowlist.json` | Crawl chrome allowlist + primary controlMap (8.1) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
 | `docs/sections/8.1-inventory-completeness.md` | Completeness audit notes (S-E2E-INV) |
+| `docs/sections/8.2-full-playwright-suite.md` | Full suite notes (S-E2E-RUN) |
 | `scripts/e2e-inventory-required-baseline.json` | Anti-shrinkage baseline (108 IDs) |
-| `reports/playwright/` | HTML report (CI) |
+| `playwright-report/` | Raw HTML report (8.2 / local run) |
+| `reports/playwright/` | HTML report mirror (CI) |
+| `reports/playwright-run.json` | JSON run report (`E2E_PLAYWRIGHT_RUN_REPORT`) |
+| `reports/e2e-coverage.html` | Coverage HTML (law path) |
+| `reports/e2e-report-path.txt` | Report path manifest after `pnpm test:e2e` |
 | `KMS-competition/initiative/evidence/phase1.txt` | Phase 1 keystone evidence (1.6) |
 | `KMS-competition/initiative/evidence/phase2-e2e.txt` | Phase 2 keystone evidence (2.5) |
 | `KMS-competition/initiative/evidence/phase3-e2e.txt` | Phase 3 keystone evidence (3.6) |
@@ -102,6 +109,7 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `KMS-competition/initiative/evidence/phase5-e2e.txt` | Phase 5 keystone evidence (5.4) |
 | `KMS-competition/initiative/evidence/phase6-e2e.txt` | Phase 6 keystone evidence (6.4) |
 | `KMS-competition/initiative/evidence/phase7-e2e.txt` | Phase 7 keystone evidence (7.4) |
+| `KMS-competition/initiative/evidence/e2e-full.txt` | Phase 8 full suite evidence (8.2) |
 
 ---
 
@@ -138,12 +146,17 @@ Env **names** only (E10) — never commit secret values:
 - Named negatives: missing REQUIRED tag fails lint; unmapped primary button fixture fails crawl
 - Section notes: [`docs/sections/8.1-inventory-completeness.md`](./sections/8.1-inventory-completeness.md)
 
-### 8.2+ (later)
+### 8.2 — Full Playwright suite (landed)
 
-- Every non-DEFER REQUIRED row status `PASS`
-- `@inv` on Playwright-bound tests for all of them (incl. L01–L04)
-- Actual run report with **passed, non-skipped** results
-- Report artifact: `reports/e2e-coverage.html` (Phase 9 consumers)
+- Every non-DEFER REQUIRED row status `PASS` (incl. L01–L04)
+- `@inv` on Playwright-bound tests for all of them
+- Actual run report with **passed, non-skipped** results (`reports/playwright-run.json`)
+- Raw HTML: `playwright-report/`; coverage copy: `reports/e2e-coverage.html`
+- Path manifest: `reports/e2e-report-path.txt` (written by `scripts/e2e-run.mjs`)
+- Cross-cutting: `playwright/e2e/states_cross_cutting.spec.ts` · keystone `phase8_full_suite_keystone.spec.ts`
+- Evidence: `KMS-competition/initiative/evidence/e2e-full.txt`
+- Section notes: [`docs/sections/8.2-full-playwright-suite.md`](./sections/8.2-full-playwright-suite.md)
+- Phase 8 gate: `E2E_INVENTORY_GATE=phase8 E2E_PLAYWRIGHT_RUN_REPORT=reports/playwright-run.json pnpm test:e2e:inventory`
 
 Section **1.5** only scaffolds the harness and inventory lint entry — it does not claim `dogfood_ready` or full REQUIRED green.
 
@@ -160,6 +173,10 @@ Section **5.4** adds the phase-5 I12 keystone (`comms_keystone.spec.ts`): templa
 Section **6.4** adds the phase-6 I12 keystone (`schedule_dash_keystone.spec.ts`): schedule → readiness → speakers → L05. Inventory I01–I16 / H01–H05 / N01–N04 / L05 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase6-e2e.txt`.
 
 Section **7.4** adds the phase-7 I12 keystone (`phase7_keystone.spec.ts`): K* keys → CLI07 deny → airtable pause. Inventory K01–K04 / O06 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase7-e2e.txt`.
+
+Section **8.1** hardens inventory completeness (S-E2E-INV): tags + admin primary crawl. Evidence / notes: `docs/sections/8.1-inventory-completeness.md`.
+
+Section **8.2** runs the full Playwright suite (S-E2E-RUN): all REQUIRED **PASS**, L01–L04 state journeys, run report artifact. Evidence: `KMS-competition/initiative/evidence/e2e-full.txt`.
 
 ---
 

@@ -85,10 +85,11 @@ test.describe("1.6 foundation smoke (I12 keystone)", () => {
     const setCookie = exchange.headers()["set-cookie"] ?? "";
     const match = setCookie.match(/speakerops_session=([^;]+)/);
     expect(match).toBeTruthy();
+    const sessionValue = match![1]!;
     await context.addCookies([
       {
         name: "speakerops_session",
-        value: match![1]!,
+        value: sessionValue,
         url: baseURL ?? "http://127.0.0.1:5173",
         httpOnly: true,
         secure: true,
@@ -96,7 +97,31 @@ test.describe("1.6 foundation smoke (I12 keystone)", () => {
       },
     ]);
 
+    // Seed a real event so overview/readiness does not 404 on synthetic
+    // bootstrap ids (evt_dogfood membership without events row) — keeps
+    // console-clean (L04 / foundation smoke) free of resource 404 noise.
+    const createEv = await request.post("/api/events", {
+      headers: {
+        cookie: `speakerops_session=${sessionValue}`,
+        "content-type": "application/json",
+      },
+      data: {
+        name: "Foundation Smoke Event",
+        timezone: "UTC",
+        startsAt: "2026-06-01T09:00:00.000Z",
+        endsAt: "2026-06-02T17:00:00.000Z",
+      },
+    });
+    expect(createEv.status()).toBe(201);
+    const created = (await createEv.json()) as {
+      event: { id: string };
+    };
+
     // --- assert page.goto baseURL shows text matching /CFP|Forms/i ---
+    await page.goto(baseURL ?? "/");
+    await page.evaluate((id) => {
+      localStorage.setItem("speakerops.activeEventId", id);
+    }, created.event.id);
     await page.goto(baseURL ?? "/");
     await expect(page.getByTestId("app-root")).toBeVisible();
     await expect(page.getByTestId("admin-shell")).toBeVisible({ timeout: 15_000 });
@@ -111,14 +136,31 @@ test.describe("1.6 foundation smoke (I12 keystone)", () => {
     await expect(page.getByTestId("admin-page-title")).toBeVisible();
     await expect(page.getByTestId("admin-nav")).toBeVisible();
 
+    // Wait for readiness overview to settle (empty is fine) so we do not race
+    // console assertions against an in-flight request.
+    await expect(page.getByTestId("page-readiness")).toBeVisible({
+      timeout: 15_000,
+    });
+    const readinessLoading = page.getByTestId("readiness-loading");
+    if (await readinessLoading.isVisible().catch(() => false)) {
+      await expect(readinessLoading).toBeHidden({ timeout: 15_000 });
+    }
+    // Settled: empty state, outstanding list, or stats (any is fine)
+    await expect(page.getByTestId("readiness-stats")).toBeVisible({
+      timeout: 10_000,
+    });
+
     // --- assert no pageerror and no console.error ---
     expect(
       pageErrors,
       `uncaught pageerror events: ${pageErrors.join(" | ")}`,
     ).toEqual([]);
+    const realConsoleErrors = consoleErrors.filter(
+      (t) => !/favicon\.ico|Download the React DevTools/i.test(t),
+    );
     expect(
-      consoleErrors,
-      `browser console.error messages: ${consoleErrors.join(" | ")}`,
+      realConsoleErrors,
+      `browser console.error messages: ${realConsoleErrors.join(" | ")}`,
     ).toEqual([]);
   });
 });

@@ -1,0 +1,90 @@
+# Phase 8 full Playwright suite evidence — section 8.2 (S-E2E-RUN)
+
+Section: 8.2 Full Playwright suite
+Workspace: speakerops-build
+Date: 2026-08-08
+
+## Claim
+
+All non-DEFER REQUIRED inventory journeys PASS with Playwright @inv tags and a stored run-report artifact.
+L01–L04 cross-cutting state journeys implemented and PASS.
+No inventory shrink (baseline 108 IDs intact).
+Full suite: 117 passed (1.6m).
+
+Souls: S-E2E-RUN (full browser run · every REQUIRED PASS · console-clean happy paths · report artifact)
+
+## Evidence path
+
+This file: KMS-competition/initiative/evidence/e2e-full.txt
+Section notes: docs/sections/8.2-full-playwright-suite.md
+Cross-cutting: playwright/e2e/states_cross_cutting.spec.ts (@inv:L01–L04)
+Keystone: playwright/e2e/phase8_full_suite_keystone.spec.ts
+Prior phase keystones remain proof owners for A–K / N / O / L05 journeys.
+
+## Report path stored
+
+| Artifact | Path |
+|----------|------|
+| JSON run report | reports/playwright-run.json (E2E_PLAYWRIGHT_RUN_REPORT) |
+| Raw HTML | playwright-report/ |
+| Mirror HTML | reports/playwright/ |
+| Coverage HTML | reports/e2e-coverage.html |
+| Path manifest | reports/e2e-report-path.txt |
+
+Env names only (E10): E2E_WEB_SERVER, E2E_PLAYWRIGHT_RUN_REPORT, E2E_PLAYWRIGHT_SUITE_REPORT,
+E2E_PLAYWRIGHT_HTML_DIR, E2E_PLAYWRIGHT_HTML_MIRROR, E2E_INVENTORY_GATE, CI.
+
+## Notes
+
+- No secrets, API keys, or magic-link tokens in this evidence file.
+- L01 empty CTA + L02 error state + L03 loading skeleton product polish on admin submissions list.
+- Foundation smoke seeds a real event so overview readiness does not 404 on synthetic bootstrap ids.
+- Phase 8 inventory gate: E2E_INVENTORY_GATE=phase8 E2E_PLAYWRIGHT_RUN_REPORT=reports/playwright-run.json pnpm test:e2e:inventory
+- Intermediate inventory lint (tags + crawl) remains pnpm test:e2e:inventory.
+
+## Gate command outputs
+
+### pnpm typecheck
+```
+> speakerops@0.1.0 typecheck /mnt/HC_Volume_105994188/speakerops-build
+> tsc -b --pretty false
+
+exit: 0
+```
+
+### pnpm test:ci (summary)
+```
+# tests 386+ (governance node:test + vitest)
+# pass all
+ Test Files  34 passed (34)
+      Tests  327 passed (327)
+exit: 0
+```
+
+### pnpm test:e2e:inventory (intermediate)
+```
+[test:e2e:inventory] OK: baseline 108 IDs intact (108 REQUIRED non-DEFER, 0 DEFER)
+[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover 108 implemented/status-owned IDs
+inventory-crawl: OK: 61 primary control(s) mapped, 2 chrome-skipped (workspace-admin)
+exit: 0
+```
+
+### pnpm test:e2e (full suite)
+```
+  117 passed (1.6m)
+[test:e2e] report path stored: reports/e2e-report-path.txt
+[test:e2e] JSON run report: reports/playwright-run.json (exists=true)
+[test:e2e] HTML dir: playwright-report (exists=true)
+[test:e2e] coverage HTML: reports/e2e-coverage.html
+exit: 0
+```
+
+### E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory
+```
+[test:e2e:inventory] OK: baseline 108 IDs intact (108 REQUIRED non-DEFER, 0 DEFER)
+[test:e2e:inventory] OK: Phase 8 status claim — 108 non-DEFER REQUIRED rows are PASS
+[test:e2e:inventory] OK: Phase 8 run report — 108 non-DEFER REQUIRED IDs have passed, non-skipped execution results (source: reports/playwright-run.json)
+[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover 108 phase8 full REQUIRED IDs
+inventory-crawl: OK: 61 primary control(s) mapped, 2 chrome-skipped (workspace-admin)
+exit: 0
+```

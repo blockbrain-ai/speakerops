@@ -2077,6 +2077,48 @@
   flex-wrap: wrap;
 }
 
+/* Section 8.2 — empty / error / loading cross-cutting (L01–L03); Lumen tokens only */
+.list-skeleton {
+  margin: var(--lumen-space-3) 0;
+  padding: var(--lumen-space-4);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-surface);
+}
+
+.list-skeleton__bars {
+  display: grid;
+  gap: var(--lumen-space-2);
+  margin-top: var(--lumen-space-3);
+}
+
+.list-skeleton__bar {
+  display: block;
+  height: var(--lumen-space-3);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-brand-soft);
+  opacity: var(--lumen-disabled-opacity);
+}
+
+.list-empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-3);
+  margin-top: var(--lumen-space-4);
+}
+
+.list-error-state {
+  margin: var(--lumen-space-3) 0;
+}
+
+/* Anchor styled as secondary button (empty-state forms link) */
+a.event-settings__btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
 .speakers-list__pager .event-settings__submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;

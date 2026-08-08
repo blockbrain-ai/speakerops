@@ -95,6 +95,8 @@
     { "testid": "submissions-bulk-preview-accept", "inv": "E08", "surface": "admin", "journey": "Bulk accept preview" },
     { "testid": "submissions-bulk-preview-reject", "inv": "E08", "surface": "admin", "journey": "Bulk reject preview" },
     { "testid": "submissions-bulk-preview-waitlist", "inv": "E08", "surface": "admin", "journey": "Bulk waitlist preview" },
+    { "testid": "submissions-empty-cta", "inv": "L01", "surface": "admin", "journey": "Empty submissions list CTA" },
+    { "testid": "submissions-error-retry", "inv": "L02", "surface": "admin", "journey": "Retry after submissions load error" },
     { "testid": "eval-queue-item-*", "inv": "F01", "surface": "evaluator", "journey": "Open assigned eval item" },
     { "testid": "eval-score-save", "inv": "F02", "surface": "evaluator", "journey": "Save evaluation score" },
     { "testid": "readiness-refresh", "inv": "H01", "surface": "admin", "journey": "Refresh readiness dashboard" },

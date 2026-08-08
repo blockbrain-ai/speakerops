@@ -5,10 +5,17 @@
  * webServer (Vite + Hono health) for foundation smoke (section 1.6), then
  * runs Playwright.
  *
- * Full REQUIRED suite green remains Phase 8 (S-E2E-RUN).
- * Env names only (E10): E2E_WEB_SERVER, E2E_BASE_URL, E2E_WEB_PORT, E2E_API_PORT.
+ * Section 8.2 (S-E2E-RUN): full REQUIRED suite + raw report artifacts.
+ * Default report paths (override via env **names** only — E10):
+ *   E2E_PLAYWRIGHT_RUN_REPORT  → reports/playwright-run.json
+ *   E2E_PLAYWRIGHT_HTML_DIR    → playwright-report/
+ *   reports/e2e-coverage.html  ← index copied from HTML dir after run
+ *
+ * Env names: E2E_WEB_SERVER, E2E_BASE_URL, E2E_WEB_PORT, E2E_API_PORT,
+ *            E2E_PLAYWRIGHT_RUN_REPORT, E2E_PLAYWRIGHT_SUITE_REPORT,
+ *            E2E_PLAYWRIGHT_HTML_DIR, E2E_PLAYWRIGHT_HTML_MIRROR, CI
  */
-import { existsSync } from "node:fs";
+import { existsSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -43,6 +50,35 @@ if (!config) {
 // E2E_WEB_SERVER=0 pnpm test:e2e  (e.g. external servers already up)
 if (process.env.E2E_WEB_SERVER === undefined) {
   process.env.E2E_WEB_SERVER = "1";
+}
+
+// Section 8.2 — default run-report path for phase8 inventory gate
+if (!process.env.E2E_PLAYWRIGHT_RUN_REPORT && !process.env.E2E_PLAYWRIGHT_SUITE_REPORT) {
+  process.env.E2E_PLAYWRIGHT_RUN_REPORT = join(
+    root,
+    "reports",
+    "playwright-run.json",
+  );
+}
+if (!process.env.E2E_PLAYWRIGHT_HTML_DIR) {
+  process.env.E2E_PLAYWRIGHT_HTML_DIR = join(root, "playwright-report");
+}
+// Mirror HTML under reports/playwright when not CI (local full suite)
+if (process.env.E2E_PLAYWRIGHT_HTML_MIRROR === undefined) {
+  process.env.E2E_PLAYWRIGHT_HTML_MIRROR = "1";
+}
+
+// Ensure report parent dirs exist before Playwright writes
+for (const dir of [
+  join(root, "reports"),
+  process.env.E2E_PLAYWRIGHT_HTML_DIR,
+  join(root, "playwright-report"),
+]) {
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    /* ignore */
+  }
 }
 
 // Prefer built Worker app for e2e-api-server (stable ESM, no strip-types).
@@ -99,4 +135,50 @@ const result = spawnSync(
     env: process.env,
   },
 );
+
+// Post-run: store report path artifact for S-E2E-RUN / phase8 consumers
+const jsonReport =
+  process.env.E2E_PLAYWRIGHT_RUN_REPORT ||
+  process.env.E2E_PLAYWRIGHT_SUITE_REPORT ||
+  join(root, "reports", "playwright-run.json");
+const htmlDir =
+  process.env.E2E_PLAYWRIGHT_HTML_DIR || join(root, "playwright-report");
+const coverageHtml = join(root, "reports", "e2e-coverage.html");
+const pathManifest = join(root, "reports", "e2e-report-path.txt");
+
+try {
+  mkdirSync(join(root, "reports"), { recursive: true });
+  const htmlIndex = join(htmlDir, "index.html");
+  const mirrorIndex = join(root, "reports", "playwright", "index.html");
+  if (existsSync(htmlIndex)) {
+    try {
+      copyFileSync(htmlIndex, coverageHtml);
+    } catch (e) {
+      console.warn("[test:e2e] could not copy e2e-coverage.html:", e?.message ?? e);
+    }
+  } else if (existsSync(mirrorIndex)) {
+    try {
+      copyFileSync(mirrorIndex, coverageHtml);
+    } catch (e) {
+      console.warn("[test:e2e] could not copy e2e-coverage.html:", e?.message ?? e);
+    }
+  }
+  const lines = [
+    `playwright_run_json=${jsonReport}`,
+    `playwright_html_dir=${htmlDir}`,
+    `e2e_coverage_html=${coverageHtml}`,
+    `exit_status=${result.status === null ? 1 : result.status}`,
+    `generated_at=${new Date().toISOString()}`,
+  ];
+  writeFileSync(pathManifest, lines.join("\n") + "\n", "utf8");
+  console.log(`[test:e2e] report path stored: ${pathManifest}`);
+  console.log(`[test:e2e] JSON run report: ${jsonReport} (exists=${existsSync(jsonReport)})`);
+  console.log(`[test:e2e] HTML dir: ${htmlDir} (exists=${existsSync(htmlDir)})`);
+  if (existsSync(coverageHtml)) {
+    console.log(`[test:e2e] coverage HTML: ${coverageHtml}`);
+  }
+} catch (e) {
+  console.warn("[test:e2e] report path store failed:", e?.message ?? e);
+}
+
 process.exit(result.status === null ? 1 : result.status);

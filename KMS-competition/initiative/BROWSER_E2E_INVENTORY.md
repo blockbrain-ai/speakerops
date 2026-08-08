@@ -198,10 +198,10 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| L01 | admin | Submissions | Empty list CTA | e2e/states/empty-sub | — | REQUIRED | OPEN |
-| L02 | admin | Network | Offline/API 500 shows error state not blank | e2e/states/error | — | REQUIRED | OPEN |
-| L03 | any | Slow | Loading skeletons not infinite hang | e2e/states/loading | — | REQUIRED | OPEN |
-| L04 | any | Happy paths | No uncaught console errors | e2e/states/console-clean | — | REQUIRED | OPEN |
+| L01 | admin | Submissions | Empty list CTA | e2e/states/empty-sub | — | REQUIRED | PASS |
+| L02 | admin | Network | Offline/API 500 shows error state not blank | e2e/states/error | — | REQUIRED | PASS |
+| L03 | any | Slow | Loading skeletons not infinite hang | e2e/states/loading | — | REQUIRED | PASS |
+| L04 | any | Happy paths | No uncaught console errors | e2e/states/console-clean | — | REQUIRED | PASS |
 | L05 | admin | Lists | 150-row seed list paginates or virtualizes usable | e2e/states/large-list | — | REQUIRED | PASS |
 
 ---

@@ -592,27 +592,84 @@ export function SubmissionsPage() {
       ) : null}
 
       {loading ? (
-        <p className="eval-queue__muted" data-testid="submissions-loading">
-          Loading…
-        </p>
+        <div
+          className="list-skeleton"
+          data-testid="submissions-loading"
+          data-skeleton="true"
+          aria-busy="true"
+          aria-live="polite"
+        >
+          <p className="eval-queue__muted" data-testid="submissions-skeleton">
+            Loading submissions…
+          </p>
+          <div className="list-skeleton__bars" aria-hidden="true">
+            <span className="list-skeleton__bar" />
+            <span className="list-skeleton__bar" />
+            <span className="list-skeleton__bar" />
+          </div>
+        </div>
       ) : null}
       {loadError ? (
-        <p
-          className="event-settings__status event-settings__status--error"
-          data-testid="submissions-load-error"
+        <div
+          className="event-settings__card list-error-state"
+          data-testid="submissions-error-state"
           role="alert"
         >
-          {loadError}
-        </p>
+          <p
+            className="event-settings__status event-settings__status--error"
+            data-testid="submissions-load-error"
+          >
+            {loadError}
+          </p>
+          <p className="page-stub__body">
+            The submissions list could not be loaded. Check your connection and
+            try again — the page is not blank.
+          </p>
+          <button
+            type="button"
+            className="event-settings__btn lumen-focusable"
+            data-testid="submissions-error-retry"
+            onClick={() => {
+              if (activeEventId) void loadList(activeEventId);
+            }}
+          >
+            Retry
+          </button>
+        </div>
       ) : null}
 
       <div className="eval-queue__layout">
-        {/* List E01 */}
+        {/* List E01 · empty CTA L01 */}
         <section data-testid="submissions-list-section">
           {activeEventId && !loading && !loadError && rows.length === 0 ? (
-            <p className="eval-queue__muted" data-testid="submissions-empty">
-              No submissions match these filters.
-            </p>
+            <div
+              className="event-settings__card list-empty-state"
+              data-testid="submissions-empty"
+            >
+              <h3 className="event-settings__heading">No submissions yet</h3>
+              <p className="page-stub__body">
+                No submissions match these filters. Publish a CFP form or add a
+                direct / sponsor session to get started.
+              </p>
+              <div className="list-empty-state__actions">
+                <button
+                  type="button"
+                  className="event-settings__btn event-settings__btn--primary lumen-focusable"
+                  data-testid="submissions-empty-cta"
+                  data-inv="L01"
+                  onClick={() => setDirectOpen(true)}
+                >
+                  Add direct / sponsor session
+                </button>
+                <a
+                  href="/admin/cfp"
+                  className="event-settings__btn lumen-focusable"
+                  data-testid="submissions-empty-forms-link"
+                >
+                  Open form builder
+                </a>
+              </div>
+            </div>
           ) : null}
           {rows.length > 0 ? (
             <table

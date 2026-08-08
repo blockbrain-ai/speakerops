@@ -33,10 +33,41 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // Full suite (8.2) is long; keep serial in CI to reduce flake on shared e2e DB
   workers: process.env.CI ? 1 : undefined,
-  reporter: process.env.CI
-    ? [["list"], ["html", { open: "never", outputFolder: "reports/playwright" }]]
-    : [["list"]],
+  /**
+   * Report artifacts (section 8.2 / S-E2E-RUN):
+   * - list (console)
+   * - html → playwright-report/ (raw) and reports/playwright/
+   * - json → reports/playwright-run.json (E2E_PLAYWRIGHT_RUN_REPORT / phase8 gate)
+   *
+   * Paths are env-overridable (names only in docs; E10).
+   */
+  reporter: (() => {
+    const jsonPath =
+      process.env.E2E_PLAYWRIGHT_RUN_REPORT ||
+      process.env.E2E_PLAYWRIGHT_SUITE_REPORT ||
+      "reports/playwright-run.json";
+    const htmlFolder =
+      process.env.E2E_PLAYWRIGHT_HTML_DIR || "playwright-report";
+    const reporters: Array<
+      | ["list"]
+      | ["html", { open: "never"; outputFolder: string }]
+      | ["json", { outputFile: string }]
+    > = [
+      ["list"],
+      ["html", { open: "never", outputFolder: htmlFolder }],
+      ["json", { outputFile: jsonPath }],
+    ];
+    // CI also keeps a second HTML copy under reports/ for pipeline consumers
+    if (process.env.CI || process.env.E2E_PLAYWRIGHT_HTML_MIRROR === "1") {
+      reporters.push([
+        "html",
+        { open: "never", outputFolder: "reports/playwright" },
+      ]);
+    }
+    return reporters;
+  })(),
   timeout: 30_000,
   expect: { timeout: 5_000 },
   use: {
