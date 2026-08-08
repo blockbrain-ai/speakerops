@@ -653,6 +653,57 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 
+  
+  it("Phase 8 gate rejects string-literal import spoof + local test rebinding", () => {
+    // Auditor regression: decoy string containing import text must not count
+    // as a Playwright binding when the real `test` is a local no-op.
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    const spoofBody =
+      'const decoy = "import { test } from \'@playwright/test\'";\n' +
+      "const test = (..._args) => {};\n" +
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") +
+      "\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "string-spoof-import.spec.ts": spoofBody },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must not accept string-spoofed import + local test():\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /Playwright-bound|@playwright\/test|no-op|missing @inv/i,
+      `phase8 must diagnose string-spoofed import:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects real import shadowed by local const test = noop", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test as base } from '@playwright/test';\n" +
+          "const test = (..._args) => {};\n" +
+          'test("@inv:A01 e2e/public/cfp-load shadowed", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `shadowed Playwright binding must not satisfy @inv:\n${fmtResult(r)}`,
+    );
+  });
+
   it("Phase 8 gate rejects local no-op test() map even when all statuses are PASS", () => {
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;

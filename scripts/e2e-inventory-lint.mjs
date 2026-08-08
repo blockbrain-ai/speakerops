@@ -143,6 +143,109 @@ export function stripComments(source) {
   return result;
 }
 
+
+/**
+ * Replace string/template literal *contents* with spaces so regex import
+ * detection cannot treat decoy strings as real import declarations.
+ * Preserves surrounding quotes and approximate length (newlines kept).
+ * Comments should already be stripped by stripComments.
+ *
+ * @param {string} code
+ * @returns {string}
+ */
+export function maskStringLiterals(code) {
+  /**
+   * Replace string/template literal contents with spaces so decoy strings
+   * cannot spoof import declarations. Module specifier strings after `from`
+   * or `require(` are preserved so real imports still match.
+   */
+  let result = "";
+  let i = 0;
+  const n = code.length;
+
+  const shouldKeepSpecifier = () => /(?:\bfrom|\brequire\s*\()\s*$/.test(result);
+
+  while (i < n) {
+    const c = code[i];
+
+    // Template literal
+    if (c === "`") {
+      const keep = shouldKeepSpecifier();
+      result += "`";
+      i++;
+      while (i < n) {
+        const ch = code[i];
+        if (ch === "\\") {
+          if (keep) {
+            result += ch + (code[i + 1] ?? "");
+          } else {
+            result += "  ";
+          }
+          i += 2;
+          continue;
+        }
+        if (ch === "`") {
+          result += "`";
+          i++;
+          break;
+        }
+        if (ch === "$" && code[i + 1] === "{") {
+          result += "${";
+          i += 2;
+          let depth = 1;
+          while (i < n && depth > 0) {
+            const x = code[i];
+            if (x === "{") depth++;
+            else if (x === "}") depth--;
+            result += x;
+            i++;
+          }
+          continue;
+        }
+        if (keep) result += ch;
+        else result += ch === "\n" ? "\n" : " ";
+        i++;
+      }
+      continue;
+    }
+
+    // Single or double quoted string
+    if (c === "'" || c === '"') {
+      const q = c;
+      const keep = shouldKeepSpecifier();
+      result += q;
+      i++;
+      while (i < n) {
+        const ch = code[i];
+        if (ch === "\\") {
+          if (keep) {
+            result += ch + (code[i + 1] ?? "");
+          } else {
+            result += "  ";
+          }
+          i += 2;
+          continue;
+        }
+        if (ch === q) {
+          result += q;
+          i++;
+          break;
+        }
+        if (keep) result += ch;
+        else result += ch === "\n" ? "\n" : " ";
+        i++;
+      }
+      continue;
+    }
+
+    result += c;
+    i++;
+  }
+  return result;
+}
+
+
+
 /**
  * Resolve identifiers bound to Playwright's `test` export in a source file.
  *
@@ -151,8 +254,13 @@ export function stripComments(source) {
  * - rebound via `const x = <binding>` / `const x = <binding>.extend(...)`
  *   (standard fixture pattern).
  *
- * A local no-op `const test = (...) => {}` with no `@playwright/test` import
- * yields an empty set — those calls never satisfy inventory coverage.
+ * Import detection runs on string-masked source so decoy string literals cannot
+ * spoof `import { test } from '@playwright/test'`. Module specifiers after
+ * `from` / `require(` are preserved by maskStringLiterals.
+ *
+ * A local no-op `const test = (...) => {}` with no real `@playwright/test`
+ * import yields an empty set. Non-Playwright reassignment of an imported name
+ * removes that binding (shadowing).
  *
  * @param {string} code comment-stripped source
  * @returns {Set<string>}
@@ -160,13 +268,14 @@ export function stripComments(source) {
 export function extractPlaywrightTestBindings(code) {
   /** @type {Set<string>} */
   const bindings = new Set();
+  const scan = maskStringLiterals(code);
 
   // ESM: import { test } from '@playwright/test'
   //      import { test as base, expect } from "@playwright/test"
   const importRe =
     /import\s*(?:type\s*)?\{([^}]+)\}\s*from\s*['"]@playwright\/test['"]/g;
   let im;
-  while ((im = importRe.exec(code)) !== null) {
+  while ((im = importRe.exec(scan)) !== null) {
     for (const part of im[1].split(",")) {
       const spec = part.trim();
       if (!spec || spec.startsWith("type ")) continue;
@@ -181,13 +290,13 @@ export function extractPlaywrightTestBindings(code) {
     }
   }
 
-  // CJS (rare here; still recognise): const { test } = require('@playwright/test')
+  // CJS: const { test } = require('@playwright/test')
   const cjsRe =
     /(?:const|let|var)\s*\{([^}]+)\}\s*=\s*require\s*\(\s*['"]@playwright\/test['"]\s*\)/g;
-  while ((im = cjsRe.exec(code)) !== null) {
+  while ((im = cjsRe.exec(scan)) !== null) {
     for (const part of im[1].split(",")) {
       const spec = part.trim();
-      const asMatch = spec.match(/^test\s*:\s*([A-Za-z_$][\w$]*)$/); // test: base
+      const asMatch = spec.match(/^test\s*:\s*([A-Za-z_$][\w$]*)$/);
       if (asMatch) {
         bindings.add(asMatch[1]);
         continue;
@@ -199,7 +308,6 @@ export function extractPlaywrightTestBindings(code) {
   if (bindings.size === 0) return bindings;
 
   // Fixture / rebind: const test = base.extend({...}) or const test = base
-  // Iterate a few times so chains resolve (base → test → myTest).
   for (let pass = 0; pass < 4; pass++) {
     let grew = false;
     const names = [...bindings].map(escapeRegExp).join("|");
@@ -209,7 +317,7 @@ export function extractPlaywrightTestBindings(code) {
       "g",
     );
     let rm;
-    while ((rm = rebindRe.exec(code)) !== null) {
+    while ((rm = rebindRe.exec(scan)) !== null) {
       if (!bindings.has(rm[1])) {
         bindings.add(rm[1]);
         grew = true;
@@ -218,19 +326,29 @@ export function extractPlaywrightTestBindings(code) {
     if (!grew) break;
   }
 
-  // Shadowing: a later function/arrow reassignment that is NOT a playwright
-  // rebind removes the name. Detect `const test = (` / `function test(` etc.
-  // when the RHS is not another known binding.
+  // Shadowing / non-Playwright reassignment removes the name.
   for (const name of [...bindings]) {
-    const shadowFn = new RegExp(
-      `\\b(?:const|let|var)\\s+${escapeRegExp(name)}\\s*=\\s*(?:async\\s*)?(?:\\(|function\\b)`,
+    const assignRe = new RegExp(
+      `\\b(?:const|let|var)\\s+${escapeRegExp(name)}\\s*=\\s*([^;\\n]+)`,
+      "g",
     );
+    let am;
+    while ((am = assignRe.exec(scan)) !== null) {
+      const rhs = am[1].trim().replace(/[;,].*$/, "").trim();
+      const names = [...bindings].map(escapeRegExp).join("|");
+      const validRebind = new RegExp(
+        `^(?:${names})\\s*(?:\\.\\s*extend\\s*\\(|$)`,
+      );
+      if (validRebind.test(rhs)) {
+        continue;
+      }
+      bindings.delete(name);
+      break;
+    }
     const shadowDecl = new RegExp(
       `\\bfunction\\s+${escapeRegExp(name)}\\s*\\(`,
     );
-    if (shadowFn.test(code) || shadowDecl.test(code)) {
-      // Still allow `const test = base.extend(` — already handled as rebind;
-      // shadow patterns require `(` or `function` immediately after `=`.
+    if (shadowDecl.test(scan)) {
       bindings.delete(name);
     }
   }
