@@ -210,10 +210,10 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| N01 | admin | Speakers | List speakers for event | e2e/admin/speakers-list | — | REQUIRED | OPEN |
-| N02 | admin | Speakers | Search/filter | e2e/admin/speakers-filter | — | REQUIRED | OPEN |
-| N03 | admin | Speakers | Detail: tasks + files | e2e/admin/speakers-detail | — | REQUIRED | OPEN |
-| N04 | admin | Speakers | Open headshot/slides metadata | e2e/admin/speakers-files | No cross-speaker leak | REQUIRED | OPEN |
+| N01 | admin | Speakers | List speakers for event | e2e/admin/speakers-list | — | REQUIRED | IMPLEMENTED |
+| N02 | admin | Speakers | Search/filter | e2e/admin/speakers-filter | — | REQUIRED | IMPLEMENTED |
+| N03 | admin | Speakers | Detail: tasks + files | e2e/admin/speakers-detail | — | REQUIRED | IMPLEMENTED |
+| N04 | admin | Speakers | Open headshot/slides metadata | e2e/admin/speakers-files | No cross-speaker leak | REQUIRED | IMPLEMENTED |
 
 ---
 
@@ -225,7 +225,7 @@
 | O02 | admin | Settings | Rooms CRUD | e2e/settings/rooms | — | REQUIRED | PASS |
 | O03 | admin | Settings | Tracks CRUD | e2e/settings/tracks | — | REQUIRED | PASS |
 | O04 | admin | Settings | Eval rubric edit | e2e/settings/rubric | — | REQUIRED | PASS |
-| O05 | admin | Settings | Task templates on accept | e2e/settings/task-templates | — | REQUIRED | OPEN |
+| O05 | admin | Settings | Task templates on accept | e2e/settings/task-templates | — | REQUIRED | IMPLEMENTED |
 | O06 | admin | Settings | Airtable projection status read | e2e/settings/airtable-status | — | REQUIRED | OPEN |
 
 ---

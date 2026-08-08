@@ -639,6 +639,285 @@ export const DECISION_OPENAPI_PATHS = {
   },
 } as const;
 
+/** Portal + speakers + task templates OpenAPI paths (section 4.1). */
+export const PORTAL_OPENAPI_PATHS = {
+  "/api/portal/home": {
+    get: {
+      operationId: "Portal.GetHome",
+      summary: "Portal.GetHome",
+      description: "Speaker portal home: own tasks, sessions, next incomplete task",
+      tags: ["Portal"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Portal home payload" },
+        "400": { description: "Validation error" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event / membership not found" },
+      },
+    },
+  },
+  "/api/portal/participations/{id}": {
+    patch: {
+      operationId: "Participation.UpdateProfile",
+      summary: "Participation.UpdateProfile",
+      description: "Speaker updates own bio/company/title (G02 field-flow)",
+      tags: ["Portal"],
+      parameters: [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["expectedVersion"],
+              properties: {
+                bio: { type: "string", nullable: true },
+                company: { type: "string", nullable: true },
+                title: { type: "string", nullable: true },
+                headshotFileId: { type: "string", nullable: true },
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Updated participation" },
+        "400": { description: "Validation error" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Not own participation" },
+        "409": { description: "expectedVersion conflict" },
+      },
+    },
+  },
+  "/api/portal/tasks/{taskId}/complete": {
+    post: {
+      operationId: "Task.Complete",
+      summary: "Task.Complete",
+      description: "Speaker completes own task only",
+      tags: ["Portal"],
+      parameters: [
+        {
+          name: "taskId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["expectedVersion"],
+              properties: {
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Task completed" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Not own task" },
+        "409": { description: "expectedVersion conflict" },
+      },
+    },
+  },
+  "/api/events/{eventId}/speakers": {
+    get: {
+      operationId: "Speakers.List",
+      summary: "Speakers.List",
+      description: "Admin event-scoped speakers list (N01/N02)",
+      tags: ["Speakers"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "q",
+          in: "query",
+          required: false,
+          schema: { type: "string" },
+        },
+        {
+          name: "status",
+          in: "query",
+          required: false,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Speakers list" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found" },
+      },
+    },
+  },
+  "/api/events/{eventId}/speakers/{participationId}": {
+    get: {
+      operationId: "Speakers.Get",
+      summary: "Speakers.Get",
+      description: "Admin speaker detail with tasks + files (N03/N04)",
+      tags: ["Speakers"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "participationId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Speaker detail" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Not found" },
+      },
+    },
+  },
+  "/api/events/{eventId}/task-templates": {
+    get: {
+      operationId: "TaskTemplate.List",
+      summary: "TaskTemplate.List",
+      description: "Admin list on_accept/manual task templates (O05)",
+      tags: ["TaskTemplate"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Template list" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+      },
+    },
+    post: {
+      operationId: "TaskTemplate.Create",
+      summary: "TaskTemplate.Create",
+      description: "Admin create task template (O05)",
+      tags: ["TaskTemplate"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["title"],
+              properties: {
+                title: { type: "string" },
+                description: { type: "string", nullable: true },
+                trigger: { type: "string", enum: ["on_accept", "manual"] },
+                dueOffsetDays: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "201": { description: "Template created" },
+        "400": { description: "Validation error" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+      },
+    },
+  },
+  "/api/events/{eventId}/task-templates/{templateId}": {
+    patch: {
+      operationId: "TaskTemplate.Update",
+      summary: "TaskTemplate.Update",
+      description: "Admin update task template (O05)",
+      tags: ["TaskTemplate"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "templateId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Template updated" },
+        "400": { description: "Validation error" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Not found" },
+      },
+    },
+    delete: {
+      operationId: "TaskTemplate.Delete",
+      summary: "TaskTemplate.Delete",
+      description: "Admin delete task template (O05)",
+      tags: ["TaskTemplate"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "templateId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Template deleted" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Not found" },
+      },
+    },
+  },
+} as const;
+
 /** Commands registered in the OpenAPI document (expand per section). */
 export const OPENAPI_COMMANDS = [
   "Form.Create",
@@ -658,6 +937,15 @@ export const OPENAPI_COMMANDS = [
   "Submission.List",
   "Session.CreateDirect",
   "Decision.BulkPreview",
+  "Portal.GetHome",
+  "Participation.UpdateProfile",
+  "Task.Complete",
+  "Speakers.List",
+  "Speakers.Get",
+  "TaskTemplate.List",
+  "TaskTemplate.Create",
+  "TaskTemplate.Update",
+  "TaskTemplate.Delete",
 ] as const;
 
 export function buildOpenApiDocument(): Record<string, unknown> {
@@ -667,12 +955,13 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
       ...EVAL_OPENAPI_PATHS,
       ...DECISION_OPENAPI_PATHS,
+      ...PORTAL_OPENAPI_PATHS,
     },
     tags: [
       { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },
@@ -682,6 +971,9 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         name: "Decision",
         description: "Accept/reject/waitlist + direct session (S-EVAL / 3.5)",
       },
+      { name: "Portal", description: "Speaker portal tasks + profile (S-PORTAL / 4.1)" },
+      { name: "Speakers", description: "Admin speakers list/detail (4.1 API)" },
+      { name: "TaskTemplate", description: "On-accept task templates O05 (4.1)" },
     ],
     "x-speakerops-commands": [...OPENAPI_COMMANDS],
   };

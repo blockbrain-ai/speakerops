@@ -353,6 +353,14 @@ export function EventSettingsPage() {
         >
           Eval rubric →
         </a>
+        {" · "}
+        <a
+          href="/admin/settings/task-templates"
+          className="design-kit__link lumen-focusable"
+          data-testid="settings-task-templates-link"
+        >
+          Task templates →
+        </a>
       </p>
 
       {/* C01 — Create event */}

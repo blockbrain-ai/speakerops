@@ -10,6 +10,8 @@
  * Section 3.3: Public CFP Submission.Create + file upload + Turnstile + rate limit
  * Section 3.4: Eval rubric / assignments / queue / scoring (S-EVAL)
  * Section 3.5: Decision.Record accept/reject/waitlist + direct session (S-EVAL)
+ * Section 4.1: Portal.GetHome / Task.Complete / Participation.UpdateProfile
+ *             + admin speakers list/detail + task templates O05 (S-PORTAL)
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -96,6 +98,10 @@ import {
   createEventDecisionRoutes,
   createSubmissionDecisionRoutes,
 } from "./modules/decisions/routes.js";
+import {
+  createPortalRoutes,
+  createEventPortalRoutes,
+} from "./modules/portal/routes.js";
 import { registerOpenApiRoute } from "./openapi.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
@@ -314,7 +320,21 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Section 3.5 — Decision.Record + Submission.Get
   app.route("/api/submissions", createSubmissionDecisionRoutes(decisionRouteOpts));
 
-  // Section 3.1 / 3.3 / 3.4 / 3.5 — OpenAPI lists Form + Submission + Eval + Decision commands
+  const portalRouteOpts = {
+    store: authStore,
+    events: eventsStore,
+    submissions: submissionsStore,
+    decisions: decisionsStore,
+    design: designStore,
+  };
+
+  // Section 4.1 — Portal.GetHome / Task.Complete / Participation.UpdateProfile
+  app.route("/api/portal", createPortalRoutes(portalRouteOpts));
+
+  // Section 4.1 — admin speakers list/detail + task templates (O05)
+  app.route("/api/events", createEventPortalRoutes(portalRouteOpts));
+
+  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 — OpenAPI lists domain commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);

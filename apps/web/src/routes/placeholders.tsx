@@ -70,13 +70,14 @@ export function EvaluationsPage() {
   );
 }
 
+/** @deprecated Replaced by SpeakersPage (section 4.1 API UI). */
 export function SpeakersPage() {
   return (
     <PageStub
       overline="Speakers"
       title="Speakers"
-      body="Admin speaker list and detail land in section 6.3."
-      testId="page-speakers"
+      body="Admin speaker list is SpeakersPage at /admin/speakers (section 4.1)."
+      testId="page-speakers-placeholder"
     />
   );
 }

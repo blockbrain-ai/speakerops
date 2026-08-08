@@ -57,6 +57,12 @@ Auth: session cookie **or** API key with scopes.
 | `File.CompleteUpload` | files:write / speaker | fileId, checksum | file_asset (portal/checksum path; sets checksum; may also mark ready) |
 | `File.GetPublic` | public | fileId | image bytes — only when `purpose=logo`, `uploaded=1`, and `logoFileId` is on the event's **published** design tokens (draft-only logos stay private) |
 | `Task.Complete` | speaker | taskId, expectedVersion | task |
+| `Speakers.List` | admin | eventId, q?, status? | event-scoped speakers[] |
+| `Speakers.Get` | admin | eventId, participationId | detail: tasks + files meta |
+| `TaskTemplate.List` | admin | eventId | templates[] |
+| `TaskTemplate.Create` | admin | eventId, title, description?, trigger, dueOffsetDays | template |
+| `TaskTemplate.Update` | admin | eventId, templateId, patch | template |
+| `TaskTemplate.Delete` | admin | eventId, templateId | { deleted: true } |
 
 ## Schedule
 | Command | Scope | Input | Output |
@@ -136,7 +142,12 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | PUT | /api/files/:fileId/upload | File.Upload |
 | POST | /api/files/:fileId/complete | File.CompleteUpload |
 | GET | /api/public/files/:fileId | File.GetPublic |
-| GET | /api/events/:eventId/speakers | (admin speakers list) |
+| GET | /api/events/:eventId/speakers | Speakers.List |
+| GET | /api/events/:eventId/speakers/:participationId | Speakers.Get |
+| GET | /api/events/:eventId/task-templates | TaskTemplate.List |
+| POST | /api/events/:eventId/task-templates | TaskTemplate.Create |
+| PATCH | /api/events/:eventId/task-templates/:templateId | TaskTemplate.Update |
+| DELETE | /api/events/:eventId/task-templates/:templateId | TaskTemplate.Delete |
 | GET | /api/events/:eventId/schedule | Schedule.List |
 | POST | /api/events/:eventId/schedule/place | Schedule.Place |
 | POST | /api/events/:eventId/schedule/move | Schedule.Move |

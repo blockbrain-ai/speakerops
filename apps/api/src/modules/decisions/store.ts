@@ -100,9 +100,19 @@ export type DecisionsStore = {
   ): Promise<ParticipationRow | null>;
   findParticipationById(id: string): Promise<ParticipationRow | null>;
   listParticipationsForEvent(eventId: string): Promise<ParticipationRow[]>;
+  /** Status-only or profile patch (section 3.5 dematerialize + 4.1 profile). */
   updateParticipation(
     id: string,
-    patch: { status: string; version: number; updatedAt: string },
+    patch: {
+      version: number;
+      updatedAt: string;
+      status?: string;
+      userId?: string | null;
+      bio?: string | null;
+      company?: string | null;
+      title?: string | null;
+      headshotFileId?: string | null;
+    },
   ): Promise<ParticipationRow | null>;
 
   insertSession(row: ProgramSessionRow): Promise<ProgramSessionRow>;
@@ -118,20 +128,36 @@ export type DecisionsStore = {
 
   insertSessionSpeaker(row: SessionSpeakerRow): Promise<SessionSpeakerRow>;
   listSessionSpeakers(sessionId: string): Promise<SessionSpeakerRow[]>;
+  /** Reverse lookup: sessions linked to a participation (portal / admin detail). */
+  listSessionSpeakersForParticipation(
+    participationId: string,
+  ): Promise<SessionSpeakerRow[]>;
   /** Remove all session_speakers rows for a session (accept rollback). */
   deleteSessionSpeakers(sessionId: string): Promise<void>;
 
   insertTaskTemplate(row: TaskTemplateRow): Promise<TaskTemplateRow>;
+  findTaskTemplateById(id: string): Promise<TaskTemplateRow | null>;
   listTaskTemplates(
     eventId: string,
     trigger?: "on_accept" | "manual",
   ): Promise<TaskTemplateRow[]>;
+  updateTaskTemplate(
+    id: string,
+    patch: {
+      title?: string;
+      description?: string | null;
+      trigger?: "on_accept" | "manual";
+      dueOffsetDays?: number;
+    },
+  ): Promise<TaskTemplateRow | null>;
+  deleteTaskTemplate(id: string): Promise<boolean>;
 
   insertSpeakerTask(row: SpeakerTaskRow): Promise<SpeakerTaskRow>;
   findSpeakerTask(
     templateId: string,
     participationId: string,
   ): Promise<SpeakerTaskRow | null>;
+  findSpeakerTaskById(id: string): Promise<SpeakerTaskRow | null>;
   listSpeakerTasksForParticipation(
     participationId: string,
   ): Promise<SpeakerTaskRow[]>;
@@ -243,15 +269,31 @@ export class MemoryDecisionsStore implements DecisionsStore {
 
   async updateParticipation(
     id: string,
-    patch: { status: string; version: number; updatedAt: string },
+    patch: {
+      version: number;
+      updatedAt: string;
+      status?: string;
+      userId?: string | null;
+      bio?: string | null;
+      company?: string | null;
+      title?: string | null;
+      headshotFileId?: string | null;
+    },
   ): Promise<ParticipationRow | null> {
     const existing = this.participations.get(id);
     if (!existing) return null;
     const next: ParticipationRow = {
       ...existing,
-      status: patch.status,
       version: patch.version,
       updatedAt: patch.updatedAt,
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+      ...(patch.userId !== undefined ? { userId: patch.userId } : {}),
+      ...(patch.bio !== undefined ? { bio: patch.bio } : {}),
+      ...(patch.company !== undefined ? { company: patch.company } : {}),
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.headshotFileId !== undefined
+        ? { headshotFileId: patch.headshotFileId }
+        : {}),
     };
     this.participations.set(id, next);
     return { ...next };
@@ -324,6 +366,20 @@ export class MemoryDecisionsStore implements DecisionsStore {
     return (this.sessionSpeakers.get(sessionId) ?? []).map((r) => ({ ...r }));
   }
 
+  async listSessionSpeakersForParticipation(
+    participationId: string,
+  ): Promise<SessionSpeakerRow[]> {
+    const out: SessionSpeakerRow[] = [];
+    for (const list of this.sessionSpeakers.values()) {
+      for (const row of list) {
+        if (row.participationId === participationId) {
+          out.push({ ...row });
+        }
+      }
+    }
+    return out;
+  }
+
   async deleteSessionSpeakers(sessionId: string): Promise<void> {
     this.sessionSpeakers.delete(sessionId);
   }
@@ -331,6 +387,11 @@ export class MemoryDecisionsStore implements DecisionsStore {
   async insertTaskTemplate(row: TaskTemplateRow): Promise<TaskTemplateRow> {
     this.templates.set(row.id, { ...row });
     return { ...row };
+  }
+
+  async findTaskTemplateById(id: string): Promise<TaskTemplateRow | null> {
+    const row = this.templates.get(id);
+    return row ? { ...row } : null;
   }
 
   async listTaskTemplates(
@@ -342,6 +403,36 @@ export class MemoryDecisionsStore implements DecisionsStore {
         (t) => t.eventId === eventId && (trigger ? t.trigger === trigger : true),
       )
       .map((t) => ({ ...t }));
+  }
+
+  async updateTaskTemplate(
+    id: string,
+    patch: {
+      title?: string;
+      description?: string | null;
+      trigger?: "on_accept" | "manual";
+      dueOffsetDays?: number;
+    },
+  ): Promise<TaskTemplateRow | null> {
+    const existing = this.templates.get(id);
+    if (!existing) return null;
+    const next: TaskTemplateRow = {
+      ...existing,
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.description !== undefined
+        ? { description: patch.description }
+        : {}),
+      ...(patch.trigger !== undefined ? { trigger: patch.trigger } : {}),
+      ...(patch.dueOffsetDays !== undefined
+        ? { dueOffsetDays: patch.dueOffsetDays }
+        : {}),
+    };
+    this.templates.set(id, next);
+    return { ...next };
+  }
+
+  async deleteTaskTemplate(id: string): Promise<boolean> {
+    return this.templates.delete(id);
   }
 
   async insertSpeakerTask(row: SpeakerTaskRow): Promise<SpeakerTaskRow> {
@@ -359,6 +450,11 @@ export class MemoryDecisionsStore implements DecisionsStore {
   ): Promise<SpeakerTaskRow | null> {
     const id = this.taskByTplPart.get(this.tpKey(templateId, participationId));
     if (!id) return null;
+    const row = this.tasks.get(id);
+    return row ? { ...row } : null;
+  }
+
+  async findSpeakerTaskById(id: string): Promise<SpeakerTaskRow | null> {
     const row = this.tasks.get(id);
     return row ? { ...row } : null;
   }
@@ -525,15 +621,32 @@ export class D1DecisionsStore implements DecisionsStore {
 
   async updateParticipation(
     id: string,
-    patch: { status: string; version: number; updatedAt: string },
+    patch: {
+      version: number;
+      updatedAt: string;
+      status?: string;
+      userId?: string | null;
+      bio?: string | null;
+      company?: string | null;
+      title?: string | null;
+      headshotFileId?: string | null;
+    },
   ): Promise<ParticipationRow | null> {
+    const set: Record<string, unknown> = {
+      version: patch.version,
+      updatedAt: patch.updatedAt,
+    };
+    if (patch.status !== undefined) set.status = patch.status;
+    if (patch.userId !== undefined) set.userId = patch.userId;
+    if (patch.bio !== undefined) set.bio = patch.bio;
+    if (patch.company !== undefined) set.company = patch.company;
+    if (patch.title !== undefined) set.title = patch.title;
+    if (patch.headshotFileId !== undefined) {
+      set.headshotFileId = patch.headshotFileId;
+    }
     await this.db
       .update(eventParticipations)
-      .set({
-        status: patch.status,
-        version: patch.version,
-        updatedAt: patch.updatedAt,
-      })
+      .set(set)
       .where(eq(eventParticipations.id, id));
     return this.findParticipationById(id);
   }
@@ -691,6 +804,20 @@ export class D1DecisionsStore implements DecisionsStore {
     }));
   }
 
+  async listSessionSpeakersForParticipation(
+    participationId: string,
+  ): Promise<SessionSpeakerRow[]> {
+    const rows = await this.db
+      .select()
+      .from(sessionSpeakers)
+      .where(eq(sessionSpeakers.participationId, participationId));
+    return rows.map((r) => ({
+      sessionId: r.sessionId,
+      participationId: r.participationId,
+      isPrimary: r.isPrimary === 1,
+    }));
+  }
+
   async deleteSessionSpeakers(sessionId: string): Promise<void> {
     await this.db
       .delete(sessionSpeakers)
@@ -708,6 +835,25 @@ export class D1DecisionsStore implements DecisionsStore {
       createdAt: row.createdAt,
     });
     return row;
+  }
+
+  async findTaskTemplateById(id: string): Promise<TaskTemplateRow | null> {
+    const rows = await this.db
+      .select()
+      .from(taskTemplates)
+      .where(eq(taskTemplates.id, id))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.id,
+      eventId: r.eventId,
+      title: r.title,
+      description: r.description,
+      trigger: r.trigger as TaskTemplateRow["trigger"],
+      dueOffsetDays: r.dueOffsetDays,
+      createdAt: r.createdAt,
+    };
   }
 
   async listTaskTemplates(
@@ -729,6 +875,37 @@ export class D1DecisionsStore implements DecisionsStore {
         dueOffsetDays: r.dueOffsetDays,
         createdAt: r.createdAt,
       }));
+  }
+
+  async updateTaskTemplate(
+    id: string,
+    patch: {
+      title?: string;
+      description?: string | null;
+      trigger?: "on_accept" | "manual";
+      dueOffsetDays?: number;
+    },
+  ): Promise<TaskTemplateRow | null> {
+    const existing = await this.findTaskTemplateById(id);
+    if (!existing) return null;
+    const set: Record<string, unknown> = {};
+    if (patch.title !== undefined) set.title = patch.title;
+    if (patch.description !== undefined) set.description = patch.description;
+    if (patch.trigger !== undefined) set.trigger = patch.trigger;
+    if (patch.dueOffsetDays !== undefined) set.dueOffsetDays = patch.dueOffsetDays;
+    if (Object.keys(set).length === 0) return existing;
+    await this.db
+      .update(taskTemplates)
+      .set(set)
+      .where(eq(taskTemplates.id, id));
+    return this.findTaskTemplateById(id);
+  }
+
+  async deleteTaskTemplate(id: string): Promise<boolean> {
+    const existing = await this.findTaskTemplateById(id);
+    if (!existing) return false;
+    await this.db.delete(taskTemplates).where(eq(taskTemplates.id, id));
+    return true;
   }
 
   async insertSpeakerTask(row: SpeakerTaskRow): Promise<SpeakerTaskRow> {
@@ -759,6 +936,27 @@ export class D1DecisionsStore implements DecisionsStore {
           eq(speakerTasks.participationId, participationId),
         ),
       )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      templateId: row.templateId,
+      participationId: row.participationId,
+      status: row.status,
+      dueAt: row.dueAt,
+      completedAt: row.completedAt,
+      version: row.version,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async findSpeakerTaskById(id: string): Promise<SpeakerTaskRow | null> {
+    const rows = await this.db
+      .select()
+      .from(speakerTasks)
+      .where(eq(speakerTasks.id, id))
       .limit(1);
     const row = rows[0];
     if (!row) return null;
