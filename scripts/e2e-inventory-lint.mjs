@@ -2,7 +2,8 @@
  * Inventory lint gate: `pnpm test:e2e:inventory`
  *
  * Pre-scaffold (0.3+): validates canonical BROWSER_E2E_INVENTORY.md
- * REQUIRED semantics, unique IDs, exact ratified baseline ID set.
+ * REQUIRED semantics, unique IDs, unique non-empty test_ids, exact ratified
+ * baseline ID set + stable test_id/journey fingerprints (anti-reuse).
  * Post Playwright (1.5+): checks @inv tags for implemented / status-owned
  * rows when an e2e tree exists; full REQUIRED set only under Phase 8 gate.
  *
@@ -11,6 +12,9 @@
  * Phase 8 full tag enforcement:
  *   E2E_INVENTORY_GATE=phase8  pnpm test:e2e:inventory
  *   node scripts/e2e-inventory-lint.mjs --phase8
+ *
+ * In Phase 8 / full-gate mode, absence of an E2E root or test files is a
+ * hard failure (coverage is not deferred).
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -54,6 +58,13 @@ function collectFiles(dir, acc = []) {
   return acc;
 }
 
+/** Normalize empty / dash placeholders to empty string. */
+function normalizeCell(s) {
+  const t = (s ?? "").trim();
+  if (t === "" || t === "—" || t === "-" || t === "–") return "";
+  return t;
+}
+
 if (!existsSync(inventoryPath)) {
   fail(`canonical inventory missing: ${inventoryPath}`);
 }
@@ -76,20 +87,45 @@ if (baselineSet.size !== baselineIds.length) {
   fail("baseline required_ids contains duplicates");
 }
 
+/** @type {Record<string, { test_id: string, journey: string }> | null} */
+const baselineFingerprints =
+  baseline.fingerprints && typeof baseline.fingerprints === "object"
+    ? baseline.fingerprints
+    : null;
+if (!baselineFingerprints) {
+  fail(
+    "baseline fingerprints missing — anti-reuse requires stable test_id/journey per baseline ID",
+  );
+}
+for (const id of baselineIds) {
+  const fp = baselineFingerprints[id];
+  if (!fp || typeof fp !== "object") {
+    fail(`baseline fingerprint missing for ID ${id}`);
+  }
+  if (!normalizeCell(fp.test_id)) {
+    fail(`baseline fingerprint for ${id} has empty test_id`);
+  }
+  if (!normalizeCell(fp.journey)) {
+    fail(`baseline fingerprint for ${id} has empty journey`);
+  }
+}
+
 const body = readFileSync(inventoryPath, "utf8");
 
-// Journey rows: | A01 | ... | REQUIRED | STATUS |
+// Journey rows: | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 // Columns: ID | Role | Surface | Journey | test_id | Negative | Required | Status
 const rowRe =
-  /^\| ([A-Z]\d{2}) \|[^|]*\|[^|]*\|[^|]*\|[^|]*\|[^|]*\| (REQUIRED|OPTIONAL) \| (\w+) \|/gm;
-/** @type {{ id: string, required: boolean, status: string }[]} */
+  /^\| ([A-Z]\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \| (\w+) \|/gm;
+/** @type {{ id: string, journey: string, testId: string, required: boolean, status: string }[]} */
 const journeys = [];
 let m;
 while ((m = rowRe.exec(body)) !== null) {
   journeys.push({
-    id: m[1],
-    required: m[2] === "REQUIRED",
-    status: m[3].toUpperCase(),
+    id: m[1].trim(),
+    journey: normalizeCell(m[4]),
+    testId: normalizeCell(m[5]),
+    required: m[7] === "REQUIRED",
+    status: m[8].trim().toUpperCase(),
   });
 }
 
@@ -104,8 +140,43 @@ if (unique.size !== ids.length) {
   fail(`duplicate inventory IDs: ${[...new Set(dupes)].join(", ")}`);
 }
 
+// --- 1:1 test_id map: every REQUIRED row needs a non-empty unique test_id ---
+const requiredJourneys = journeys.filter((j) => j.required);
+const missingTestIds = requiredJourneys
+  .filter((j) => !j.testId)
+  .map((j) => j.id);
+if (missingTestIds.length > 0) {
+  fail(
+    `REQUIRED rows missing non-empty test_id: ${missingTestIds.slice(0, 20).join(", ")}${missingTestIds.length > 20 ? ` …(+${missingTestIds.length - 20})` : ""}`,
+  );
+}
+
+const requiredTestIds = requiredJourneys.map((j) => j.testId);
+const testIdSet = new Set(requiredTestIds);
+if (testIdSet.size !== requiredTestIds.length) {
+  const seen = new Map();
+  const dupes = [];
+  for (const j of requiredJourneys) {
+    if (seen.has(j.testId)) {
+      dupes.push(`${j.testId} (${seen.get(j.testId)} and ${j.id})`);
+    } else {
+      seen.set(j.testId, j.id);
+    }
+  }
+  fail(
+    `duplicate test_id values break 1:1 inventory-to-test mapping: ${[...new Set(dupes)].slice(0, 20).join(", ")}`,
+  );
+}
+
+// All journey rows (including OPTIONAL) must not share test_ids either
+const allTestIds = journeys.map((j) => j.testId).filter(Boolean);
+const allTestIdSet = new Set(allTestIds);
+if (allTestIdSet.size !== allTestIds.length) {
+  fail("duplicate test_id values across inventory rows (including OPTIONAL)");
+}
+
 const byId = new Map(journeys.map((j) => [j.id, j]));
-const requiredIds = journeys.filter((j) => j.required).map((j) => j.id);
+const requiredIds = requiredJourneys.map((j) => j.id);
 const deferIds = new Set(
   journeys.filter((j) => j.status === "DEFER").map((j) => j.id),
 );
@@ -156,6 +227,26 @@ if (baselineStillRequired.length < minRequired) {
   );
 }
 
+// --- Anti-reuse: baseline ID must keep stable test_id + journey fingerprint ---
+// Reusing A01 for unrelated behavior (new journey/test_id) is forbidden even if
+// the ID string remains. Intentional wording updates re-ratify baseline fingerprints.
+const fingerprintMismatches = [];
+for (const id of baselineIds) {
+  const row = byId.get(id);
+  if (!row) continue;
+  const fp = baselineFingerprints[id];
+  const expectedTestId = normalizeCell(fp.test_id);
+  const expectedJourney = normalizeCell(fp.journey);
+  if (row.testId !== expectedTestId || row.journey !== expectedJourney) {
+    fingerprintMismatches.push(id);
+  }
+}
+if (fingerprintMismatches.length > 0) {
+  fail(
+    `baseline ID reuse / semantic drift (test_id or journey changed; IDs must not be reused for different behavior): ${fingerprintMismatches.slice(0, 20).join(", ")}${fingerprintMismatches.length > 20 ? ` …(+${fingerprintMismatches.length - 20})` : ""}`,
+  );
+}
+
 // Law markers in canonical file
 if (
   !/REQUIRED\s*=\s*must PASS for dogfood/i.test(body) &&
@@ -183,18 +274,33 @@ if (
 console.log(
   `[test:e2e:inventory] OK: baseline ${baselineIds.length} IDs intact` +
     ` (${baselineStillRequired.length} REQUIRED non-DEFER, ${baselineDeferred.length} DEFER);` +
-    ` inventory ${requiredIds.length} REQUIRED, ${unique.size} unique`,
+    ` inventory ${requiredIds.length} REQUIRED, ${unique.size} unique IDs, ${testIdSet.size} unique test_ids; fingerprints match`,
 );
 
-// --- @inv tag coverage when e2e tree exists ---
+// --- @inv tag coverage when e2e tree exists (or Phase 8 full gate) ---
 const e2eRoots = [
   join(root, "playwright", "e2e"),
   join(root, "e2e"),
   join(root, "apps", "web", "e2e"),
 ];
 const existingRoots = e2eRoots.filter((d) => existsSync(d));
-if (existingRoots.length > 0) {
-  const files = existingRoots.flatMap((d) => collectFiles(d));
+const files = existingRoots.flatMap((d) => collectFiles(d));
+
+if (fullGate) {
+  // Phase 8: absence of E2E root or test files is a hard failure.
+  if (existingRoots.length === 0) {
+    fail(
+      "Phase 8 full gate: no E2E root found (expected playwright/e2e, e2e/, or apps/web/e2e) — tag coverage cannot be deferred",
+    );
+  }
+  if (files.length === 0) {
+    fail(
+      "Phase 8 full gate: E2E root(s) present but no test files (*.ts|js|mjs|tsx) — full REQUIRED @inv coverage required",
+    );
+  }
+}
+
+if (existingRoots.length > 0 && files.length > 0) {
   const blob = files.map((f) => readFileSync(f, "utf8")).join("\n");
 
   /** IDs that must have @inv tags under current gate mode. */
@@ -232,7 +338,7 @@ if (existingRoots.length > 0) {
     `[test:e2e:inventory] OK: @inv tags cover ${tagTargets.length} ${modeLabel} IDs under e2e roots` +
       (fullGate ? "" : ` (${requiredIds.length - deferIds.size} total non-DEFER REQUIRED at Phase 8)`),
   );
-} else {
+} else if (!fullGate) {
   console.log(
     "[test:e2e:inventory] note: no playwright/e2e tree yet — tag coverage deferred until harness (Phase 1.5+)",
   );
