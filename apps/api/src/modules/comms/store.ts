@@ -316,7 +316,7 @@ export type CommsStore = {
   insertIdempotencyKey(row: IdempotencyKeyRow): Promise<IdempotencyKeyRow>;
 
   /**
-   * Atomic Comms.Send enqueue (E7 transactional outbox):
+   * Atomic Comms.Send enqueue (E7 transactional outbox + E3 audit):
    * job transition + recipients + outbox + idempotency_keys + audit_events.
    *
    * **Shared contract (Memory and D1 must both enforce — do not diverge):**
@@ -326,10 +326,14 @@ export type CommsStore = {
    * - Throws IdempotencyKeyConflictError when the key is already stored (or
    *   held on another job) with a different requestHash → HTTP 409.
    * - Losers must not leave orphan recipients / outbox / audit rows.
+   * - Failure of the audit write must not leave job queued, outbox deliverable,
+   *   or idempotency key stored (all-or-nothing atomic unit).
    *
-   * D1: single batch + transition-token gate + unique idempotency_keys reconcile.
+   * D1: single batch + transition-token gate + unique idempotency_keys reconcile
+   *     (audit_events in the same batch; onAudit ignored).
    * Memory: synchronous check+claim (no await between) so Promise.all races
-   * cannot both pass, then side effects.
+   *     cannot both pass; await onAudit after claim; compensate/rollback the
+   *     claim if onAudit rejects so the unit stays atomic across AuthStore.
    *
    * @param onAudit Memory/tests: write audit into AuthStore so listAudits works.
    *   D1 ignores this and inserts audit_events inside the same batch.
@@ -745,6 +749,12 @@ export class MemoryCommsStore implements CommsStore {
    * - Job version CAS loser → null (no orphan recipients/outbox/audit)
    * - Winner selection is synchronous (no await between check and claim) so
    *   concurrent Promise.all callers cannot both pass.
+   * - onAudit is part of the atomic unit: if it rejects, compensate the claim
+   *   (restore job, drop idempotency, recipients, outbox) so E7/E3 hold.
+   *
+   * Design note (do not flip-flop): race safety requires claim-before-await;
+   * cross-store audit (AuthStore) cannot join a true Memory transaction, so
+   * compensate-on-audit-failure is the Memory equivalent of D1's single batch.
    */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
@@ -773,6 +783,13 @@ export class MemoryCommsStore implements CommsStore {
     if (existing.version !== input.expectedVersion) return null;
     if (input.version !== input.expectedVersion + 1) return null;
 
+    // Snapshot pre-claim state for compensate-on-audit-failure (E7/E3).
+    const priorJob: MessageJobRow = { ...existing };
+    const priorByIdempotencyHadKey = this.byIdempotency.has(input.idempotencyKey);
+    const priorByIdempotencyValue = this.byIdempotency.get(input.idempotencyKey);
+    const recipientIds = input.recipients.map((r) => r.id);
+    const outboxId = input.outbox.id;
+
     // 3) Claim job + idempotency + side effects before any await so concurrent
     // callers cannot both observe an empty key and both transition to queued.
     const next: MessageJobRow = {
@@ -791,9 +808,27 @@ export class MemoryCommsStore implements CommsStore {
     this.outbox.push({ ...input.outbox });
     // --- end synchronous claim ---
 
-    // Audit may await after claim; loser paths never reach here with side effects.
+    // Audit is part of the atomic unit. Memory cannot co-commit AuthStore with
+    // CommsStore maps; if onAudit rejects, compensate the claim so we never
+    // leave job queued + outbox deliverable + idempotency stored without audit.
     if (onAudit) {
-      await onAudit(input.audit);
+      try {
+        await onAudit(input.audit);
+      } catch (err) {
+        this.jobs.set(input.jobId, priorJob);
+        if (priorByIdempotencyHadKey && priorByIdempotencyValue !== undefined) {
+          this.byIdempotency.set(input.idempotencyKey, priorByIdempotencyValue);
+        } else {
+          this.byIdempotency.delete(input.idempotencyKey);
+        }
+        this.idemKeys.delete(input.idempotency.key);
+        for (const id of recipientIds) {
+          this.recipients.delete(id);
+        }
+        const outIdx = this.outbox.findIndex((r) => r.id === outboxId);
+        if (outIdx >= 0) this.outbox.splice(outIdx, 1);
+        throw err;
+      }
     }
     return { ...next };
   }

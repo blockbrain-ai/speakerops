@@ -1240,4 +1240,156 @@ describe("5.2 Comms send idempotent + ICS", () => {
     expect(other!.status).toBe("preview");
     expect(other!.idempotencyKey).toBeNull();
   });
+
+  it("MemoryCommsStore.enqueueSendAtomic rolls back when onAudit rejects", async () => {
+    // E7 + E3: job/outbox/idempotency/audit are one atomic unit. Memory cannot
+    // co-commit AuthStore with Comms maps, so claim-then-compensate is required.
+    // onAudit failure must not leave a deliverable outbox or stored idem key.
+    const { MemoryCommsStore } = await import("./store.js");
+    const store = new MemoryCommsStore();
+    const now = new Date().toISOString();
+
+    await store.insertJob({
+      id: "job_audit_fail",
+      eventId: "evt_audit_fail",
+      templateId: "tpl_audit_fail",
+      status: "preview",
+      segmentJson: "{}",
+      recipientsJson: "[]",
+      bodiesJson: "[]",
+      missingFieldsJson: null,
+      idempotencyKey: null,
+      createdBy: "user_audit",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const storageKey = "comms.send:idem-audit-fail";
+    const recipientId = "rcpt_audit_fail";
+    const outboxId = "out_audit_fail";
+
+    await expect(
+      store.enqueueSendAtomic(
+        {
+          jobId: "job_audit_fail",
+          status: "queued",
+          idempotencyKey: "idem-audit-fail",
+          version: 2,
+          expectedVersion: 1,
+          updatedAt: now,
+          recipients: [
+            {
+              id: recipientId,
+              jobId: "job_audit_fail",
+              eventId: "evt_audit_fail",
+              participationId: null,
+              toEmail: "speaker@example.com",
+              name: "Speaker",
+              subject: "Hi",
+              body: "Body",
+              status: "queued",
+              createdAt: now,
+            },
+          ],
+          outbox: {
+            id: outboxId,
+            topic: COMMS_OUTBOX_TOPIC,
+            payloadJson: JSON.stringify({ jobId: "job_audit_fail" }),
+            createdAt: now,
+            processedAt: null,
+            attempts: 0,
+            lastError: null,
+          },
+          idempotency: {
+            id: "idem_row_audit_fail",
+            key: storageKey,
+            requestHash: "hash-audit-fail",
+            responseJson: "{}",
+            createdAt: now,
+          },
+          audit: {
+            id: "aud_audit_fail",
+            eventId: "evt_audit_fail",
+            actorType: "user",
+            actorId: "user_audit",
+            action: "Comms.Send",
+            entityType: "message_job",
+            entityId: "job_audit_fail",
+            beforeJson: null,
+            afterJson: null,
+            correlationId: "corr-audit-fail",
+            createdAt: now,
+          },
+        },
+        async () => {
+          throw new Error("audit insert failed");
+        },
+      ),
+    ).rejects.toThrow("audit insert failed");
+
+    const job = await store.findJobById("job_audit_fail");
+    expect(job).toBeTruthy();
+    expect(job!.status).toBe("preview");
+    expect(job!.version).toBe(1);
+    expect(job!.idempotencyKey).toBeNull();
+
+    const outbox = await store.listOutboxByTopic(COMMS_OUTBOX_TOPIC);
+    expect(outbox.find((r) => r.id === outboxId)).toBeUndefined();
+
+    const idem = await store.findIdempotencyKey(storageKey);
+    expect(idem).toBeNull();
+
+    const recipients = await store.listRecipientsForJob("job_audit_fail");
+    expect(recipients).toHaveLength(0);
+
+    // Claim was fully released — a subsequent enqueue with a working audit wins.
+    const retried = await store.enqueueSendAtomic(
+      {
+        jobId: "job_audit_fail",
+        status: "queued",
+        idempotencyKey: "idem-audit-fail",
+        version: 2,
+        expectedVersion: 1,
+        updatedAt: now,
+        recipients: [],
+        outbox: {
+          id: "out_audit_retry",
+          topic: COMMS_OUTBOX_TOPIC,
+          payloadJson: "{}",
+          createdAt: now,
+          processedAt: null,
+          attempts: 0,
+          lastError: null,
+        },
+        idempotency: {
+          id: "idem_row_audit_retry",
+          key: storageKey,
+          requestHash: "hash-audit-fail",
+          responseJson: "{}",
+          createdAt: now,
+        },
+        audit: {
+          id: "aud_audit_retry",
+          eventId: "evt_audit_fail",
+          actorType: "user",
+          actorId: "user_audit",
+          action: "Comms.Send",
+          entityType: "message_job",
+          entityId: "job_audit_fail",
+          beforeJson: null,
+          afterJson: null,
+          correlationId: "corr-audit-retry",
+          createdAt: now,
+        },
+      },
+      async () => {
+        /* audit ok */
+      },
+    );
+    expect(retried).toBeTruthy();
+    expect(retried!.status).toBe("queued");
+    expect(await store.findIdempotencyKey(storageKey)).toBeTruthy();
+    expect((await store.listOutboxByTopic(COMMS_OUTBOX_TOPIC)).length).toBe(1);
+  });
 });
