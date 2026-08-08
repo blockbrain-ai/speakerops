@@ -120,18 +120,27 @@ const body = readFileSync(inventoryPath, "utf8");
 
 // Journey rows: | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 // Columns: ID | Role | Surface | Journey | test_id | Negative | Required | Status
+//
+// Parse ALL table-shaped journey rows first. Status is captured as the raw cell
+// (including blank / non-word values). Do NOT require Status to match \w+ at
+// parse time — that would silently omit rows like `| REQUIRED |  |` or
+// `| REQUIRED | IMPLEMENTED! |` from ID, test_id, and @inv coverage checks
+// while still exiting 0. Status validity is enforced after parse.
 const rowRe =
-  /^\| ([A-Z]\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \| (\w+) \|/gm;
-/** @type {{ id: string, journey: string, testId: string, required: boolean, status: string }[]} */
+  /^\| ([A-Z]\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \|([^|]*)\|/gm;
+/** @type {{ id: string, journey: string, testId: string, required: boolean, status: string, statusRaw: string }[]} */
 const journeys = [];
 let m;
 while ((m = rowRe.exec(body)) !== null) {
+  const statusRaw = m[8].trim();
   journeys.push({
     id: m[1].trim(),
     journey: normalizeCell(m[4]),
     testId: normalizeCell(m[5]),
     required: m[7] === "REQUIRED",
-    status: m[8].trim().toUpperCase(),
+    // Preserve empty as "" so blank cells fail ALLOWED_STATUSES (not coerced to a valid status).
+    status: statusRaw === "" ? "" : statusRaw.toUpperCase(),
+    statusRaw,
   });
 }
 
@@ -139,13 +148,16 @@ if (journeys.length === 0) {
   fail("no inventory journey rows parsed (expected | ID | ... | REQUIRED | STATUS |)");
 }
 
-// Reject every unrecognized Status value. Typos like IMPLMENTED must not pass
-// lint or silently skip intermediate @inv enforcement for implemented rows.
+// Every parsed journey Status must exactly match the ratified set.
+// Blank cells and non-word invalids (IMPLEMENTED!) must fail here — not skip the row.
 const invalidStatuses = journeys.filter((j) => !ALLOWED_STATUSES.has(j.status));
 if (invalidStatuses.length > 0) {
   const detail = invalidStatuses
     .slice(0, 20)
-    .map((j) => `${j.id}=${j.status}`)
+    .map((j) => {
+      const shown = j.statusRaw === "" ? "<blank>" : j.statusRaw;
+      return `${j.id}=${shown}`;
+    })
     .join(", ");
   fail(
     `unrecognized inventory status (allowed: OPEN|IMPLEMENTED|PASS|FAIL|DEFER): ${detail}` +

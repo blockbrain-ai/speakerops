@@ -197,18 +197,17 @@ describe("0.3 Browser E2E inventory law", () => {
     }
   });
 
-  it("rejects unrecognized inventory status values (negative regression)", () => {
-    // Typo IMPLMENTED must fail lint — otherwise it is excluded from intermediate
-    // @inv enforcement and an implemented REQUIRED journey can skip its tag gate.
+  /**
+   * Spawn inventory lint against a temp inventory mutation.
+   * Returns { status, stdout, stderr }.
+   */
+  function runLintAgainstMutatedInventory(mutate) {
     const inv = readFileSync(inventoryPath, "utf8");
-    const mutated = inv.replace(
-      /^\| A01 \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| REQUIRED \| OPEN \|/m,
-      "| A01 |$1|$2|$3|$4|$5| REQUIRED | IMPLMENTED |",
-    );
+    const mutated = mutate(inv);
     assert.notEqual(
       mutated,
       inv,
-      "test fixture must mutate A01 status to unrecognized IMPLMENTED",
+      "test fixture must change the inventory content",
     );
 
     const dir = mkdtempSync(join(tmpdir(), "e2e-inv-status-"));
@@ -223,28 +222,85 @@ describe("0.3 Browser E2E inventory law", () => {
       delete childEnv.NODE_TEST_CONTEXT;
       delete childEnv.NODE_TEST_NAME;
 
-      const result = spawnSync(
+      return spawnSync(
         process.execPath,
         [join(root, "scripts", "e2e-inventory-lint.mjs")],
         { cwd: root, encoding: "utf8", env: childEnv },
       );
-      assert.notEqual(
-        result.status,
-        0,
-        `unrecognized status must fail lint (got exit ${result.status}):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
-      );
-      assert.match(
-        result.stderr,
-        /unrecognized inventory status/i,
-        `stderr must name unrecognized status:\n${result.stderr}`,
-      );
-      assert.match(
-        result.stderr,
-        /IMPLMENTED|A01/i,
-        `stderr must identify the bad row:\n${result.stderr}`,
-      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  }
+
+  /** Replace A01 Status cell while keeping the rest of the row intact. */
+  function withA01Status(inv, statusCell) {
+    return inv.replace(
+      /^\| A01 \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| REQUIRED \| OPEN \|/m,
+      `| A01 |$1|$2|$3|$4|$5| REQUIRED | ${statusCell} |`,
+    );
+  }
+
+  it("rejects unrecognized inventory status values (word-character typo)", () => {
+    // Typo IMPLMENTED is still \w+ — must fail after parse, not be treated as a valid status.
+    const result = runLintAgainstMutatedInventory((inv) =>
+      withA01Status(inv, "IMPLMENTED"),
+    );
+    assert.notEqual(
+      result.status,
+      0,
+      `unrecognized status must fail lint (got exit ${result.status}):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
+    assert.match(
+      result.stderr,
+      /unrecognized inventory status/i,
+      `stderr must name unrecognized status:\n${result.stderr}`,
+    );
+    assert.match(
+      result.stderr,
+      /IMPLMENTED|A01/i,
+      `stderr must identify the bad row:\n${result.stderr}`,
+    );
+  });
+
+  it("rejects blank inventory status (not skipped by parse)", () => {
+    // Blank Status must be parsed as a journey row then rejected — not omitted by a \w+ status regex.
+    const result = runLintAgainstMutatedInventory((inv) => withA01Status(inv, ""));
+    assert.notEqual(
+      result.status,
+      0,
+      `blank status must fail lint (got exit ${result.status}):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
+    assert.match(
+      result.stderr,
+      /unrecognized inventory status/i,
+      `stderr must name unrecognized status:\n${result.stderr}`,
+    );
+    assert.match(
+      result.stderr,
+      /A01|<blank>/i,
+      `stderr must identify the blank-status row:\n${result.stderr}`,
+    );
+  });
+
+  it("rejects non-word invalid inventory status (IMPLEMENTED!)", () => {
+    // Non-word Status (punctuation) must not be silently skipped by a \w+ capture group.
+    const result = runLintAgainstMutatedInventory((inv) =>
+      withA01Status(inv, "IMPLEMENTED!"),
+    );
+    assert.notEqual(
+      result.status,
+      0,
+      `non-word invalid status must fail lint (got exit ${result.status}):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    );
+    assert.match(
+      result.stderr,
+      /unrecognized inventory status/i,
+      `stderr must name unrecognized status:\n${result.stderr}`,
+    );
+    assert.match(
+      result.stderr,
+      /IMPLEMENTED!|A01/i,
+      `stderr must identify the bad row:\n${result.stderr}`,
+    );
   });
 });
