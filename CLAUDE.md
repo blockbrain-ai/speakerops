@@ -22,7 +22,7 @@ This file is loaded automatically by Claude Code at the start of every session. 
 - **Test (unit/integration/governance):** `pnpm test:ci`
 - **Browser E2E:** `pnpm test:e2e` (stub until Playwright harness; full REQUIRED set at Phase 8)
 - **Inventory lint:** `pnpm test:e2e:inventory` (anti-shrinkage + `@inv` coverage)
-- **Inventory lint (Phase 8 full REQUIRED tags):** `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory`
+- **Inventory lint (Phase 8 full gate):** `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory` — non-DEFER REQUIRED must be status `PASS` + Playwright-bound `@inv` tags
 
 > The Section Runner build gate uses these same commands via `GATE_TYPECHECK_CMD` and `GATE_TEST_CMD`. They must match.
 
@@ -84,5 +84,5 @@ Section Runner runs implementation phases inside this workspace. Stay within the
 
 - Exit claim: **`dogfood_ready`** (Cloudflare dogfood deploy + full browser E2E green + onboarding docs).
 - Do not shrink REQUIRED inventory; only owner **DEFER** removes a row from the required PASS set.
-- Intermediate inventory lint requires `@inv` tags for **IMPLEMENTED/PASS/FAIL** rows (empty/missing e2e root is a failure when any status-owned ID exists; all-OPEN pre-harness may defer); Phase 8 gate enforces the complete non-DEFER REQUIRED set.
+- Intermediate inventory lint requires `@inv` on **Playwright-bound** `test()` for **IMPLEMENTED/PASS/FAIL** rows (empty/missing e2e root is a failure when any status-owned ID exists; all-OPEN pre-harness may defer). Phase 8 gate enforces **status PASS** + Playwright-bound `@inv` for every non-DEFER REQUIRED ID (local no-op `const test = …` does not count).
 - Mainline product work is section-runner driven; do not push directly around the pipeline from inside a section without following gate rules.

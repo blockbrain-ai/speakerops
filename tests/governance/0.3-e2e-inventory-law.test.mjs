@@ -382,9 +382,26 @@ describe("0.3 Browser E2E inventory law", () => {
     return inv.replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |");
   }
 
-  /** Valid A01 fixture: real test() title with @inv + test_id anchor. */
-  const a01RealTest =
-    'test("@inv:A01 e2e/public/cfp-load public CFP loads", async () => {});\n';
+  /** Mark every inventory Status cell PASS (Phase 8 claim fixtures). */
+  function markAllStatusesPass(inv) {
+    return inv.replace(
+      /^(\| [A-Z]\d{2} \|(?:[^|]*\|){6} )(?:OPEN|IMPLEMENTED|PASS|FAIL|DEFER) \|/gm,
+      "$1PASS |",
+    );
+  }
+
+  /**
+   * Playwright-bound test source (import required — local no-op test() does not count).
+   * @param {string} body statements after the import
+   */
+  function pwSource(body) {
+    return `import { test } from '@playwright/test';\n${body}`;
+  }
+
+  /** Valid A01 fixture: Playwright-bound test() title with @inv + test_id anchor. */
+  const a01RealTest = pwSource(
+    'test("@inv:A01 e2e/public/cfp-load public CFP loads", async () => {});\n',
+  );
 
   it("rejects empty intermediate E2E tree when IMPLEMENTED requires @inv", () => {
     const r = runLintInProbe({
@@ -437,7 +454,7 @@ describe("0.3 Browser E2E inventory law", () => {
   it("rejects e2e files missing @inv for IMPLEMENTED row", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
-      e2eFiles: { "a.spec.ts": 'test("untagged", async () => {});\n' },
+      e2eFiles: { "a.spec.ts": pwSource('test("untagged", async () => {});\n') },
     });
     assert.notEqual(
       r.status,
@@ -447,7 +464,7 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.match(`${r.stderr}\n${r.stdout}`, /missing @inv|A01/i);
   });
 
-  it("accepts e2e files with @inv on real test() for IMPLEMENTED row", () => {
+  it("accepts e2e files with @inv on Playwright-bound test() for IMPLEMENTED row", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       e2eFiles: {
@@ -457,7 +474,45 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.equal(
       r.status,
       0,
-      `expected pass with @inv:A01 on real test():\n${fmtResult(r)}`,
+      `expected pass with @inv:A01 on Playwright-bound test():\n${fmtResult(r)}`,
+    );
+  });
+
+  it("accepts fixture rebind (test as base + base.extend) as Playwright-bound", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test as base } from '@playwright/test';\n" +
+          "const test = base.extend({});\n" +
+          'test("@inv:A01 e2e/public/cfp-load via extend", async () => {});\n',
+      },
+    });
+    assert.equal(
+      r.status,
+      0,
+      `expected pass with base.extend rebind:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects local no-op test() without Playwright import for IMPLEMENTED row", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "const test = (..._args) => {};\n" +
+          'test("@inv:A01 e2e/public/cfp-load fake local", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `local no-op test() must not satisfy @inv coverage:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /Playwright-bound|@playwright\/test|no-op|missing @inv|A01/i,
+      `must explain non-Playwright test() rejection:\n${fmtResult(r)}`,
     );
   });
 
@@ -465,7 +520,8 @@ describe("0.3 Browser E2E inventory law", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       e2eFiles: {
-        "tags-only.spec.ts": "// @inv:A01 comment is not a Playwright test\n",
+        "tags-only.spec.ts":
+          pwSource("// @inv:A01 comment is not a Playwright test\n"),
       },
     });
     assert.notEqual(
@@ -475,7 +531,7 @@ describe("0.3 Browser E2E inventory law", () => {
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
-      /outside test\(\)|comments|missing @inv|A01/i,
+      /outside|comments|missing @inv|A01|no-op/i,
       `must explain comment-only failure:\n${fmtResult(r)}`,
     );
   });
@@ -484,8 +540,9 @@ describe("0.3 Browser E2E inventory law", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       e2eFiles: {
-        "public/cfp-load.spec.ts":
+        "public/cfp-load.spec.ts": pwSource(
           'test.skip("@inv:A01 e2e/public/cfp-load skipped", async () => {});\n',
+        ),
       },
     });
     assert.notEqual(
@@ -504,8 +561,9 @@ describe("0.3 Browser E2E inventory law", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       e2eFiles: {
-        "public/cfp-load.spec.ts":
+        "public/cfp-load.spec.ts": pwSource(
           'test.fail("@inv:A01 e2e/public/cfp-load expected failure", async () => {});\n',
+        ),
       },
     });
     assert.notEqual(
@@ -527,8 +585,9 @@ describe("0.3 Browser E2E inventory law", () => {
           .replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |")
           .replace(/^(\| A02 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |"),
       e2eFiles: {
-        "public/cfp-load.spec.ts":
+        "public/cfp-load.spec.ts": pwSource(
           'test("@inv:A01 @inv:A02 e2e/public/cfp-load multi", async () => {});\n',
+        ),
       },
     });
     assert.notEqual(
@@ -547,8 +606,9 @@ describe("0.3 Browser E2E inventory law", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       e2eFiles: {
-        "wrong-name.spec.ts":
+        "wrong-name.spec.ts": pwSource(
           'test("@inv:A01 unrelated title without path anchor", async () => {});\n',
+        ),
       },
     });
     assert.notEqual(
@@ -563,12 +623,74 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 
+  it("Phase 8 gate rejects OPEN statuses even with full Playwright-bound @inv map", () => {
+    // Auditor regression: 108 tagged real-looking tests must not green-wash
+    // inventory rows that are still OPEN at the Phase 8 gate.
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    const body =
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") + "\n";
+    const r = runLintInProbe({
+      // inventory left all-OPEN (canonical Phase 0 state)
+      e2eFiles: { "all-open-but-tagged.spec.ts": pwSource(body) },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must fail when REQUIRED rows are not PASS:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /must have status PASS|not PASS|Phase 8 full gate/i,
+      `phase8 must diagnose non-PASS status:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects local no-op test() map even when all statuses are PASS", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    const fakeBody =
+      "const test = (..._args) => {};\n" +
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") +
+      "\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "fake-local-test.spec.ts": fakeBody },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must not accept local no-op test() as Playwright coverage:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /Playwright-bound|@playwright\/test|no-op|missing @inv/i,
+      `phase8 must diagnose non-Playwright test():\n${fmtResult(r)}`,
+    );
+  });
+
   it("Phase 8 gate rejects comment-only tags for all REQUIRED IDs", () => {
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
     assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
-    const comments = ids.map((id) => `// @inv:${id}`).join("\n") + "\n";
+    const comments =
+      pwSource(ids.map((id) => `// @inv:${id}`).join("\n") + "\n");
     const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
       e2eFiles: { "comments-only.spec.ts": comments },
       fullGate: true,
     });
@@ -579,13 +701,15 @@ describe("0.3 Browser E2E inventory law", () => {
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
-      /outside test\(\)|comments|missing @inv/i,
+      /outside|comments|missing @inv|no-op|Playwright-bound/i,
       `phase8 diagnostics for comment-only:\n${fmtResult(r)}`,
     );
   });
 
   it("Phase 8 gate fails when E2E root is empty (coverage not deferred)", () => {
+    // Status PASS alone is insufficient — empty tree still fails tag coverage.
     const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
       ensureEmptyE2eRoot: true,
       fullGate: true,
     });
@@ -600,9 +724,10 @@ describe("0.3 Browser E2E inventory law", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       e2eFiles: {
-        "public/cfp-load.spec.ts":
+        "public/cfp-load.spec.ts": pwSource(
           'test("@inv:A01 e2e/public/cfp-load first", async () => {});\n' +
-          'test("@inv:A01 e2e/public/cfp-load second", async () => {});\n',
+            'test("@inv:A01 e2e/public/cfp-load second", async () => {});\n',
+        ),
       },
     });
     assert.notEqual(
@@ -629,8 +754,11 @@ describe("0.3 Browser E2E inventory law", () => {
       .join(" ");
     const megaTitle = `${tags} ${testIds} all journeys`;
     const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
       e2eFiles: {
-        "mega-all.spec.ts": `test(${JSON.stringify(megaTitle)}, async () => {});\n`,
+        "mega-all.spec.ts": pwSource(
+          `test(${JSON.stringify(megaTitle)}, async () => {});\n`,
+        ),
       },
       fullGate: true,
     });
@@ -658,7 +786,8 @@ describe("0.3 Browser E2E inventory law", () => {
         })
         .join("\n") + "\n";
     const r = runLintInProbe({
-      e2eFiles: { "all-fail.spec.ts": body },
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "all-fail.spec.ts": pwSource(body) },
       fullGate: true,
     });
     assert.notEqual(
@@ -670,6 +799,29 @@ describe("0.3 Browser E2E inventory law", () => {
       `${r.stderr}\n${r.stdout}`,
       /skipped|fixme|fail|expected-failure|not executable/i,
       `phase8 test.fail diagnostics:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate accepts full PASS inventory + 1:1 Playwright-bound @inv map", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    const body =
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") + "\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "full-map.spec.ts": pwSource(body) },
+      fullGate: true,
+    });
+    assert.equal(
+      r.status,
+      0,
+      `phase8 must pass with PASS statuses + Playwright-bound 1:1 map:\n${fmtResult(r)}`,
     );
   });
 });

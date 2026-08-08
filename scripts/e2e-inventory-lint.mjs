@@ -7,29 +7,33 @@
  *
  * @inv tag decision table (single coherent design — no empty-root loophole):
  *
- * | Mode         | Tag targets                         | Missing root / empty files |
- * |--------------|-------------------------------------|----------------------------|
- * | Intermediate | IMPLEMENTED/PASS/FAIL non-DEFER     | FAIL if any tag target     |
- * |              | REQUIRED (status-owned)             | exists; OK if none claimed |
- * | Phase 8      | all non-DEFER REQUIRED              | always FAIL                |
+ * | Mode         | Tag targets                         | Missing root / empty files | Status claim          |
+ * |--------------|-------------------------------------|----------------------------|-----------------------|
+ * | Intermediate | IMPLEMENTED/PASS/FAIL non-DEFER     | FAIL if any tag target     | (no PASS enforcement) |
+ * |              | REQUIRED (status-owned)             | exists; OK if none claimed |                       |
+ * | Phase 8      | all non-DEFER REQUIRED              | always FAIL                | every non-DEFER       |
+ * |              |                                     |                            | REQUIRED must be PASS |
  *
  * Claiming IMPLEMENTED (or PASS/FAIL) without a matching `@inv:ID` under an
  * e2e root is always a failure — empty `playwright/e2e/` is not "no tree yet".
  * Tag coverage is deferred only when every journey is still OPEN/DEFER and
  * the gate is not phase8 (pre-harness Phase 0–1.x with all-OPEN inventory).
  *
- * Phase 8 full tag enforcement:
+ * Phase 8 full enforcement (tags + PASS status):
  *   E2E_INVENTORY_GATE=phase8  pnpm test:e2e:inventory
  *   node scripts/e2e-inventory-lint.mjs --phase8
  *
  * @inv must appear on a real Playwright `test(...)` / `test.only(...)`
- * title (strict 1:1 inventory map: exactly one `@inv:ID` per test title).
+ * title whose callee is bound to the Playwright `test` export (import from
+ * `@playwright/test`, optionally rebound via `.extend()`). Local no-op
+ * `const test = (...) => {}` without a Playwright binding does not count.
+ * Strict 1:1 inventory map: exactly one `@inv:ID` per test title.
  * Comments, string literals outside test titles, multi-tag titles,
  * skipped/fixme/fail-only coverage (test.fail is expected-failure, not
  * dogfood proof), duplicate active owners, and missing `test_id` path
  * anchors do not satisfy the gate.
  *
- * Does not claim S-E2E-RUN (full browser run) — that is Phase 8.
+ * Does not claim S-E2E-RUN (full browser run) — that is Phase 8 Playwright.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, relative, resolve } from "node:path";
@@ -140,8 +144,107 @@ export function stripComments(source) {
 }
 
 /**
- * Extract `@inv:ID` tags from Playwright-like `test(...)` declarations only.
+ * Resolve identifiers bound to Playwright's `test` export in a source file.
+ *
+ * Counts as a Playwright test binding when:
+ * - imported as `test` (or `test as alias`) from `@playwright/test`, or
+ * - rebound via `const x = <binding>` / `const x = <binding>.extend(...)`
+ *   (standard fixture pattern).
+ *
+ * A local no-op `const test = (...) => {}` with no `@playwright/test` import
+ * yields an empty set — those calls never satisfy inventory coverage.
+ *
+ * @param {string} code comment-stripped source
+ * @returns {Set<string>}
+ */
+export function extractPlaywrightTestBindings(code) {
+  /** @type {Set<string>} */
+  const bindings = new Set();
+
+  // ESM: import { test } from '@playwright/test'
+  //      import { test as base, expect } from "@playwright/test"
+  const importRe =
+    /import\s*(?:type\s*)?\{([^}]+)\}\s*from\s*['"]@playwright\/test['"]/g;
+  let im;
+  while ((im = importRe.exec(code)) !== null) {
+    for (const part of im[1].split(",")) {
+      const spec = part.trim();
+      if (!spec || spec.startsWith("type ")) continue;
+      const asMatch = spec.match(/^test\s+as\s+([A-Za-z_$][\w$]*)$/);
+      if (asMatch) {
+        bindings.add(asMatch[1]);
+        continue;
+      }
+      if (spec === "test") {
+        bindings.add("test");
+      }
+    }
+  }
+
+  // CJS (rare here; still recognise): const { test } = require('@playwright/test')
+  const cjsRe =
+    /(?:const|let|var)\s*\{([^}]+)\}\s*=\s*require\s*\(\s*['"]@playwright\/test['"]\s*\)/g;
+  while ((im = cjsRe.exec(code)) !== null) {
+    for (const part of im[1].split(",")) {
+      const spec = part.trim();
+      const asMatch = spec.match(/^test\s*:\s*([A-Za-z_$][\w$]*)$/); // test: base
+      if (asMatch) {
+        bindings.add(asMatch[1]);
+        continue;
+      }
+      if (spec === "test") bindings.add("test");
+    }
+  }
+
+  if (bindings.size === 0) return bindings;
+
+  // Fixture / rebind: const test = base.extend({...}) or const test = base
+  // Iterate a few times so chains resolve (base → test → myTest).
+  for (let pass = 0; pass < 4; pass++) {
+    let grew = false;
+    const names = [...bindings].map(escapeRegExp).join("|");
+    if (!names) break;
+    const rebindRe = new RegExp(
+      `\\b(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(${names})\\s*(?:\\.\\s*extend\\s*\\(|[;\\n,)])`,
+      "g",
+    );
+    let rm;
+    while ((rm = rebindRe.exec(code)) !== null) {
+      if (!bindings.has(rm[1])) {
+        bindings.add(rm[1]);
+        grew = true;
+      }
+    }
+    if (!grew) break;
+  }
+
+  // Shadowing: a later function/arrow reassignment that is NOT a playwright
+  // rebind removes the name. Detect `const test = (` / `function test(` etc.
+  // when the RHS is not another known binding.
+  for (const name of [...bindings]) {
+    const shadowFn = new RegExp(
+      `\\b(?:const|let|var)\\s+${escapeRegExp(name)}\\s*=\\s*(?:async\\s*)?(?:\\(|function\\b)`,
+    );
+    const shadowDecl = new RegExp(
+      `\\bfunction\\s+${escapeRegExp(name)}\\s*\\(`,
+    );
+    if (shadowFn.test(code) || shadowDecl.test(code)) {
+      // Still allow `const test = base.extend(` — already handled as rebind;
+      // shadow patterns require `(` or `function` immediately after `=`.
+      bindings.delete(name);
+    }
+  }
+
+  return bindings;
+}
+
+/**
+ * Extract `@inv:ID` tags from Playwright-bound `test(...)` declarations only.
  * Comments and bare strings elsewhere are ignored (anti-greenwash).
+ *
+ * A call counts only when its callee is a binding of Playwright's `test`
+ * export (see extractPlaywrightTestBindings). Local no-op `const test = …`
+ * without a Playwright import does not count.
  *
  * Strict 1:1: a single `test(...)` title may carry at most one `@inv:ID`.
  * Titles with multiple tags are recorded with `multiTag: true` and never
@@ -157,9 +260,20 @@ export function stripComments(source) {
 export function extractInvTaggedTests(filePath, source) {
   const code = stripComments(source);
   const findings = [];
+  const bindings = extractPlaywrightTestBindings(code);
+  if (bindings.size === 0) {
+    // No Playwright test import/binding — unexecuted local test() fakes
+    // cannot satisfy inventory coverage.
+    return findings;
+  }
+
+  const nameAlt = [...bindings].map(escapeRegExp).join("|");
   // test("…") / test.only / test.skip / test.fixme / test.fail — first arg title
-  const re =
-    /\btest(?:\.(?<mod>only|skip|fixme|fail))?\s*\(\s*(?<q>['"`])(?<title>(?:\\.|(?!\k<q>)[\s\S])*?)\k<q>/g;
+  // Also accepts aliased fixtures: base("…"), myTest.only("…")
+  const re = new RegExp(
+    `\\b(?<callee>${nameAlt})(?:\\.(?<mod>only|skip|fixme|fail))?\\s*\\(\\s*(?<q>['"\`])(?<title>(?:\\\\.|(?!\\k<q>)[\\s\\S])*?)\\k<q>`,
+    "g",
+  );
   let m;
   while ((m = re.exec(code)) !== null) {
     const title = m.groups.title.replace(/\\([\\'"`nrt])/g, (_, ch) => {
@@ -174,9 +288,9 @@ export function extractInvTaggedTests(filePath, source) {
     const focused = mod === "only";
     const invIds = [];
     const invRe = /@inv:([A-Z]\d{2})\b/g;
-    let im;
-    while ((im = invRe.exec(title)) !== null) {
-      invIds.push(im[1]);
+    let idm;
+    while ((idm = invRe.exec(title)) !== null) {
+      invIds.push(idm[1]);
     }
     if (invIds.length === 0) continue;
     const multiTag = invIds.length > 1;
@@ -520,6 +634,26 @@ export function runInventoryLint(options = {}) {
         ` inventory ${requiredIds.length} REQUIRED, ${unique.size} unique IDs, ${testIdSet.size} unique test_ids; fingerprints match`,
     );
 
+    // --- Phase 8: every non-DEFER REQUIRED row must claim status PASS ---
+    // Ratified law (0.3 §2): CI fails if REQUIRED and not PASS at the Phase 8
+    // gate. Intermediate modes do not enforce PASS (OPEN→IMPLEMENTED lifecycle).
+    if (fullGate) {
+      const notPass = journeys
+        .filter(
+          (j) => j.required && j.status !== "DEFER" && j.status !== "PASS",
+        )
+        .map((j) => `${j.id}=${j.status || "<blank>"}`);
+      if (notPass.length > 0) {
+        fail(
+          `Phase 8 full gate: every non-DEFER REQUIRED row must have status PASS` +
+            ` (dogfood_ready / inventory law); not PASS: ${idList(notPass)}`,
+        );
+      }
+      log(
+        `[test:e2e:inventory] OK: Phase 8 status claim — ${baselineStillRequired.length} non-DEFER REQUIRED rows are PASS`,
+      );
+    }
+
     // --- @inv tag coverage on real Playwright tests (decision table) ---
     const e2eRoots =
       options.e2eRoots ??
@@ -661,7 +795,8 @@ export function runInventoryLint(options = {}) {
 
       if (missing.length > 0) {
         fail(
-          `Playwright tree present but missing @inv on real test() titles for ${modeLabel} IDs: ${idList(missing)}` +
+          `Playwright tree present but missing @inv on real Playwright-bound test() titles for ${modeLabel} IDs: ${idList(missing)}` +
+            ` (calls must use a test binding imported from @playwright/test; local no-op test() does not count)` +
             (fullGate
               ? ""
               : " (OPEN rows deferred until owned; use E2E_INVENTORY_GATE=phase8 for full REQUIRED set)"),
@@ -669,7 +804,7 @@ export function runInventoryLint(options = {}) {
       }
       if (commentOrLooseOnly.length > 0) {
         fail(
-          `@inv tags for ${modeLabel} IDs appear only outside test() titles (comments/strings are not 1:1 coverage): ${idList(commentOrLooseOnly)}`,
+          `@inv tags for ${modeLabel} IDs appear only outside Playwright-bound test() titles (comments/strings/local no-op test() are not 1:1 coverage): ${idList(commentOrLooseOnly)}`,
         );
       }
       if (skippedOnly.length > 0) {
@@ -694,7 +829,7 @@ export function runInventoryLint(options = {}) {
       }
 
       log(
-        `[test:e2e:inventory] OK: @inv on real test() titles cover ${tagTargets.length} ${modeLabel} IDs (1:1, non-skip/non-fail, test_id-anchored)` +
+        `[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover ${tagTargets.length} ${modeLabel} IDs (1:1, non-skip/non-fail, test_id-anchored)` +
           (fullGate
             ? ""
             : ` (${requiredIds.length - deferIds.size} total non-DEFER REQUIRED at Phase 8)`),
