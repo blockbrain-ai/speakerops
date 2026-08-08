@@ -25,6 +25,7 @@
 | Web shell + Lumen (1.4) | [`docs/sections/1.4-lumen-shell.md`](./sections/1.4-lumen-shell.md) | Vite SPA, `lumen.css` tokens, AdminShell IA, router stubs |
 | Playwright inventory harness (1.5) | [`docs/sections/1.5-playwright-inventory-harness.md`](./sections/1.5-playwright-inventory-harness.md) · [`docs/E2E.md`](./E2E.md) | `playwright.config.ts`, `scripts/inventory-lint.ts`, `@inv` tags |
 | Foundation e2e proof (1.6) | [`docs/sections/1.6-foundation-e2e-proof.md`](./sections/1.6-foundation-e2e-proof.md) | I12 keystone: health + shell smoke; `playwright/e2e/foundation_smoke.spec.ts` |
+| Auth settings e2e proof (2.5) | [`docs/sections/2.5-auth-settings-e2e.md`](./sections/2.5-auth-settings-e2e.md) | I12 keystone: login → design publish → public brand; B*/C* PASS; `playwright/e2e/auth_settings_keystone.spec.ts` |
 | Commands | [`KMS-competition/initiative/contracts/COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) | Named domain commands; HTTP/CLI 1:1 |
 | Scopes | [`KMS-competition/initiative/contracts/SCOPES.md`](../KMS-competition/initiative/contracts/SCOPES.md) | API key scopes; default-deny high-risk |
 | CLI inventory | [`KMS-competition/initiative/contracts/CLI_INVENTORY.md`](../KMS-competition/initiative/contracts/CLI_INVENTORY.md) | CLI surface parity |

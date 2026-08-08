@@ -46,12 +46,12 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| B01 | admin | `/login` | Magic/invite login → session cookie set HttpOnly path | e2e/auth/admin-login | Bad token 401 | REQUIRED | IMPLEMENTED |
-| B02 | speaker | magic link | Single-use link → portal; second use fails | e2e/auth/speaker-magic | Replay rejected | REQUIRED | IMPLEMENTED |
-| B03 | any | any authed | Logout clears session | e2e/auth/logout | — | REQUIRED | IMPLEMENTED |
-| B04 | public | `/admin` | Unauthed redirect/401 | e2e/auth/admin-guard | — | REQUIRED | IMPLEMENTED |
-| B05 | speaker | `/admin` | Speaker cannot open admin | e2e/auth/role-guard-admin | 403/redirect | REQUIRED | IMPLEMENTED |
-| B06 | evaluator | `/speakers` admin write | Evaluator cannot mutate schedule | e2e/auth/role-guard-eval | 403 API | REQUIRED | IMPLEMENTED |
+| B01 | admin | `/login` | Magic/invite login → session cookie set HttpOnly path | e2e/auth/admin-login | Bad token 401 | REQUIRED | PASS |
+| B02 | speaker | magic link | Single-use link → portal; second use fails | e2e/auth/speaker-magic | Replay rejected | REQUIRED | PASS |
+| B03 | any | any authed | Logout clears session | e2e/auth/logout | — | REQUIRED | PASS |
+| B04 | public | `/admin` | Unauthed redirect/401 | e2e/auth/admin-guard | — | REQUIRED | PASS |
+| B05 | speaker | `/admin` | Speaker cannot open admin | e2e/auth/role-guard-admin | 403/redirect | REQUIRED | PASS |
+| B06 | evaluator | `/speakers` admin write | Evaluator cannot mutate schedule | e2e/auth/role-guard-eval | 403 API | REQUIRED | PASS |
 
 ---
 
@@ -59,17 +59,17 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| C01 | admin | Events | Create event; timezone; dates | e2e/admin/event-create | Validation fail | REQUIRED | IMPLEMENTED |
-| C02 | admin | Events | Switch active event context | e2e/admin/event-switch | — | REQUIRED | IMPLEMENTED |
-| C03 | admin | Design Kit | Set brand color; live preview updates | e2e/admin/design-color | Invalid hex | REQUIRED | IMPLEMENTED |
-| C04 | admin | Design Kit | Upload logo; preview | e2e/admin/design-logo | Bad type rejected | REQUIRED | IMPLEMENTED |
-| C05 | admin | Design Kit | Publish tokens; public CFP shows brand | e2e/admin/design-publish | Draft not public until publish | REQUIRED | IMPLEMENTED |
-| C06 | admin | Design Kit | Cannot inject freeform CSS field (control absent) | e2e/admin/design-no-css | — | REQUIRED | IMPLEMENTED |
-| C07 | admin | Settings | Edit event name/close dates for CFP window | e2e/admin/settings-cfp-window | — | REQUIRED | IMPLEMENTED |
-| C08 | admin | Design Kit | Near-white brand → contrast warn/block or derived text on public CFP | e2e/admin/design-contrast | Publish blocked or safe fg | REQUIRED | IMPLEMENTED |
-| C09 | admin | Design Kit | SVG/scripty logo rejected; never executes | e2e/admin/design-logo-xss | Rejected or inert | REQUIRED | IMPLEMENTED |
-| C10 | admin | Design Kit | Draft tokens not visible on public CFP until publish | e2e/admin/design-draft-isolation | — | REQUIRED | IMPLEMENTED |
-| C11 | admin | Events | Switch event A→B; no A data in B lists | e2e/admin/event-isolation | Cross-event leak | REQUIRED | IMPLEMENTED |
+| C01 | admin | Events | Create event; timezone; dates | e2e/admin/event-create | Validation fail | REQUIRED | PASS |
+| C02 | admin | Events | Switch active event context | e2e/admin/event-switch | — | REQUIRED | PASS |
+| C03 | admin | Design Kit | Set brand color; live preview updates | e2e/admin/design-color | Invalid hex | REQUIRED | PASS |
+| C04 | admin | Design Kit | Upload logo; preview | e2e/admin/design-logo | Bad type rejected | REQUIRED | PASS |
+| C05 | admin | Design Kit | Publish tokens; public CFP shows brand | e2e/admin/design-publish | Draft not public until publish | REQUIRED | PASS |
+| C06 | admin | Design Kit | Cannot inject freeform CSS field (control absent) | e2e/admin/design-no-css | — | REQUIRED | PASS |
+| C07 | admin | Settings | Edit event name/close dates for CFP window | e2e/admin/settings-cfp-window | — | REQUIRED | PASS |
+| C08 | admin | Design Kit | Near-white brand → contrast warn/block or derived text on public CFP | e2e/admin/design-contrast | Publish blocked or safe fg | REQUIRED | PASS |
+| C09 | admin | Design Kit | SVG/scripty logo rejected; never executes | e2e/admin/design-logo-xss | Rejected or inert | REQUIRED | PASS |
+| C10 | admin | Design Kit | Draft tokens not visible on public CFP until publish | e2e/admin/design-draft-isolation | — | REQUIRED | PASS |
+| C11 | admin | Events | Switch event A→B; no A data in B lists | e2e/admin/event-isolation | Cross-event leak | REQUIRED | PASS |
 
 ---
 
@@ -221,9 +221,9 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| O01 | admin | Settings | Event name/dates/tz | e2e/settings/event | Validation | REQUIRED | IMPLEMENTED |
-| O02 | admin | Settings | Rooms CRUD | e2e/settings/rooms | — | REQUIRED | IMPLEMENTED |
-| O03 | admin | Settings | Tracks CRUD | e2e/settings/tracks | — | REQUIRED | IMPLEMENTED |
+| O01 | admin | Settings | Event name/dates/tz | e2e/settings/event | Validation | REQUIRED | PASS |
+| O02 | admin | Settings | Rooms CRUD | e2e/settings/rooms | — | REQUIRED | PASS |
+| O03 | admin | Settings | Tracks CRUD | e2e/settings/tracks | — | REQUIRED | PASS |
 | O04 | admin | Settings | Eval rubric edit | e2e/settings/rubric | — | REQUIRED | OPEN |
 | O05 | admin | Settings | Task templates on accept | e2e/settings/task-templates | — | REQUIRED | OPEN |
 | O06 | admin | Settings | Airtable projection status read | e2e/settings/airtable-status | — | REQUIRED | OPEN |

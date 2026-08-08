@@ -84,13 +84,15 @@ describe("2.1 session auth magic link governance", () => {
     assert.match(e2e, /e2e\/auth\/logout/);
   });
 
-  it("inventory B01–B03 status IMPLEMENTED", () => {
+  it("inventory B01–B03 status IMPLEMENTED or PASS", () => {
     const inv = readFileSync(inventoryPath, "utf8");
     for (const id of ["B01", "B02", "B03"]) {
       assert.match(
         inv,
-        new RegExp(`\\|\\s*${id}\\s*\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|\\s*REQUIRED\\s*\\|\\s*IMPLEMENTED\\s*\\|`),
-        `${id} must be IMPLEMENTED`,
+        new RegExp(
+          `\\|\\s*${id}\\s*\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|\\s*REQUIRED\\s*\\|\\s*(IMPLEMENTED|PASS)\\s*\\|`,
+        ),
+        `${id} must be IMPLEMENTED or PASS (2.5 proof may promote)`,
       );
     }
   });

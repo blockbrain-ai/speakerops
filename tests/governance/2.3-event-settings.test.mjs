@@ -110,15 +110,15 @@ describe("2.3 event settings governance", () => {
     assert.match(e2e, /event-context/);
   });
 
-  it("inventory C01 C02 C07 C11 O01–O03 status IMPLEMENTED", () => {
+  it("inventory C01 C02 C07 C11 O01–O03 status IMPLEMENTED or PASS", () => {
     const inv = readFileSync(inventoryPath, "utf8");
     for (const id of ["C01", "C02", "C07", "C11", "O01", "O02", "O03"]) {
       assert.match(
         inv,
         new RegExp(
-          `\\|\\s*${id}\\s*\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|\\s*REQUIRED\\s*\\|\\s*IMPLEMENTED\\s*\\|`,
+          `\\|\\s*${id}\\s*\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|\\s*REQUIRED\\s*\\|\\s*(IMPLEMENTED|PASS)\\s*\\|`,
         ),
-        `${id} must be IMPLEMENTED`,
+        `${id} must be IMPLEMENTED or PASS (2.5 proof may promote)`,
       );
     }
   });

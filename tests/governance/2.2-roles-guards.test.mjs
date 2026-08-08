@@ -88,15 +88,15 @@ describe("2.2 roles and route guards governance", () => {
     assert.match(e2e, /e2e\/auth\/role-guard-eval/);
   });
 
-  it("inventory B04–B06 status IMPLEMENTED", () => {
+  it("inventory B04–B06 status IMPLEMENTED or PASS", () => {
     const inv = readFileSync(inventoryPath, "utf8");
     for (const id of ["B04", "B05", "B06"]) {
       assert.match(
         inv,
         new RegExp(
-          `\\|\\s*${id}\\s*\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|\\s*REQUIRED\\s*\\|\\s*IMPLEMENTED\\s*\\|`,
+          `\\|\\s*${id}\\s*\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|\\s*REQUIRED\\s*\\|\\s*(IMPLEMENTED|PASS)\\s*\\|`,
         ),
-        `${id} must be IMPLEMENTED`,
+        `${id} must be IMPLEMENTED or PASS (2.5 proof may promote)`,
       );
     }
   });

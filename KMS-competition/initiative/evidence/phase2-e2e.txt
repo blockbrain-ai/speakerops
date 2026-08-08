@@ -1,0 +1,92 @@
+# Phase 2 auth+settings evidence — section 2.5 (I12 keystone)
+
+Section: 2.5 Auth settings e2e proof
+Workspace: speakerops-build
+Date: 2026-08-08
+
+## Claim
+
+I12: login → set design → publish → public sees brand; role guards proven.
+Inventory B01–B06 and C01–C11 (plus O01–O03) status PASS.
+
+## Evidence path
+
+This file: KMS-competition/initiative/evidence/phase2-e2e.txt
+Section notes: docs/sections/2.5-auth-settings-e2e.md
+Keystone: playwright/e2e/auth_settings_keystone.spec.ts
+Implementation journeys:
+  - playwright/e2e/auth_magic_link.spec.ts (@inv:B01–B03)
+  - playwright/e2e/auth_role_guards.spec.ts (@inv:B04–B06)
+  - playwright/e2e/event_settings.spec.ts (@inv:C01,C02,C07,C11,O01–O03)
+  - playwright/e2e/design_kit.spec.ts (@inv:C03–C06,C08–C10)
+
+## Notes
+
+- No secrets, API keys, or magic-link tokens in this evidence file.
+- Active @inv ownership remains 1:1 on implementation specs; keystone documents all Bxx/Cxx tags and runs the multi-step soul path.
+- Local e2e uses E2E_WEB_SERVER=1 (Vite + scripts/e2e-api-server.mjs).
+- S-THEME: published Design Kit tokens visible on public CFP; no freeform CSS.
+
+## Gate command outputs
+
+### pnpm typecheck
+```
+> speakerops@0.1.0 typecheck /mnt/HC_Volume_105994188/speakerops-build
+> tsc -b --pretty false
+
+exit: 0
+```
+
+### pnpm test:ci (summary)
+```
+# Subtest: 2.5 auth settings e2e proof
+    ok 1 - assert keystone covers login and design publish path end-to-end
+    ok 2 - assert B04 and C05 tags present in keystone file
+    ok 3 - phase 2 inventory B01–B06 and C01–C11 status PASS
+    ok 4 - section doc notes evidence path and N/A product surface
+    ok 5 - evidence path file exists for phase 2 keystone
+    ok 6 - pnpm test:e2e remains non-interactive (no --watch)
+    ok 7 - no new product handlers in API composition root (scope guard)
+    ok 8 - no secrets committed in 2.5 e2e artifacts
+ok 16 - 2.5 auth settings e2e proof
+1..16
+# tests 192
+# suites 16
+# pass 192
+# fail 0
+
+ Test Files  13 passed (13)
+      Tests  85 passed (85)
+
+exit: 0
+```
+
+### pnpm test:e2e:inventory
+```
+> speakerops@0.1.0 test:e2e:inventory /mnt/HC_Volume_105994188/speakerops-build
+> tsx scripts/inventory-lint.ts
+
+[test:e2e:inventory] OK: baseline 108 IDs intact (108 REQUIRED non-DEFER, 0 DEFER); inventory 108 REQUIRED, 108 unique IDs, 108 unique test_ids; fingerprints match
+[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover 20 implemented/status-owned IDs (1:1, non-skip/non-fail, test_id-anchored, playwright-suite:playwright-list-json) (108 total non-DEFER REQUIRED at Phase 8)
+exit: 0
+```
+
+### pnpm test:e2e
+```
+> speakerops@0.1.0 test:e2e /mnt/HC_Volume_105994188/speakerops-build
+> node scripts/e2e-run.mjs
+
+[test:e2e] running Playwright with playwright.config.ts (E2E_WEB_SERVER=1)
+Running 23 tests using 1 worker
+
+  ✓  auth_magic_link.spec.ts @inv:B01–B03
+  ✓  auth_role_guards.spec.ts @inv:B04–B06
+  ✓  auth_settings_keystone.spec.ts keystone: login → set design → publish → public brand; role guards
+  ✓  design_kit.spec.ts @inv:C03–C06,C08–C10
+  ✓  event_settings.spec.ts @inv:C01,C02,C07,C11,O01–O03
+  ✓  foundation_smoke.spec.ts
+  ✓  _harness_example.spec.ts
+
+  23 passed (13.4s)
+exit: 0
+```

@@ -121,15 +121,15 @@ describe("2.4 design kit governance", () => {
     assert.match(e2e, /e2e\/admin\/design-draft-isolation/);
   });
 
-  it("inventory C03–C06 C08–C10 status IMPLEMENTED", () => {
+  it("inventory C03–C06 C08–C10 status IMPLEMENTED or PASS", () => {
     const inv = readFileSync(inventoryPath, "utf8");
     for (const id of ["C03", "C04", "C05", "C06", "C08", "C09", "C10"]) {
       assert.match(
         inv,
         new RegExp(
-          `\\|\\s*${id}\\s*\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|\\s*REQUIRED\\s*\\|\\s*IMPLEMENTED\\s*\\|`,
+          `\\|\\s*${id}\\s*\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|\\s*REQUIRED\\s*\\|\\s*(IMPLEMENTED|PASS)\\s*\\|`,
         ),
-        `${id} must be IMPLEMENTED`,
+        `${id} must be IMPLEMENTED or PASS (2.5 proof may promote)`,
       );
     }
   });

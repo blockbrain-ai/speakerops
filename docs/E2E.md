@@ -68,12 +68,16 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright/e2e/foundation_smoke.spec.ts` | Section **1.6** I12 keystone (health + shell) |
 | `playwright/e2e/auth_magic_link.spec.ts` | Section **2.1** `@inv:B01`–`B03` magic-link auth |
 | `playwright/e2e/auth_role_guards.spec.ts` | Section **2.2** `@inv:B04`–`B06` role guards |
+| `playwright/e2e/event_settings.spec.ts` | Section **2.3** `@inv:C01`/`C02`/`C07`/`C11`/`O01`–`O03` |
+| `playwright/e2e/design_kit.spec.ts` | Section **2.4** `@inv:C03`–`C06`/`C08`–`C10` Design Kit |
+| `playwright/e2e/auth_settings_keystone.spec.ts` | Section **2.5** I12 keystone (login → design publish → public brand) |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
 | `scripts/e2e-inventory-required-baseline.json` | Anti-shrinkage baseline (108 IDs) |
 | `reports/playwright/` | HTML report (CI) |
 | `KMS-competition/initiative/evidence/phase1.txt` | Phase 1 keystone evidence (1.6) |
+| `KMS-competition/initiative/evidence/phase2-e2e.txt` | Phase 2 keystone evidence (2.5) |
 
 ---
 
@@ -112,6 +116,8 @@ Env **names** only (E10) — never commit secret values:
 Section **1.5** only scaffolds the harness and inventory lint entry — it does not claim `dogfood_ready` or full REQUIRED green.
 
 Section **1.6** adds foundation smoke (`foundation_smoke.spec.ts`): health 200 + Lumen admin shell (CFP / Forms) without `pageerror`. Evidence: `KMS-competition/initiative/evidence/phase1.txt`.
+
+Section **2.5** adds the phase-2 I12 keystone (`auth_settings_keystone.spec.ts`): login → set design → publish → public brand; role guards. Inventory B01–B06 / C01–C11 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase2-e2e.txt`.
 
 ---
 
