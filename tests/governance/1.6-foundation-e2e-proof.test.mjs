@@ -106,13 +106,26 @@ describe("1.6 foundation e2e proof", () => {
     assert.match(pkg.scripts["test:e2e"], /e2e-run/);
   });
 
-  it("N/A: no new product HTTP handlers beyond /health (scope guard)", () => {
+  it("foundation smoke stays secret-free; API keeps /health (scope guard)", () => {
     const api = readFileSync(apiIndexPath, "utf8");
-    // Still health-only composition root for foundation (domain routes later)
+    // Health remains the public foundation probe; domain routes mount via app.route (2.1+)
     assert.match(api, /app\.get\(["']\/health["']/);
+    // Must not invent ad-hoc app.get/post("/api/...") outside module composition
     assert.doesNotMatch(api, /app\.(get|post|put|patch|delete)\(["']\/api\//);
+
     const smoke = readFileSync(smokeSpec, "utf8");
-    assert.doesNotMatch(smoke, /magic[_-]?link|api[_-]?key\s*[:=]\s*["'][A-Za-z0-9]{16,}/i);
+    // 2.2: RequireRole on /admin — smoke may bootstrap session via magic-link exchange
+    // (COMMANDS.md path). Still forbid hardcoded API key / secret material.
+    assert.doesNotMatch(
+      smoke,
+      /api[_-]?key\s*[:=]\s*["'][A-Za-z0-9]{16,}/i,
+      "foundation smoke must not hardcode API keys",
+    );
+    assert.doesNotMatch(
+      smoke,
+      /(?:secret|password|token)\s*[:=]\s*["'][A-Za-z0-9+/=_-]{20,}["']/i,
+      "foundation smoke must not hardcode secrets",
+    );
   });
 
   it("no secrets committed in 1.6 e2e artifacts", () => {
