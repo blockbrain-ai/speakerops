@@ -34,8 +34,8 @@ Also loaded at session start: [`CLAUDE.md`](./CLAUDE.md).
 ```bash
 pnpm typecheck          # tsc -b project references
 pnpm test:ci            # governance (node:test) + vitest run (watch false)
-pnpm test:e2e           # Playwright (stub until harness)
-pnpm test:e2e:inventory # inventory anti-shrinkage + @inv coverage
+pnpm test:e2e           # Playwright (`playwright.config.ts`; full REQUIRED at Phase 8)
+pnpm test:e2e:inventory # inventory anti-shrinkage + @inv coverage (`scripts/inventory-lint.ts`)
 pnpm db:generate        # verify schema + migration inventory (1.3+)
 pnpm db:migrate         # apply packages/db/migrations to local SQLite (1.3+)
 pnpm docs:reports       # stub until Phase 9

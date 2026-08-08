@@ -1,0 +1,113 @@
+# Browser E2E — Playwright inventory harness
+
+**Section:** 1.5 · **Law:** [0.3 inventory law](./governance/0.3-e2e-inventory-law.md) · **Souls:** S-E2E-INV, S-E2E-RUN  
+**Canonical inventory:** [`KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md)
+
+This document is the workspace stub for Playwright usage until Phase 9 expands onboarding (`docs/ONBOARDING.md`).
+
+---
+
+## Commands (non-interactive)
+
+| Command | Role |
+|---------|------|
+| `pnpm test:e2e` | Run Playwright suite (`playwright.config.ts`) |
+| `pnpm test:e2e:inventory` | Inventory lint — REQUIRED column + `@inv` coverage |
+| `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory` | Phase 8 full gate (status PASS + tags + run report) |
+| `pnpm exec tsx scripts/inventory-lint.ts` | Same as `test:e2e:inventory` (TypeScript entry) |
+
+Gates must never hang (E5): no `--watch` on CI scripts.
+
+---
+
+## `@inv:A01` tagging convention
+
+Every Playwright journey test that owns an inventory ID **must** put the tag on the `test()` title:
+
+```ts
+import { test, expect } from "@playwright/test";
+
+test("@inv:A01 e2e/public/cfp-load public CFP loads form and brand tokens", async ({ page }) => {
+  // journey body
+});
+```
+
+| Rule | Detail |
+|------|--------|
+| Format | `@inv:` + inventory ID (letter + two digits), e.g. `@inv:A01` |
+| 1:1 map | Exactly one `@inv:ID` per `test()` title — multi-tag titles fail lint |
+| Anchor | Title or file path must reference inventory `test_id` (e.g. `e2e/public/cfp-load`) |
+| Binding | Callee must be Playwright `test` from `@playwright/test` (`.extend()` OK) |
+| Not coverage | Comments, bare strings, local no-op `test`, `test.skip` / `fixme` / `fail` |
+
+**Example harness file:** `playwright/e2e/_harness_example.spec.ts`
+
+---
+
+## Inventory lint behaviour
+
+`scripts/inventory-lint.ts` reads the **Required** column from the canonical inventory and fails (exit **1**) when tag targets lack `@inv:ID` in tests.
+
+| Mode | Tag targets | Allow missing OPEN |
+|------|-------------|--------------------|
+| Intermediate (default) | Status `IMPLEMENTED` / `PASS` / `FAIL` only | Yes (`--allow-missing-until=8.2` default) |
+| Phase 8 | All non-owner-DEFER REQUIRED | No (flag OFF) |
+
+Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 run-report proof are implemented in `scripts/e2e-inventory-lint.mjs` (section 0.3) and invoked by the TypeScript entry.
+
+**Do not shrink REQUIRED inventory** to green CI. Only owner **DEFER** (constitution Article 0) removes a row from the required PASS set.
+
+---
+
+## Layout
+
+| Path | Role |
+|------|------|
+| `playwright.config.ts` | Playwright project config (Chromium) |
+| `playwright/e2e/**/*.spec.ts` | Browser tests with `@inv` tags |
+| `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
+| `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
+| `scripts/e2e-inventory-required-baseline.json` | Anti-shrinkage baseline (108 IDs) |
+| `reports/playwright/` | HTML report (CI) |
+
+---
+
+## Local setup
+
+```bash
+pnpm install
+pnpm exec playwright install chromium   # once per machine / CI image
+pnpm test:e2e:inventory                 # must exit 0
+pnpm test:e2e                           # harness + future journeys
+```
+
+Env **names** only (E10) — never commit secret values:
+
+| Name | Purpose |
+|------|---------|
+| `E2E_BASE_URL` | Override base URL (default `http://127.0.0.1:5173`) |
+| `E2E_WEB_PORT` | Vite port for optional webServer |
+| `E2E_WEB_SERVER=1` | Enable Playwright webServer (Vite SPA for product journeys) |
+| `E2E_INVENTORY_GATE=phase8` | Full inventory gate |
+| `E2E_PLAYWRIGHT_RUN_REPORT` | Path to JSON run report (Phase 8) |
+| `CI` | Enables forbidOnly, single worker, HTML reporter |
+
+---
+
+## Phase 8 (not this section)
+
+- Every non-DEFER REQUIRED row status `PASS`
+- `@inv` on Playwright-bound tests for all of them
+- Actual run report with **passed, non-skipped** results
+- Discovery crawl of admin primary actions
+- Report artifact: `reports/e2e-coverage.html` (Phase 9 consumers)
+
+Section **1.5** only scaffolds the harness and inventory lint entry — it does not claim `dogfood_ready` or full REQUIRED green.
+
+---
+
+## Related
+
+- Law: [`docs/governance/0.3-e2e-inventory-law.md`](./governance/0.3-e2e-inventory-law.md)
+- Section notes: [`docs/sections/1.5-playwright-inventory-harness.md`](./sections/1.5-playwright-inventory-harness.md)
+- Ownership: `KMS-competition/initiative/contracts/INVENTORY_OWNERSHIP.md`

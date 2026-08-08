@@ -28,3 +28,9 @@ coverage/
 # Audit scratch (auditor temp)
 .audit/
 .phase-audit/
+
+# Playwright (section 1.5) — local run artifacts
+test-results/
+playwright-report/
+blob-report/
+reports/playwright/

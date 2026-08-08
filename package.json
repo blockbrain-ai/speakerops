@@ -9,13 +9,14 @@
     "test": "node --test tests/ && vitest run",
     "test:ci": "node --test tests/ && vitest run",
     "test:e2e": "node scripts/e2e-run.mjs",
-    "test:e2e:inventory": "node scripts/e2e-inventory-lint.mjs",
+    "test:e2e:inventory": "tsx scripts/inventory-lint.ts",
     "db:generate": "node scripts/db-generate.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "docs:reports": "node scripts/docs-reports-stub.mjs",
     "lint": "eslint . --max-warnings 0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -24,6 +25,7 @@
     "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^8.57.0",
     "sql.js": "^1.14.1",
+    "tsx": "^4.23.11",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5"
   },

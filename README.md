@@ -44,8 +44,8 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 ```bash
 pnpm typecheck            # tsc -b monorepo project references (non-watch)
 pnpm test:ci              # governance node:test + vitest run (watch: false)
-pnpm test:e2e:inventory   # inventory law lint (from 0.3)
-pnpm test:e2e             # Playwright full suite (stub until harness; Phase 8 = all REQUIRED PASS)
+pnpm test:e2e:inventory   # inventory law lint (`scripts/inventory-lint.ts` → 0.3 engine)
+pnpm test:e2e             # Playwright suite (`playwright.config.ts`; full REQUIRED PASS at Phase 8)
 pnpm db:generate          # verify Drizzle schema + migration inventory (1.3+)
 pnpm db:migrate           # apply packages/db/migrations to local SQLite (1.3+)
 pnpm docs:reports         # stub until Phase 9
@@ -57,7 +57,7 @@ Worker API health (section **1.2**): `GET /health` → `{ ok: true, version }` o
 
 D1 Drizzle baseline (section **1.3**): `packages/db/schema.ts` + `migrations/0001_baseline.sql` (`organizations`, `events`+`version`, `audit_events`, `outbox_events`, `idempotency_keys`). See [`docs/sections/1.3-d1-baseline.md`](./docs/sections/1.3-d1-baseline.md).
 
-Inventory lint is live from section **0.3**. Full browser suite runs after Playwright scaffold (Phase 1.5+); **all REQUIRED** journeys + discovery crawl at **Phase 8**.
+Inventory lint is live from section **0.3** (TS entry **1.5**: `scripts/inventory-lint.ts`). Playwright harness is scaffolded in **1.5** (`playwright.config.ts`, `playwright/e2e/`); see [`docs/E2E.md`](./docs/E2E.md). **All REQUIRED** journeys + discovery crawl at **Phase 8**.
 
 ## Phase map
 
