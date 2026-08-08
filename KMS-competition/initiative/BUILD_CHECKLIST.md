@@ -10,8 +10,8 @@
 | BC03 | S-EVAL | Score + accept audited | E/F inventory PASS | OPEN | | |
 | BC04 | S-PORTAL | Magic link + files + tasks | G* PASS | OPEN | | |
 | BC05 | S-COMMS | Preview send + ICS | J* PASS | OPEN | | |
-| BC06 | S-SCHED | Five views + conflict | I* PASS | OPEN | | |
-| BC07 | S-READY | Live outstanding dashboard | H* PASS | OPEN | | |
+| BC06 | S-SCHED | Five views + conflict | I* PASS | DONE_WITH_EVIDENCE | initiative/evidence/phase6-e2e.txt | 6.4 keystone |
+| BC07 | S-READY | Live outstanding dashboard | H* PASS | DONE_WITH_EVIDENCE | initiative/evidence/phase6-e2e.txt | 6.4 keystone |
 | BC08 | S-CLI | Scoped CLI admin path | cli test report | OPEN | | |
 | BC09 | S-AIRTABLE | One-way projection | integration log | OPEN | | |
 | BC10 | S-CF | CF dogfood URL healthy | smoke URL note | OPEN | | |

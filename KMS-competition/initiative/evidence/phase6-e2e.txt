@@ -1,0 +1,87 @@
+# Phase 6 schedule + readiness evidence — section 6.4 (I12 keystone)
+
+Section: 6.4 Schedule dashboard e2e proof
+Workspace: speakerops-build
+Date: 2026-08-08
+
+## Claim
+
+I12: schedule → readiness → speakers → L05 (I* H* N* L05).
+Inventory I01–I16, H01–H05, N01–N04, L05 status PASS.
+assert schedule+dash keystone green.
+
+Souls: S-SCHED (five views + conflict) · S-READY (live outstanding dashboard).
+
+## Evidence path
+
+This file: KMS-competition/initiative/evidence/phase6-e2e.txt
+Section notes: docs/sections/6.4-schedule-dash-e2e.md
+Keystone: playwright/e2e/schedule_dash_keystone.spec.ts
+Implementation journeys:
+  - playwright/e2e/schedule_studio.spec.ts (@inv:I01–I16)
+  - playwright/e2e/readiness_dashboard.spec.ts (@inv:H01–H05, L05)
+  - playwright/e2e/portal_api_tasks.spec.ts (@inv:N01–N04)
+
+## Notes
+
+- No secrets, API keys, or magic-link tokens in this evidence file.
+- Active @inv ownership remains 1:1 on implementation specs; keystone documents all phase-6 tags and runs the multi-step soul path.
+- Local e2e uses E2E_WEB_SERVER=1 (Vite + scripts/e2e-api-server.mjs).
+- S-SCHED: five views, tray, drag/keyboard place, conflict toast, undo, move, unschedule, stale recovery, tz, reload.
+- S-READY: stats, overdue filter, drill, live poll ≤5s after portal complete, empty state.
+- L05: 150-row speakers list paginates (page size 25).
+
+## Gate command outputs
+
+### pnpm typecheck
+```
+> speakerops@0.1.0 typecheck /mnt/HC_Volume_105994188/speakerops-build
+> tsc -b --pretty false
+
+exit: 0
+```
+
+### pnpm test:ci (summary)
+```
+# Subtest: 6.4 schedule+dash e2e proof
+    ok 1 - assert schedule+dash keystone green
+    ok 2 - assert I* H* N* L05 inv tags pass
+    ok 3 - section doc notes evidence path and N/A product surface
+    ok 4 - evidence path file exists for phase 6 keystone
+    ok 5 - pnpm test:e2e remains non-interactive (no --watch)
+    ok 6 - no new product handlers in API composition root (scope guard)
+    ok 7 - no secrets committed in 6.4 e2e artifacts
+ok - 6.4 schedule+dash e2e proof
+1..33
+# tests 327
+# suites 33
+# pass 327
+# fail 0
+
+ Test Files  29 passed (29)
+      Tests  267 passed (267)
+
+exit: 0
+```
+
+### pnpm test:e2e:inventory
+```
+> speakerops@0.1.0 test:e2e:inventory /mnt/HC_Volume_105994188/speakerops-build
+> tsx scripts/inventory-lint.ts
+
+[test:e2e:inventory] OK: baseline 108 IDs intact (108 REQUIRED non-DEFER, 0 DEFER); inventory 108 REQUIRED, 108 unique IDs, 108 unique test_ids; fingerprints match
+[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover 99 implemented/status-owned IDs (1:1, non-skip/non-fail, test_id-anchored, playwright-suite:playwright-list-json) (108 total non-DEFER REQUIRED at Phase 8)
+exit: 0
+```
+
+### pnpm test:e2e (schedule+dash keystone)
+```
+> E2E_WEB_SERVER=1 pnpm exec playwright test playwright/e2e/schedule_dash_keystone.spec.ts --reporter=list
+
+Running 1 test using 1 worker
+
+  ✓  schedule_dash_keystone.spec.ts › 6.4 schedule+dash keystone (I12) › keystone: schedule → readiness → speakers → L05 (I* H* N* L05) (8.0s)
+
+  1 passed (10.9s)
+exit: 0
+```
