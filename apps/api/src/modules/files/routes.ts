@@ -33,7 +33,12 @@ import type { EventsStore } from "../events/store.js";
 import type { DesignStore } from "../design/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
-import { requireRole, requireSession } from "../../middleware/authz.js";
+import type { KeysStore } from "../keys/store.js";
+import {
+  requireRole,
+  requireSession,
+  requireSessionOrBearerScopes,
+} from "../../middleware/authz.js";
 import {
   presignFileUpload,
   uploadFileBytes,
@@ -48,6 +53,8 @@ export type FileRouteOptions = {
   design: DesignStore;
   decisions: DecisionsStore;
   submissions: SubmissionsStore;
+  /** When set, Bearer files:write accepted (7.2 CLI08). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -129,6 +136,7 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
     design: designStore,
     decisions,
     submissions,
+    keys,
   } = options;
   const deps = { design: designStore, events, auth: store };
   const portalDeps = {
@@ -138,13 +146,17 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
     submissions,
     design: designStore,
   };
+  const fileAuth = keys
+    ? requireSessionOrBearerScopes(store, keys, ["files:write"])
+    : requireSession(store);
 
   /**
    * POST /presign — File.PresignUpload
-   * Session required; event membership + purpose-scoped roles (E2).
+   * Session: event membership + purpose-scoped roles (E2).
+   * Bearer: files:write (7.2 CLI08) — admin-equivalent for logo/uploads.
    * logo → admin; headshot|slides → speaker|admin (must own participation).
    */
-  files.post("/presign", requireSession(store), async (c) => {
+  files.post("/presign", fileAuth, async (c) => {
     const user = c.get("user");
     if (!user) {
       return c.json(
@@ -170,24 +182,33 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       );
     }
 
-    const membership = await store.findMembership(
-      parsed.data.eventId,
-      user.id,
-    );
-    if (!membership) {
+    const apiKey = c.get("apiKey");
+    if (apiKey?.eventId && apiKey.eventId !== parsed.data.eventId) {
       return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
     }
 
-    const allowed = rolesForFilePurpose(parsed.data.purpose);
-    if (!(allowed as readonly string[]).includes(membership.role)) {
-      return c.json(
-        errorEnvelope("Insufficient role", FORBIDDEN, {
-          required: [...allowed],
-          role: membership.role,
-          purpose: parsed.data.purpose,
-        }),
-        403,
+    // API key with files:write is admin-equivalent for purpose role checks.
+    let membershipRole: EventRole | "admin" = "admin";
+    if (!apiKey) {
+      const membership = await store.findMembership(
+        parsed.data.eventId,
+        user.id,
       );
+      if (!membership) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      const allowed = rolesForFilePurpose(parsed.data.purpose);
+      if (!(allowed as readonly string[]).includes(membership.role)) {
+        return c.json(
+          errorEnvelope("Insufficient role", FORBIDDEN, {
+            required: [...allowed],
+            role: membership.role,
+            purpose: parsed.data.purpose,
+          }),
+          403,
+        );
+      }
+      membershipRole = membership.role;
     }
 
     const correlationId =
@@ -220,7 +241,7 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
           400,
         );
       }
-      if (membership.role === "speaker") {
+      if (!apiKey && membershipRole === "speaker") {
         const own = await resolveOwnParticipations(portalDeps, {
           eventId: parsed.data.eventId,
           userId: user.id,
@@ -262,9 +283,10 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
   /**
    * PUT /:fileId/upload?eventId= — File.Upload
    * Session + membership; role must match file purpose (logo admin; portal speaker|admin).
+   * Bearer: files:write (7.2 CLI08).
    * Speakers may only upload files owned by their own participation.
    */
-  files.put("/:fileId/upload", requireSession(store), async (c) => {
+  files.put("/:fileId/upload", fileAuth, async (c) => {
     const user = c.get("user");
     if (!user) {
       return c.json(
@@ -282,8 +304,8 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       );
     }
 
-    const membership = await store.findMembership(eventId, user.id);
-    if (!membership) {
+    const apiKey = c.get("apiKey");
+    if (apiKey?.eventId && apiKey.eventId !== eventId) {
       return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
     }
 
@@ -292,35 +314,42 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
     if (!existing) {
       return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
     }
-    const allowed = rolesForFilePurpose(existing.purpose);
-    if (!(allowed as readonly string[]).includes(membership.role)) {
-      return c.json(
-        errorEnvelope("Insufficient role", FORBIDDEN, {
-          required: [...allowed],
-          role: membership.role,
-          purpose: existing.purpose,
-        }),
-        403,
-      );
-    }
 
-    if (
-      existing.purpose === "headshot" ||
-      existing.purpose === "slides"
-    ) {
-      const ownership = await assertSpeakerOwnsFile(
-        { store, events, decisions, submissions },
-        {
-          eventId,
-          ownerParticipationId: existing.ownerParticipationId,
-          userId: user.id,
-          userEmail: user.email,
-          role: membership.role,
-          correlationId: c.get("correlationId"),
-        },
-      );
-      if (!ownership.ok) {
-        return c.json(errorEnvelope(ownership.error, FORBIDDEN), 403);
+    if (!apiKey) {
+      const membership = await store.findMembership(eventId, user.id);
+      if (!membership) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      const allowed = rolesForFilePurpose(existing.purpose);
+      if (!(allowed as readonly string[]).includes(membership.role)) {
+        return c.json(
+          errorEnvelope("Insufficient role", FORBIDDEN, {
+            required: [...allowed],
+            role: membership.role,
+            purpose: existing.purpose,
+          }),
+          403,
+        );
+      }
+
+      if (
+        existing.purpose === "headshot" ||
+        existing.purpose === "slides"
+      ) {
+        const ownership = await assertSpeakerOwnsFile(
+          { store, events, decisions, submissions },
+          {
+            eventId,
+            ownerParticipationId: existing.ownerParticipationId,
+            userId: user.id,
+            userEmail: user.email,
+            role: membership.role,
+            correlationId: c.get("correlationId"),
+          },
+        );
+        if (!ownership.ok) {
+          return c.json(errorEnvelope(ownership.error, FORBIDDEN), 403);
+        }
       }
     }
 
@@ -386,13 +415,16 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
   /**
    * POST /:fileId/complete — File.CompleteUpload
    * Session + speaker|admin on file's event; sets checksum metadata.
+   * Bearer: files:write (7.2 CLI08).
    * Speakers may only complete files owned by their own participation.
    */
   files.post(
     "/:fileId/complete",
-    requireRole(store, ["speaker", "admin"] as EventRole[], {
-      eventIdFrom: "none",
-    }),
+    keys
+      ? requireSessionOrBearerScopes(store, keys, ["files:write"])
+      : requireRole(store, ["speaker", "admin"] as EventRole[], {
+          eventIdFrom: "none",
+        }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -430,7 +462,11 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       if (!eventId) {
         eventId = row?.eventId;
       }
-      if (eventId) {
+      const apiKeyComplete = c.get("apiKey");
+      if (apiKeyComplete?.eventId && eventId && apiKeyComplete.eventId !== eventId) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      if (eventId && !apiKeyComplete) {
         const membership = await store.findMembership(eventId, user.id);
         if (!membership) {
           return c.json(errorEnvelope("Not found", NOT_FOUND), 404);

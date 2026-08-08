@@ -351,6 +351,60 @@ export function requireKeysAdmin(
   };
 }
 
+/**
+ * Session cookie OR Bearer with any of the listed scopes (section 7.2 CLI).
+ * Use when the handler does its own event/membership checks after auth
+ * (e.g. File.PresignUpload body carries eventId).
+ *
+ * Invalid/revoked/expired bearer → 401.
+ * Valid bearer without required scope → 403.
+ * No session and no bearer → 401.
+ */
+export function requireSessionOrBearerScopes(
+  store: AuthStore,
+  keysStore: KeysStore | undefined,
+  scopes: readonly string[],
+): MiddlewareHandler<ApiEnv> {
+  return async (c, next) => {
+    const authHeader = c.req.header("authorization");
+    if (
+      authHeader &&
+      /^Bearer\s+/i.test(authHeader) &&
+      keysStore &&
+      scopes.length > 0
+    ) {
+      const principal = await resolveBearer(c, keysStore);
+      if (principal === "missing" || principal === "invalid") {
+        return c.json(
+          errorEnvelope("Authentication required", UNAUTHORIZED),
+          401,
+        );
+      }
+      const have = new Set(principal.scopes);
+      const ok = scopes.some((s) => have.has(s as ApiScope));
+      if (!ok) {
+        return c.json(
+          errorEnvelope("Insufficient scope", FORBIDDEN, {
+            required: [...scopes],
+          }),
+          403,
+        );
+      }
+      await next();
+      return;
+    }
+
+    const resolved = await resolveSession(c, store);
+    if (!resolved) {
+      return c.json(
+        errorEnvelope("Authentication required", UNAUTHORIZED),
+        401,
+      );
+    }
+    await next();
+  };
+}
+
 /** Type helper for handlers that run after requireRole. */
 export type MembershipContext = MembershipRow;
 

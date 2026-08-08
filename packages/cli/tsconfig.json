@@ -3,9 +3,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "composite": true
+    "composite": true,
+    "types": ["@types/node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["dist"],
+  "exclude": ["src/**/*.test.ts", "dist"],
   "references": [{ "path": "../shared" }]
 }

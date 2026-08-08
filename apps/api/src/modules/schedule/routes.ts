@@ -35,6 +35,7 @@ import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { ScheduleStore } from "./store.js";
+import type { KeysStore } from "../keys/store.js";
 import { requireRole } from "../../middleware/authz.js";
 import {
   placeSession,
@@ -48,6 +49,8 @@ export type ScheduleRouteOptions = {
   events: EventsStore;
   decisions: DecisionsStore;
   schedule: ScheduleStore;
+  /** When set, Bearer schedule:read|write accepted (7.2 CLI06–CLI07). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -91,22 +94,32 @@ export function createScheduleRoutes(
   options: ScheduleRouteOptions,
 ): Hono<ApiEnv> {
   const schedule = new Hono<ApiEnv>();
-  const { store, events, decisions, schedule: scheduleStore } = options;
+  const { store, events, decisions, schedule: scheduleStore, keys } = options;
   const deps = {
     schedule: scheduleStore,
     events,
     decisions,
     auth: store,
   };
+  const bearerRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["schedule:read", "schedule:write"] as const,
+      }
+    : {};
+  const bearerWrite = keys
+    ? { keysStore: keys, bearerScopes: ["schedule:write"] as const }
+    : {};
 
   /**
    * GET /:eventId/schedule — Schedule.List
    * Query: view? = list|day|week|track|room
    * Role: admin (schedule:read maps to admin membership in dogfood)
+   * Bearer: schedule:read|write (7.2)
    */
   schedule.get(
     "/:eventId/schedule",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const viewRaw = c.req.query("view");
@@ -143,10 +156,11 @@ export function createScheduleRoutes(
   /**
    * POST /:eventId/schedule/place — Schedule.Place
    * Role: admin only (evaluator cannot schedule write — B06)
+   * Bearer: schedule:write (7.2 CLI06/CLI07 — reports-only key → 403 → exit 2)
    */
   schedule.post(
     "/:eventId/schedule/place",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -204,10 +218,11 @@ export function createScheduleRoutes(
 
   /**
    * POST /:eventId/schedule/move — Schedule.Move
+   * Bearer: schedule:write (7.2)
    */
   schedule.post(
     "/:eventId/schedule/move",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -265,10 +280,11 @@ export function createScheduleRoutes(
 
   /**
    * POST /:eventId/schedule/unschedule — Schedule.Unschedule
+   * Bearer: schedule:write (7.2)
    */
   schedule.post(
     "/:eventId/schedule/unschedule",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {

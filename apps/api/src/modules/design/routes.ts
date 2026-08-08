@@ -30,6 +30,7 @@ import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { DesignStore } from "./store.js";
+import type { KeysStore } from "../keys/store.js";
 import { requireRole } from "../../middleware/authz.js";
 import {
   getDesign,
@@ -46,6 +47,8 @@ export type DesignRouteOptions = {
   store: AuthStore;
   events: EventsStore;
   design: DesignStore;
+  /** When set, Bearer design:read|write accepted (7.2 CLI03–CLI05). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -69,15 +72,22 @@ function commandError(
  */
 export function createDesignRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
   const design = new Hono<ApiEnv>();
-  const { store, events, design: designStore } = options;
+  const { store, events, design: designStore, keys } = options;
   const deps = { design: designStore, events, auth: store };
+  const bearerRead = keys
+    ? { keysStore: keys, bearerScopes: ["design:read", "design:write"] as const }
+    : {};
+  const bearerWrite = keys
+    ? { keysStore: keys, bearerScopes: ["design:write"] as const }
+    : {};
 
   /**
    * GET /:eventId/design — Design.Get (admin)
+   * Bearer: design:read or design:write (7.2 CLI03)
    */
   design.get(
     "/:eventId/design",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const result = await getDesign(deps, eventId);
@@ -97,10 +107,11 @@ export function createDesignRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
 
   /**
    * PUT /:eventId/design — Design.SetDraft (admin)
+   * Bearer: design:write (7.2 CLI04)
    */
   design.put(
     "/:eventId/design",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -155,10 +166,11 @@ export function createDesignRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
 
   /**
    * POST /:eventId/design/publish — Design.Publish (admin, contrast gate)
+   * Bearer: design:write (7.2 CLI05)
    */
   design.post(
     "/:eventId/design/publish",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {

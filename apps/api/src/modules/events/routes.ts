@@ -34,6 +34,7 @@ import {
 import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "./store.js";
+import type { KeysStore } from "../keys/store.js";
 import { requireRole } from "../../middleware/authz.js";
 import {
   createEvent,
@@ -51,6 +52,8 @@ import {
 export type EventsRouteOptions = {
   store: AuthStore;
   events: EventsStore;
+  /** When set, Bearer API keys with events:read|write are accepted (7.2). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -68,16 +71,23 @@ function commandError(
 
 export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
   const events = new Hono<ApiEnv>();
-  const { store, events: eventsStore } = options;
+  const { store, events: eventsStore, keys } = options;
   const deps = { events: eventsStore, auth: store };
+  const bearer = keys
+    ? { keysStore: keys, bearerScopes: ["events:read"] as const }
+    : {};
+  const bearerWrite = keys
+    ? { keysStore: keys, bearerScopes: ["events:write"] as const }
+    : {};
 
   /**
    * GET /api/events — Event.List
    * Role: admin (any event membership with role admin)
+   * Bearer: events:read (7.2 CLI01)
    */
   events.get(
     "/",
-    requireRole(store, ["admin"], { eventIdFrom: "none" }),
+    requireRole(store, ["admin"], { eventIdFrom: "none", ...bearer }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -99,10 +109,11 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
   /**
    * POST /api/events — Event.Create
    * Role: admin (any admin membership — bootstrap / multi-event)
+   * Bearer: events:write (7.2)
    */
   events.post(
     "/",
-    requireRole(store, ["admin"], { eventIdFrom: "none" }),
+    requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {

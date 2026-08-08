@@ -47,6 +47,12 @@
 - Comms.Send request path never uses these bindings; only `emailConsumer` / queue drain does (E7).
 - Queue binding name: `JOBS_QUEUE` (wrangler.toml) — producer (kick after Comms.Send) + consumer; Worker `queue` / `scheduled` handlers drain `outbox_events` topic `comms.send` via `processCommsOutbox`.
 
+## CLI / agent (section 7.2) — names only
+- `SPEAKEROPS_API_KEY` — Bearer secret for `speakerops` CLI (`spk_…`). Minted via admin UI / `Keys.Create`; never commit values; never log full secret.
+- `SPEAKEROPS_API_URL` — optional API base URL for CLI (default `http://127.0.0.1:8787`). Not a secret.
+- `SPEAKEROPS_CORRELATION_ID` — optional fixed correlation id for CLI requests (else CLI generates `cli_…`). Not a secret.
+- CLI command reference: `docs/CLI.md`. OpenAPI: `GET /openapi.json`.
+
 ## Base
 Dogfood base id is in AIRTABLE_BASE_ID. Tables:
 SpeakerOps_Submissions, SpeakerOps_Speakers, SpeakerOps_Sessions, SpeakerOps_Tasks, SpeakerOps_Schedule.

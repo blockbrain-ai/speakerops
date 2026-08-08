@@ -44,6 +44,7 @@ import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { CommsStore } from "./store.js";
+import type { KeysStore } from "../keys/store.js";
 import { requireRole } from "../../middleware/authz.js";
 import {
   upsertTemplate,
@@ -62,6 +63,8 @@ export type CommsRouteOptions = {
   submissions: SubmissionsStore;
   decisions: DecisionsStore;
   comms: CommsStore;
+  /** When set, Bearer comms:draft|send accepted (7.2 CLI09–CLI10). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -370,16 +373,23 @@ export function createEventCommsRoutes(
  */
 export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions, comms } = options;
+  const { store, events, submissions, decisions, comms, keys } = options;
   const deps = { comms, events, auth: store, submissions, decisions };
+  const bearerDraft = keys
+    ? { keysStore: keys, bearerScopes: ["comms:draft"] as const }
+    : {};
+  const bearerSend = keys
+    ? { keysStore: keys, bearerScopes: ["comms:send"] as const }
+    : {};
 
   /**
    * POST /preview — Comms.Preview (comms:draft / admin role)
-   * Body carries templateId; event membership checked after load.
+   * Body carries templateId; event membership checked after load for sessions.
+   * Bearer: comms:draft (7.2 CLI09) — scope gate; membership via key createdBy.
    */
   app.post(
     "/preview",
-    requireRole(store, ["admin"], { eventIdFrom: "none" }),
+    requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerDraft }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -414,23 +424,31 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
       if (!template) {
         return c.json(errorEnvelope("Template not found", NOT_FOUND), 404);
       }
-      const membership = await store.findMembership(
-        template.eventId,
-        user.id,
-      );
-      if (!membership) {
+      const apiKey = c.get("apiKey");
+      if (!apiKey) {
+        const membership = await store.findMembership(
+          template.eventId,
+          user.id,
+        );
+        if (!membership) {
+          return c.json(
+            errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+            404,
+          );
+        }
+        if (membership.role !== "admin") {
+          return c.json(
+            errorEnvelope("Insufficient role", FORBIDDEN, {
+              required: ["admin"],
+              role: membership.role,
+            }),
+            403,
+          );
+        }
+      } else if (apiKey.eventId && apiKey.eventId !== template.eventId) {
         return c.json(
           errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
           404,
-        );
-      }
-      if (membership.role !== "admin") {
-        return c.json(
-          errorEnvelope("Insufficient role", FORBIDDEN, {
-            required: ["admin"],
-            role: membership.role,
-          }),
-          403,
         );
       }
 
@@ -458,10 +476,11 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
   /**
    * POST /send — Comms.Send enqueue only (comms:send / admin).
    * Inserts outbox_events; never calls provider HTTP.
+   * Bearer: comms:send only (7.2 CLI10 — draft-only key → 403 → exit 2).
    */
   app.post(
     "/send",
-    requireRole(store, ["admin"], { eventIdFrom: "none" }),
+    requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerSend }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -501,20 +520,28 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
           return c.json(errorEnvelope("Preview not found", NOT_FOUND), 404);
         }
       } else {
-        const membership = await store.findMembership(job.eventId, user.id);
-        if (!membership) {
+        const apiKey = c.get("apiKey");
+        if (!apiKey) {
+          const membership = await store.findMembership(job.eventId, user.id);
+          if (!membership) {
+            return c.json(
+              errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
+              404,
+            );
+          }
+          if (membership.role !== "admin") {
+            return c.json(
+              errorEnvelope("Insufficient role", FORBIDDEN, {
+                required: ["admin"],
+                role: membership.role,
+              }),
+              403,
+            );
+          }
+        } else if (apiKey.eventId && apiKey.eventId !== job.eventId) {
           return c.json(
             errorEnvelope("Not found", NOT_FOUND, { path: c.req.path }),
             404,
-          );
-        }
-        if (membership.role !== "admin") {
-          return c.json(
-            errorEnvelope("Insufficient role", FORBIDDEN, {
-              required: ["admin"],
-              role: membership.role,
-            }),
-            403,
           );
         }
       }

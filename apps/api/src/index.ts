@@ -19,6 +19,7 @@
  * Section 6.1: Schedule.List/Place/Move/Unschedule + hard room/speaker conflict engine
  * Section 6.3: Reports.Readiness outstanding + stats (S-READY live dashboard)
  * Section 7.1: Keys.Create/Revoke/List + hashed secrets + Bearer auth (S-CLI)
+ * Section 7.2: OpenAPI + speakerops CLI parity; bearerScopes on domain routes (S-CLI)
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -247,22 +248,30 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   );
 
   // Section 2.3 — Event.Create/Update/List + rooms/tracks (admin role gate)
+  // Section 7.2 — Bearer events:read|write for CLI
   app.route(
     "/api/events",
-    createEventsRoutes({ store: authStore, events: eventsStore }),
+    createEventsRoutes({
+      store: authStore,
+      events: eventsStore,
+      keys: keysStore,
+    }),
   );
 
   // Section 2.4 — Design.Get/SetDraft/Publish under /api/events/:eventId/design
+  // Section 7.2 — Bearer design:read|write for CLI
   app.route(
     "/api/events",
     createDesignRoutes({
       store: authStore,
       events: eventsStore,
       design: designStore,
+      keys: keysStore,
     }),
   );
 
   // Section 2.2 role gate + 6.1 conflict engine — Schedule.* under /api/events/:eventId/schedule*
+  // Section 7.2 — Bearer schedule:read|write (scope deny for reports-only keys)
   app.route(
     "/api/events",
     createScheduleRoutes({
@@ -270,6 +279,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       events: eventsStore,
       decisions: decisionsStore,
       schedule: scheduleStore,
+      keys: keysStore,
     }),
   );
 
@@ -284,6 +294,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   );
 
   // Section 2.4 + 4.2 — File.PresignUpload / Upload / CompleteUpload (logo + headshot/slides)
+  // Section 7.2 — Bearer files:write for CLI upload
   app.route(
     "/api/files",
     createFileRoutes({
@@ -292,6 +303,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       design: designStore,
       decisions: decisionsStore,
       submissions: submissionsStore,
+      keys: keysStore,
     }),
   );
 
@@ -390,15 +402,18 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     submissions: submissionsStore,
     decisions: decisionsStore,
     comms: commsStore,
+    keys: keysStore,
   };
 
   // Section 5.1 — Comms.UpsertTemplate under /api/events/:eventId/templates/:key
   app.route("/api/events", createEventCommsRoutes(commsRouteOpts));
 
   // Section 5.1–5.2 — Comms.Preview + Comms.Send (enqueue only, no provider HTTP)
+  // Section 7.2 — Bearer comms:draft / comms:send for CLI
   app.route("/api/comms", createCommsRoutes(commsRouteOpts));
 
   // Section 6.3 — Reports.Readiness under /api/events/:eventId/readiness
+  // Section 7.2 — Bearer reports:read for CLI
   app.route(
     "/api/events",
     createReadinessRoutes({
@@ -406,6 +421,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       events: eventsStore,
       submissions: submissionsStore,
       decisions: decisionsStore,
+      keys: keysStore,
     }),
   );
 
@@ -419,7 +435,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
-  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 / 6.3 / 7.1 — OpenAPI lists domain commands
+  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 / 6.1 / 6.3 / 7.1 / 7.2 — OpenAPI lists domain commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);

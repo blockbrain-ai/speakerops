@@ -27,6 +27,7 @@ import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
+import type { KeysStore } from "../keys/store.js";
 import { requireRole } from "../../middleware/authz.js";
 import { getReadiness } from "./commands.js";
 
@@ -35,6 +36,8 @@ export type ReadinessRouteOptions = {
   events: EventsStore;
   submissions: SubmissionsStore;
   decisions: DecisionsStore;
+  /** When set, Bearer reports:read accepted (7.2 CLI02). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -66,15 +69,19 @@ export function createReadinessRoutes(
   options: ReadinessRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions } = options;
+  const { store, events, submissions, decisions, keys } = options;
   const deps = { decisions, events, auth: store, submissions };
+  const bearer = keys
+    ? { keysStore: keys, bearerScopes: ["reports:read"] as const }
+    : {};
 
   /**
    * GET /:eventId/readiness — Reports.Readiness (H01–H05 live poll)
+   * Bearer: reports:read (7.2 CLI02)
    */
   app.get(
     "/:eventId/readiness",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearer }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const q = ReportsReadinessQuerySchema.safeParse({

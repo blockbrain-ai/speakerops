@@ -1,11 +1,219 @@
 /**
- * Minimal OpenAPI 3.0 document for domain commands (section 3.1+).
+ * OpenAPI 3.0 document for domain commands (section 7.2 / CLI12).
  *
- * Full generation is Phase 7 (CLI12); 3.1 requires Form commands listed.
- * Paths match COMMANDS.md HTTP route map.
+ * Paths match COMMANDS.md HTTP route map. Served at GET /openapi.json.
+ * Includes /api/events (Event.List) for agent discovery.
  */
 import type { Hono } from "hono";
 import type { ApiEnv } from "./env.js";
+
+/** Event.* OpenAPI paths (section 2.3 + 7.2 CLI01). */
+export const EVENT_OPENAPI_PATHS = {
+  "/api/events": {
+    get: {
+      operationId: "Event.List",
+      summary: "Event.List",
+      description:
+        "List events for admin memberships (or Bearer events:read). CLI: speakerops events list --json",
+      tags: ["Event"],
+      responses: {
+        "200": { description: "events[]" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role or scope" },
+      },
+    },
+    post: {
+      operationId: "Event.Create",
+      summary: "Event.Create",
+      description: "Create event (admin / events:write)",
+      tags: ["Event"],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["name", "timezone"],
+              properties: {
+                name: { type: "string" },
+                timezone: { type: "string" },
+                startsAt: { type: "string", nullable: true },
+                endsAt: { type: "string", nullable: true },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "201": { description: "Event created" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role or scope" },
+      },
+    },
+  },
+  "/api/events/{eventId}": {
+    get: {
+      operationId: "Event.Get",
+      summary: "Event.Get",
+      description: "Get event by id (admin / events:read)",
+      tags: ["Event"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Event" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden" },
+        "404": { description: "Not found" },
+      },
+    },
+    patch: {
+      operationId: "Event.Update",
+      summary: "Event.Update",
+      description: "Update event (admin / events:write); expectedVersion required",
+      tags: ["Event"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Event updated" },
+        "400": { description: "Validation error" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden" },
+        "404": { description: "Not found" },
+        "409": { description: "VERSION conflict" },
+      },
+    },
+  },
+} as const;
+
+/** Design.* OpenAPI paths (section 2.4 + 7.2 CLI03–CLI05). */
+export const DESIGN_OPENAPI_PATHS = {
+  "/api/events/{eventId}/design": {
+    get: {
+      operationId: "Design.Get",
+      summary: "Design.Get",
+      description:
+        "Draft + published design tokens. CLI: speakerops design get --event E --json",
+      tags: ["Design"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "{ draft, published }" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role or scope" },
+        "404": { description: "Not found" },
+      },
+    },
+    put: {
+      operationId: "Design.SetDraft",
+      summary: "Design.SetDraft",
+      description:
+        "Update draft tokens (no freeform CSS). CLI: speakerops design set --event E --brand '#4F46E5'",
+      tags: ["Design"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["tokens"],
+              properties: {
+                tokens: {
+                  type: "object",
+                  required: ["brand"],
+                  properties: {
+                    brand: { type: "string" },
+                    brandSoft: { type: "string", nullable: true },
+                    radius: {
+                      type: "string",
+                      enum: ["soft", "curvy", "round"],
+                    },
+                    wordmark: { type: "string", nullable: true },
+                    logoFileId: { type: "string", nullable: true },
+                  },
+                },
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Draft updated" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role or scope" },
+        "404": { description: "Not found" },
+        "409": { description: "VERSION conflict" },
+      },
+    },
+  },
+  "/api/events/{eventId}/design/publish": {
+    post: {
+      operationId: "Design.Publish",
+      summary: "Design.Publish",
+      description:
+        "Publish draft with contrast gate. CLI: speakerops design publish --event E",
+      tags: ["Design"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["expectedVersion"],
+              properties: {
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Published tokens" },
+        "400": { description: "Validation / CONTRAST_FAILED" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role or scope" },
+        "404": { description: "Not found" },
+        "409": { description: "VERSION conflict" },
+      },
+    },
+  },
+} as const;
 
 /** OpenAPI paths for Form.* commands (section 3.1). */
 export const FORM_OPENAPI_PATHS = {
@@ -1355,6 +1563,13 @@ export const COMMS_OPENAPI_PATHS = {
 
 /** Commands registered in the OpenAPI document (expand per section). */
 export const OPENAPI_COMMANDS = [
+  "Event.List",
+  "Event.Create",
+  "Event.Get",
+  "Event.Update",
+  "Design.Get",
+  "Design.SetDraft",
+  "Design.Publish",
   "Form.Create",
   "Form.UpdateDraftFields",
   "Form.Publish",
@@ -1698,9 +1913,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1) + readiness (6.3) + API keys (7.1).",
+        "Domain commands from COMMANDS.md. CLI parity via speakerops (7.2 / S-CLI). Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1) + readiness (6.3) + API keys (7.1) + OpenAPI/CLI (7.2).",
     },
     paths: {
+      ...EVENT_OPENAPI_PATHS,
+      ...DESIGN_OPENAPI_PATHS,
       ...FORM_OPENAPI_PATHS,
       ...EVAL_OPENAPI_PATHS,
       ...DECISION_OPENAPI_PATHS,
@@ -1712,6 +1929,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...KEYS_OPENAPI_PATHS,
     },
     tags: [
+      { name: "Event", description: "Event list/create/update (2.3 / CLI01)" },
+      {
+        name: "Design",
+        description: "Design Kit draft/publish (S-THEME / 2.4 / CLI03–CLI05)",
+      },
       { name: "Form", description: "CFP form builder (S-CFP / 3.1)" },
       { name: "Submission", description: "Public CFP submit (S-CFP / 3.3)" },
       { name: "Eval", description: "Human evaluation scoring (S-EVAL / 3.4)" },
@@ -1723,19 +1945,23 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       { name: "Speakers", description: "Admin speakers list/detail (4.1 API)" },
       { name: "TaskTemplate", description: "On-accept task templates O05 (4.1)" },
       {
+        name: "File",
+        description: "Presign + R2 upload metadata (4.2 / CLI08 files:write)",
+      },
+      {
         name: "Comms",
         description:
-          "Email templates + outbox enqueue (S-COMMS / 5.1); provider send (5.2); admin UI trust-before-send (5.3)",
+          "Email templates + outbox enqueue (S-COMMS / 5.1); provider send (5.2); CLI draft/send (7.2)",
       },
       {
         name: "Schedule",
         description:
-          "Placement commands + hard room/speaker conflict detection (S-SCHED / 6.1); no OR-Tools",
+          "Placement commands + hard room/speaker conflict detection (S-SCHED / 6.1); CLI place (7.2)",
       },
       {
         name: "Reports",
         description:
-          "Readiness outstanding dashboard (S-READY / 6.3); live poll ≤5s",
+          "Readiness outstanding dashboard (S-READY / 6.3); CLI reports readiness (7.2)",
       },
       {
         name: "Keys",
