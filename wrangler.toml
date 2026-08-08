@@ -1,0 +1,29 @@
+# SpeakerOps API Worker — section 1.2
+# Binding names only. Secrets go in .dev.vars (gitignored) or `wrangler secret`.
+# Never commit tokens, API keys, or account credentials here (E10).
+
+name = "speakerops-api"
+main = "apps/api/src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Non-secret public config (names + public version only)
+[vars]
+APP_VERSION = "0.1.0"
+
+# D1 — binding name MUST be DB (AC: wrangler.toml lists D1 database binding name DB)
+# database_id is a resource placeholder, not a secret; replace at deploy time.
+[[d1_databases]]
+binding = "DB"
+database_name = "speakerops"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# R2 — binding name placeholder (files / uploads land in later sections)
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "speakerops-files"
+
+# Queues — producer binding name placeholder (outbox consumer later)
+[[queues.producers]]
+binding = "JOBS_QUEUE"
+queue = "speakerops-jobs"

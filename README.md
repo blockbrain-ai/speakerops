@@ -53,6 +53,8 @@ pnpm docs:reports         # stub until Phase 9
 
 Monorepo layout (section **1.1**): `apps/{web,api}`, `packages/{shared,db,cli}`. Agent standards: [`AGENTS.md`](./AGENTS.md) → `speakerops-engineering-standards.md` (E1–E12).
 
+Worker API health (section **1.2**): `GET /health` → `{ ok: true, version }` on Hono Worker; root `wrangler.toml` binds D1 as `DB` (names only, no secrets). See [`docs/sections/1.2-worker-health.md`](./docs/sections/1.2-worker-health.md).
+
 Inventory lint is live from section **0.3**. Full browser suite runs after Playwright scaffold (Phase 1.5+); **all REQUIRED** journeys + discovery crawl at **Phase 8**.
 
 ## Phase map
