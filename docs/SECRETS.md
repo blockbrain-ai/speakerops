@@ -35,6 +35,12 @@
 - Session cookie name is code constant `speakerops_session` (HttpOnly Secure SameSite=Lax) — not an env secret.
 - Never commit magic-link tokens, session values, or log them.
 
+## Demo seed / role switcher (section 8.4) — names only
+- `SPEAKEROPS_DB_PATH` — local SQLite path for `pnpm db:migrate` / `pnpm seed` (default `.data/speakerops.local.sqlite`). Not a secret.
+- `ROLE_SWITCHER_ENABLED` — when `"1"`, Worker registers `POST /api/auth/dev/role-switch` for private dogfood judges. **Default off.** Never enable on public production.
+- `VITE_ROLE_SWITCHER` — when `"1"`, SPA shows the RoleSwitcher chrome (also shown automatically in Vite `import.meta.env.DEV`). Build-time only; not a secret.
+- Demo emails are public constants (`admin@demo.speakerops.local`, etc.) — not credentials; switcher still issues real HttpOnly session cookies server-side.
+
 ## Public CFP / Turnstile (section 3.3) — names only
 - `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. **Required** for production Worker construction (`createAppFromBindings` throws if missing/empty **or** set to a known development/Cloudflare test value: literal `test`, always-pass `1x0000…AA`, always-fail `2x0000…AA`) so deployments cannot fall open to the public development pass token or always-pass modes. Local/e2e (`createApp` / `createAppWithAuth`) may omit it: then only the explicit pass token (`XXXX.DUMMY.TOKEN`) is accepted; all other tokens fail closed.
 - `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). **Required** for production Worker construction together with the secret: omitting it or using the Cloudflare always-pass test site key makes the SPA fall back to the test UI and submit `XXXX.DUMMY.TOKEN` — blocking real protection or all CFP submissions. Local/e2e may omit it: the always-pass test site key is used for the interactive test control.

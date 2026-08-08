@@ -42,6 +42,12 @@ export type WorkerBindings = {
    */
   AUTH_DEV_OUTBOX?: string;
   /**
+   * When "1", register Auth.DevRoleSwitch for dogfood judges (section 8.4).
+   * Env **name** only (E10). Default off — never enable on public production.
+   * Pair with SPA `VITE_ROLE_SWITCHER=1` and `pnpm seed` demo accounts.
+   */
+  ROLE_SWITCHER_ENABLED?: string;
+  /**
    * Optional first-admin allowlist (email). Env **name** only in repo (E10).
    * When set under controlled bootstrap, only this email may self-bootstrap admin.
    */

@@ -22,6 +22,7 @@
  * Section 7.2: OpenAPI + speakerops CLI parity; bearerScopes on domain routes (S-CLI)
  * Section 7.3: Airtable one-way projection outbox drain + Reports.AirtableStatus (S-AIRTABLE)
  * Section 8.3: CSP + security headers on all responses; cookie flags; CFP rate limit/Turnstile review
+ * Section 8.4: Demo seed support + Auth.DevRoleSwitch (dogfood/dev only flag)
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -199,6 +200,12 @@ export type CreateAppOptions = {
    */
   enableDevOutbox?: boolean;
   /**
+   * Register POST /api/auth/dev/role-switch (section 8.4).
+   * Default false. createAppWithAuth enables for e2e; production only when
+   * ROLE_SWITCHER_ENABLED=1 (dogfood judges).
+   */
+  enableRoleSwitcher?: boolean;
+  /**
    * Auth bootstrap policy. Production Worker: "controlled".
    * createAppWithAuth (e2e/tests): "open".
    */
@@ -234,6 +241,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
+  // Role switcher is opt-in only (section 8.4 dogfood/dev). Production default false.
+  const enableRoleSwitcher = options.enableRoleSwitcher === true;
   // Production: controlled. createAppWithAuth overrides to open for e2e.
   const bootstrapPolicy = options.bootstrapPolicy ?? "controlled";
   const turnstileSecret = options.turnstileSecret;
@@ -265,6 +274,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   });
 
   // Section 2.1 — magic-link session auth
+  // Section 8.4 — optional Auth.DevRoleSwitch when enableRoleSwitcher
   app.route(
     "/api/auth",
     createAuthRoutes({
@@ -272,6 +282,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       outbox: magicLinkOutbox,
       cookieSecure,
       enableDevOutbox,
+      enableRoleSwitcher,
+      roleSwitcherAllowCreate: bootstrapPolicy === "open",
       bootstrapPolicy,
     }),
   );
@@ -538,6 +550,8 @@ export function createAppWithAuth(
     airtableStore,
     magicLinkOutbox: outbox,
     enableDevOutbox: options.enableDevOutbox ?? true,
+    // Section 8.4 — role switcher on for local e2e / unit tests (opt-out available).
+    enableRoleSwitcher: options.enableRoleSwitcher ?? true,
     // Open bootstrap for e2e/unit tests only — never production.
     bootstrapPolicy: options.bootstrapPolicy ?? "open",
   });
@@ -615,6 +629,10 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     );
   }
   const d1 = env.DB as D1DatabaseLike;
+  // Section 8.4 — ROLE_SWITCHER_ENABLED=1 for private dogfood judges only (default off).
+  const roleSwitcherEnabled =
+    typeof env.ROLE_SWITCHER_ENABLED === "string" &&
+    env.ROLE_SWITCHER_ENABLED.trim() === "1";
   return createApp({
     authStore: new D1AuthStore(d1),
     eventsStore: new D1EventsStore(d1),
@@ -629,6 +647,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     airtableStore: new D1AirtableStore(d1),
     turnstileSecret,
     enableDevOutbox: false,
+    enableRoleSwitcher: roleSwitcherEnabled,
     bootstrapPolicy: "controlled",
     // E10 / 8.3 — production session cookies always Secure + HttpOnly + SameSite=Lax
     cookieSecure: true,

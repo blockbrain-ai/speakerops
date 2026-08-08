@@ -7,6 +7,50 @@
 import type { Hono } from "hono";
 import type { ApiEnv } from "./env.js";
 
+/**
+ * Auth.* OpenAPI paths (section 8.4 dogfood role switcher).
+ * Route is absent (404) unless ROLE_SWITCHER_ENABLED / enableRoleSwitcher.
+ */
+export const AUTH_OPENAPI_PATHS = {
+  "/api/auth/dev/role-switch": {
+    post: {
+      operationId: "Auth.DevRoleSwitch",
+      summary: "Auth.DevRoleSwitch",
+      description:
+        "Dogfood/dev only: issue session for seeded demo role user (admin|evaluator|speaker). " +
+        "Requires ROLE_SWITCHER_ENABLED=1 on Worker or local e2e createAppWithAuth. " +
+        "Never registered on public production default.",
+      tags: ["Auth"],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["role"],
+              properties: {
+                role: {
+                  type: "string",
+                  enum: ["admin", "evaluator", "speaker"],
+                },
+                eventId: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "{ ok, role, email, eventId, redirectTo } + Set-Cookie session",
+        },
+        "400": { description: "Validation error (E4)" },
+        "403": { description: "Demo user lacks role on event" },
+        "404": { description: "Route disabled or demo user not seeded" },
+      },
+    },
+  },
+} as const;
+
 /** Event.* OpenAPI paths (section 2.3 + 7.2 CLI01). */
 export const EVENT_OPENAPI_PATHS = {
   "/api/events": {
@@ -1563,6 +1607,7 @@ export const COMMS_OPENAPI_PATHS = {
 
 /** Commands registered in the OpenAPI document (expand per section). */
 export const OPENAPI_COMMANDS = [
+  "Auth.DevRoleSwitch",
   "Event.List",
   "Event.Create",
   "Event.Get",
@@ -1947,6 +1992,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         "Domain commands from COMMANDS.md. CLI parity via speakerops (7.2 / S-CLI). Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3) + schedule conflict engine (6.1) + readiness (6.3) + API keys (7.1) + OpenAPI/CLI (7.2) + Airtable projection (7.3).",
     },
     paths: {
+      ...AUTH_OPENAPI_PATHS,
       ...EVENT_OPENAPI_PATHS,
       ...DESIGN_OPENAPI_PATHS,
       ...FORM_OPENAPI_PATHS,
@@ -1961,6 +2007,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...KEYS_OPENAPI_PATHS,
     },
     tags: [
+      {
+        name: "Auth",
+        description:
+          "Session auth; Auth.DevRoleSwitch is dogfood/dev only (8.4 — 404 when flag off)",
+      },
       { name: "Event", description: "Event list/create/update (2.3 / CLI01)" },
       {
         name: "Design",

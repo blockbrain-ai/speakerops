@@ -52,6 +52,37 @@ export type ExchangeMagicLinkResponse = z.infer<
   typeof ExchangeMagicLinkResponseSchema
 >;
 
+/**
+ * Auth.DevRoleSwitch — dogfood/dev only (section 8.4).
+ * POST /api/auth/dev/role-switch — never registered in production default.
+ */
+export const DevRoleSwitchBodySchema = z.object({
+  role: EventRoleSchema,
+  /** Optional event for membership verification (defaults to dogfood event). */
+  eventId: z.string().min(1).max(128).optional(),
+});
+export type DevRoleSwitchBody = z.infer<typeof DevRoleSwitchBodySchema>;
+
+export const DevRoleSwitchResponseSchema = z.object({
+  ok: z.literal(true),
+  role: EventRoleSchema,
+  email: z.string().email(),
+  eventId: z.string().min(1),
+  /** Path hint for the SPA after switch. */
+  redirectTo: z.string().min(1),
+});
+export type DevRoleSwitchResponse = z.infer<typeof DevRoleSwitchResponseSchema>;
+
+/**
+ * Deterministic demo emails for role switcher (must match scripts/seed.ts).
+ * Not secrets — public demo accounts for dogfood judges.
+ */
+export const DEMO_ROLE_EMAILS = {
+  admin: "admin@demo.speakerops.local",
+  evaluator: "evaluator@demo.speakerops.local",
+  speaker: "speaker@demo.speakerops.local",
+} as const satisfies Record<EventRole, string>;
+
 /** Session cookie name (HttpOnly Secure SameSite=Lax). */
 export const SESSION_COOKIE_NAME = "speakerops_session" as const;
 

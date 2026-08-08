@@ -10,6 +10,7 @@ Auth: session cookie **or** API key with scopes.
 | `Auth.ExchangeMagicLink` | public | token | Set-Cookie session |
 | `Auth.Logout` | any authed | — | cleared cookie |
 | `Auth.CreateInvite` | admin | email, role, eventId | { inviteId } |
+| `Auth.DevRoleSwitch` | dogfood/dev only (`ROLE_SWITCHER_ENABLED=1` / local e2e) | role (admin\|evaluator\|speaker), eventId? | { ok, role, email, eventId, redirectTo } + Set-Cookie session for seeded demo user — **never** registered on public production default |
 
 ## Events & settings
 | Command | Scope | Input | Output |
@@ -109,6 +110,7 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/auth/magic-link | Auth.RequestMagicLink |
 | POST | /api/auth/exchange | Auth.ExchangeMagicLink |
 | POST | /api/auth/logout | Auth.Logout |
+| POST | /api/auth/dev/role-switch | Auth.DevRoleSwitch (dogfood/dev only; 404 when flag off) |
 | GET | /api/events | Event.List |
 | POST | /api/events | Event.Create |
 | GET | /api/events/:eventId | Event.Get |

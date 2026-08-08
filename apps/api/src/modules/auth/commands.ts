@@ -18,10 +18,12 @@ import {
   MAGIC_LINK_TTL_MINUTES,
   SESSION_TTL_DAYS,
   DEFAULT_BOOTSTRAP_EVENT_ID,
+  DEMO_ROLE_EMAILS,
   type EventRole,
   type MagicLinkPurpose,
   type RequestMagicLinkResponse,
   type ExchangeMagicLinkResponse,
+  type DevRoleSwitchResponse,
 } from "@speakerops/shared";
 import {
   generateToken,
@@ -327,6 +329,138 @@ export async function logoutSession(
   }
 
   return { cleared: deleted };
+}
+
+/**
+ * Auth.DevRoleSwitch — dogfood/dev only (section 8.4).
+ *
+ * Issues a session for the deterministic demo account of the requested role.
+ * Caller must only invoke when the route is registered (enableRoleSwitcher).
+ * Never logs tokens. Memberships must already exist (seed / prior magic-link).
+ */
+export type DevRoleSwitchInput = {
+  role: EventRole;
+  eventId?: string;
+  correlationId: string;
+  /**
+   * When true (tests/e2e open bootstrap), create demo user + membership if missing.
+   * Production dogfood with ROLE_SWITCHER_ENABLED should seed first — create=false.
+   */
+  allowCreate?: boolean;
+};
+
+export type DevRoleSwitchSuccess = {
+  ok: true;
+  sessionToken: string;
+  response: DevRoleSwitchResponse;
+};
+
+export type DevRoleSwitchFailure = {
+  ok: false;
+  status: 404 | 403;
+  error: string;
+  code: string;
+};
+
+function redirectForRole(role: EventRole): string {
+  switch (role) {
+    case "admin":
+      return "/admin";
+    case "evaluator":
+      return "/eval";
+    case "speaker":
+      return "/portal";
+    default:
+      return "/login";
+  }
+}
+
+export async function devRoleSwitch(
+  deps: AuthCommandDeps,
+  input: DevRoleSwitchInput,
+): Promise<DevRoleSwitchSuccess | DevRoleSwitchFailure> {
+  const eventId = input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
+  const email = DEMO_ROLE_EMAILS[input.role];
+  const now = new Date();
+  const createdAt = now.toISOString();
+
+  let user = await deps.store.findUserByEmail(email);
+  if (!user) {
+    if (!input.allowCreate) {
+      return {
+        ok: false,
+        status: 404,
+        error: "Demo role user not seeded",
+        code: "ROLE_SWITCH_USER_MISSING",
+      };
+    }
+    user = await deps.store.createUser({
+      email,
+      name: `Demo ${input.role}`,
+    });
+    await deps.store.upsertMembership({
+      eventId,
+      userId: user.id,
+      role: input.role,
+    });
+  } else {
+    const membership = await deps.store.findMembership(eventId, user.id);
+    if (!membership || membership.role !== input.role) {
+      if (!input.allowCreate) {
+        return {
+          ok: false,
+          status: 403,
+          error: "Demo user lacks requested role on event",
+          code: "ROLE_SWITCH_ROLE_MISSING",
+        };
+      }
+      await deps.store.upsertMembership({
+        eventId,
+        userId: user.id,
+        role: input.role,
+      });
+    }
+  }
+
+  const sessionToken = generateToken(32);
+  const sessionHash = await hashToken(sessionToken);
+  const sessionId = uuidv7();
+  await deps.store.insertSession({
+    id: sessionId,
+    userId: user.id,
+    tokenHash: sessionHash,
+    expiresAt: expiresAtDaysFromNow(SESSION_TTL_DAYS, now),
+    createdAt,
+  });
+
+  await deps.store.insertAudit({
+    id: uuidv7(),
+    eventId,
+    actorType: "user",
+    actorId: user.id,
+    action: "Auth.DevRoleSwitch",
+    entityType: "auth_session",
+    entityId: sessionId,
+    afterJson: JSON.stringify({
+      role: input.role,
+      email: user.email,
+      // never include sessionToken
+    }),
+    correlationId: input.correlationId,
+    createdAt,
+  });
+
+  return {
+    ok: true,
+    sessionToken,
+    response: {
+      ok: true,
+      role: input.role,
+      email: user.email,
+      eventId,
+      redirectTo: redirectForRole(input.role),
+    },
+  };
 }
 
 /**

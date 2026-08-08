@@ -11,12 +11,14 @@
  * + Readiness dashboard H01–H05 + speakers L05 (section 6.3 / S-READY).
  * + API keys mint/revoke K01–K04 (section 7.1 / S-CLI).
  * + Airtable projection status O06 (section 7.3 / S-AIRTABLE).
+ * + Dogfood role switcher (section 8.4 — dev / VITE_ROLE_SWITCHER only).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminShell } from "./layout/AdminShell.js";
 import { RequireRole } from "./auth/RequireRole.js";
 import { EventProvider } from "./events/EventContext.js";
+import { RoleSwitcher, isRoleSwitcherEnabled } from "./components/RoleSwitcher.js";
 import { LoginPage } from "./pages/Login.js";
 import { PortalHomePage } from "./pages/PortalHome.js";
 import { EventSettingsPage } from "./pages/EventSettings.js";
@@ -216,6 +218,8 @@ export function App() {
   return (
     <BrowserRouter>
       <div id="speakerops-root" data-section="4.3" data-testid="app-root">
+        {/* Section 8.4 — floating dogfood/dev role switcher (hidden when flag off). */}
+        {isRoleSwitcherEnabled() ? <RoleSwitcher /> : null}
         <AppRoutes />
       </div>
     </BrowserRouter>

@@ -1,5 +1,5 @@
 /**
- * Auth HTTP routes — COMMANDS.md map (section 2.1).
+ * Auth HTTP routes — COMMANDS.md map (section 2.1 + 8.4 role switcher).
  *
  * POST /api/auth/magic-link  → Auth.RequestMagicLink
  * POST /api/auth/exchange    → Auth.ExchangeMagicLink
@@ -7,6 +7,9 @@
  *
  * Optional (AUTH_DEV_OUTBOX / enableDevOutbox):
  * GET  /api/auth/dev/outbox  → test capture (no secrets in prod)
+ *
+ * Optional (ROLE_SWITCHER_ENABLED / enableRoleSwitcher) — section 8.4:
+ * POST /api/auth/dev/role-switch → Auth.DevRoleSwitch (dogfood/dev only)
  */
 import { Hono } from "hono";
 import {
@@ -14,9 +17,13 @@ import {
   RequestMagicLinkResponseSchema,
   ExchangeMagicLinkBodySchema,
   ExchangeMagicLinkResponseSchema,
+  DevRoleSwitchBodySchema,
+  DevRoleSwitchResponseSchema,
   errorEnvelope,
   VALIDATION_ERROR,
   UNAUTHORIZED,
+  FORBIDDEN,
+  NOT_FOUND,
   INTERNAL_ERROR,
   SESSION_COOKIE_NAME,
 } from "@speakerops/shared";
@@ -25,6 +32,7 @@ import {
   requestMagicLink,
   exchangeMagicLink,
   logoutSession,
+  devRoleSwitch,
   type BootstrapPolicy,
 } from "./commands.js";
 import type { AuthStore, MagicLinkTestOutbox } from "./store.js";
@@ -41,6 +49,17 @@ export type AuthRouteOptions = {
   cookieSecure?: boolean;
   /** Register GET /api/auth/dev/outbox for e2e (default false). */
   enableDevOutbox?: boolean;
+  /**
+   * Register POST /api/auth/dev/role-switch (section 8.4 dogfood/dev only).
+   * Default false. Production createAppFromBindings never enables unless
+   * ROLE_SWITCHER_ENABLED=1 is set explicitly for private dogfood.
+   */
+  enableRoleSwitcher?: boolean;
+  /**
+   * When role switcher is on, allow creating missing demo users (open bootstrap / e2e).
+   * Dogfood with seed: false. Tests: true when bootstrap open.
+   */
+  roleSwitcherAllowCreate?: boolean;
   /** Production: "controlled". Tests/e2e: "open". */
   bootstrapPolicy?: BootstrapPolicy;
 };
@@ -209,6 +228,69 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         },
         200,
       );
+    });
+  }
+
+  /**
+   * POST /api/auth/dev/role-switch → Auth.DevRoleSwitch (section 8.4)
+   * Dogfood/dev only — route absent when enableRoleSwitcher is false (404).
+   */
+  if (options.enableRoleSwitcher) {
+    auth.post("/dev/role-switch", async (c) => {
+      let raw: unknown;
+      try {
+        raw = await c.req.json();
+      } catch {
+        return c.json(
+          errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
+          400,
+        );
+      }
+      const parsed = DevRoleSwitchBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        return c.json(
+          errorEnvelope("Validation failed", VALIDATION_ERROR, {
+            issues: parsed.error.flatten(),
+          }),
+          400,
+        );
+      }
+
+      const correlationId = c.get("correlationId");
+      const allowCreate =
+        options.roleSwitcherAllowCreate === true ||
+        (options.bootstrapPolicy ?? "controlled") === "open";
+
+      const result = await devRoleSwitch(deps, {
+        role: parsed.data.role,
+        eventId: parsed.data.eventId,
+        correlationId,
+        allowCreate,
+      });
+
+      if (!result.ok) {
+        const code =
+          result.status === 404
+            ? NOT_FOUND
+            : result.status === 403
+              ? FORBIDDEN
+              : INTERNAL_ERROR;
+        return c.json(errorEnvelope(result.error, code), result.status);
+      }
+
+      const out = DevRoleSwitchResponseSchema.safeParse(result.response);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+
+      c.header(
+        "Set-Cookie",
+        buildSessionSetCookie(result.sessionToken, { secure: cookieSecure }),
+      );
+      return c.json(out.data, 200);
     });
   }
 
