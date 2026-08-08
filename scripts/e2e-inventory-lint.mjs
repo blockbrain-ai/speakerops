@@ -2,10 +2,15 @@
  * Inventory lint gate: `pnpm test:e2e:inventory`
  *
  * Pre-scaffold (0.3+): validates canonical BROWSER_E2E_INVENTORY.md
- * REQUIRED semantics, unique IDs, anti-shrinkage baseline.
- * Post Playwright (1.5+): also checks @inv tags when playwright/e2e exists.
+ * REQUIRED semantics, unique IDs, exact ratified baseline ID set.
+ * Post Playwright (1.5+): checks @inv tags for implemented / status-owned
+ * rows when an e2e tree exists; full REQUIRED set only under Phase 8 gate.
  *
  * Does not claim S-E2E-RUN (full browser run) — that is Phase 8.
+ *
+ * Phase 8 full tag enforcement:
+ *   E2E_INVENTORY_GATE=phase8  pnpm test:e2e:inventory
+ *   node scripts/e2e-inventory-lint.mjs --phase8
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -18,9 +23,20 @@ const inventoryPath = join(
   "initiative",
   "BROWSER_E2E_INVENTORY.md",
 );
+const baselinePath = join(
+  root,
+  "scripts",
+  "e2e-inventory-required-baseline.json",
+);
 
-/** Ratified baseline at section 0.3 — REQUIRED count must not shrink below this without owner DEFER. */
-const REQUIRED_BASELINE = 108;
+/** Statuses that mean a journey is owned/implemented and must have an @inv tag once e2e exists. */
+const TAG_REQUIRED_STATUSES = new Set(["IMPLEMENTED", "PASS", "FAIL"]);
+
+const fullGate =
+  process.argv.includes("--phase8") ||
+  process.argv.includes("--full") ||
+  process.env.E2E_INVENTORY_GATE === "phase8" ||
+  process.env.E2E_INVENTORY_GATE === "full";
 
 function fail(msg) {
   console.error(`[test:e2e:inventory] FAIL: ${msg}`);
@@ -42,42 +58,109 @@ if (!existsSync(inventoryPath)) {
   fail(`canonical inventory missing: ${inventoryPath}`);
 }
 
+if (!existsSync(baselinePath)) {
+  fail(
+    `ratified baseline missing: ${baselinePath} (exact REQUIRED ID set from section 0.3)`,
+  );
+}
+
+const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+const baselineIds = Array.isArray(baseline.required_ids)
+  ? baseline.required_ids
+  : null;
+if (!baselineIds || baselineIds.length === 0) {
+  fail("baseline required_ids empty or invalid");
+}
+const baselineSet = new Set(baselineIds);
+if (baselineSet.size !== baselineIds.length) {
+  fail("baseline required_ids contains duplicates");
+}
+
 const body = readFileSync(inventoryPath, "utf8");
 
 // Journey rows: | A01 | ... | REQUIRED | STATUS |
+// Columns: ID | Role | Surface | Journey | test_id | Negative | Required | Status
 const rowRe =
-  /^\| ([A-Z]\d{2}) \|[^|]*\|[^|]*\|[^|]*\|[^|]*\|[^|]*\| (REQUIRED|OPTIONAL) \|/gm;
-const ids = [];
-const requiredIds = [];
+  /^\| ([A-Z]\d{2}) \|[^|]*\|[^|]*\|[^|]*\|[^|]*\|[^|]*\| (REQUIRED|OPTIONAL) \| (\w+) \|/gm;
+/** @type {{ id: string, required: boolean, status: string }[]} */
+const journeys = [];
 let m;
 while ((m = rowRe.exec(body)) !== null) {
-  ids.push(m[1]);
-  if (m[2] === "REQUIRED") requiredIds.push(m[1]);
+  journeys.push({
+    id: m[1],
+    required: m[2] === "REQUIRED",
+    status: m[3].toUpperCase(),
+  });
 }
 
-if (ids.length === 0) {
-  fail("no inventory journey rows parsed (expected | ID | ... | REQUIRED |)");
+if (journeys.length === 0) {
+  fail("no inventory journey rows parsed (expected | ID | ... | REQUIRED | STATUS |)");
 }
 
+const ids = journeys.map((j) => j.id);
 const unique = new Set(ids);
 if (unique.size !== ids.length) {
   const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
   fail(`duplicate inventory IDs: ${[...new Set(dupes)].join(", ")}`);
 }
 
+const byId = new Map(journeys.map((j) => [j.id, j]));
+const requiredIds = journeys.filter((j) => j.required).map((j) => j.id);
+const deferIds = new Set(
+  journeys.filter((j) => j.status === "DEFER").map((j) => j.id),
+);
+
 if (requiredIds.length === 0) {
   fail("REQUIRED set is empty — forbidden (would green-wash dogfood gate)");
 }
 
-if (requiredIds.length < REQUIRED_BASELINE) {
+// --- Anti-shrinkage: exact ratified baseline ID set ---
+// Every baseline ID must still exist. It must remain REQUIRED, or carry
+// explicit owner DEFER status (omission from required PASS set only that way).
+// Replacing a baseline ID with a different ID while keeping count ≥ N is forbidden.
+const missingFromInventory = baselineIds.filter((id) => !byId.has(id));
+if (missingFromInventory.length > 0) {
   fail(
-    `REQUIRED count ${requiredIds.length} < baseline ${REQUIRED_BASELINE} (anti-shrinkage; owner DEFER required to reduce)`,
+    `baseline IDs deleted or renamed (anti-shrinkage; owner DEFER row required, not deletion): ${missingFromInventory.slice(0, 20).join(", ")}${missingFromInventory.length > 20 ? ` …(+${missingFromInventory.length - 20})` : ""}`,
+  );
+}
+
+const unauthorizedDrops = [];
+for (const id of baselineIds) {
+  const row = byId.get(id);
+  if (!row) continue; // already reported
+  if (row.required) continue;
+  if (row.status === "DEFER") continue;
+  unauthorizedDrops.push(id);
+}
+if (unauthorizedDrops.length > 0) {
+  fail(
+    `baseline IDs no longer REQUIRED without owner DEFER status: ${unauthorizedDrops.slice(0, 20).join(", ")}${unauthorizedDrops.length > 20 ? ` …(+${unauthorizedDrops.length - 20})` : ""}`,
+  );
+}
+
+// Count of non-DEFER REQUIRED among baseline (and overall) must not fall below
+// baseline size minus explicit DEFERs on baseline IDs.
+const baselineStillRequired = baselineIds.filter((id) => {
+  const row = byId.get(id);
+  return row && row.required && row.status !== "DEFER";
+});
+const baselineDeferred = baselineIds.filter((id) => {
+  const row = byId.get(id);
+  return row && row.status === "DEFER";
+});
+const minRequired = baselineIds.length - baselineDeferred.length;
+if (baselineStillRequired.length < minRequired) {
+  fail(
+    `REQUIRED baseline coverage ${baselineStillRequired.length} < ${minRequired} (baseline ${baselineIds.length} − ${baselineDeferred.length} DEFER)`,
   );
 }
 
 // Law markers in canonical file
-if (!/REQUIRED\s*=\s*must PASS for dogfood/i.test(body) && !/must PASS for dogfood_ready/i.test(body)) {
-  // Accept either inventory legend phrasing
+if (
+  !/REQUIRED\s*=\s*must PASS for dogfood/i.test(body) &&
+  !/must PASS for dogfood_ready/i.test(body)
+) {
   if (!/dogfood_ready/i.test(body) || !/REQUIRED/i.test(body)) {
     fail("inventory must define REQUIRED relative to dogfood / dogfood_ready");
   }
@@ -87,18 +170,23 @@ if (!/Discovery crawl REQUIRED at Phase 8/i.test(body)) {
   fail("inventory must state discovery crawl REQUIRED at Phase 8");
 }
 
-if (!/@inv:/i.test(body) && !/must tag `@inv:/i.test(body) && !/tag `@inv:/i.test(body)) {
-  // Coverage rules mention @inv:A01
+if (
+  !/@inv:/i.test(body) &&
+  !/must tag `@inv:/i.test(body) &&
+  !/tag `@inv:/i.test(body)
+) {
   if (!/@inv:A01/.test(body)) {
     fail("inventory must document @inv tagging convention");
   }
 }
 
 console.log(
-  `[test:e2e:inventory] OK: ${requiredIds.length} REQUIRED IDs (baseline ≥ ${REQUIRED_BASELINE}), ${unique.size} unique`,
+  `[test:e2e:inventory] OK: baseline ${baselineIds.length} IDs intact` +
+    ` (${baselineStillRequired.length} REQUIRED non-DEFER, ${baselineDeferred.length} DEFER);` +
+    ` inventory ${requiredIds.length} REQUIRED, ${unique.size} unique`,
 );
 
-// Optional: when playwright e2e tree exists, require @inv tags for each REQUIRED id
+// --- @inv tag coverage when e2e tree exists ---
 const e2eRoots = [
   join(root, "playwright", "e2e"),
   join(root, "e2e"),
@@ -108,14 +196,41 @@ const existingRoots = e2eRoots.filter((d) => existsSync(d));
 if (existingRoots.length > 0) {
   const files = existingRoots.flatMap((d) => collectFiles(d));
   const blob = files.map((f) => readFileSync(f, "utf8")).join("\n");
-  const missing = requiredIds.filter((id) => !blob.includes(`@inv:${id}`));
+
+  /** IDs that must have @inv tags under current gate mode. */
+  let tagTargets;
+  let modeLabel;
+  if (fullGate) {
+    // Phase 8: every non-DEFER REQUIRED journey
+    tagTargets = journeys
+      .filter((j) => j.required && j.status !== "DEFER")
+      .map((j) => j.id);
+    modeLabel = "phase8 full REQUIRED";
+  } else {
+    // Intermediate (1.5–7): only implemented / status-owned rows
+    tagTargets = journeys
+      .filter(
+        (j) =>
+          j.required &&
+          j.status !== "DEFER" &&
+          TAG_REQUIRED_STATUSES.has(j.status),
+      )
+      .map((j) => j.id);
+    modeLabel = "implemented/status-owned";
+  }
+
+  const missing = tagTargets.filter((id) => !blob.includes(`@inv:${id}`));
   if (missing.length > 0) {
     fail(
-      `Playwright tree present but missing @inv tags for: ${missing.slice(0, 20).join(", ")}${missing.length > 20 ? ` …(+${missing.length - 20})` : ""}`,
+      `Playwright tree present but missing @inv tags for ${modeLabel} IDs: ${missing.slice(0, 20).join(", ")}${missing.length > 20 ? ` …(+${missing.length - 20})` : ""}` +
+        (fullGate
+          ? ""
+          : " (OPEN rows deferred until owned; use E2E_INVENTORY_GATE=phase8 for full REQUIRED set)"),
     );
   }
   console.log(
-    `[test:e2e:inventory] OK: @inv tags cover all ${requiredIds.length} REQUIRED IDs under e2e roots`,
+    `[test:e2e:inventory] OK: @inv tags cover ${tagTargets.length} ${modeLabel} IDs under e2e roots` +
+      (fullGate ? "" : ` (${requiredIds.length - deferIds.size} total non-DEFER REQUIRED at Phase 8)`),
   );
 } else {
   console.log(
