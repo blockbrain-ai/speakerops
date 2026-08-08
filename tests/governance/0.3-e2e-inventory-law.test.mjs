@@ -495,8 +495,51 @@ describe("0.3 Browser E2E inventory law", () => {
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
-      /skipped|fixme|A01/i,
+      /skipped|fixme|fail|A01/i,
       `must explain skip-only failure:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects test.fail()-only @inv coverage for IMPLEMENTED row (not dogfood proof)", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          'test.fail("@inv:A01 e2e/public/cfp-load expected failure", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `test.fail-only @inv must fail:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /skipped|fixme|fail|expected-failure|A01/i,
+      `must explain test.fail-only failure:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects multi-@inv tag on a single test() title (breaks 1:1 map)", () => {
+    const r = runLintInProbe({
+      inventoryMutate: (inv) =>
+        inv
+          .replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |")
+          .replace(/^(\| A02 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |"),
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          'test("@inv:A01 @inv:A02 e2e/public/cfp-load multi", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `multi-@inv on one test() must fail 1:1 map:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /multiple @inv|1:1|multi/i,
+      `must explain multi-tag rejection:\n${fmtResult(r)}`,
     );
   });
 
@@ -571,6 +614,62 @@ describe("0.3 Browser E2E inventory law", () => {
       `${r.stderr}\n${r.stdout}`,
       /duplicate|1:1|A01/i,
       `must explain duplicate owners:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects single test() owning all REQUIRED @inv tags", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    // Mega-title: every @inv + every test_id string (auditor greenwash probe).
+    const tags = ids.map((id) => `@inv:${id}`).join(" ");
+    const testIds = ids
+      .map((id) => baseline.fingerprints[id]?.test_id)
+      .filter(Boolean)
+      .join(" ");
+    const megaTitle = `${tags} ${testIds} all journeys`;
+    const r = runLintInProbe({
+      e2eFiles: {
+        "mega-all.spec.ts": `test(${JSON.stringify(megaTitle)}, async () => {});\n`,
+      },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must not accept one test owning 108 @inv tags:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /multiple @inv|1:1|multi/i,
+      `phase8 multi-tag diagnostics:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects test.fail() as active coverage for all REQUIRED IDs", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    const body =
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test.fail(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") + "\n";
+    const r = runLintInProbe({
+      e2eFiles: { "all-fail.spec.ts": body },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must not accept 108 test.fail() declarations as coverage:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /skipped|fixme|fail|expected-failure|not executable/i,
+      `phase8 test.fail diagnostics:\n${fmtResult(r)}`,
     );
   });
 });

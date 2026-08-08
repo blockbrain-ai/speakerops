@@ -23,9 +23,11 @@
  *   node scripts/e2e-inventory-lint.mjs --phase8
  *
  * @inv must appear on a real Playwright `test(...)` / `test.only(...)`
- * title (1:1 inventory map). Comments, string literals outside test titles,
- * skipped/fixme-only coverage, duplicate active owners, and missing
- * `test_id` path anchors do not satisfy the gate.
+ * title (strict 1:1 inventory map: exactly one `@inv:ID` per test title).
+ * Comments, string literals outside test titles, multi-tag titles,
+ * skipped/fixme/fail-only coverage (test.fail is expected-failure, not
+ * dogfood proof), duplicate active owners, and missing `test_id` path
+ * anchors do not satisfy the gate.
  *
  * Does not claim S-E2E-RUN (full browser run) — that is Phase 8.
  */
@@ -141,9 +143,16 @@ export function stripComments(source) {
  * Extract `@inv:ID` tags from Playwright-like `test(...)` declarations only.
  * Comments and bare strings elsewhere are ignored (anti-greenwash).
  *
+ * Strict 1:1: a single `test(...)` title may carry at most one `@inv:ID`.
+ * Titles with multiple tags are recorded with `multiTag: true` and never
+ * count as active ownership (the gate rejects them).
+ *
+ * Non-executable modifiers (`skip`, `fixme`, `fail`) set `skipped: true`.
+ * `test.fail()` is expected-failure and cannot prove REQUIRED journeys pass.
+ *
  * @param {string} filePath
  * @param {string} source
- * @returns {{ id: string, skipped: boolean, focused: boolean, title: string, file: string }[]}
+ * @returns {{ id: string, skipped: boolean, focused: boolean, multiTag: boolean, title: string, file: string }[]}
  */
 export function extractInvTaggedTests(filePath, source) {
   const code = stripComments(source);
@@ -160,15 +169,25 @@ export function extractInvTaggedTests(filePath, source) {
       return ch;
     });
     const mod = m.groups.mod || "";
-    const skipped = mod === "skip" || mod === "fixme";
+    // skip/fixme never run; fail is expected-failure (not dogfood proof)
+    const skipped = mod === "skip" || mod === "fixme" || mod === "fail";
     const focused = mod === "only";
+    const invIds = [];
     const invRe = /@inv:([A-Z]\d{2})\b/g;
     let im;
     while ((im = invRe.exec(title)) !== null) {
+      invIds.push(im[1]);
+    }
+    if (invIds.length === 0) continue;
+    const multiTag = invIds.length > 1;
+    // Emit one finding per ID so diagnostics can name them, but multiTag
+    // findings never satisfy active coverage (see runInventoryLint).
+    for (const id of invIds) {
       findings.push({
-        id: im[1],
+        id,
         skipped,
         focused,
+        multiTag,
         title,
         file: filePath,
       });
@@ -558,11 +577,28 @@ export function runInventoryLint(options = {}) {
     }
 
     if (tagTargets.length > 0 && files.length > 0) {
-      /** @type {{ id: string, skipped: boolean, focused: boolean, title: string, file: string }[]} */
+      /** @type {{ id: string, skipped: boolean, focused: boolean, multiTag: boolean, title: string, file: string }[]} */
       const allFindings = [];
       for (const f of files) {
         const src = readFileSync(f, "utf8");
         allFindings.push(...extractInvTaggedTests(f, src));
+      }
+
+      // Strict 1:1: one test title must not own multiple inventory IDs.
+      // Reject multi-tag declarations before counting coverage (anti-greenwash).
+      const multiTagFindings = allFindings.filter((x) => x.multiTag);
+      if (multiTagFindings.length > 0) {
+        const multiTagIds = [...new Set(multiTagFindings.map((x) => x.id))];
+        const sampleTitles = [
+          ...new Set(multiTagFindings.map((x) => x.title.trim())),
+        ].slice(0, 3);
+        fail(
+          `test() titles with multiple @inv tags break 1:1 inventory-to-test mapping` +
+            ` (one journey cannot own multiple IDs): ${idList(multiTagIds)}` +
+            (sampleTitles.length
+              ? `; sample title(s): ${sampleTitles.map((t) => JSON.stringify(t.slice(0, 80))).join(", ")}`
+              : ""),
+        );
       }
 
       /** @type {Map<string, typeof allFindings>} */
@@ -585,8 +621,9 @@ export function runInventoryLint(options = {}) {
 
       for (const id of tagTargets) {
         const list = findingsById.get(id) || [];
-        const active = list.filter((x) => !x.skipped);
-        const skipped = list.filter((x) => x.skipped);
+        // multiTag never counts as active ownership (already failed above if any)
+        const active = list.filter((x) => !x.skipped && !x.multiTag);
+        const skipped = list.filter((x) => x.skipped && !x.multiTag);
 
         if (active.length === 0 && skipped.length === 0) {
           if (looseBlob.includes(`@inv:${id}`)) {
@@ -637,7 +674,7 @@ export function runInventoryLint(options = {}) {
       }
       if (skippedOnly.length > 0) {
         fail(
-          `@inv tags for ${modeLabel} IDs only appear on skipped/fixme tests (not executable coverage): ${idList(skippedOnly)}`,
+          `@inv tags for ${modeLabel} IDs only appear on skipped/fixme/fail tests (not executable coverage; test.fail is expected-failure, not dogfood proof): ${idList(skippedOnly)}`,
         );
       }
       if (duplicates.length > 0) {
@@ -657,7 +694,7 @@ export function runInventoryLint(options = {}) {
       }
 
       log(
-        `[test:e2e:inventory] OK: @inv on real test() titles cover ${tagTargets.length} ${modeLabel} IDs (1:1, non-skip, test_id-anchored)` +
+        `[test:e2e:inventory] OK: @inv on real test() titles cover ${tagTargets.length} ${modeLabel} IDs (1:1, non-skip/non-fail, test_id-anchored)` +
           (fullGate
             ? ""
             : ` (${requiredIds.length - deferIds.size} total non-DEFER REQUIRED at Phase 8)`),
