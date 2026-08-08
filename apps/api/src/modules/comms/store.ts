@@ -318,8 +318,10 @@ export type CommsStore = {
   /**
    * Atomic Comms.Send enqueue (E7 transactional outbox):
    * job transition + recipients + outbox + idempotency_keys + audit_events.
-   * D1 uses a single batch; Memory applies all writes before returning.
-   * Returns null on version conflict (job not transitioned).
+   * D1 uses a single batch with INSERT…SELECT gated on the winning transition
+   * (version + idempotency_key + updated_at), not shared post-update version
+   * alone. Memory applies the claim first then side effects. Returns null when
+   * the job was not transitioned (version conflict).
    *
    * @param onAudit Memory/tests: write audit into AuthStore so listAudits works.
    *   D1 ignores this and inserts audit_events inside the same batch.
@@ -1413,9 +1415,16 @@ export class D1CommsStore implements CommsStore {
    * Single D1 batch = job transition + recipients + outbox + idempotency + audit.
    * All-or-nothing on statement failure (job never left queued without outbox).
    *
-   * Side-effect inserts are version-gated (INSERT…SELECT WHERE job.version =
-   * post-update version) so a concurrent version conflict (UPDATE 0 rows) does
-   * not commit orphan recipients/outbox/idempotency/audit.
+   * Design (do not flip-flop):
+   * - Claim-then-insert (separate round-trips) avoids orphans but can leave a
+   *   queued job without an outbox row if the insert batch fails — breaks E7.
+   * - Single batch with INSERT…SELECT gated only on post-update version shares
+   *   that version with concurrent losers (winner N→N+1; loser UPDATE 0 rows
+   *   still sees version N+1) and commits orphan side effects under different
+   *   idempotency keys.
+   * - Single batch + gate on values unique to *this* winning UPDATE satisfies
+   *   both: atomicity and no orphans. The UPDATE stamps idempotency_key and
+   *   updated_at; only the winner's row matches both with the new version.
    */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
@@ -1438,11 +1447,13 @@ export class D1CommsStore implements CommsStore {
         ),
       );
 
-    // Gate for conditional inserts: only when this batch's job UPDATE won.
+    // Transition-unique gate (not merely shared target version N+1).
     // Visible to later statements in the same D1 batch transaction.
     const jobWon = and(
       eq(messageJobs.id, input.jobId),
       eq(messageJobs.version, input.version),
+      eq(messageJobs.idempotencyKey, input.idempotencyKey),
+      eq(messageJobs.updatedAt, input.updatedAt),
     );
 
     const recipientInserts = input.recipients.map((r) =>
@@ -1557,7 +1568,8 @@ export class D1CommsStore implements CommsStore {
       ]);
     }
     if (d1Changes(results[0]) === 0) {
-      // Version conflict: conditional inserts inserted 0 rows; no orphans.
+      // Version conflict: jobWon inserts matched 0 rows (transition-unique
+      // predicate: version + idempotency_key + updated_at); no orphans.
       return null;
     }
     return this.findJobById(input.jobId);

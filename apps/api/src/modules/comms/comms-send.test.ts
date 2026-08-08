@@ -752,4 +752,102 @@ describe("5.2 Comms send idempotent + ICS", () => {
     expect(typeof worker.queue).toBe("function");
     expect(typeof worker.scheduled).toBe("function");
   });
+
+  it("concurrent different-key send: loser 409 without orphan side effects", async () => {
+    // Two senders race the same preview with different idempotency keys.
+    // Winner enqueues; loser must not leave orphan recipients / outbox / audit.
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-send-race@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Race Event");
+    await seedAcceptedSpeaker(admin, event.id, "race");
+    const { preview } = await upsertAndPreview(admin, event.id, "race-nudge");
+
+    const [a, b] = await Promise.all([
+      admin.app.request(
+        "http://localhost/api/comms/send",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: admin.cookie,
+            "x-correlation-id": "corr-send-race-a",
+          },
+          body: JSON.stringify({
+            previewId: preview.previewId,
+            idempotencyKey: "idem-race-a",
+          }),
+        },
+        env,
+      ),
+      admin.app.request(
+        "http://localhost/api/comms/send",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: admin.cookie,
+            "x-correlation-id": "corr-send-race-b",
+          },
+          body: JSON.stringify({
+            previewId: preview.previewId,
+            idempotencyKey: "idem-race-b",
+          }),
+        },
+        env,
+      ),
+    ]);
+
+    const statuses = [a.status, b.status].sort((x, y) => x - y);
+    // One winner (201). Loser is either version conflict (409) or already-queued
+    // (400 VALIDATION) depending on whether it re-read after the winner.
+    expect(statuses[0]).toBe(201);
+    expect([400, 409]).toContain(statuses[1]);
+
+    const winner = a.status === 201 ? a : b;
+    const winnerBody = CommsSendResponseSchema.parse(await winner.json());
+
+    const recipients = await admin.comms.listRecipientsForJob(winnerBody.job.id);
+    expect(recipients.length).toBe(1);
+
+    const outboxRows = await admin.comms.listOutboxByTopic(COMMS_OUTBOX_TOPIC);
+    expect(outboxRows.length).toBe(1);
+
+    const audits = (await admin.store.listAudits()).filter(
+      (row) => row.action === "Comms.Send" && row.entityId === winnerBody.job.id,
+    );
+    expect(audits.length).toBe(1);
+
+    // Only the winner's idempotency key is stored for this send.
+    const keyA = await admin.comms.findIdempotencyKey(
+      commsSendIdempotencyStorageKey("idem-race-a"),
+    );
+    const keyB = await admin.comms.findIdempotencyKey(
+      commsSendIdempotencyStorageKey("idem-race-b"),
+    );
+    expect(Boolean(keyA) !== Boolean(keyB)).toBe(true);
+  });
+
+  it("D1 enqueueSendAtomic gates inserts on transition-unique job fields", async () => {
+    // Source contract: jobWon must not be version-alone (shared N+1 after a
+    // concurrent win). Keep single-batch atomicity + transition-unique gate.
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(join(here, "store.ts"), "utf8");
+    const d1Method = src.slice(src.indexOf("class D1CommsStore"));
+    const enqueue = d1Method.slice(
+      d1Method.indexOf("async enqueueSendAtomic"),
+      d1Method.indexOf("function mapInvite"),
+    );
+    expect(enqueue).toContain("this.db.batch");
+    expect(enqueue).toContain("idempotencyKey");
+    expect(enqueue).toMatch(/eq\(\s*messageJobs\.idempotencyKey/);
+    expect(enqueue).toMatch(/eq\(\s*messageJobs\.updatedAt/);
+    expect(enqueue).toMatch(/eq\(\s*messageJobs\.version/);
+    // Must not reintroduce claim-then-separate-insert (E7 orphan risk).
+    expect(enqueue).not.toMatch(/claimResult/);
+  });
 });
