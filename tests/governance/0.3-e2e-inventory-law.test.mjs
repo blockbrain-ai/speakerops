@@ -23,6 +23,11 @@ import {
   runInventoryLint,
   isPlaywrightRebindRhs,
   extractPlaywrightTestBindings,
+  extractInvTaggedTests,
+  normalizePlaywrightSuite,
+  suiteHasExecutionOutcomes,
+  isPassedNonSkippedResult,
+  isSkippedExecutionResult,
 } from "../../scripts/e2e-inventory-lint.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -886,7 +891,7 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   it("Phase 8 gate exempts owner-authorized DEFER from PASS set", () => {
-    // A01 DEFER with constitution record; all other rows PASS + @inv map.
+    // A01 DEFER with constitution record; all other rows PASS + @inv map + run report.
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids.filter((id) => id !== "A01");
     const body =
@@ -908,6 +913,19 @@ describe("0.3 Browser E2E inventory law", () => {
       e2eFiles: { "full-map-minus-a01.spec.ts": pwSource(body) },
       fullGate: true,
       constitutionBody: constitutionWithOwnerDefers(["A01"]),
+      // Phase 8 requires actual run-report outcomes (not collection-only).
+      playwrightSuite: ({ writtenAbs }) => ({
+        source: "test-run-report",
+        entries: ids.map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return {
+            file: writtenAbs["full-map-minus-a01.spec.ts"],
+            title: `@inv:${id} ${testId}`,
+            status: "passed",
+            outcome: "passed",
+          };
+        }),
+      }),
     });
     assert.equal(
       r.status,
@@ -1272,7 +1290,7 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 
-  it("Phase 8 gate accepts full PASS inventory + 1:1 Playwright-bound @inv map", () => {
+  it("Phase 8 gate accepts full PASS inventory + 1:1 Playwright-bound @inv map + run report", () => {
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
     assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
@@ -1287,11 +1305,204 @@ describe("0.3 Browser E2E inventory law", () => {
       inventoryMutate: markAllStatusesPass,
       e2eFiles: { "full-map.spec.ts": pwSource(body) },
       fullGate: true,
+      // S-E2E-RUN: collection alone is insufficient — need passed outcomes.
+      playwrightSuite: ({ writtenAbs }) => ({
+        source: "test-run-report",
+        entries: ids.map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return {
+            file: writtenAbs["full-map.spec.ts"],
+            title: `@inv:${id} ${testId}`,
+            status: "passed",
+            outcome: "passed",
+          };
+        }),
+      }),
     });
     assert.equal(
       r.status,
       0,
-      `phase8 must pass with PASS statuses + Playwright-bound 1:1 map:\n${fmtResult(r)}`,
+      `phase8 must pass with PASS statuses + Playwright-bound 1:1 map + run report:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      r.stdout,
+      /run report|passed, non-skipped/i,
+      `stdout should note Phase 8 run-report proof:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects @inv nested under test.describe.skip (static extractor)", () => {
+    // Auditor critical: only direct test.skip("title") was recognized; nests under
+    // describe.skip previously counted as active coverage.
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts": pwSource(
+          'test.describe.skip("deferred suite", () => {\n' +
+            '  test("@inv:A01 e2e/public/cfp-load nested under describe.skip", async () => {});\n' +
+            "});\n",
+        ),
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `describe.skip nested @inv must not satisfy coverage:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /skipped|describe\.skip|fixme|fail|A01/i,
+      `must diagnose describe.skip nested coverage:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects all 108 @inv nested under test.describe.skip", () => {
+    // Auditor full-gate probe: all PASS + every tagged test under describe.skip
+    // previously returned exit 0.
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    const inner = ids
+      .map((id) => {
+        const testId = baseline.fingerprints[id]?.test_id || id;
+        return `  test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+      })
+      .join("\n");
+    const body =
+      'test.describe.skip("entire dogfood suite skipped", () => {\n' +
+      inner +
+      "\n});\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "all-describe-skip.spec.ts": pwSource(body) },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must fail when all 108 @inv are under describe.skip:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /skipped|describe\.skip|fixme|fail|not executable/i,
+      `phase8 describe.skip diagnostics:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects list-only suite without execution outcomes", () => {
+    // Collection via --list / list-shaped reports must not green-wash Phase 8.
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    const body =
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") + "\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "full-map.spec.ts": pwSource(body) },
+      fullGate: true,
+      playwrightSuite: ({ writtenAbs }) => ({
+        source: "playwright-list-json",
+        entries: ids.map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return {
+            file: writtenAbs["full-map.spec.ts"],
+            title: `@inv:${id} ${testId}`,
+            // deliberately no status/outcome — list collection only
+          };
+        }),
+      }),
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must reject list-only suite without outcomes:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /run report|execution outcomes|not `playwright test --list`|collection alone/i,
+      `phase8 must demand run report outcomes:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects run report where every result is skipped", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    const body =
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") + "\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "full-map.spec.ts": pwSource(body) },
+      fullGate: true,
+      playwrightSuite: ({ writtenAbs }) => ({
+        source: "test-run-report-all-skipped",
+        entries: ids.map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return {
+            file: writtenAbs["full-map.spec.ts"],
+            title: `@inv:${id} ${testId}`,
+            status: "skipped",
+            outcome: "skipped",
+          };
+        }),
+      }),
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must reject all-skipped run report:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /skipped execution|non-skipped|describe\.skip|test\.skip/i,
+      `phase8 must diagnose skipped execution results:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects run report with failed outcomes", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    const body =
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") + "\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "full-map.spec.ts": pwSource(body) },
+      fullGate: true,
+      playwrightSuite: ({ writtenAbs }) => ({
+        source: "test-run-report-failed",
+        entries: ids.map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return {
+            file: writtenAbs["full-map.spec.ts"],
+            title: `@inv:${id} ${testId}`,
+            status: "unexpected",
+            outcome: "failed",
+          };
+        }),
+      }),
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must reject failed run-report outcomes:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /passed, non-skipped|lack a passed|execution result/i,
+      `phase8 must diagnose non-passed outcomes:\n${fmtResult(r)}`,
     );
   });
 
@@ -1494,5 +1705,86 @@ describe("0.3 Browser E2E inventory law", () => {
         `${name} must discover tests under tests/ via Node, not shell **`,
       );
     }
+  });
+
+  it("extractInvTaggedTests marks describe.skip nests as skipped", () => {
+    const src =
+      "import { test } from '@playwright/test';\n" +
+      'test.describe.skip("suite", () => {\n' +
+      '  test("@inv:A01 nested", async () => {});\n' +
+      "});\n" +
+      'test("@inv:B01 active", async () => {});\n';
+    const findings = extractInvTaggedTests("/tmp/x.spec.ts", src);
+    const a01 = findings.find((f) => f.id === "A01");
+    const b01 = findings.find((f) => f.id === "B01");
+    assert.ok(a01, "A01 finding present");
+    assert.equal(a01.skipped, true, "A01 under describe.skip must be skipped");
+    assert.ok(b01, "B01 finding present");
+    assert.equal(b01.skipped, false, "B01 outside describe.skip is active");
+  });
+
+  it("normalizePlaywrightSuite preserves execution outcomes from JSON reporter", () => {
+    const suite = normalizePlaywrightSuite({
+      suites: [
+        {
+          file: "e2e/a.spec.ts",
+          specs: [
+            {
+              title: "@inv:A01 journey",
+              file: "e2e/a.spec.ts",
+              tests: [
+                {
+                  title: "@inv:A01 journey",
+                  status: "expected",
+                  results: [{ status: "passed" }],
+                },
+              ],
+            },
+            {
+              title: "@inv:B01 skipped",
+              file: "e2e/a.spec.ts",
+              tests: [
+                {
+                  title: "@inv:B01 skipped",
+                  status: "skipped",
+                  results: [{ status: "skipped" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    assert.ok(suite, "suite normalized");
+    assert.equal(suiteHasExecutionOutcomes(suite), true);
+    const passed = suite.entries.find((e) => e.title.includes("A01"));
+    const skipped = suite.entries.find((e) => e.title.includes("B01"));
+    assert.ok(passed && isPassedNonSkippedResult(passed), "A01 passed");
+    assert.ok(skipped && isSkippedExecutionResult(skipped), "B01 skipped");
+    assert.equal(isPassedNonSkippedResult(skipped), false);
+  });
+
+  it("normalizePlaywrightSuite list-only entries have no execution outcomes", () => {
+    const suite = normalizePlaywrightSuite({
+      source: "playwright-list-json",
+      entries: [{ file: "e2e/a.spec.ts", title: "@inv:A01" }],
+    });
+    assert.ok(suite);
+    assert.equal(suiteHasExecutionOutcomes(suite), false);
+    assert.equal(isPassedNonSkippedResult(suite.entries[0]), false);
+  });
+
+  it("law doc requires Phase 8 run report execution proof", () => {
+    const body = readFileSync(lawPath, "utf8");
+    assert.match(
+      body,
+      /run report|execution proof|passed, non-skipped/i,
+      "law must require Phase 8 run-report execution proof",
+    );
+    assert.match(
+      body,
+      /describe\.skip|test\.describe\.skip/i,
+      "law must call out describe.skip as non-coverage",
+    );
   });
 });
