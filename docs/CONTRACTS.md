@@ -1,8 +1,9 @@
 # SpeakerOps — contract map
 
 **Purpose:** Single index of binding programme contracts so builders do not invent a second source of truth.  
-**Section:** 0.1 programme contract (governance).  
-**Programme contract summary:** [`docs/governance/0.1-programme-contract.md`](./governance/0.1-programme-contract.md)
+**Sections:** 0.1 programme contract · 0.2 Lumen design system lock (governance).  
+**Programme contract summary:** [`docs/governance/0.1-programme-contract.md`](./governance/0.1-programme-contract.md)  
+**Lumen lock (E6):** [`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md)
 
 ---
 
@@ -11,7 +12,8 @@
 | Contract | Path | Role |
 |----------|------|------|
 | Constitution | [`KMS-competition/initiative/00_CONSTITUTION.md`](../KMS-competition/initiative/00_CONSTITUTION.md) | North star, souls, stack lock, non-goals, dogfood_ready |
-| Programme contract (this phase) | [`docs/governance/0.1-programme-contract.md`](./governance/0.1-programme-contract.md) | Workspace ratification of Articles I–II, VI–VIII |
+| Programme contract | [`docs/governance/0.1-programme-contract.md`](./governance/0.1-programme-contract.md) | Workspace ratification of Articles I–II, VI–VIII |
+| **Lumen lock (E6 frontend freeze)** | [`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md) | Token CSS vars, contrast gate, SVG reject, retheme blast radius, component checklist |
 | Schema | [`KMS-competition/initiative/contracts/SCHEMA.md`](../KMS-competition/initiative/contracts/SCHEMA.md) | D1 tables; section ownership; no invented columns |
 | Commands | [`KMS-competition/initiative/contracts/COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) | Named domain commands; HTTP/CLI 1:1 |
 | Scopes | [`KMS-competition/initiative/contracts/SCOPES.md`](../KMS-competition/initiative/contracts/SCOPES.md) | API key scopes; default-deny high-risk |
@@ -19,10 +21,18 @@
 | Inventory ownership | [`KMS-competition/initiative/contracts/INVENTORY_OWNERSHIP.md`](../KMS-competition/initiative/contracts/INVENTORY_OWNERSHIP.md) | Which section owns which @inv rows |
 | Traceability | [`KMS-competition/initiative/contracts/TRACEABILITY.md`](../KMS-competition/initiative/contracts/TRACEABILITY.md) | Requirement → section map |
 | Browser E2E law | [`KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md) | Exhaustive REQUIRED journeys |
-| Lumen | [`KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`](../KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md) | Design tokens / components / security |
+| Lumen (initiative synthesis) | [`KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`](../KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md) | Full design synthesis; 0.2 freezes essentials |
 | Synthesis | [`KMS-competition/research-pack/SYNTHESIS-BEST-FOOT-FORWARD.md`](../KMS-competition/research-pack/SYNTHESIS-BEST-FOOT-FORWARD.md) | Keep/cut decisions |
 
 Engineering standards **E1–E12** live in the Section Runner RUNS_DIR as `speakerops-engineering-standards.md` (not duplicated here).
+
+### E6 → Lumen lock
+
+Engineering standard **E6** (Frontend — Lumen + E9) requires React + Vite + Lumen CSS variables, Design Kit tokens only, focus rings, and status-not-color-only. The workspace freeze for those rules is:
+
+**[`docs/governance/0.2-lumen-lock.md`](./governance/0.2-lumen-lock.md)**
+
+Implement `apps/web/src/styles/lumen.css` (section 1.4) from that lock. Do not invent freeform CSS or retheme admin chrome.
 
 ---
 
@@ -39,7 +49,7 @@ Engineering standards **E1–E12** live in the Section Runner RUNS_DIR as `speak
 | Airtable | One-way projection only |
 | Agents | CLI + scoped API keys |
 
-See programme contract §3 for full table and non-goals.
+See programme contract §3 for full table and non-goals. Lumen tokens / retheme / Design Kit security: [0.2-lumen-lock.md](./governance/0.2-lumen-lock.md).
 
 ---
 
@@ -50,3 +60,4 @@ See programme contract §3 for full table and non-goals.
 3. Shared DTOs live in `packages/shared/src/` once scaffolded — import; do not duplicate types across web/api.
 4. Every new UI control adds a browser inventory row in the same section.
 5. Soul tests change only via constitution Amendment + owner approval.
+6. UI chrome uses Lumen tokens from the 0.2 lock only — no freeform CSS/HTML; retheme public CFP + speaker portal only.

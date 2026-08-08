@@ -9,6 +9,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 | Doc | Why |
 |-----|-----|
 | [`docs/governance/0.1-programme-contract.md`](./docs/governance/0.1-programme-contract.md) | North star, stack lock, non-goals, soul pointers, clean-room, dogfood_ready |
+| [`docs/governance/0.2-lumen-lock.md`](./docs/governance/0.2-lumen-lock.md) | **E6 Lumen lock** — tokens, contrast gate, SVG reject, retheme blast radius, component checklist |
 | [`docs/CONTRACTS.md`](./docs/CONTRACTS.md) | Index of binding contracts |
 | [`KMS-competition/initiative/00_CONSTITUTION.md`](./KMS-competition/initiative/00_CONSTITUTION.md) | Binding constitution (souls, stack, anti-dilution) |
 
@@ -29,7 +30,8 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 - Commands: `KMS-competition/initiative/contracts/COMMANDS.md`
 - Scopes: `KMS-competition/initiative/contracts/SCOPES.md`
 - Browser E2E law: `KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`
-- Lumen: `KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`
+- Lumen (initiative): `KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`
+- Lumen lock (workspace E6 freeze): `docs/governance/0.2-lumen-lock.md`
 
 ## Gates
 
