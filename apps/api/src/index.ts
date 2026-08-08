@@ -115,6 +115,10 @@ import {
   D1CommsStore,
   type CommsStore,
 } from "./modules/comms/store.js";
+import {
+  processCommsOutbox,
+  type ProcessOutboxResult,
+} from "./workers/emailConsumer.js";
 import { registerOpenApiRoute } from "./openapi.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
@@ -508,8 +512,45 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
 const appByEnv = new WeakMap<object, Hono<ApiEnv>>();
 
 /**
+ * Drain `comms.send` outbox with D1 stores + provider env (sandbox default).
+ * Used by queue consumer and scheduled cron — never on the request path (E7).
+ */
+export async function drainCommsOutboxFromEnv(
+  env: WorkerBindings,
+  options: { correlationId?: string; limit?: number } = {},
+): Promise<ProcessOutboxResult> {
+  if (!env.DB) {
+    throw new Error(
+      "Worker binding DB is required to drain comms outbox (E1).",
+    );
+  }
+  const d1 = env.DB as D1DatabaseLike;
+  return processCommsOutbox({
+    comms: new D1CommsStore(d1),
+    auth: new D1AuthStore(d1),
+    providerEnv: {
+      EMAIL_PROVIDER: env.EMAIL_PROVIDER,
+      RESEND_API_KEY: env.RESEND_API_KEY,
+      EMAIL_FROM: env.EMAIL_FROM,
+    },
+  }, options);
+}
+
+/** Minimal queue batch surface (Cloudflare Queues consumer). */
+export type QueueMessageBatch = {
+  messages: ReadonlyArray<{
+    id: string;
+    body: unknown;
+    ack: () => void;
+    retry: () => void;
+  }>;
+};
+
+/**
  * Cloudflare Workers default export.
- * Constructs D1-backed stores from env.DB on first request for this env.
+ * - fetch: Hono HTTP (D1-backed stores)
+ * - queue: drain comms outbox after JOBS_QUEUE kicks from Comms.Send
+ * - scheduled: cron backup drain so rows are never permanently stuck
  */
 export default {
   fetch(
@@ -524,5 +565,28 @@ export default {
       appByEnv.set(key, app);
     }
     return app.fetch(request, env, ctx as never);
+  },
+
+  async queue(
+    batch: QueueMessageBatch,
+    env: WorkerBindings,
+    _ctx?: unknown,
+  ): Promise<void> {
+    await drainCommsOutboxFromEnv(env, {
+      correlationId: `queue:${batch.messages[0]?.id ?? "batch"}`,
+    });
+    for (const msg of batch.messages) {
+      msg.ack();
+    }
+  },
+
+  async scheduled(
+    _controller: { cron?: string; scheduledTime?: number },
+    env: WorkerBindings,
+    _ctx?: unknown,
+  ): Promise<void> {
+    await drainCommsOutboxFromEnv(env, {
+      correlationId: `cron:${new Date().toISOString()}`,
+    });
   },
 };

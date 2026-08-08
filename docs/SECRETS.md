@@ -45,7 +45,7 @@
 - `RESEND_API_KEY` — Resend API key for live send. **Ignored** unless `EMAIL_PROVIDER=resend`. Never commit values; never log the key.
 - `EMAIL_FROM` — optional default From: address for provider sends (not a secret token).
 - Comms.Send request path never uses these bindings; only `emailConsumer` / queue drain does (E7).
-- Queue binding name: `JOBS_QUEUE` (wrangler.toml) — producer placeholder; consumer drains `outbox_events` topic `comms.send`.
+- Queue binding name: `JOBS_QUEUE` (wrangler.toml) — producer (kick after Comms.Send) + consumer; Worker `queue` / `scheduled` handlers drain `outbox_events` topic `comms.send` via `processCommsOutbox`.
 
 ## Base
 Dogfood base id is in AIRTABLE_BASE_ID. Tables:

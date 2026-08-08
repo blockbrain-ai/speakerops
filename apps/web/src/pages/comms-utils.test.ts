@@ -80,11 +80,13 @@ describe("5.3 comms-utils trust-before-send", () => {
       status: "accepted",
       participationIds: [],
       templateId: "tpl_1",
+      eventId: "evt_a",
     });
     const b = segmentFingerprint({
       status: "waitlisted",
       participationIds: [],
       templateId: "tpl_1",
+      eventId: "evt_a",
     });
     expect(a).not.toBe(b);
 
@@ -92,13 +94,31 @@ describe("5.3 comms-utils trust-before-send", () => {
       status: "accepted",
       participationIds: ["p2", "p1"],
       templateId: "tpl_1",
+      eventId: "evt_a",
     });
     const d = segmentFingerprint({
       status: "accepted",
       participationIds: ["p1", "p2"],
       templateId: "tpl_1",
+      eventId: "evt_a",
     });
     // Order-independent
     expect(c).toBe(d);
+  });
+
+  it("assert event switch invalidates preview fingerprint", () => {
+    const a = segmentFingerprint({
+      status: "accepted",
+      participationIds: ["p1"],
+      templateId: "tpl_1",
+      eventId: "evt_a",
+    });
+    const b = segmentFingerprint({
+      status: "accepted",
+      participationIds: ["p1"],
+      templateId: "tpl_1",
+      eventId: "evt_b",
+    });
+    expect(a).not.toBe(b);
   });
 });

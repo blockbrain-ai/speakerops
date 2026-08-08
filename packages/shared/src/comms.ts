@@ -239,22 +239,39 @@ export const CommsListIcsResponseSchema = z.object({
 export type CommsListIcsResponse = z.infer<typeof CommsListIcsResponseSchema>;
 
 /**
+ * ISO-8601 date-time string that Date.parse accepts (route → 400, not 500).
+ */
+export const IsoDateTimeStringSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine((s) => !Number.isNaN(Date.parse(s)), {
+    message: "must be a valid ISO-8601 date-time",
+  });
+
+/**
  * POST /api/events/:eventId/comms/ics — Comms.IcsForPlacement
  * Fixture-friendly placement body (Phase 5; full schedule in 6.x).
+ * Invalid dates and endsAt ≤ startsAt → 400 VALIDATION_ERROR (not 500).
  */
-export const CommsIcsForPlacementBodySchema = z.object({
-  placementId: z.string().min(1).max(128),
-  sessionId: z.string().min(1).max(128).nullable().optional(),
-  summary: z.string().min(1).max(500),
-  startsAt: z.string().min(1).max(64),
-  endsAt: z.string().min(1).max(64),
-  location: z.string().max(500).nullable().optional(),
-  description: z.string().max(4000).nullable().optional(),
-  organizerEmail: z.string().email().nullable().optional(),
-  attendeeEmail: z.string().email().nullable().optional(),
-  /** When true, emit METHOD:CANCEL and bump SEQUENCE. */
-  cancel: z.boolean().optional(),
-});
+export const CommsIcsForPlacementBodySchema = z
+  .object({
+    placementId: z.string().min(1).max(128),
+    sessionId: z.string().min(1).max(128).nullable().optional(),
+    summary: z.string().min(1).max(500),
+    startsAt: IsoDateTimeStringSchema,
+    endsAt: IsoDateTimeStringSchema,
+    location: z.string().max(500).nullable().optional(),
+    description: z.string().max(4000).nullable().optional(),
+    organizerEmail: z.string().email().nullable().optional(),
+    attendeeEmail: z.string().email().nullable().optional(),
+    /** When true, emit METHOD:CANCEL and bump SEQUENCE. */
+    cancel: z.boolean().optional(),
+  })
+  .refine((v) => Date.parse(v.endsAt) > Date.parse(v.startsAt), {
+    message: "endsAt must be after startsAt",
+    path: ["endsAt"],
+  });
 export type CommsIcsForPlacementBody = z.infer<
   typeof CommsIcsForPlacementBodySchema
 >;

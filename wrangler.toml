@@ -25,7 +25,19 @@ migrations_dir = "packages/db/migrations"
 binding = "FILES"
 bucket_name = "speakerops-files"
 
-# Queues — producer binding name placeholder (outbox consumer later)
+# Queues — producer + consumer for transactional outbox drain (E7 / S-COMMS)
+# Comms.Send inserts outbox_events and kicks JOBS_QUEUE; the consumer
+# (and optional cron) call processCommsOutbox → sandbox/Resend provider.
 [[queues.producers]]
 binding = "JOBS_QUEUE"
 queue = "speakerops-jobs"
+
+[[queues.consumers]]
+queue = "speakerops-jobs"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+
+# Cron backup drain so outbox rows are not stuck if a queue kick is missed.
+[triggers]
+crons = ["* * * * *"]

@@ -29,6 +29,7 @@ import {
   CommsIcsForPlacementBodySchema,
   CommsIcsForPlacementResponseSchema,
   TemplateKeySchema,
+  COMMS_OUTBOX_TOPIC,
   errorEnvelope,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
@@ -535,6 +536,25 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
           500,
         );
       }
+
+      // Kick queue consumer so production drains outbox promptly (E7).
+      // Cron scheduled handler is the backup if the kick is unavailable.
+      if (result.value.enqueued) {
+        const queue = c.env?.JOBS_QUEUE;
+        if (queue && typeof queue.send === "function") {
+          try {
+            await queue.send({
+              topic: COMMS_OUTBOX_TOPIC,
+              jobId: result.value.job.id,
+              eventId: result.value.job.eventId,
+              correlationId: c.get("correlationId"),
+            });
+          } catch {
+            // Outbox row is SoR; scheduled drain will pick it up.
+          }
+        }
+      }
+
       return c.json(out.data, result.value.enqueued ? 201 : 200);
     },
   );

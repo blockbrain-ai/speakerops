@@ -18,6 +18,11 @@ export type R2BucketLike = {
   } | null>;
 };
 
+/** Minimal queue producer surface (binding name: JOBS_QUEUE). */
+export type QueueProducerLike = {
+  send(message: unknown): Promise<void>;
+};
+
 /**
  * Worker bindings (names only — values from wrangler / CF dashboard).
  * Placeholders match wrangler.toml; real resources land in deploy sections.
@@ -27,8 +32,8 @@ export type WorkerBindings = {
   DB?: D1DatabaseLike;
   /** R2 bucket binding name: FILES (logo bytes) */
   FILES?: R2BucketLike;
-  /** Queue producer binding name: JOBS_QUEUE */
-  JOBS_QUEUE?: unknown;
+  /** Queue producer binding name: JOBS_QUEUE (kick after Comms.Send) */
+  JOBS_QUEUE?: QueueProducerLike;
   /** Non-secret public version string (wrangler [vars]) */
   APP_VERSION?: string;
   /**

@@ -25,15 +25,19 @@ export function isSendEnabled(input: {
 }
 
 /**
- * Segment fingerprint used to invalidate preview when audience changes (J09).
+ * Segment fingerprint used to invalidate preview when audience or event
+ * changes (J09 / event-scoped trust-before-send).
+ * Includes activeEventId so switching events never reuses a prior preview.
  */
 export function segmentFingerprint(input: {
   status: string;
   participationIds: string[];
   templateId: string | null;
+  /** Active event scope — required so cross-event send is blocked. */
+  eventId?: string | null;
 }): string {
   const ids = [...input.participationIds].sort();
-  return `${input.templateId ?? ""}|${input.status}|${ids.join(",")}`;
+  return `${input.eventId ?? ""}|${input.templateId ?? ""}|${input.status}|${ids.join(",")}`;
 }
 
 /** Human-readable reason the send button is disabled (for status UI). */

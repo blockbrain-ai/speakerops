@@ -44,8 +44,10 @@ type CommsSendPayload = {
 
 /**
  * Process all unprocessed `comms.send` outbox rows (sandbox default).
- * Safe to re-run: already-processed rows are skipped; jobs with delivery
- * rows already present are treated as done (at-most-once delivery log).
+ * Safe to re-run: already-processed rows are skipped; recovery is tracked
+ * **per recipient** — only recipients without a delivery_events row are sent.
+ * The outbox row is marked processed only once every recipient has a terminal
+ * delivery record (at-most-once per recipient, resume-safe for multi-recipient).
  */
 export async function processCommsOutbox(
   deps: EmailConsumerDeps,
@@ -99,24 +101,23 @@ export async function processCommsOutbox(
       continue;
     }
 
-    // Idempotent drain: if delivery events already exist, mark outbox done.
+    // Per-recipient recovery: only skip recipients that already have a
+    // delivery_events row. A crash after sending recipient 1 of N must not
+    // mark the whole job complete and skip remaining recipients (E7).
+    const recipients = await deps.comms.listRecipientsForJob(job.id);
     const existingDeliveries = await deps.comms.listDeliveryEventsForJob(
       job.id,
     );
-    if (existingDeliveries.length > 0) {
-      await deps.comms.markOutboxProcessed(row.id, {
-        processedAt: new Date().toISOString(),
-        attempts: row.attempts + 1,
-        lastError: null,
-      });
-      skipped += 1;
-      jobIds.push(job.id);
-      continue;
-    }
+    const deliveredRecipientIds = new Set(
+      existingDeliveries
+        .map((d) => d.recipientId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
 
-    const recipients = await deps.comms.listRecipientsForJob(job.id);
     const now = new Date().toISOString();
-    let anyFailed = false;
+    const pendingRecipients = recipients.filter(
+      (r) => !deliveredRecipientIds.has(r.id),
+    );
 
     if (recipients.length === 0) {
       // Still mark job sent with empty delivery when no recipients.
@@ -136,7 +137,38 @@ export async function processCommsOutbox(
       continue;
     }
 
-    for (const recipient of recipients) {
+    // All recipients already have terminal delivery records → complete outbox.
+    if (pendingRecipients.length === 0) {
+      const anyFailedExisting = existingDeliveries.some(
+        (d) => d.status === "failed",
+      );
+      const terminalStatus = anyFailedExisting ? "failed" : "sent";
+      const latest = await deps.comms.findJobById(job.id);
+      if (
+        latest &&
+        latest.status !== "sent" &&
+        latest.status !== "failed"
+      ) {
+        await deps.comms.updateJob(latest.id, {
+          status: terminalStatus,
+          version: latest.version + 1,
+          expectedVersion: latest.version,
+          updatedAt: now,
+        });
+      }
+      await deps.comms.markOutboxProcessed(row.id, {
+        processedAt: now,
+        attempts: row.attempts + 1,
+        lastError: anyFailedExisting ? "partial_or_full_failure" : null,
+      });
+      skipped += 1;
+      jobIds.push(job.id);
+      continue;
+    }
+
+    let anyFailed = existingDeliveries.some((d) => d.status === "failed");
+
+    for (const recipient of pendingRecipients) {
       const result = await provider.send({
         to: recipient.toEmail,
         subject: recipient.subject ?? "",
@@ -173,6 +205,25 @@ export async function processCommsOutbox(
       if (!result.ok) anyFailed = true;
     }
 
+    // Completing the outbox requires every recipient to have a delivery record.
+    // (If this process crashed mid-loop, the next drain resumes pending only.)
+    const afterDeliveries = await deps.comms.listDeliveryEventsForJob(job.id);
+    const afterDeliveredIds = new Set(
+      afterDeliveries
+        .map((d) => d.recipientId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
+    const allRecipientsDone = recipients.every((r) =>
+      afterDeliveredIds.has(r.id),
+    );
+
+    if (!allRecipientsDone) {
+      // Leave processed_at NULL so a later drain continues remaining recipients.
+      failed += 1;
+      jobIds.push(job.id);
+      continue;
+    }
+
     const terminalStatus = anyFailed ? "failed" : "sent";
     const latest = await deps.comms.findJobById(job.id);
     if (latest) {
@@ -203,6 +254,7 @@ export async function processCommsOutbox(
         status: terminalStatus,
         provider: provider.name,
         recipientCount: recipients.length,
+        newlySent: pendingRecipients.length,
       }),
       correlationId:
         payload.correlationId ?? options.correlationId ?? uuidv7(),

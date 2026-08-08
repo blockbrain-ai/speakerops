@@ -9,6 +9,8 @@ import { eq, and, isNull } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import {
   createDb,
+  buildAuditEventRow,
+  type AuditWriteInput,
   type D1DatabaseLike,
   type SpeakerOpsDb,
   emailTemplates,
@@ -18,8 +20,23 @@ import {
   calendarInvites,
   outboxEvents,
   idempotencyKeys,
+  auditEvents,
 } from "@speakerops/db";
 import { d1Changes } from "../auth/store.js";
+
+/** Atomic Comms.Send enqueue payload (job + recipients + outbox + idem + audit). */
+export type EnqueueSendAtomicInput = {
+  jobId: string;
+  status: string;
+  idempotencyKey: string;
+  version: number;
+  expectedVersion: number;
+  updatedAt: string;
+  recipients: MessageRecipientRow[];
+  outbox: OutboxEventRow;
+  idempotency: IdempotencyKeyRow;
+  audit: AuditWriteInput;
+};
 
 export type EmailTemplateRow = {
   id: string;
@@ -202,6 +219,20 @@ export type CommsStore = {
 
   findIdempotencyKey(key: string): Promise<IdempotencyKeyRow | null>;
   insertIdempotencyKey(row: IdempotencyKeyRow): Promise<IdempotencyKeyRow>;
+
+  /**
+   * Atomic Comms.Send enqueue (E7 transactional outbox):
+   * job transition + recipients + outbox + idempotency_keys + audit_events.
+   * D1 uses a single batch; Memory applies all writes before returning.
+   * Returns null on version conflict (job not transitioned).
+   *
+   * @param onAudit Memory/tests: write audit into AuthStore so listAudits works.
+   *   D1 ignores this and inserts audit_events inside the same batch.
+   */
+  enqueueSendAtomic(
+    input: EnqueueSendAtomicInput,
+    onAudit?: (row: AuditWriteInput) => Promise<void>,
+  ): Promise<MessageJobRow | null>;
 };
 
 export function newEmailTemplateId(): string {
@@ -519,6 +550,31 @@ export class MemoryCommsStore implements CommsStore {
   ): Promise<IdempotencyKeyRow> {
     this.idemKeys.set(row.key, { ...row });
     return { ...row };
+  }
+
+  async enqueueSendAtomic(
+    input: EnqueueSendAtomicInput,
+    onAudit?: (row: AuditWriteInput) => Promise<void>,
+  ): Promise<MessageJobRow | null> {
+    // Memory: apply all writes as a single logical unit (no partial return).
+    const updated = await this.updateJob(input.jobId, {
+      status: input.status,
+      idempotencyKey: input.idempotencyKey,
+      version: input.version,
+      expectedVersion: input.expectedVersion,
+      updatedAt: input.updatedAt,
+    });
+    if (!updated) return null;
+
+    for (const r of input.recipients) {
+      await this.insertRecipient(r);
+    }
+    await this.insertOutbox(input.outbox);
+    await this.insertIdempotencyKey(input.idempotency);
+    if (onAudit) {
+      await onAudit(input.audit);
+    }
+    return updated;
   }
 }
 
@@ -1068,6 +1124,93 @@ export class D1CommsStore implements CommsStore {
       createdAt: row.createdAt,
     });
     return { ...row };
+  }
+
+  /**
+   * Single D1 batch: job update + recipients + outbox + idempotency + audit.
+   * All-or-nothing for mid-request failure (E7 transactional outbox).
+   */
+  async enqueueSendAtomic(
+    input: EnqueueSendAtomicInput,
+    _onAudit?: (row: AuditWriteInput) => Promise<void>,
+  ): Promise<MessageJobRow | null> {
+    const audit = buildAuditEventRow(input.audit);
+    const jobUpdate = this.db
+      .update(messageJobs)
+      .set({
+        status: input.status,
+        idempotencyKey: input.idempotencyKey,
+        version: input.version,
+        updatedAt: input.updatedAt,
+      })
+      .where(
+        and(
+          eq(messageJobs.id, input.jobId),
+          eq(messageJobs.version, input.expectedVersion),
+        ),
+      );
+
+    const recipientInserts = input.recipients.map((r) =>
+      this.db.insert(messageRecipients).values({
+        id: r.id,
+        jobId: r.jobId,
+        eventId: r.eventId,
+        participationId: r.participationId,
+        toEmail: r.toEmail,
+        name: r.name,
+        subject: r.subject,
+        body: r.body,
+        status: r.status,
+        createdAt: r.createdAt,
+      }),
+    );
+
+    const outboxInsert = this.db.insert(outboxEvents).values({
+      id: input.outbox.id,
+      topic: input.outbox.topic,
+      payloadJson: input.outbox.payloadJson,
+      createdAt: input.outbox.createdAt,
+      processedAt: input.outbox.processedAt,
+      attempts: input.outbox.attempts,
+      lastError: input.outbox.lastError,
+    });
+
+    const idemInsert = this.db.insert(idempotencyKeys).values({
+      id: input.idempotency.id,
+      key: input.idempotency.key,
+      requestHash: input.idempotency.requestHash,
+      responseJson: input.idempotency.responseJson,
+      createdAt: input.idempotency.createdAt,
+    });
+
+    const auditInsert = this.db.insert(auditEvents).values({
+      id: audit.id,
+      eventId: audit.eventId ?? null,
+      actorType: audit.actorType,
+      actorId: audit.actorId,
+      action: audit.action,
+      entityType: audit.entityType,
+      entityId: audit.entityId,
+      beforeJson: audit.beforeJson ?? null,
+      afterJson: audit.afterJson ?? null,
+      correlationId: audit.correlationId,
+      createdAt: audit.createdAt,
+    });
+
+    // Single D1 batch = transactional multi-statement write (E7).
+    const results = await this.db.batch([
+      jobUpdate,
+      ...recipientInserts,
+      outboxInsert,
+      idemInsert,
+      auditInsert,
+    ]);
+    if (d1Changes(results[0]) === 0) {
+      // Version conflict: batch may still have applied inserts on some runtimes.
+      // Prefer null so the command layer can reconcile via idempotency lookup.
+      return null;
+    }
+    return this.findJobById(input.jobId);
   }
 }
 

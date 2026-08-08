@@ -664,13 +664,83 @@ export async function sendComms(
   }
 
   const now = new Date().toISOString();
-  const updated = await deps.comms.updateJob(job.id, {
+  const nextVersion = job.version + 1;
+
+  // Build recipient rows from preview snapshot before any write (I16: to_email).
+  const existingRecipients = await deps.comms.listRecipientsForJob(job.id);
+  const recipientRows =
+    existingRecipients.length > 0
+      ? []
+      : buildRecipientRows(job, now);
+
+  // Provisional DTO for idempotency response payload (status after enqueue).
+  const provisionalJob: MessageJobRow = {
+    ...job,
     status: "queued",
     idempotencyKey: input.body.idempotencyKey,
-    version: job.version + 1,
-    expectedVersion: job.version,
+    version: nextVersion,
     updatedAt: now,
-  });
+  };
+  const response: CommsSendResponse = {
+    job: toJobDto(provisionalJob),
+    enqueued: true,
+  };
+
+  // Single transactional unit (E7): job transition + recipients + outbox +
+  // idempotency_keys + audit_events. No provider HTTP here.
+  const updated = await deps.comms.enqueueSendAtomic(
+    {
+      jobId: job.id,
+      status: "queued",
+      idempotencyKey: input.body.idempotencyKey,
+      version: nextVersion,
+      expectedVersion: job.version,
+      updatedAt: now,
+      recipients: recipientRows,
+      outbox: {
+        id: newOutboxEventId(),
+        topic: COMMS_OUTBOX_TOPIC,
+        payloadJson: JSON.stringify({
+          jobId: job.id,
+          eventId: job.eventId,
+          templateId: job.templateId,
+          idempotencyKey: input.body.idempotencyKey,
+          correlationId: input.correlationId,
+        }),
+        createdAt: now,
+        processedAt: null,
+        attempts: 0,
+        lastError: null,
+      },
+      idempotency: {
+        id: newIdempotencyKeyId(),
+        key: storageKey,
+        requestHash,
+        responseJson: JSON.stringify(response),
+        createdAt: now,
+      },
+      audit: {
+        id: uuidv7(),
+        eventId: job.eventId,
+        actorType: "user",
+        actorId: input.actorUserId,
+        action: "Comms.Send",
+        entityType: "message_job",
+        entityId: job.id,
+        beforeJson: JSON.stringify({ status: job.status, version: job.version }),
+        afterJson: JSON.stringify({
+          status: "queued",
+          version: nextVersion,
+          idempotencyKey: input.body.idempotencyKey,
+          outboxTopic: COMMS_OUTBOX_TOPIC,
+        }),
+        correlationId: input.correlationId,
+        createdAt: now,
+      },
+    },
+    (row) => deps.auth.insertAudit(row),
+  );
+
   if (!updated) {
     // Race: another request may have claimed this preview
     const again = await deps.comms.findJobByIdempotencyKey(
@@ -687,69 +757,20 @@ export async function sendComms(
     };
   }
 
-  // Materialize message_recipients from preview snapshot (I16: to_email).
-  await materializeRecipients(deps.comms, updated);
-
-  // Transactional outbox: request path never waits on provider (E7).
-  // No fetch / Resend / SES / SMTP call here — intentionally absent.
-  await deps.comms.insertOutbox({
-    id: newOutboxEventId(),
-    topic: COMMS_OUTBOX_TOPIC,
-    payloadJson: JSON.stringify({
-      jobId: updated.id,
-      eventId: updated.eventId,
-      templateId: updated.templateId,
-      idempotencyKey: updated.idempotencyKey,
-      correlationId: input.correlationId,
-    }),
-    createdAt: now,
-    processedAt: null,
-    attempts: 0,
-    lastError: null,
-  });
-
-  const response: CommsSendResponse = {
-    job: toJobDto(updated),
-    enqueued: true,
+  return {
+    ok: true,
+    value: {
+      job: toJobDto(updated),
+      enqueued: true,
+    },
   };
-
-  await deps.comms.insertIdempotencyKey({
-    id: newIdempotencyKeyId(),
-    key: storageKey,
-    requestHash,
-    responseJson: JSON.stringify(response),
-    createdAt: now,
-  });
-
-  await deps.auth.insertAudit({
-    id: uuidv7(),
-    eventId: updated.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
-    action: "Comms.Send",
-    entityType: "message_job",
-    entityId: updated.id,
-    beforeJson: JSON.stringify({ status: job.status, version: job.version }),
-    afterJson: JSON.stringify({
-      status: updated.status,
-      version: updated.version,
-      idempotencyKey: updated.idempotencyKey,
-      outboxTopic: COMMS_OUTBOX_TOPIC,
-    }),
-    correlationId: input.correlationId,
-    createdAt: now,
-  });
-
-  return { ok: true, value: response };
 }
 
-async function materializeRecipients(
-  store: CommsStore,
+/** Build message_recipients rows from preview snapshot (no writes). */
+function buildRecipientRows(
   job: MessageJobRow,
-): Promise<void> {
-  const existing = await store.listRecipientsForJob(job.id);
-  if (existing.length > 0) return;
-
+  now: string,
+): import("./store.js").MessageRecipientRow[] {
   let recipients: CommsPreviewRecipient[] = [];
   let bodies: CommsPreviewBodyItem[] = [];
   try {
@@ -763,11 +784,9 @@ async function materializeRecipients(
     bodies = [];
   }
   const bodyByPart = new Map(bodies.map((b) => [b.participationId, b]));
-  const now = new Date().toISOString();
-
-  for (const r of recipients) {
+  return recipients.map((r) => {
     const body = bodyByPart.get(r.participationId);
-    await store.insertRecipient({
+    return {
       id: newMessageRecipientId(),
       jobId: job.id,
       eventId: job.eventId,
@@ -778,8 +797,8 @@ async function materializeRecipients(
       body: body?.body ?? null,
       status: "queued",
       createdAt: now,
-    });
-  }
+    };
+  });
 }
 
 /**

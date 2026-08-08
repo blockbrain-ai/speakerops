@@ -116,8 +116,12 @@ describe("5.2 send idempotent ICS governance", () => {
       commands,
       /from\s+["'](?:resend|@sendgrid|@aws-sdk\/client-ses|nodemailer)/i,
     );
-    assert.match(commands, /insertIdempotencyKey|idempotency/);
-    assert.match(commands, /materializeRecipients|insertRecipient/);
+    assert.match(commands, /idempotency|enqueueSendAtomic/);
+    // Recipients + outbox + idempotency + audit are a single atomic enqueue (E7).
+    assert.match(
+      commands,
+      /enqueueSendAtomic|buildRecipientRows|materializeRecipients|insertRecipient/,
+    );
   });
 
   it("named test assertions present", () => {

@@ -561,4 +561,135 @@ describe("5.2 Comms send idempotent + ICS", () => {
     expect(OPENAPI_COMMANDS).toContain("Comms.IcsForPlacement");
     expect(OPENAPI_COMMANDS).toContain("Comms.Send");
   });
+
+  it("assert multi-recipient crash recovery sends remaining recipients", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-send-partial@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Partial Drain");
+    await seedAcceptedSpeaker(admin, event.id, "partial-a");
+    await seedAcceptedSpeaker(admin, event.id, "partial-b");
+    const { preview } = await upsertAndPreview(
+      admin,
+      event.id,
+      "partial-nudge",
+    );
+    expect(preview.recipientCount).toBe(2);
+
+    const sendRes = await admin.app.request(
+      "http://localhost/api/comms/send",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-send-partial",
+        },
+        body: JSON.stringify({
+          previewId: preview.previewId,
+          idempotencyKey: "idem-partial-1",
+        }),
+      },
+      env,
+    );
+    expect(sendRes.status).toBe(201);
+    const sendBody = CommsSendResponseSchema.parse(await sendRes.json());
+
+    // Simulate crash after first recipient: insert one delivery, leave outbox open.
+    const recipients = await admin.comms.listRecipientsForJob(sendBody.job.id);
+    expect(recipients.length).toBe(2);
+    const first = recipients[0]!;
+    await admin.comms.insertDeliveryEvent({
+      id: "dev_partial_1",
+      jobId: sendBody.job.id,
+      recipientId: first.id,
+      eventId: event.id,
+      provider: "sandbox",
+      providerMessageId: "sandbox-partial-1",
+      status: "sandbox",
+      attempt: 1,
+      error: null,
+      payloadJson: null,
+      createdAt: new Date().toISOString(),
+    });
+    await admin.comms.updateRecipientStatus(first.id, "sandbox");
+
+    const sandbox = new SandboxEmailProvider();
+    const result = await processCommsOutbox({
+      comms: admin.comms,
+      auth: admin.store,
+      provider: sandbox,
+    });
+    // Resume must send only the remaining recipient, not skip the job.
+    expect(sandbox.sent.length).toBe(1);
+    expect(sandbox.sent[0]!.recipientId).toBe(recipients[1]!.id);
+    expect(result.processed + result.failed + result.skipped).toBeGreaterThan(0);
+
+    const deliveries = await admin.comms.listDeliveryEventsForJob(
+      sendBody.job.id,
+    );
+    expect(deliveries.length).toBe(2);
+    const job = await admin.comms.findJobById(sendBody.job.id);
+    expect(job!.status).toBe("sent");
+    const outbox = await admin.comms.listOutboxByTopic(COMMS_OUTBOX_TOPIC);
+    expect(outbox[0]!.processedAt).not.toBeNull();
+  });
+
+  it("assert invalid ICS startsAt returns 400 VALIDATION_ERROR not 500", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-ics-bad-date@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "ICS Bad Date");
+
+    const bad = await admin.app.request(
+      `http://localhost/api/events/${event.id}/comms/ics`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          placementId: "plc_bad",
+          summary: "Talk",
+          startsAt: "not-a-date",
+          endsAt: "2026-06-01T11:00:00.000Z",
+        }),
+      },
+      env,
+    );
+    expect(bad.status).toBe(400);
+    const envBody = ErrorEnvelopeSchema.parse(await bad.json());
+    expect(envBody.code).toBe(VALIDATION_ERROR);
+
+    const order = await admin.app.request(
+      `http://localhost/api/events/${event.id}/comms/ics`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          placementId: "plc_order",
+          summary: "Talk",
+          startsAt: "2026-06-01T12:00:00.000Z",
+          endsAt: "2026-06-01T11:00:00.000Z",
+        }),
+      },
+      env,
+    );
+    expect(order.status).toBe(400);
+    const orderBody = ErrorEnvelopeSchema.parse(await order.json());
+    expect(orderBody.code).toBe(VALIDATION_ERROR);
+  });
+
+  it("production Worker export registers queue and scheduled drains", async () => {
+    const worker = (await import("../../index.js")).default;
+    expect(typeof worker.fetch).toBe("function");
+    expect(typeof worker.queue).toBe("function");
+    expect(typeof worker.scheduled).toBe("function");
+  });
 });

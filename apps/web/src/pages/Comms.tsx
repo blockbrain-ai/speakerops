@@ -114,8 +114,9 @@ export function CommsPage() {
         status: segmentStatus,
         participationIds: selectedParticipationIds,
         templateId,
+        eventId: activeEventId,
       }),
-    [segmentStatus, selectedParticipationIds, templateId],
+    [segmentStatus, selectedParticipationIds, templateId, activeEventId],
   );
 
   const previewValid =
@@ -244,12 +245,29 @@ export function CommsPage() {
     }
   }, []);
 
+  // Event switch: clear event-scoped send state so a still-enabled Send cannot
+  // submit the prior event's preview while the UI shows the new event.
   useEffect(() => {
+    setSelectedParticipationIds([]);
+    setTemplateId(null);
+    setLastSaved(null);
+    setExpectedVersion(null);
+    setTemplateStatus(null);
+    setPreview(null);
+    setPreviewFingerprint(null);
+    setPreviewStatus(null);
+    setSendStatus(null);
+    setLastIdempotencyKey(null);
+    setLastJobId(null);
+    setSelectedJob(null);
+    setLogError(null);
+    setIcsStatus(null);
+    setSpeakers([]);
+    setJobs([]);
+    setInvites([]);
+    setTemplates([]);
+
     if (!activeEventId) {
-      setSpeakers([]);
-      setJobs([]);
-      setInvites([]);
-      setTemplates([]);
       return;
     }
     void loadTemplates(activeEventId);
@@ -395,6 +413,7 @@ export function CommsPage() {
           status: segmentStatus,
           participationIds: selectedParticipationIds,
           templateId,
+          eventId: activeEventId,
         }),
       );
       setPreviewStatus({
