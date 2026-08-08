@@ -36,8 +36,8 @@ pnpm typecheck          # tsc -b project references
 pnpm test:ci            # governance (node:test) + vitest run (watch false)
 pnpm test:e2e           # Playwright (stub until harness)
 pnpm test:e2e:inventory # inventory anti-shrinkage + @inv coverage
-pnpm db:generate        # stub until 1.3
-pnpm db:migrate         # stub until 1.3
+pnpm db:generate        # verify schema + migration inventory (1.3+)
+pnpm db:migrate         # apply packages/db/migrations to local SQLite (1.3+)
 pnpm docs:reports       # stub until Phase 9
 ```
 
@@ -50,7 +50,7 @@ pnpm docs:reports       # stub until Phase 9
 | `apps/api` | Hono Worker composition root (`src/index.ts`) |
 | `apps/web` | React + Vite SPA composition root (`src/main.tsx`) |
 | `packages/shared` | Shared DTOs + Zod + E4 envelopes |
-| `packages/db` | D1/Drizzle (placeholder until 1.3) |
+| `packages/db` | D1/Drizzle schema + migrations (`schema.ts`, `migrations/`) |
 | `packages/cli` | `speakerops` CLI composition root (`src/main.ts`) |
 
 Workspace definition: `pnpm-workspace.yaml` (`apps/*`, `packages/*`).

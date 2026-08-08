@@ -21,6 +21,9 @@ coverage/
 .dev.vars
 *.tsbuildinfo
 
+# Local D1-compatible SQLite from pnpm db:migrate (section 1.3)
+.data/
+
 # Audit scratch (auditor temp)
 .audit/
 .phase-audit/

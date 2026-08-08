@@ -21,6 +21,9 @@
 - AIRTABLE_API_KEY, AIRTABLE_PAT, AIRTABLE_BASE_ID
 - AIRTABLE_TABLE_SUBMISSIONS, SPEAKERS, SESSIONS, TASKS, SCHEDULE
 
+## Non-secret local DB path (section 1.3)
+- `SPEAKEROPS_DB_PATH` — optional path for `pnpm db:migrate` local SQLite (default `.data/speakerops.local.sqlite`). Not a secret; gitignored via `.data/`.
+
 ## Base
 Dogfood base id is in AIRTABLE_BASE_ID. Tables:
 SpeakerOps_Submissions, SpeakerOps_Speakers, SpeakerOps_Sessions, SpeakerOps_Tasks, SpeakerOps_Schedule.

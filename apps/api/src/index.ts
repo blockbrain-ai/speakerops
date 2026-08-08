@@ -8,7 +8,7 @@
  * - wrangler bindings (DB / R2 / Queues names) — see root wrangler.toml
  *
  * Domain routes from COMMANDS.md register here in later sections.
- * Auth / product commands are out of scope for 1.2.
+ * Auth / product commands are out of scope for 1.2; D1 schema is ready via @speakerops/db (1.3).
  *
  * CORS: same-origin policy by default — no open Access-Control-Allow-Origin.
  * SPA and Worker share the dogfood origin (or Vite proxy in local dev);
@@ -19,7 +19,7 @@ import {
   HealthResponseSchema,
   type HealthResponse,
 } from "@speakerops/shared";
-import { createDbPlaceholder } from "@speakerops/db";
+import { createDbMarker, SCHEMA_READY } from "@speakerops/db";
 import {
   correlationMiddleware,
   notFoundHandler,
@@ -58,8 +58,9 @@ export type ApiEnv = {
 export function createApp(): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
 
-  // Ensure db package is wired at composition root (schema lands in 1.3).
-  void createDbPlaceholder();
+  // DB package wired at composition root (1.3 schema ready; domain repos later).
+  void createDbMarker();
+  void SCHEMA_READY;
 
   app.use("*", correlationMiddleware);
 

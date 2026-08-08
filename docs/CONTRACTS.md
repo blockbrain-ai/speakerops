@@ -21,6 +21,7 @@
 | **Domain and command map (0.4)** | [`docs/governance/0.4-domain-map.md`](./governance/0.4-domain-map.md) | Person≠Speaker; command summary; scope default-deny; FE/CLI/API alignment |
 | **Docs and onboarding outline (0.5)** | [`docs/governance/0.5-docs-onboarding-outline.md`](./governance/0.5-docs-onboarding-outline.md) | Phase 9 `docs/` tree + `reports/` HTML portal; human vs agent paths; 9.6 evidence |
 | Schema | [`KMS-competition/initiative/contracts/SCHEMA.md`](../KMS-competition/initiative/contracts/SCHEMA.md) | D1 tables; section ownership; no invented columns |
+| D1 baseline (1.3) | [`docs/sections/1.3-d1-baseline.md`](./sections/1.3-d1-baseline.md) | Drizzle `packages/db/schema.ts` + `migrations/0001_baseline.sql`; `pnpm db:migrate` |
 | Commands | [`KMS-competition/initiative/contracts/COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) | Named domain commands; HTTP/CLI 1:1 |
 | Scopes | [`KMS-competition/initiative/contracts/SCOPES.md`](../KMS-competition/initiative/contracts/SCOPES.md) | API key scopes; default-deny high-risk |
 | CLI inventory | [`KMS-competition/initiative/contracts/CLI_INVENTORY.md`](../KMS-competition/initiative/contracts/CLI_INVENTORY.md) | CLI surface parity |

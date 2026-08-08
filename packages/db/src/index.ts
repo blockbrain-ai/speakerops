@@ -1,21 +1,73 @@
 /**
- * @speakerops/db — D1 + Drizzle composition root (placeholder until 1.3).
+ * @speakerops/db — D1 + Drizzle composition root (section 1.3).
  *
- * Real schema lives in SCHEMA.md and lands with section 1.3
- * (`packages/db/schema.ts` + `migrations/`). No invented tables here.
+ * Schema: packages/db/schema.ts (E1 path)
+ * Migrations: packages/db/migrations/ (linear additive)
+ * Repositories: eventId scoping helpers in repository.ts
  */
+export {
+  organizations,
+  events,
+  auditEvents,
+  outboxEvents,
+  idempotencyKeys,
+  baselineTables,
+  schema,
+  type Organization,
+  type NewOrganization,
+  type Event,
+  type NewEvent,
+  type AuditEvent,
+  type NewAuditEvent,
+  type OutboxEvent,
+  type NewOutboxEvent,
+  type IdempotencyKey,
+  type NewIdempotencyKey,
+} from "../schema.js";
 
-/** Placeholder marker so dependents can import the package before schema exists. */
+export {
+  createDb,
+  SCHEMA_READY,
+  type D1DatabaseLike,
+  type SpeakerOpsDb,
+} from "./client.js";
+
+export {
+  requireEventId,
+  withEventScope,
+  eventScoped,
+  buildAuditEventRow,
+  MissingEventIdError,
+  type EventScopedOptions,
+  type AuditWriteInput,
+} from "./repository.js";
+
+export {
+  migrate,
+  inspectSchema,
+  defaultDbPath,
+  defaultMigrationsDir,
+  resolveDbPackageRoot,
+  BASELINE_TABLES,
+  type MigrateOptions,
+  type MigrateResult,
+} from "./migrate.js";
+
 export const DB_PACKAGE = "@speakerops/db" as const;
 
-export type DbPlaceholder = {
+export type DbReady = {
   readonly packageName: typeof DB_PACKAGE;
-  readonly schemaReady: false;
+  readonly schemaReady: true;
 };
 
-export function createDbPlaceholder(): DbPlaceholder {
+export function createDbMarker(): DbReady {
   return {
     packageName: DB_PACKAGE,
-    schemaReady: false,
+    schemaReady: true,
   };
+}
+
+/** @deprecated Use createDbMarker — kept so prior imports fail loudly if still stub-shaped. */
+export function createDbPlaceholder(): DbReady {
+  return createDbMarker();
 }

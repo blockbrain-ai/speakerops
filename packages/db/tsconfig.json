@@ -2,9 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
-    "composite": true
+    "rootDir": ".",
+    "composite": true,
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["dist"]
+  "include": ["schema.ts", "index.ts", "src/**/*.ts"],
+  "exclude": ["dist", "migrations", "src/**/*.test.ts", "**/*.test.ts"]
 }

@@ -5,18 +5,31 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.js"
     }
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist",
+    "schema.ts",
+    "migrations"
+  ],
   "scripts": {
     "typecheck": "tsc -b --pretty false",
     "build": "tsc -b"
   },
+  "dependencies": {
+    "drizzle-orm": "^0.44.2",
+    "sql.js": "^1.14.1"
+  },
   "devDependencies": {
+    "@types/sql.js": "^1.4.11",
     "typescript": "^5.5.4"
   }
 }

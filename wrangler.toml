@@ -13,10 +13,12 @@ APP_VERSION = "0.1.0"
 
 # D1 — binding name MUST be DB (AC: wrangler.toml lists D1 database binding name DB)
 # database_id is a resource placeholder, not a secret; replace at deploy time.
+# migrations_dir: same SQL as pnpm db:migrate (section 1.3 baseline + additive later).
 [[d1_databases]]
 binding = "DB"
 database_name = "speakerops"
 database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "packages/db/migrations"
 
 # R2 — binding name placeholder (files / uploads land in later sections)
 [[r2_buckets]]
