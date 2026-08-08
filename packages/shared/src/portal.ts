@@ -187,6 +187,12 @@ export const TaskTemplateResponseSchema = z.object({
 });
 export type TaskTemplateResponse = z.infer<typeof TaskTemplateResponseSchema>;
 
+/** TaskTemplate.Delete body — optimistic concurrency (E1). */
+export const TaskTemplateDeleteBodySchema = z.object({
+  expectedVersion: z.number().int().positive(),
+});
+export type TaskTemplateDeleteBody = z.infer<typeof TaskTemplateDeleteBodySchema>;
+
 export const TaskTemplateDeleteResponseSchema = z.object({
   deleted: z.literal(true),
   id: z.string().min(1),

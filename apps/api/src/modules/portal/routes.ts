@@ -26,6 +26,7 @@ import {
   AdminSpeakerDetailResponseSchema,
   TaskTemplateCreateBodySchema,
   TaskTemplateUpdateBodySchema,
+  TaskTemplateDeleteBodySchema,
   TaskTemplateListResponseSchema,
   TaskTemplateResponseSchema,
   TaskTemplateDeleteResponseSchema,
@@ -482,6 +483,7 @@ export function createEventPortalRoutes(
 
   /**
    * DELETE /:eventId/task-templates/:templateId — delete (O05)
+   * Body: { expectedVersion } for E1 optimistic concurrency.
    */
   app.delete(
     "/:eventId/task-templates/:templateId",
@@ -489,6 +491,26 @@ export function createEventPortalRoutes(
     async (c) => {
       const eventId = c.req.param("eventId");
       const templateId = c.req.param("templateId");
+      let bodyRaw: unknown;
+      try {
+        bodyRaw = await c.req.json();
+      } catch {
+        return c.json(
+          errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
+          400,
+        );
+      }
+      const body = TaskTemplateDeleteBodySchema.safeParse(bodyRaw);
+      if (!body.success) {
+        return c.json(
+          errorEnvelope(
+            "Validation failed",
+            VALIDATION_ERROR,
+            body.error.flatten(),
+          ),
+          400,
+        );
+      }
       const user = c.get("user");
       if (!user) {
         return c.json(errorEnvelope("Authentication required", UNAUTHORIZED), 401);
@@ -498,6 +520,7 @@ export function createEventPortalRoutes(
       const result = await deleteTaskTemplate(deps, {
         eventId,
         templateId,
+        expectedVersion: body.data.expectedVersion,
         actorUserId: user.id,
         correlationId,
       });

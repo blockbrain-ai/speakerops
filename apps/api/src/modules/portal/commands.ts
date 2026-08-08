@@ -915,12 +915,13 @@ export async function updateTaskTemplate(
   return { ok: true, value: { template: toTemplateDto(updated) } };
 }
 
-/** TaskTemplate.Delete — admin O05 */
+/** TaskTemplate.Delete — admin O05 (E1 optimistic concurrency via expectedVersion) */
 export async function deleteTaskTemplate(
   deps: PortalCommandDeps,
   input: {
     eventId: string;
     templateId: string;
+    expectedVersion: number;
     actorUserId: string;
     correlationId: string;
   },
@@ -935,7 +936,36 @@ export async function deleteTaskTemplate(
     };
   }
 
-  await deps.decisions.deleteTaskTemplate(input.templateId);
+  if (existing.version !== input.expectedVersion) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Template version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.expectedVersion,
+        version: existing.version,
+      },
+    };
+  }
+
+  const deleted = await deps.decisions.deleteTaskTemplate(
+    input.templateId,
+    input.expectedVersion,
+  );
+  if (!deleted) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Template version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.expectedVersion,
+        version: existing.version,
+      },
+    };
+  }
+
   const now = new Date().toISOString();
   await deps.auth.insertAudit({
     id: uuidv7(),

@@ -911,7 +911,8 @@ export const PORTAL_OPENAPI_PATHS = {
     delete: {
       operationId: "TaskTemplate.Delete",
       summary: "TaskTemplate.Delete",
-      description: "Admin delete task template (O05)",
+      description:
+        "Admin delete task template (O05). Requires expectedVersion for E1 optimistic concurrency.",
       tags: ["TaskTemplate"],
       parameters: [
         {
@@ -927,11 +928,27 @@ export const PORTAL_OPENAPI_PATHS = {
           schema: { type: "string" },
         },
       ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["expectedVersion"],
+              properties: {
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
       responses: {
         "200": { description: "Template deleted" },
+        "400": { description: "Validation error" },
         "401": { description: "Unauthenticated" },
         "403": { description: "Forbidden role" },
         "404": { description: "Not found" },
+        "409": { description: "expectedVersion conflict" },
       },
     },
   },

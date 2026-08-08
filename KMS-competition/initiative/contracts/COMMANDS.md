@@ -52,8 +52,8 @@ Auth: session cookie **or** API key with scopes.
 |---------|-------|-------|--------|
 | `Portal.GetHome` | speaker | eventId | tasks, sessions |
 | `Participation.UpdateProfile` | speaker | participationId, bio, …, expectedVersion | participation |
-| `File.PresignUpload` | files:write / speaker / admin | eventId, purpose, mime, size (≤10 MiB), filename? | { url, fileId, mime, purpose, expiresAt } |
-| `File.Upload` | files:write / admin (session) | fileId, eventId (query), raw body (PNG for logo) | { fileId, uploaded: true, size } — Worker-hosted body transfer for the presign `url` (dogfood/local; production may use R2 signed PUT then CompleteUpload). Enforces declared size, 10 MiB max, `expiresAt` (presign TTL from `created_at`), single-use (reject if already `uploaded`) |
+| `File.PresignUpload` | files:write / speaker / admin | eventId, purpose, mime, size (≤10 MiB), filename?, **ownerParticipationId** (required when purpose is `headshot` or `slides`; ignored/null for `logo`) | { url, fileId, mime, purpose, expiresAt } |
+| `File.Upload` | files:write / admin (session) | fileId, eventId (query), raw body (PNG for logo; jpeg/png headshot; pdf slides) | { fileId, uploaded: true, size } — Worker-hosted body transfer for the presign `url` (dogfood/local; production may use R2 signed PUT then CompleteUpload). Enforces declared size, 10 MiB max, `expiresAt` (presign TTL from `created_at`), single-use (reject if already `uploaded`) |
 | `File.CompleteUpload` | files:write / speaker | fileId, checksum | file_asset (portal/checksum path; sets checksum; may also mark ready) |
 | `File.GetPublic` | public | fileId | image bytes — only when `purpose=logo`, `uploaded=1`, and `logoFileId` is on the event's **published** design tokens (draft-only logos stay private) |
 | `Task.Complete` | speaker | taskId, expectedVersion | task |
@@ -61,8 +61,8 @@ Auth: session cookie **or** API key with scopes.
 | `Speakers.Get` | admin | eventId, participationId | detail: tasks + files meta |
 | `TaskTemplate.List` | admin | eventId | templates[] |
 | `TaskTemplate.Create` | admin | eventId, title, description?, trigger, dueOffsetDays | template |
-| `TaskTemplate.Update` | admin | eventId, templateId, patch | template |
-| `TaskTemplate.Delete` | admin | eventId, templateId | { deleted: true } |
+| `TaskTemplate.Update` | admin | eventId, templateId, patch (title?, description?, trigger?, dueOffsetDays?), **expectedVersion** (required; E1 optimistic concurrency) | template \| 409 on version conflict |
+| `TaskTemplate.Delete` | admin | eventId, templateId, **expectedVersion** (required; E1 optimistic concurrency) | { deleted: true, id } \| 409 on version conflict |
 
 ## Schedule
 | Command | Scope | Input | Output |

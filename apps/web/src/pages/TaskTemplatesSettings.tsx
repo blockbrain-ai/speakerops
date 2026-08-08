@@ -124,16 +124,20 @@ export function TaskTemplatesSettingsPage() {
     }
   }
 
-  async function onDelete(templateId: string) {
+  async function onDelete(template: TaskTemplateDto) {
     if (!activeEventId) return;
     setStatus(null);
     try {
       const res = await fetch(
-        `/api/events/${encodeURIComponent(activeEventId)}/task-templates/${encodeURIComponent(templateId)}`,
+        `/api/events/${encodeURIComponent(activeEventId)}/task-templates/${encodeURIComponent(template.id)}`,
         {
           method: "DELETE",
           credentials: "include",
-          headers: { accept: "application/json" },
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ expectedVersion: template.version }),
         },
       );
       const raw: unknown = await res.json().catch(() => null);
@@ -239,7 +243,7 @@ export function TaskTemplatesSettingsPage() {
                       type="button"
                       className="eval-queue__link lumen-focusable"
                       data-testid={`task-template-delete-${t.id}`}
-                      onClick={() => void onDelete(t.id)}
+                      onClick={() => void onDelete(t)}
                     >
                       Delete
                     </button>

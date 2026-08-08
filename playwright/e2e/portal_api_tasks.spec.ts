@@ -429,11 +429,14 @@ test("@inv:N04 e2e/admin/speakers-files Open headshot/slides metadata; no cross-
     `N04 Talk B ${run}`,
   );
 
-  // Upload headshot + slides for speaker A (admin path; ownership bound to participation)
-  const miniJpeg = new Uint8Array([
+  // Upload headshot + slides for speaker A (admin path; ownership bound to participation).
+  // Use Buffer (not Uint8Array): Playwright APIRequestContext serializes Uint8Array as a
+  // JSON number array, so the body length would not match the presigned size and File.Upload
+  // would return 400 ("Upload exceeds presigned declared size" / empty / invalid magic).
+  const miniJpeg = Buffer.from([
     0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
   ]);
-  const miniPdf = new Uint8Array([
+  const miniPdf = Buffer.from([
     0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xc7, 0xec,
   ]);
 
@@ -441,7 +444,7 @@ test("@inv:N04 e2e/admin/speakers-files Open headshot/slides metadata; no cross-
     purpose: "headshot" | "slides",
     participationId: string,
     mime: string,
-    bytes: Uint8Array,
+    bytes: Buffer,
     filename: string,
   ): Promise<string> {
     const presign = await request.post("/api/files/presign", {

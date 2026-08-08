@@ -349,6 +349,8 @@ export {
   type TaskTemplateListResponse,
   TaskTemplateResponseSchema,
   type TaskTemplateResponse,
+  TaskTemplateDeleteBodySchema,
+  type TaskTemplateDeleteBody,
   TaskTemplateDeleteResponseSchema,
   type TaskTemplateDeleteResponse,
 } from "./portal.js";

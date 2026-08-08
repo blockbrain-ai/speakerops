@@ -709,14 +709,56 @@ describe("4.1 portal API", () => {
       VALIDATION_ERROR,
     );
 
+    // Stale expectedVersion on delete → 409
+    const staleDel = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates/${created.template.id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          expectedVersion: created.template.version,
+        }),
+      },
+      env,
+    );
+    expect(staleDel.status).toBe(409);
+    expect(ErrorEnvelopeSchema.parse(await staleDel.json()).code).toBe(
+      CONFLICT,
+    );
+
+    // Missing expectedVersion → 400
+    const noVerDel = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates/${created.template.id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    expect(noVerDel.status).toBe(400);
+    expect(ErrorEnvelopeSchema.parse(await noVerDel.json()).code).toBe(
+      VALIDATION_ERROR,
+    );
+
     const del = await admin.app.request(
       `http://localhost/api/events/${event.id}/task-templates/${created.template.id}`,
       {
         method: "DELETE",
         headers: {
+          "content-type": "application/json",
           cookie: admin.cookie,
           "x-correlation-id": "corr-tpl-delete",
         },
+        body: JSON.stringify({
+          expectedVersion: updatedTpl.template.version,
+        }),
       },
       env,
     );

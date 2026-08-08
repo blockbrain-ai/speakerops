@@ -163,7 +163,11 @@ export type DecisionsStore = {
       expectedVersion: number;
     },
   ): Promise<TaskTemplateRow | null>;
-  deleteTaskTemplate(id: string): Promise<boolean>;
+  /**
+   * Conditional delete: WHERE id AND version = expectedVersion.
+   * Returns false on missing row or version conflict (no row deleted).
+   */
+  deleteTaskTemplate(id: string, expectedVersion: number): Promise<boolean>;
 
   insertSpeakerTask(row: SpeakerTaskRow): Promise<SpeakerTaskRow>;
   findSpeakerTask(
@@ -455,7 +459,12 @@ export class MemoryDecisionsStore implements DecisionsStore {
     return { ...next };
   }
 
-  async deleteTaskTemplate(id: string): Promise<boolean> {
+  async deleteTaskTemplate(
+    id: string,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    const existing = this.templates.get(id);
+    if (!existing || existing.version !== expectedVersion) return false;
     return this.templates.delete(id);
   }
 
@@ -945,11 +954,19 @@ export class D1DecisionsStore implements DecisionsStore {
     return this.findTaskTemplateById(id);
   }
 
-  async deleteTaskTemplate(id: string): Promise<boolean> {
-    const existing = await this.findTaskTemplateById(id);
-    if (!existing) return false;
-    await this.db.delete(taskTemplates).where(eq(taskTemplates.id, id));
-    return true;
+  async deleteTaskTemplate(
+    id: string,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    const result = await this.db
+      .delete(taskTemplates)
+      .where(
+        and(
+          eq(taskTemplates.id, id),
+          eq(taskTemplates.version, expectedVersion),
+        ),
+      );
+    return d1Changes(result) > 0;
   }
 
   async insertSpeakerTask(row: SpeakerTaskRow): Promise<SpeakerTaskRow> {
