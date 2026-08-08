@@ -26,19 +26,53 @@ import { d1Changes } from "../auth/store.js";
 
 /**
  * Outbox exclusive lease encoded in last_error (no schema migration).
- * Format: claim:<claimedUntilISO>:<claimToken>
+ * Format: claim:<claimedUntilISO24>:<claimToken>
+ * claimedUntil is always Date.toISOString() (fixed 24 chars) so parsers and
+ * D1 substr(last_error, 7, 24) stay aligned — ISO contains colons and must
+ * not be split on the first ":".
  * Active while processed_at IS NULL and claimedUntil > now.
  */
 export const OUTBOX_CLAIM_PREFIX = "claim:";
 
+/** Date.toISOString() length (YYYY-MM-DDTHH:mm:ss.sssZ). */
+export const OUTBOX_CLAIM_UNTIL_LEN = 24;
+
 /** Default exclusive-drain lease (ms). Concurrent queue + cron must not overlap. */
 export const OUTBOX_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+/**
+ * Normalize claim expiry to fixed-width ISO-8601 for unambiguous parse/D1.
+ */
+export function normalizeOutboxClaimUntil(claimedUntil: string): string {
+  if (claimedUntil.length === OUTBOX_CLAIM_UNTIL_LEN) return claimedUntil;
+  const ms = Date.parse(claimedUntil);
+  if (Number.isNaN(ms)) {
+    throw new Error(`Invalid outbox claim until: ${claimedUntil}`);
+  }
+  return new Date(ms).toISOString();
+}
 
 export function formatOutboxClaim(
   claimedUntil: string,
   claimToken: string,
 ): string {
-  return `${OUTBOX_CLAIM_PREFIX}${claimedUntil}:${claimToken}`;
+  const until = normalizeOutboxClaimUntil(claimedUntil);
+  return `${OUTBOX_CLAIM_PREFIX}${until}:${claimToken}`;
+}
+
+/** Parse claim:<ISO24>:<token> into until + token, or null if malformed. */
+export function parseOutboxClaim(
+  lastError: string | null | undefined,
+): { until: string; token: string } | null {
+  if (!lastError || !lastError.startsWith(OUTBOX_CLAIM_PREFIX)) return null;
+  const rest = lastError.slice(OUTBOX_CLAIM_PREFIX.length);
+  // Need ISO24 + ":" + non-empty token
+  if (rest.length < OUTBOX_CLAIM_UNTIL_LEN + 2) return null;
+  if (rest.charAt(OUTBOX_CLAIM_UNTIL_LEN) !== ":") return null;
+  const until = rest.slice(0, OUTBOX_CLAIM_UNTIL_LEN);
+  const token = rest.slice(OUTBOX_CLAIM_UNTIL_LEN + 1);
+  if (token.length === 0) return null;
+  return { until, token };
 }
 
 /** True when lastError is an unexpired exclusive claim. */
@@ -46,24 +80,16 @@ export function isActiveOutboxClaim(
   lastError: string | null | undefined,
   nowIso: string,
 ): boolean {
-  if (!lastError || !lastError.startsWith(OUTBOX_CLAIM_PREFIX)) return false;
-  const rest = lastError.slice(OUTBOX_CLAIM_PREFIX.length);
-  const sep = rest.indexOf(":");
-  if (sep <= 0) return false;
-  const until = rest.slice(0, sep);
+  const parsed = parseOutboxClaim(lastError);
+  if (!parsed) return false;
   // ISO-8601 timestamps compare lexicographically.
-  return until > nowIso;
+  return parsed.until > nowIso;
 }
 
 export function parseOutboxClaimToken(
   lastError: string | null | undefined,
 ): string | null {
-  if (!lastError || !lastError.startsWith(OUTBOX_CLAIM_PREFIX)) return null;
-  const rest = lastError.slice(OUTBOX_CLAIM_PREFIX.length);
-  const sep = rest.indexOf(":");
-  if (sep < 0) return null;
-  const token = rest.slice(sep + 1);
-  return token.length > 0 ? token : null;
+  return parseOutboxClaim(lastError)?.token ?? null;
 }
 
 /** Atomic Comms.Send enqueue payload (job + recipients + outbox + idem + audit). */
@@ -219,7 +245,7 @@ export type CommsStore = {
   /**
    * Atomic exclusive claim for drain (queue consumer vs cron).
    * Returns null if already processed or another worker holds an unexpired lease.
-   * Stores claim in last_error as claim:<until>:<token>.
+   * Stores claim in last_error as claim:<ISO24>:<token>.
    */
   claimOutboxForProcessing(
     id: string,
@@ -1383,20 +1409,21 @@ export class D1CommsStore implements CommsStore {
   }
 
   /**
-   * Atomic Comms.Send enqueue (E7):
-   * 1) Conditional job version claim (standalone) — 0 rows → null, no side effects.
-   * 2) Recipients + outbox + idempotency + audit in one D1 batch.
+   * Atomic Comms.Send enqueue (E7 transactional outbox):
+   * Single D1 batch = job transition + recipients + outbox + idempotency + audit.
+   * All-or-nothing on statement failure (job never left queued without outbox).
    *
-   * D1 batch does not treat "UPDATE matched 0 rows" as an error, so the job
-   * claim MUST run before inserts. Otherwise a version conflict still commits
-   * orphan recipients/outbox/idempotency/audit (concurrent different keys).
+   * Side-effect inserts are version-gated (INSERT…SELECT WHERE job.version =
+   * post-update version) so a concurrent version conflict (UPDATE 0 rows) does
+   * not commit orphan recipients/outbox/idempotency/audit.
    */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
     _onAudit?: (row: AuditWriteInput) => Promise<void>,
   ): Promise<MessageJobRow | null> {
-    // Gate: only the version winner proceeds to side-effect inserts.
-    const claimResult = await this.db
+    const audit = buildAuditEventRow(input.audit);
+
+    const jobUpdate = this.db
       .update(messageJobs)
       .set({
         status: input.status,
@@ -1410,70 +1437,128 @@ export class D1CommsStore implements CommsStore {
           eq(messageJobs.version, input.expectedVersion),
         ),
       );
-    if (d1Changes(claimResult) === 0) {
-      return null;
-    }
 
-    const audit = buildAuditEventRow(input.audit);
-    const recipientInserts = input.recipients.map((r) =>
-      this.db.insert(messageRecipients).values({
-        id: r.id,
-        jobId: r.jobId,
-        eventId: r.eventId,
-        participationId: r.participationId,
-        toEmail: r.toEmail,
-        name: r.name,
-        subject: r.subject,
-        body: r.body,
-        status: r.status,
-        createdAt: r.createdAt,
-      }),
+    // Gate for conditional inserts: only when this batch's job UPDATE won.
+    // Visible to later statements in the same D1 batch transaction.
+    const jobWon = and(
+      eq(messageJobs.id, input.jobId),
+      eq(messageJobs.version, input.version),
     );
 
-    const outboxInsert = this.db.insert(outboxEvents).values({
-      id: input.outbox.id,
-      topic: input.outbox.topic,
-      payloadJson: input.outbox.payloadJson,
-      createdAt: input.outbox.createdAt,
-      processedAt: input.outbox.processedAt,
-      attempts: input.outbox.attempts,
-      lastError: input.outbox.lastError,
-    });
+    const recipientInserts = input.recipients.map((r) =>
+      this.db.insert(messageRecipients).select(
+        this.db
+          .select({
+            id: sql<string>`${r.id}`.as("id"),
+            jobId: sql<string>`${r.jobId}`.as("job_id"),
+            eventId: sql<string>`${r.eventId}`.as("event_id"),
+            participationId: sql<string | null>`${r.participationId}`.as(
+              "participation_id",
+            ),
+            toEmail: sql<string>`${r.toEmail}`.as("to_email"),
+            name: sql<string | null>`${r.name}`.as("name"),
+            subject: sql<string | null>`${r.subject}`.as("subject"),
+            body: sql<string | null>`${r.body}`.as("body"),
+            status: sql<string>`${r.status}`.as("status"),
+            createdAt: sql<string>`${r.createdAt}`.as("created_at"),
+          })
+          .from(messageJobs)
+          .where(jobWon)
+          .limit(1),
+      ),
+    );
 
-    const idemInsert = this.db.insert(idempotencyKeys).values({
-      id: input.idempotency.id,
-      key: input.idempotency.key,
-      requestHash: input.idempotency.requestHash,
-      responseJson: input.idempotency.responseJson,
-      createdAt: input.idempotency.createdAt,
-    });
+    const outboxInsert = this.db.insert(outboxEvents).select(
+      this.db
+        .select({
+          id: sql<string>`${input.outbox.id}`.as("id"),
+          topic: sql<string>`${input.outbox.topic}`.as("topic"),
+          payloadJson: sql<string>`${input.outbox.payloadJson}`.as(
+            "payload_json",
+          ),
+          createdAt: sql<string>`${input.outbox.createdAt}`.as("created_at"),
+          processedAt: sql<string | null>`${input.outbox.processedAt}`.as(
+            "processed_at",
+          ),
+          attempts: sql<number>`${input.outbox.attempts}`.as("attempts"),
+          lastError: sql<string | null>`${input.outbox.lastError}`.as(
+            "last_error",
+          ),
+        })
+        .from(messageJobs)
+        .where(jobWon)
+        .limit(1),
+    );
 
-    const auditInsert = this.db.insert(auditEvents).values({
-      id: audit.id,
-      eventId: audit.eventId ?? null,
-      actorType: audit.actorType,
-      actorId: audit.actorId,
-      action: audit.action,
-      entityType: audit.entityType,
-      entityId: audit.entityId,
-      beforeJson: audit.beforeJson ?? null,
-      afterJson: audit.afterJson ?? null,
-      correlationId: audit.correlationId,
-      createdAt: audit.createdAt,
-    });
+    const idemInsert = this.db.insert(idempotencyKeys).select(
+      this.db
+        .select({
+          id: sql<string>`${input.idempotency.id}`.as("id"),
+          key: sql<string>`${input.idempotency.key}`.as("key"),
+          requestHash: sql<string>`${input.idempotency.requestHash}`.as(
+            "request_hash",
+          ),
+          responseJson: sql<string | null>`${input.idempotency.responseJson}`.as(
+            "response_json",
+          ),
+          createdAt: sql<string>`${input.idempotency.createdAt}`.as(
+            "created_at",
+          ),
+        })
+        .from(messageJobs)
+        .where(jobWon)
+        .limit(1),
+    );
 
-    // Side effects only after the version claim succeeded.
-    // D1 batch requires a non-empty tuple type; outbox + idem + audit always present.
+    const auditInsert = this.db.insert(auditEvents).select(
+      this.db
+        .select({
+          id: sql<string>`${audit.id}`.as("id"),
+          eventId: sql<string | null>`${audit.eventId ?? null}`.as("event_id"),
+          actorType: sql<string>`${audit.actorType}`.as("actor_type"),
+          actorId: sql<string>`${audit.actorId}`.as("actor_id"),
+          action: sql<string>`${audit.action}`.as("action"),
+          entityType: sql<string>`${audit.entityType}`.as("entity_type"),
+          entityId: sql<string>`${audit.entityId}`.as("entity_id"),
+          beforeJson: sql<string | null>`${audit.beforeJson ?? null}`.as(
+            "before_json",
+          ),
+          afterJson: sql<string | null>`${audit.afterJson ?? null}`.as(
+            "after_json",
+          ),
+          correlationId: sql<string>`${audit.correlationId}`.as(
+            "correlation_id",
+          ),
+          createdAt: sql<string>`${audit.createdAt}`.as("created_at"),
+        })
+        .from(messageJobs)
+        .where(jobWon)
+        .limit(1),
+    );
+
+    // Single D1 batch: job + side effects commit or roll back together (E7).
+    // D1 batch requires a non-empty tuple type.
+    let results: unknown[];
     if (recipientInserts.length === 0) {
-      await this.db.batch([outboxInsert, idemInsert, auditInsert]);
+      results = await this.db.batch([
+        jobUpdate,
+        outboxInsert,
+        idemInsert,
+        auditInsert,
+      ]);
     } else {
-      await this.db.batch([
+      results = await this.db.batch([
+        jobUpdate,
         recipientInserts[0]!,
         ...recipientInserts.slice(1),
         outboxInsert,
         idemInsert,
         auditInsert,
       ]);
+    }
+    if (d1Changes(results[0]) === 0) {
+      // Version conflict: conditional inserts inserted 0 rows; no orphans.
+      return null;
     }
     return this.findJobById(input.jobId);
   }
