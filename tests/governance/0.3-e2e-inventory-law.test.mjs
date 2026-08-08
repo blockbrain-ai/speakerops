@@ -690,13 +690,14 @@ describe("0.3 Browser E2E inventory law", () => {
 
   it("Phase 8 gate rejects string-literal import spoof + local test rebinding", () => {
     // Auditor regression: decoy string containing import text must not count
-    // as a Playwright binding when the real `test` is a local no-op.
+    // as a Playwright binding. Uses identifier RHS (`noop`) so shadow-via-paren
+    // alone cannot be the only defence — import masking must reject the decoy.
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
     assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
     const spoofBody =
       'const decoy = "import { test } from \'@playwright/test\'";\n' +
-      "const test = (..._args) => {};\n" +
+      "const test = noop;\n" +
       ids
         .map((id) => {
           const testId = baseline.fingerprints[id]?.test_id || id;
@@ -721,13 +722,80 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 
+  it("Phase 8 gate rejects bare decoy-import string with tagged test() calls", () => {
+    // Stronger spoof: import text only inside a string; no local binding.
+    // Static regex must not treat the decoy as a Playwright import.
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    const spoofBody =
+      'const decoy = "import { test } from \'@playwright/test\'";\n' +
+      ids
+        .map((id) => {
+          const testId = baseline.fingerprints[id]?.test_id || id;
+          return `test(${JSON.stringify(`@inv:${id} ${testId}`)}, async () => {});`;
+        })
+        .join("\n") +
+      "\n";
+    const r = runLintInProbe({
+      inventoryMutate: markAllStatusesPass,
+      e2eFiles: { "decoy-import-only.spec.ts": spoofBody },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must not accept decoy-import string alone as Playwright binding:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects @inv that appears only inside a string despite real Playwright import", () => {
+    // Call site must be outside strings — string-embedded test("@inv:…") is not coverage.
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test } from '@playwright/test';\n" +
+          'const decoy = \'test("@inv:A01 e2e/public/cfp-load", async () => {})\';\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `string-embedded test("@inv") must not satisfy coverage:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /outside|comments|missing @inv|no-op|Playwright-bound|A01/i,
+      `must diagnose string-only @inv:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("accepts real test() when a string contains shadow/import decoy text", () => {
+    // Anti-oscillation: string interiors must not unbind a real import or hide a real call.
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          "import { test } from '@playwright/test';\n" +
+          'const shadowDecoy = "const test = (";\n' +
+          'const importDecoy = "import { test } from \'@playwright/test\'";\n' +
+          'test("@inv:A01 e2e/public/cfp-load real despite decoys", async () => {});\n',
+      },
+    });
+    assert.equal(
+      r.status,
+      0,
+      `real Playwright test must pass despite decoy strings:\n${fmtResult(r)}`,
+    );
+  });
+
   it("rejects real import shadowed by local const test = noop", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       e2eFiles: {
         "public/cfp-load.spec.ts":
-          "import { test as base } from '@playwright/test';\n" +
-          "const test = (..._args) => {};\n" +
+          "import { test } from '@playwright/test';\n" +
+          "const test = noop;\n" +
           'test("@inv:A01 e2e/public/cfp-load shadowed", async () => {});\n',
       },
     });

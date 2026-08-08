@@ -27,11 +27,13 @@
  * title whose callee is bound to the Playwright `test` export (import from
  * `@playwright/test`, optionally rebound via `.extend()`). Local no-op
  * `const test = (...) => {}` without a Playwright binding does not count.
+ * Structural matching (imports, rebinds, shadows, call sites) ignores
+ * string/template interiors — decoy strings cannot spoof an import or a
+ * `test(...)` declaration. Title text is read only from real call sites.
  * Strict 1:1 inventory map: exactly one `@inv:ID` per test title.
- * Comments, string literals outside test titles, multi-tag titles,
- * skipped/fixme/fail-only coverage (test.fail is expected-failure, not
- * dogfood proof), duplicate active owners, and missing `test_id` path
- * anchors do not satisfy the gate.
+ * Comments, bare strings, multi-tag titles, skipped/fixme/fail-only
+ * coverage (test.fail is expected-failure, not dogfood proof), duplicate
+ * active owners, and missing `test_id` path anchors do not satisfy the gate.
  *
  * Does not claim S-E2E-RUN (full browser run) — that is Phase 8 Playwright.
  */
@@ -266,7 +268,140 @@ export function maskStringLiterals(code) {
   return result;
 }
 
+/**
+ * Bitmap of indexes inside any string or template literal (incl. delimiters
+ * and module-specifier strings). Template `${ … }` expression bodies are
+ * left unmarked (they are real code); nested strings inside them are marked.
+ *
+ * Used by call-site extraction so a string containing `test("@inv:…")` cannot
+ * green-wash inventory coverage when a real Playwright import is also present.
+ *
+ * @param {string} code comment-stripped source
+ * @returns {Uint8Array} 1 = inside string/template, 0 = code
+ */
+export function stringLiteralBitmap(code) {
+  const bits = new Uint8Array(code.length);
+  let i = 0;
+  const n = code.length;
 
+  /** Mark a simple '…' / "…" string starting at i (i points at opener). */
+  const markQuoted = () => {
+    const q = code[i];
+    bits[i] = 1;
+    i++;
+    while (i < n) {
+      const ch = code[i];
+      if (ch === "\\") {
+        bits[i] = 1;
+        if (i + 1 < n) bits[i + 1] = 1;
+        i += 2;
+        continue;
+      }
+      bits[i] = 1;
+      i++;
+      if (ch === q) break;
+    }
+  };
+
+  while (i < n) {
+    const c = code[i];
+
+    if (c === "'" || c === '"') {
+      markQuoted();
+      continue;
+    }
+
+    if (c === "`") {
+      bits[i] = 1;
+      i++;
+      while (i < n) {
+        const ch = code[i];
+        if (ch === "\\") {
+          bits[i] = 1;
+          if (i + 1 < n) bits[i + 1] = 1;
+          i += 2;
+          continue;
+        }
+        if (ch === "`") {
+          bits[i] = 1;
+          i++;
+          break;
+        }
+        if (ch === "$" && code[i + 1] === "{") {
+          bits[i] = 1;
+          bits[i + 1] = 1;
+          i += 2;
+          let depth = 1;
+          while (i < n && depth > 0) {
+            const x = code[i];
+            if (x === "'" || x === '"') {
+              markQuoted();
+              continue;
+            }
+            if (x === "`") {
+              // Nested template: mark whole nested template body simply
+              // (depth of nested ${} handled by recursive-ish scan).
+              bits[i] = 1;
+              i++;
+              while (i < n) {
+                const nh = code[i];
+                if (nh === "\\") {
+                  bits[i] = 1;
+                  if (i + 1 < n) bits[i + 1] = 1;
+                  i += 2;
+                  continue;
+                }
+                if (nh === "`") {
+                  bits[i] = 1;
+                  i++;
+                  break;
+                }
+                if (nh === "$" && code[i + 1] === "{") {
+                  bits[i] = 1;
+                  bits[i + 1] = 1;
+                  i += 2;
+                  let d2 = 1;
+                  while (i < n && d2 > 0) {
+                    if (code[i] === "{") d2++;
+                    else if (code[i] === "}") d2--;
+                    i++;
+                  }
+                  continue;
+                }
+                bits[i] = 1;
+                i++;
+              }
+              continue;
+            }
+            if (x === "{") {
+              depth++;
+              i++;
+              continue;
+            }
+            if (x === "}") {
+              depth--;
+              if (depth === 0) {
+                bits[i] = 1;
+                i++;
+                break;
+              }
+              i++;
+              continue;
+            }
+            i++;
+          }
+          continue;
+        }
+        bits[i] = 1;
+        i++;
+      }
+      continue;
+    }
+
+    i++;
+  }
+  return bits;
+}
 
 /**
  * Resolve identifiers bound to Playwright's `test` export in a source file.
@@ -399,9 +534,14 @@ export function extractPlaywrightTestBindings(code) {
  * Extract `@inv:ID` tags from Playwright-bound `test(...)` declarations only.
  * Comments and bare strings elsewhere are ignored (anti-greenwash).
  *
- * A call counts only when its callee is a binding of Playwright's `test`
- * export (see extractPlaywrightTestBindings). Local no-op `const test = …`
- * without a Playwright import does not count.
+ * A call counts only when:
+ * 1. Its callee is a binding of Playwright's `test` export
+ *    (see extractPlaywrightTestBindings), and
+ * 2. The call site itself is outside string/template literals
+ *    (see stringLiteralBitmap) — a string containing `test("@inv:…")` is not
+ *    a declaration (same string-interior rule as import spoofing).
+ *
+ * Local no-op `const test = …` without a Playwright import does not count.
  *
  * Strict 1:1: a single `test(...)` title may carry at most one `@inv:ID`.
  * Titles with multiple tags are recorded with `multiTag: true` and never
@@ -424,6 +564,9 @@ export function extractInvTaggedTests(filePath, source) {
     return findings;
   }
 
+  // Call sites must start in real code, not inside any string/template.
+  const inString = stringLiteralBitmap(code);
+
   const nameAlt = [...bindings].map(escapeRegExp).join("|");
   // test("…") / test.only / test.skip / test.fixme / test.fail — first arg title
   // Also accepts aliased fixtures: base("…"), myTest.only("…")
@@ -433,6 +576,9 @@ export function extractInvTaggedTests(filePath, source) {
   );
   let m;
   while ((m = re.exec(code)) !== null) {
+    if (inString[m.index]) {
+      continue;
+    }
     const title = m.groups.title.replace(/\\([\\'"`nrt])/g, (_, ch) => {
       if (ch === "n") return "\n";
       if (ch === "r") return "\r";
