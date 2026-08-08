@@ -382,9 +382,10 @@ export class MemoryScheduleStore implements ScheduleStore {
  *
  * All multi-row mutations use a single db.batch() so placement + reservations
  * commit or roll back together. Reservation inserts are gated with
- * NOT EXISTS (overlap) and an integrity SELECT aborts the batch if counts
- * do not match, so concurrent overlapping intervals cannot both land and
- * placements are never left without reservations.
+ * NOT EXISTS (overlap) and an integrity SELECT (batchable query builder +
+ * json() abort — not db.run()/1÷0) fails the batch if counts do not match.
+ * Updates gate side effects on a per-attempt transition stamp so a version
+ * CAS loser cannot free/replace a concurrent winner's reservations.
  */
 export class D1ScheduleStore implements ScheduleStore {
   private db: SpeakerOpsDb;
@@ -494,13 +495,18 @@ export class D1ScheduleStore implements ScheduleStore {
   }
 
   /**
-   * Integrity abort: 1/0 if placement lacks exactly one room res and N speaker res.
-   * Aborts the surrounding D1 batch → full rollback (no partial write).
+   * Integrity abort: batchable SELECT that errors when placement lacks exactly
+   * one room res and N speaker res. Must return a query builder (RunnableQuery)
+   * for db.batch — never db.run(), which executes immediately and returns a
+   * Promise that batch cannot prepare.
+   *
+   * SQLite returns NULL for 1/0 (does not abort). Use json('…') which raises
+   * "malformed JSON" so the surrounding D1 batch rolls back fully.
    */
   private integrityGuard(placementId: string, speakerCount: number) {
-    return this.db.run(sql`
-      SELECT 1 / (
-        CASE
+    return this.db
+      .select({
+        ok: sql<number>`CASE
           WHEN (
             SELECT COUNT(*) FROM room_block_reservations
             WHERE placement_id = ${placementId}
@@ -510,17 +516,38 @@ export class D1ScheduleStore implements ScheduleStore {
             WHERE placement_id = ${placementId}
           ) = ${speakerCount}
           THEN 1
-          ELSE 0
-        END
-      )
-    `);
+          ELSE json('schedule_integrity_abort')
+        END`.as("ok"),
+      })
+      .from(schedulePlacements)
+      .where(eq(schedulePlacements.id, placementId))
+      .limit(1);
   }
 
-  /** Room insert gated on placement existing + no overlapping room block. */
+  /**
+   * Room insert gated on placement row match + no overlapping room block.
+   * Optional updatedAtGate is the per-attempt transition stamp (update CAS only).
+   */
   private roomResInsertSelect(
     r: RoomReservationRow,
     placementVersion: number,
+    updatedAtGate?: string,
   ) {
+    const placementMatch = [
+      eq(schedulePlacements.id, r.placementId),
+      eq(schedulePlacements.version, placementVersion),
+      ...(updatedAtGate
+        ? [eq(schedulePlacements.updatedAt, updatedAtGate)]
+        : []),
+      sql`NOT EXISTS (
+        SELECT 1 FROM room_block_reservations rbr
+        WHERE rbr.event_id = ${r.eventId}
+          AND rbr.room_id = ${r.roomId}
+          AND rbr.placement_id != ${r.placementId}
+          AND rbr.starts_at < ${r.endsAt}
+          AND rbr.ends_at > ${r.startsAt}
+      )`,
+    ];
     return this.db.insert(roomBlockReservations).select(
       this.db
         .select({
@@ -533,29 +560,35 @@ export class D1ScheduleStore implements ScheduleStore {
           createdAt: sql<string>`${r.createdAt}`.as("created_at"),
         })
         .from(schedulePlacements)
-        .where(
-          and(
-            eq(schedulePlacements.id, r.placementId),
-            eq(schedulePlacements.version, placementVersion),
-            sql`NOT EXISTS (
-              SELECT 1 FROM room_block_reservations rbr
-              WHERE rbr.event_id = ${r.eventId}
-                AND rbr.room_id = ${r.roomId}
-                AND rbr.placement_id != ${r.placementId}
-                AND rbr.starts_at < ${r.endsAt}
-                AND rbr.ends_at > ${r.startsAt}
-            )`,
-          ),
-        )
+        .where(and(...placementMatch))
         .limit(1),
     );
   }
 
-  /** Speaker insert gated on placement version + no overlapping speaker block. */
+  /**
+   * Speaker insert gated on placement row match + no overlapping speaker block.
+   * Optional updatedAtGate is the per-attempt transition stamp (update CAS only).
+   */
   private speakerResInsertSelect(
     s: SpeakerReservationRow,
     placementVersion: number,
+    updatedAtGate?: string,
   ) {
+    const placementMatch = [
+      eq(schedulePlacements.id, s.placementId),
+      eq(schedulePlacements.version, placementVersion),
+      ...(updatedAtGate
+        ? [eq(schedulePlacements.updatedAt, updatedAtGate)]
+        : []),
+      sql`NOT EXISTS (
+        SELECT 1 FROM speaker_block_reservations sbr
+        WHERE sbr.event_id = ${s.eventId}
+          AND sbr.participation_id = ${s.participationId}
+          AND sbr.placement_id != ${s.placementId}
+          AND sbr.starts_at < ${s.endsAt}
+          AND sbr.ends_at > ${s.startsAt}
+      )`,
+    ];
     return this.db.insert(speakerBlockReservations).select(
       this.db
         .select({
@@ -570,20 +603,7 @@ export class D1ScheduleStore implements ScheduleStore {
           createdAt: sql<string>`${s.createdAt}`.as("created_at"),
         })
         .from(schedulePlacements)
-        .where(
-          and(
-            eq(schedulePlacements.id, s.placementId),
-            eq(schedulePlacements.version, placementVersion),
-            sql`NOT EXISTS (
-              SELECT 1 FROM speaker_block_reservations sbr
-              WHERE sbr.event_id = ${s.eventId}
-                AND sbr.participation_id = ${s.participationId}
-                AND sbr.placement_id != ${s.placementId}
-                AND sbr.starts_at < ${s.endsAt}
-                AND sbr.ends_at > ${s.startsAt}
-            )`,
-          ),
-        )
+        .where(and(...placementMatch))
         .limit(1),
     );
   }
@@ -639,7 +659,15 @@ export class D1ScheduleStore implements ScheduleStore {
     const nextVersion = expectedVersion + 1;
     const speakerCount = b.speakerReservations.length;
 
-    // Version CAS — gates subsequent deletes/inserts via EXISTS on new version.
+    // Per-attempt transition token (same pattern as D1CommsStore enqueue).
+    // Gating deletes/inserts on version = nextVersion alone is wrong: a concurrent
+    // winner that already moved 1→2 still satisfies EXISTS(version=2), so the
+    // loser can delete/replace the winner's reservations while the placement
+    // row stays on the winner's state. Stamp a unique updated_at marker that
+    // only *this* UPDATE wrote, then restore canonical ISO after gated writes.
+    const transitionToken = uuidv7();
+    const transitionStamp = `${b.placement.updatedAt}#${transitionToken}`;
+
     const placementUpdate = this.db
       .update(schedulePlacements)
       .set({
@@ -647,7 +675,7 @@ export class D1ScheduleStore implements ScheduleStore {
         startsAt: b.placement.startsAt,
         endsAt: b.placement.endsAt,
         version: nextVersion,
-        updatedAt: b.placement.updatedAt,
+        updatedAt: transitionStamp,
       })
       .where(
         and(
@@ -656,16 +684,19 @@ export class D1ScheduleStore implements ScheduleStore {
         ),
       );
 
-    // Free old reservations only if version CAS won (same batch visibility).
+    // Free old reservations only if *this* CAS won (transition stamp).
+    const placementWon = sql`EXISTS (
+      SELECT 1 FROM schedule_placements
+      WHERE id = ${b.placement.id}
+        AND version = ${nextVersion}
+        AND updated_at = ${transitionStamp}
+    )`;
     const delSpeaker = this.db
       .delete(speakerBlockReservations)
       .where(
         and(
           eq(speakerBlockReservations.placementId, b.placement.id),
-          sql`EXISTS (
-            SELECT 1 FROM schedule_placements
-            WHERE id = ${b.placement.id} AND version = ${nextVersion}
-          )`,
+          placementWon,
         ),
       );
     const delRoom = this.db
@@ -673,21 +704,31 @@ export class D1ScheduleStore implements ScheduleStore {
       .where(
         and(
           eq(roomBlockReservations.placementId, b.placement.id),
-          sql`EXISTS (
-            SELECT 1 FROM schedule_placements
-            WHERE id = ${b.placement.id} AND version = ${nextVersion}
-          )`,
+          placementWon,
         ),
       );
 
     const roomInsert = this.roomResInsertSelect(
       b.roomReservation,
       nextVersion,
+      transitionStamp,
     );
     const speakerInserts = b.speakerReservations.map((s) =>
-      this.speakerResInsertSelect(s, nextVersion),
+      this.speakerResInsertSelect(s, nextVersion, transitionStamp),
     );
     const guard = this.integrityGuard(b.placement.id, speakerCount);
+
+    // Restore canonical ISO updatedAt (do not leak transition marker in DTOs).
+    const restoreUpdatedAt = this.db
+      .update(schedulePlacements)
+      .set({ updatedAt: b.placement.updatedAt })
+      .where(
+        and(
+          eq(schedulePlacements.id, b.placement.id),
+          eq(schedulePlacements.version, nextVersion),
+          eq(schedulePlacements.updatedAt, transitionStamp),
+        ),
+      );
 
     try {
       let results: unknown[];
@@ -698,6 +739,7 @@ export class D1ScheduleStore implements ScheduleStore {
           delRoom,
           roomInsert,
           guard,
+          restoreUpdatedAt,
         ]);
       } else {
         results = await this.db.batch([
@@ -708,10 +750,11 @@ export class D1ScheduleStore implements ScheduleStore {
           speakerInserts[0]!,
           ...speakerInserts.slice(1),
           guard,
+          restoreUpdatedAt,
         ]);
       }
       if (d1Changes(results[0]) === 0) {
-        // Lost version CAS — batch may have no-op'd deletes/inserts; nothing applied.
+        // Lost version CAS — deletes/inserts gated on transition stamp no-op'd.
         return null;
       }
       return this.findPlacementById(b.placement.id);

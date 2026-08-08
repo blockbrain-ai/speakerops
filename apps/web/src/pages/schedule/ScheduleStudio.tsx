@@ -661,7 +661,9 @@ export function ScheduleStudioPage() {
   const renderSlot = (roomId: string, startsAt: string) => {
     const key = slotKey(roomId, startsAt);
     // Match by slot window (not exact ISO equality) so e.g. 10:30 appears in 10:00 hour.
-    const occupant = placements.find((p) =>
+    // Multiple non-overlapping placements can begin in the same hour (10:00 + 10:30);
+    // render all of them — never placements.find() which hides the rest.
+    const occupants = placements.filter((p) =>
       placementInSlot(p, roomId, startsAt, DEFAULT_SLOT_MINUTES),
     );
     const isOver = dragOverSlot === key;
@@ -672,7 +674,7 @@ export function ScheduleStudioPage() {
           "schedule-studio__slot",
           "lumen-focusable",
           isOver ? "schedule-studio__slot--over" : "",
-          occupant ? "schedule-studio__slot--filled" : "",
+          occupants.length > 0 ? "schedule-studio__slot--filled" : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -696,38 +698,41 @@ export function ScheduleStudioPage() {
         <span className="schedule-studio__slot-time">
           {formatTimeLabel(startsAt, timezone)}
         </span>
-        {occupant ? (
-          <div
-            className={[
-              "schedule-tile",
-              "lumen-focusable",
-              selectedPlacementId === occupant.id
-                ? "schedule-tile--selected"
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            data-testid={`schedule-placement-${occupant.id}`}
-            data-session-id={occupant.sessionId}
-            data-placement-id={occupant.id}
-            data-version={occupant.version}
-            draggable
-            tabIndex={0}
-            onDragStart={(e) => onPlacementDragStart(e, occupant)}
-            onDragEnd={onDragEnd}
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedPlacementId(occupant.id);
-              setSelectedSessionId(null);
-            }}
-          >
-            <span className="schedule-tile__title">
-              {placementTitle(occupant)}
-            </span>
-            <span className="schedule-tile__meta">
-              {roomName(occupant.roomId)}
-            </span>
-          </div>
+        {occupants.length > 0 ? (
+          occupants.map((occupant) => (
+            <div
+              key={occupant.id}
+              className={[
+                "schedule-tile",
+                "lumen-focusable",
+                selectedPlacementId === occupant.id
+                  ? "schedule-tile--selected"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              data-testid={`schedule-placement-${occupant.id}`}
+              data-session-id={occupant.sessionId}
+              data-placement-id={occupant.id}
+              data-version={occupant.version}
+              draggable
+              tabIndex={0}
+              onDragStart={(e) => onPlacementDragStart(e, occupant)}
+              onDragEnd={onDragEnd}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedPlacementId(occupant.id);
+                setSelectedSessionId(null);
+              }}
+            >
+              <span className="schedule-tile__title">
+                {placementTitle(occupant)}
+              </span>
+              <span className="schedule-tile__meta">
+                {roomName(occupant.roomId)}
+              </span>
+            </div>
+          ))
         ) : (
           <span className="schedule-studio__slot-empty">Empty</span>
         )}

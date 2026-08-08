@@ -257,6 +257,26 @@ async function openSchedule(page: Page, eventId: string, baseURL?: string) {
   });
 }
 
+/**
+ * Wait until event-context is a real <select> with the target option.
+ * EventProvider load leaves a fallback <div data-testid="event-context">;
+ * calling selectOption during that window fails with
+ * "Element is not a <select> element".
+ */
+async function selectEventContext(page: Page, eventId: string) {
+  const switcher = page.getByTestId("event-context");
+  await expect(switcher).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(async () => switcher.evaluate((el) => el.tagName.toLowerCase()), {
+      timeout: 15_000,
+    })
+    .toBe("select");
+  await expect(switcher.locator(`option[value="${eventId}"]`)).toHaveCount(1, {
+    timeout: 10_000,
+  });
+  await switcher.selectOption({ value: eventId });
+}
+
 async function seedSpeakersBulk(
   request: APIRequestContext,
   session: string,
@@ -656,15 +676,8 @@ test.describe("6.4 schedule+dash keystone (I12)", () => {
     await expect(page.getByTestId("page-readiness")).toBeVisible({
       timeout: 15_000,
     });
-    // Ensure event context
-    const switcher = page.getByTestId("event-context");
-    await expect(switcher).toBeVisible({ timeout: 15_000 });
-    await expect
-      .poll(async () => switcher.evaluate((el) => el.tagName.toLowerCase()), {
-        timeout: 15_000,
-      })
-      .toBe("select");
-    await switcher.selectOption({ value: event.id });
+    // Ensure event context (wait for select — EventProvider may still be loading)
+    await selectEventContext(page, event.id);
 
     // H01: Stats + outstanding list
     await expect(page.getByTestId("readiness-stats")).toBeVisible({
@@ -755,7 +768,7 @@ test.describe("6.4 schedule+dash keystone (I12)", () => {
     await expect(page.getByTestId("page-readiness")).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByTestId("event-context").selectOption({ value: event.id });
+    await selectEventContext(page, event.id);
     await expect(page.getByTestId("readiness-stat-outstanding")).toBeVisible({
       timeout: 10_000,
     });
@@ -794,9 +807,7 @@ test.describe("6.4 schedule+dash keystone (I12)", () => {
       .toBe(before - 1);
 
     // H05: Empty state when all clear (fresh event, no speakers)
-    await page.getByTestId("event-context").selectOption({
-      value: emptyEvent.id,
-    });
+    await selectEventContext(page, emptyEvent.id);
     await expect(page.getByTestId("readiness-empty")).toBeVisible({
       timeout: 10_000,
     });
@@ -827,9 +838,8 @@ test.describe("6.4 schedule+dash keystone (I12)", () => {
     expect(speakersBody.speakers.length).toBe(150);
 
     await page.goto(`${baseURL ?? ""}/admin/speakers`);
-    await page.getByTestId("event-context").selectOption({
-      value: largeEvent.id,
-    });
+    // Navigation remounts EventProvider: wait for <select> before selectOption.
+    await selectEventContext(page, largeEvent.id);
     await expect(page.getByTestId("speakers-list")).toBeVisible({
       timeout: 15_000,
     });
