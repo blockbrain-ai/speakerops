@@ -16,6 +16,8 @@ import {
   DesignPublishResponseSchema,
   PublicDesignResponseSchema,
   FilePresignResponseSchema,
+  FileUploadResponseSchema,
+  FILE_UPLOAD_MAX_BYTES,
   EventResponseSchema,
   VALIDATION_ERROR,
   UNAUTHORIZED,
@@ -28,6 +30,12 @@ import {
   validateContrastGate,
 } from "@speakerops/shared";
 import { createAppWithAuth } from "../../index.js";
+
+/** Minimal valid PNG signature + IHDR stub (16 bytes). */
+const MINI_PNG = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+  0x49, 0x48, 0x44, 0x52,
+]);
 
 const env = { APP_VERSION: "0.1.0" };
 
@@ -243,11 +251,6 @@ describe("2.4 design kit", () => {
     expect(png.fileId.length).toBeGreaterThan(0);
     expect(png.url).toContain(`/api/files/${png.fileId}/upload`);
 
-    // Minimal PNG (8-byte signature + pad)
-    const pngBytes = new Uint8Array([
-      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-      0x49, 0x48, 0x44, 0x52,
-    ]);
     const uploadRes = await app.request(
       `http://localhost${png.url}`,
       {
@@ -257,17 +260,15 @@ describe("2.4 design kit", () => {
           cookie,
           "x-correlation-id": "corr-logo-upload",
         },
-        body: pngBytes,
+        body: MINI_PNG,
       },
       env,
     );
     expect(uploadRes.status).toBe(200);
-    const uploadBody = (await uploadRes.json()) as {
-      fileId: string;
-      uploaded: boolean;
-    };
+    const uploadBody = FileUploadResponseSchema.parse(await uploadRes.json());
     expect(uploadBody.uploaded).toBe(true);
     expect(uploadBody.fileId).toBe(png.fileId);
+    expect(uploadBody.size).toBe(MINI_PNG.byteLength);
 
     // Draft-only upload must not be publicly retrievable before Design.Publish
     const publicBeforePublish = await app.request(
@@ -654,5 +655,180 @@ describe("2.4 design kit", () => {
     // Different app instances — membership isolation is per-store; eventA not in B's memberships
     expect(res.status).toBe(404);
     expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(NOT_FOUND);
+  });
+
+  it("File.Upload rejects body larger than presign declared size", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin",
+      "admin-upload-size@example.com",
+    );
+    const { id: eventId } = await createEvent(app, cookie, "Upload Size");
+
+    const presign = await app.request(
+      "http://localhost/api/files/presign",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-upload-size-presign",
+        },
+        body: JSON.stringify({
+          eventId,
+          purpose: "logo",
+          mime: "image/png",
+          size: 8, // smaller than MINI_PNG
+          filename: "tiny-budget.png",
+        }),
+      },
+      env,
+    );
+    expect(presign.status).toBe(200);
+    const png = FilePresignResponseSchema.parse(await presign.json());
+
+    const over = await app.request(`http://localhost${png.url}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "image/png",
+        cookie,
+        "x-correlation-id": "corr-upload-size-body",
+      },
+      body: MINI_PNG,
+    }, env);
+    expect(over.status).toBe(400);
+    const envBody = ErrorEnvelopeSchema.parse(await over.json());
+    expect(envBody.code).toBe(VALIDATION_ERROR);
+    expect(envBody.error.toLowerCase()).toMatch(/size|presign|exceed/);
+  });
+
+  it("File.Upload is single-use (no overwrite)", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin",
+      "admin-upload-once@example.com",
+    );
+    const { id: eventId } = await createEvent(app, cookie, "Upload Once");
+
+    const presign = await app.request(
+      "http://localhost/api/files/presign",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-upload-once-presign",
+        },
+        body: JSON.stringify({
+          eventId,
+          purpose: "logo",
+          mime: "image/png",
+          size: MINI_PNG.byteLength,
+          filename: "once.png",
+        }),
+      },
+      env,
+    );
+    const png = FilePresignResponseSchema.parse(await presign.json());
+
+    const first = await app.request(`http://localhost${png.url}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "image/png",
+        cookie,
+        "x-correlation-id": "corr-upload-once-1",
+      },
+      body: MINI_PNG,
+    }, env);
+    expect(first.status).toBe(200);
+
+    const second = await app.request(`http://localhost${png.url}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "image/png",
+        cookie,
+        "x-correlation-id": "corr-upload-once-2",
+      },
+      body: MINI_PNG,
+    }, env);
+    expect(second.status).toBe(409);
+    expect(ErrorEnvelopeSchema.parse(await second.json()).code).toBe(CONFLICT);
+  });
+
+  it("File.Upload rejects expired presign and oversized Content-Length", async () => {
+    const { app, cookie, design } = await magicLinkSession(
+      "admin",
+      "admin-upload-ttl@example.com",
+    );
+    const { id: eventId } = await createEvent(app, cookie, "Upload TTL");
+
+    // Insert an already-expired pending file (created_at far in the past).
+    const expiredId = "01900000-0000-7000-8000-0000000000e1";
+    await design.insertFile({
+      id: expiredId,
+      eventId,
+      ownerParticipationId: null,
+      r2Key: `events/${eventId}/logo/${expiredId}.png`,
+      filename: "expired.png",
+      mime: "image/png",
+      size: MINI_PNG.byteLength,
+      checksum: null,
+      purpose: "logo",
+      createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      uploaded: false,
+    });
+
+    const expiredRes = await app.request(
+      `http://localhost/api/files/${expiredId}/upload?eventId=${encodeURIComponent(eventId)}`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "image/png",
+          cookie,
+          "x-correlation-id": "corr-upload-expired",
+        },
+        body: MINI_PNG,
+      },
+      env,
+    );
+    expect(expiredRes.status).toBe(400);
+    const expiredBody = ErrorEnvelopeSchema.parse(await expiredRes.json());
+    expect(expiredBody.code).toBe(VALIDATION_ERROR);
+    expect(expiredBody.error.toLowerCase()).toMatch(/expir/);
+
+    // Content-Length above 10 MiB must be refused before buffering a huge body.
+    const presign = await app.request(
+      "http://localhost/api/files/presign",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-upload-cl-presign",
+        },
+        body: JSON.stringify({
+          eventId,
+          purpose: "logo",
+          mime: "image/png",
+          size: FILE_UPLOAD_MAX_BYTES,
+          filename: "max.png",
+        }),
+      },
+      env,
+    );
+    const png = FilePresignResponseSchema.parse(await presign.json());
+    const clRes = await app.request(`http://localhost${png.url}`, {
+      method: "PUT",
+      headers: {
+        "content-type": "image/png",
+        cookie,
+        "content-length": String(FILE_UPLOAD_MAX_BYTES + 1),
+        "x-correlation-id": "corr-upload-cl",
+      },
+      // Body intentionally tiny; route must reject on Content-Length alone.
+      body: MINI_PNG,
+    }, env);
+    expect(clRes.status).toBe(400);
+    const clBody = ErrorEnvelopeSchema.parse(await clRes.json());
+    expect(clBody.code).toBe(VALIDATION_ERROR);
+    expect(clBody.error.toLowerCase()).toMatch(/size|maximum|exceed/);
   });
 });

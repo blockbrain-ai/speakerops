@@ -6,6 +6,10 @@
  * POST /api/events/:eventId/design/publish   → Design.Publish
  * GET  /api/public/design/:slug              → public published tokens only
  * POST /api/files/presign                    → File.PresignUpload (logo PNG)
+ * PUT  /api/files/:fileId/upload             → File.Upload
+ * GET  /api/public/files/:fileId             → File.GetPublic
+ *
+ * Canonical registry: KMS-competition/initiative/contracts/COMMANDS.md
  */
 import { Hono, type Context } from "hono";
 import {
@@ -17,6 +21,8 @@ import {
   PublicDesignResponseSchema,
   FilePresignBodySchema,
   FilePresignResponseSchema,
+  FileUploadResponseSchema,
+  FILE_UPLOAD_MAX_BYTES,
   errorEnvelope,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
@@ -274,7 +280,7 @@ export function createPublicDesignRoutes(
   });
 
   /**
-   * GET /files/:fileId — public logo image bytes (published design logo only).
+   * GET /files/:fileId — File.GetPublic (published design logo only).
    * Used by public CFP <img src> for logoFileId field flow (C04).
    */
   pub.get("/files/:fileId", async (c) => {
@@ -381,8 +387,9 @@ export function createFileRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
   );
 
   /**
-   * PUT /:fileId/upload?eventId= — accept PNG body for a prior File.PresignUpload.
-   * Session + admin membership required on eventId.
+   * PUT /:fileId/upload?eventId= — File.Upload
+   * Accept PNG body for a prior File.PresignUpload (session + admin on eventId).
+   * Rejects oversized Content-Length before buffering the body (Worker memory).
    */
   files.put(
     "/:fileId/upload",
@@ -419,7 +426,45 @@ export function createFileRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
         );
       }
 
+      // Bound memory: refuse Content-Length above global max before arrayBuffer().
+      const contentLengthHeader = c.req.header("content-length");
+      if (contentLengthHeader !== undefined && contentLengthHeader !== "") {
+        const contentLength = Number(contentLengthHeader);
+        if (!Number.isFinite(contentLength) || contentLength < 0) {
+          return c.json(
+            errorEnvelope("Invalid Content-Length", VALIDATION_ERROR),
+            400,
+          );
+        }
+        if (contentLength > FILE_UPLOAD_MAX_BYTES) {
+          return c.json(
+            errorEnvelope("Upload exceeds maximum size", VALIDATION_ERROR, {
+              max: FILE_UPLOAD_MAX_BYTES,
+              contentLength,
+            }),
+            400,
+          );
+        }
+        if (contentLength === 0) {
+          return c.json(
+            errorEnvelope("Empty upload body", VALIDATION_ERROR),
+            400,
+          );
+        }
+      }
+
       const body = await c.req.arrayBuffer();
+      // Post-read guard when Content-Length was absent or lying.
+      if (body.byteLength > FILE_UPLOAD_MAX_BYTES) {
+        return c.json(
+          errorEnvelope("Upload exceeds maximum size", VALIDATION_ERROR, {
+            max: FILE_UPLOAD_MAX_BYTES,
+            actual: body.byteLength,
+          }),
+          400,
+        );
+      }
+
       const result = await uploadFileBytes(deps, {
         eventId,
         fileId,
@@ -432,7 +477,14 @@ export function createFileRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
       if (!result.ok) {
         return commandError(c, result);
       }
-      return c.json(result.value, 200);
+      const out = FileUploadResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
     },
   );
 

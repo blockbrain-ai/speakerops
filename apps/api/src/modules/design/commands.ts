@@ -2,13 +2,17 @@
  * Design + File domain commands (section 2.4).
  *
  * Design.Get / Design.SetDraft / Design.Publish
- * File.PresignUpload (purpose=logo, PNG only)
+ * File.PresignUpload / File.Upload / File.GetPublic (purpose=logo, PNG only)
  * Public published design for CFP (draft isolation)
+ *
+ * Canonical registry: KMS-competition/initiative/contracts/COMMANDS.md
  */
 import {
   uuidv7,
   DEFAULT_DESIGN_TOKENS,
   LOGO_MIME_ALLOWLIST,
+  FILE_UPLOAD_MAX_BYTES,
+  FILE_PRESIGN_TTL_MS,
   validateContrastGate,
   designTokensToCssVariables,
   softTintFromBrand,
@@ -448,13 +452,25 @@ export async function presignFileUpload(
     };
   }
 
-  const now = new Date().toISOString();
+  if (input.size > FILE_UPLOAD_MAX_BYTES) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Declared size exceeds maximum upload size",
+      code: "VALIDATION_ERROR",
+      details: { size: input.size, max: FILE_UPLOAD_MAX_BYTES },
+    };
+  }
+
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
   const fileId = newFileId();
   const filename = input.filename?.trim() || `logo-${fileId}.png`;
   const r2Key = `events/${input.eventId}/logo/${fileId}.png`;
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  // expiresAt is created_at + FILE_PRESIGN_TTL_MS (File.Upload enforces the same deadline).
+  const expiresAt = new Date(nowMs + FILE_PRESIGN_TTL_MS).toISOString();
 
-  // Metadata only until client PUTs bytes to the upload URL (not "ready" yet).
+  // Metadata only until client PUTs bytes via File.Upload (not "ready" yet).
   const row: FileAssetRow = {
     id: fileId,
     eventId: input.eventId,
@@ -470,7 +486,7 @@ export async function presignFileUpload(
   };
   await deps.design.insertFile(row);
 
-  // Local/dev and production share the same upload handler path.
+  // Worker-hosted File.Upload target (COMMANDS.md). Production may later return R2 signed PUT.
   const url = `/api/files/${encodeURIComponent(fileId)}/upload?eventId=${encodeURIComponent(input.eventId)}`;
 
   await deps.auth.insertAudit({
@@ -514,7 +530,12 @@ export type UploadFileInput = {
 };
 
 /**
- * PUT body to presign URL — store PNG bytes; mark file uploaded.
+ * File.Upload — PUT body to presign URL; store PNG bytes; mark file uploaded once.
+ *
+ * Enforces (COMMANDS.md + FilePresignBodySchema boundary):
+ * - presign TTL from created_at + FILE_PRESIGN_TTL_MS (matches returned expiresAt)
+ * - body size ≤ presign-declared size and ≤ FILE_UPLOAD_MAX_BYTES (10 MiB)
+ * - single-use: reject if already uploaded (no indefinite overwrite)
  */
 export async function uploadFileBytes(
   deps: DesignCommandDeps,
@@ -532,6 +553,32 @@ export async function uploadFileBytes(
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
+  if (file.uploaded) {
+    return {
+      ok: false,
+      status: 409,
+      error: "File already uploaded",
+      code: "CONFLICT",
+      details: { fileId: input.fileId },
+    };
+  }
+
+  const createdMs = Date.parse(file.createdAt);
+  const expiresAtMs = createdMs + FILE_PRESIGN_TTL_MS;
+  if (!Number.isFinite(createdMs) || Date.now() > expiresAtMs) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Upload URL expired",
+      code: "VALIDATION_ERROR",
+      details: {
+        expiresAt: Number.isFinite(expiresAtMs)
+          ? new Date(expiresAtMs).toISOString()
+          : null,
+      },
+    };
+  }
+
   const mime = (input.contentType ?? file.mime).trim().toLowerCase();
   if (!(LOGO_MIME_ALLOWLIST as readonly string[]).includes(mime)) {
     return {
@@ -540,6 +587,47 @@ export async function uploadFileBytes(
       error: "Logo upload allows image/png only",
       code: "VALIDATION_ERROR",
       details: { mime, allowlist: [...LOGO_MIME_ALLOWLIST] },
+    };
+  }
+
+  // Size budget: never exceed declared presign size or global 10 MiB cap.
+  const declaredSize = file.size;
+  const maxAllowed = Math.min(
+    Math.max(0, declaredSize),
+    FILE_UPLOAD_MAX_BYTES,
+  );
+  const byteLength = input.body.byteLength;
+
+  if (byteLength === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Empty upload body",
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  if (byteLength > FILE_UPLOAD_MAX_BYTES) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Upload exceeds maximum size",
+      code: "VALIDATION_ERROR",
+      details: { max: FILE_UPLOAD_MAX_BYTES, actual: byteLength },
+    };
+  }
+
+  if (byteLength > maxAllowed) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Upload exceeds presigned declared size",
+      code: "VALIDATION_ERROR",
+      details: {
+        declared: declaredSize,
+        maxAllowed,
+        actual: byteLength,
+      },
     };
   }
 
@@ -560,21 +648,12 @@ export async function uploadFileBytes(
     };
   }
 
-  if (bytes.length === 0) {
-    return {
-      ok: false,
-      status: 400,
-      error: "Empty upload body",
-      code: "VALIDATION_ERROR",
-    };
-  }
-
   await deps.design.putFileBytes(input.eventId, input.fileId, {
     bytes: input.body,
     mime: "image/png",
   });
   await deps.design.updateFileAfterUpload(input.eventId, input.fileId, {
-    size: bytes.length,
+    size: byteLength,
     uploaded: true,
   });
 
@@ -590,7 +669,7 @@ export async function uploadFileBytes(
     afterJson: JSON.stringify({
       purpose: "logo",
       mime: "image/png",
-      size: bytes.length,
+      size: byteLength,
       uploaded: true,
     }),
     correlationId: input.correlationId,
@@ -599,13 +678,13 @@ export async function uploadFileBytes(
 
   return {
     ok: true,
-    value: { fileId: input.fileId, uploaded: true, size: bytes.length },
+    value: { fileId: input.fileId, uploaded: true, size: byteLength },
   };
 }
 
 /**
- * Public logo bytes by fileId — only when the file is the logo referenced by
- * the event's *published* design tokens (draft-only uploads stay private).
+ * File.GetPublic — public logo bytes by fileId only when the file is the logo
+ * referenced by the event's *published* design tokens (draft-only uploads stay private).
  */
 export async function getPublicFileBytes(
   deps: DesignCommandDeps,

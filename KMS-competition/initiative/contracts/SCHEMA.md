@@ -17,7 +17,7 @@
 | eval_rounds, eval_criteria, eval_assignments, scores | 3.4 |
 | decisions | 3.5 |
 | people, event_participations, speaker_tasks, task_templates | 3.5 / 4.1 |
-| file_assets | 4.2 |
+| file_assets | 2.4 (logo + `uploaded`) / 4.2 (portal headshot/slides) |
 | email_templates, message_jobs, message_recipients, delivery_events, calendar_invites | 5.1–5.2 |
 | schedule_slots / placements, room_reservations, speaker_reservations | 6.1 |
 | api_keys, api_key_scopes usage | 7.1 |
@@ -81,7 +81,11 @@ templates: `id, event_id, title, description, trigger (on_accept|manual), due_of
 tasks: `id, template_id, participation_id, status, due_at, completed_at, version`
 
 ### file_assets
-`id, event_id, owner_participation_id NULL, r2_key, filename, mime, size, checksum, purpose (headshot|slides|other), created_at`
+`id, event_id, owner_participation_id NULL, r2_key, filename, mime, size, checksum, purpose (logo|headshot|slides|other), created_at, uploaded (INTEGER 0|1 NOT NULL DEFAULT 0)`
+
+- `size` at insert is the **presign-declared** byte budget (max 10 MiB); after a successful body upload it is the **actual** stored size (≤ declared).
+- `uploaded` is the dedicated readiness flag (0 = pending body, 1 = bytes stored). **Never** overload `checksum` as an upload-readiness sentinel — `checksum` is for content digests (`File.CompleteUpload` / portal).
+- `purpose=logo` is owned by Design Kit (2.4); `headshot|slides|other` expand in portal (4.2).
 
 ### rooms / tracks
 `id, event_id, name, ...`

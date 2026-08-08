@@ -49,8 +49,10 @@ Auth: session cookie **or** API key with scopes.
 |---------|-------|-------|--------|
 | `Portal.GetHome` | speaker | eventId | tasks, sessions |
 | `Participation.UpdateProfile` | speaker | participationId, bio, …, expectedVersion | participation |
-| `File.PresignUpload` | files:write / speaker | purpose, mime, size | { url, fileId } |
-| `File.CompleteUpload` | files:write / speaker | fileId, checksum | file_asset |
+| `File.PresignUpload` | files:write / speaker / admin | eventId, purpose, mime, size (≤10 MiB), filename? | { url, fileId, mime, purpose, expiresAt } |
+| `File.Upload` | files:write / admin (session) | fileId, eventId (query), raw body (PNG for logo) | { fileId, uploaded: true, size } — Worker-hosted body transfer for the presign `url` (dogfood/local; production may use R2 signed PUT then CompleteUpload). Enforces declared size, 10 MiB max, `expiresAt` (presign TTL from `created_at`), single-use (reject if already `uploaded`) |
+| `File.CompleteUpload` | files:write / speaker | fileId, checksum | file_asset (portal/checksum path; sets checksum; may also mark ready) |
+| `File.GetPublic` | public | fileId | image bytes — only when `purpose=logo`, `uploaded=1`, and `logoFileId` is on the event's **published** design tokens (draft-only logos stay private) |
 | `Task.Complete` | speaker | taskId, expectedVersion | task |
 
 ## Schedule
@@ -124,7 +126,9 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | PATCH | /api/portal/participations/:id | Participation.UpdateProfile |
 | POST | /api/portal/tasks/:taskId/complete | Task.Complete |
 | POST | /api/files/presign | File.PresignUpload |
+| PUT | /api/files/:fileId/upload | File.Upload |
 | POST | /api/files/:fileId/complete | File.CompleteUpload |
+| GET | /api/public/files/:fileId | File.GetPublic |
 | GET | /api/events/:eventId/speakers | (admin speakers list) |
 | GET | /api/events/:eventId/schedule | Schedule.List |
 | POST | /api/events/:eventId/schedule/place | Schedule.Place |

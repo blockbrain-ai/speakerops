@@ -101,12 +101,18 @@ export type FilePurpose = z.infer<typeof FilePurposeSchema>;
 /** Logo mime allowlist — PNG only in dogfood (SVG rejected; no freeform). */
 export const LOGO_MIME_ALLOWLIST = ["image/png"] as const;
 
+/** Max upload body / presign declared size (10 MiB) — FilePresignBodySchema + File.Upload. */
+export const FILE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Presign URL lifetime; File.Upload rejects after created_at + this TTL. */
+export const FILE_PRESIGN_TTL_MS = 15 * 60 * 1000;
+
 /** File.PresignUpload body — POST /api/files/presign */
 export const FilePresignBodySchema = z.object({
   eventId: z.string().min(1),
   purpose: FilePurposeSchema,
   mime: z.string().min(1).max(128),
-  size: z.number().int().positive().max(10 * 1024 * 1024),
+  size: z.number().int().positive().max(FILE_UPLOAD_MAX_BYTES),
   filename: z.string().min(1).max(255).optional(),
 });
 export type FilePresignBody = z.infer<typeof FilePresignBodySchema>;
@@ -114,13 +120,24 @@ export type FilePresignBody = z.infer<typeof FilePresignBodySchema>;
 /** File.PresignUpload response */
 export const FilePresignResponseSchema = z.object({
   fileId: z.string().min(1),
-  /** Upload target (local/dev may be a stub URL; production R2 presign later). */
+  /**
+   * Upload target for File.Upload (Worker-hosted PUT in dogfood/local).
+   * Production may return an R2 signed URL; then client uses File.CompleteUpload.
+   */
   url: z.string().min(1),
   mime: z.string().min(1),
   purpose: FilePurposeSchema,
   expiresAt: z.string().min(1),
 });
 export type FilePresignResponse = z.infer<typeof FilePresignResponseSchema>;
+
+/** File.Upload response — PUT /api/files/:fileId/upload */
+export const FileUploadResponseSchema = z.object({
+  fileId: z.string().min(1),
+  uploaded: z.literal(true),
+  size: z.number().int().positive().max(FILE_UPLOAD_MAX_BYTES),
+});
+export type FileUploadResponse = z.infer<typeof FileUploadResponseSchema>;
 
 /** Default Lumen brand when no draft exists. */
 export const DEFAULT_DESIGN_TOKENS: DesignTokens = {
