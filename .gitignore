@@ -1,0 +1,18 @@
+# Pipeline runtime (owned by section-runner; do not commit)
+.pipeline/
+
+# Dependencies
+node_modules/
+
+# Env / secrets (names only in docs)
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+*.log
+dist/
+coverage/
+.wrangler/
+.dev.vars

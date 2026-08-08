@@ -1,0 +1,16 @@
+{
+  "name": "speakerops",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SpeakerOps Program OS — section-runner workspace",
+  "type": "module",
+  "scripts": {
+    "typecheck": "node scripts/typecheck.mjs",
+    "test": "node --test tests/**/*.test.mjs",
+    "test:ci": "node --test tests/**/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.7.0"
+}
