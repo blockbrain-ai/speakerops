@@ -22,6 +22,15 @@ import {
   type CommsSegment,
   type CommsPreviewRecipient,
   type CommsPreviewBodyItem,
+  type CommsListTemplatesResponse,
+  type CommsListJobsResponse,
+  type CommsGetJobResponse,
+  type CommsListIcsResponse,
+  type CommsIcsForPlacementResponse,
+  type CalendarInviteDto,
+  type MessageRecipientDto,
+  type DeliveryEventDto,
+  type MessageJobStatus,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
@@ -84,11 +93,180 @@ function toJobDto(row: MessageJobRow): MessageJobDto {
     id: row.id,
     eventId: row.eventId,
     templateId: row.templateId,
-    status: row.status as MessageJobDto["status"],
+    status: row.status as MessageJobStatus,
     idempotencyKey: row.idempotencyKey,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function toInviteDto(row: CalendarInviteRow): CalendarInviteDto {
+  const method =
+    row.method === "CANCEL" ? ("CANCEL" as const) : ("REQUEST" as const);
+  return {
+    id: row.id,
+    eventId: row.eventId,
+    placementId: row.placementId,
+    sessionId: row.sessionId,
+    uid: row.uid,
+    sequence: row.sequence,
+    method,
+    summary: row.summary,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    location: row.location,
+    icsBody: row.icsBody,
+    version: row.version,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toRecipientDto(
+  row: import("./store.js").MessageRecipientRow,
+): MessageRecipientDto {
+  return {
+    id: row.id,
+    jobId: row.jobId,
+    eventId: row.eventId,
+    participationId: row.participationId,
+    toEmail: row.toEmail,
+    name: row.name,
+    subject: row.subject,
+    status: row.status,
+    createdAt: row.createdAt,
+  };
+}
+
+function toDeliveryDto(
+  row: import("./store.js").DeliveryEventRow,
+): DeliveryEventDto {
+  return {
+    id: row.id,
+    jobId: row.jobId,
+    recipientId: row.recipientId,
+    eventId: row.eventId,
+    provider: row.provider,
+    providerMessageId: row.providerMessageId,
+    status: row.status,
+    attempt: row.attempt,
+    error: row.error,
+    createdAt: row.createdAt,
+  };
+}
+
+/**
+ * Comms.ListTemplates — admin read for template picker (5.3 UI).
+ */
+export async function listTemplates(
+  deps: CommsCommandDeps,
+  input: { eventId: string },
+): Promise<CommandOk<CommsListTemplatesResponse> | CommandErr> {
+  const event = await deps.events.findEventById(input.eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: "Event not found", code: "NOT_FOUND" };
+  }
+  const rows = await deps.comms.listTemplatesForEvent(input.eventId);
+  return {
+    ok: true,
+    value: {
+      eventId: input.eventId,
+      templates: rows.map(toTemplateDto),
+    },
+  };
+}
+
+/**
+ * Comms.ListJobs — delivery log list (5.3 UI / J05).
+ */
+export async function listJobs(
+  deps: CommsCommandDeps,
+  input: { eventId: string },
+): Promise<CommandOk<CommsListJobsResponse> | CommandErr> {
+  const event = await deps.events.findEventById(input.eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: "Event not found", code: "NOT_FOUND" };
+  }
+  const rows = await deps.comms.listJobsForEvent(input.eventId);
+  // Newest first for admin log
+  const sorted = [...rows].sort((a, b) =>
+    a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0,
+  );
+  const jobs = await Promise.all(
+    sorted.map(async (j) => {
+      const recipients = await deps.comms.listRecipientsForJob(j.id);
+      let recipientCount = recipients.length;
+      if (recipientCount === 0 && j.recipientsJson) {
+        try {
+          const snap = JSON.parse(j.recipientsJson) as unknown[];
+          if (Array.isArray(snap)) recipientCount = snap.length;
+        } catch {
+          /* ignore */
+        }
+      }
+      return {
+        id: j.id,
+        eventId: j.eventId,
+        templateId: j.templateId,
+        status: j.status as MessageJobStatus,
+        idempotencyKey: j.idempotencyKey,
+        recipientCount,
+        version: j.version,
+        createdAt: j.createdAt,
+        updatedAt: j.updatedAt,
+      };
+    }),
+  );
+  return { ok: true, value: { eventId: input.eventId, jobs } };
+}
+
+/**
+ * Comms.GetJob — job detail with recipients + delivery_events (J05).
+ */
+export async function getJob(
+  deps: CommsCommandDeps,
+  input: { eventId: string; jobId: string },
+): Promise<CommandOk<CommsGetJobResponse> | CommandErr> {
+  const job = await deps.comms.findJobById(input.jobId);
+  if (!job || job.eventId !== input.eventId) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Message job not found",
+      code: "NOT_FOUND",
+    };
+  }
+  const recipients = await deps.comms.listRecipientsForJob(job.id);
+  const deliveryEvents = await deps.comms.listDeliveryEventsForJob(job.id);
+  return {
+    ok: true,
+    value: {
+      job: toJobDto(job),
+      recipients: recipients.map(toRecipientDto),
+      deliveryEvents: deliveryEvents.map(toDeliveryDto),
+    },
+  };
+}
+
+/**
+ * Comms.ListIcs — calendar invites for event (J06 ICS attach display).
+ */
+export async function listIcs(
+  deps: CommsCommandDeps,
+  input: { eventId: string },
+): Promise<CommandOk<CommsListIcsResponse> | CommandErr> {
+  const event = await deps.events.findEventById(input.eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: "Event not found", code: "NOT_FOUND" };
+  }
+  const rows = await deps.comms.listCalendarInvitesForEvent(input.eventId);
+  return {
+    ok: true,
+    value: {
+      eventId: input.eventId,
+      invites: rows.map(toInviteDto),
+    },
   };
 }
 
@@ -617,7 +795,11 @@ export async function icsForPlacementCommand(
     cancel?: boolean;
   },
 ): Promise<
-  | CommandOk<{ invite: CalendarInviteRow; state: CalendarInviteState }>
+  | CommandOk<{
+      invite: CalendarInviteRow;
+      state: CalendarInviteState;
+      response: CommsIcsForPlacementResponse;
+    }>
   | CommandErr
 > {
   const event = await deps.events.findEventById(input.placement.eventId);
@@ -681,7 +863,14 @@ export async function icsForPlacementCommand(
       createdAt: now,
     });
 
-    return { ok: true, value: { invite: row, state } };
+    return {
+      ok: true,
+      value: {
+        invite: row,
+        state,
+        response: { invite: toInviteDto(row) },
+      },
+    };
   }
 
   const updated = await deps.comms.updateCalendarInvite(prior.id, {
@@ -728,5 +917,12 @@ export async function icsForPlacementCommand(
     createdAt: now,
   });
 
-  return { ok: true, value: { invite: updated, state } };
+  return {
+    ok: true,
+    value: {
+      invite: updated,
+      state,
+      response: { invite: toInviteDto(updated) },
+    },
+  };
 }

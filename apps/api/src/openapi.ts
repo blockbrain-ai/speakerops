@@ -1092,7 +1092,7 @@ export const FILE_OPENAPI_PATHS = {
   },
 } as const;
 
-/** OpenAPI paths for Comms.* commands (section 5.1). */
+/** OpenAPI paths for Comms.* commands (section 5.1–5.3). */
 export const COMMS_OPENAPI_PATHS = {
   "/api/events/{eventId}/templates/{key}": {
     put: {
@@ -1139,6 +1139,142 @@ export const COMMS_OPENAPI_PATHS = {
         "403": { description: "Forbidden role" },
         "404": { description: "Event not found / no membership" },
         "409": { description: "Version conflict" },
+      },
+    },
+  },
+  "/api/events/{eventId}/templates": {
+    get: {
+      operationId: "Comms.ListTemplates",
+      summary: "Comms.ListTemplates",
+      description: "List email templates for an event (admin SPA picker).",
+      tags: ["Comms"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "templates[]" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+  "/api/events/{eventId}/comms/jobs": {
+    get: {
+      operationId: "Comms.ListJobs",
+      summary: "Comms.ListJobs",
+      description: "Delivery log — message jobs for an event (J05).",
+      tags: ["Comms"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "jobs[]" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+  "/api/events/{eventId}/comms/jobs/{jobId}": {
+    get: {
+      operationId: "Comms.GetJob",
+      summary: "Comms.GetJob",
+      description: "Job detail with recipients + delivery_events (J05).",
+      tags: ["Comms"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "jobId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "job + recipients + deliveryEvents" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Job not found" },
+      },
+    },
+  },
+  "/api/events/{eventId}/comms/ics": {
+    get: {
+      operationId: "Comms.ListIcs",
+      summary: "Comms.ListIcs",
+      description: "List calendar invites for ICS attach display (J06).",
+      tags: ["Comms"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "invites[]" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+    post: {
+      operationId: "Comms.IcsForPlacement",
+      summary: "Comms.IcsForPlacement",
+      description:
+        "Create or update calendar_invite with stable UID; SEQUENCE bumps on reschedule (J10).",
+      tags: ["Comms"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["placementId", "summary", "startsAt", "endsAt"],
+              properties: {
+                placementId: { type: "string" },
+                summary: { type: "string" },
+                startsAt: { type: "string" },
+                endsAt: { type: "string" },
+                location: { type: "string", nullable: true },
+                cancel: { type: "boolean" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Invite updated (SEQUENCE bumped)" },
+        "201": { description: "Invite created" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found" },
       },
     },
   },
@@ -1250,8 +1386,12 @@ export const OPENAPI_COMMANDS = [
   "File.CompleteUpload",
   "File.GetPublic",
   "Comms.UpsertTemplate",
+  "Comms.ListTemplates",
   "Comms.Preview",
   "Comms.Send",
+  "Comms.ListJobs",
+  "Comms.GetJob",
+  "Comms.ListIcs",
   "Comms.IcsForPlacement",
 ] as const;
 
@@ -1262,7 +1402,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2) + admin UI reads (5.3).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,
@@ -1286,7 +1426,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       {
         name: "Comms",
         description:
-          "Email templates + outbox enqueue (S-COMMS / 5.1); provider send in 5.2",
+          "Email templates + outbox enqueue (S-COMMS / 5.1); provider send (5.2); admin UI trust-before-send (5.3)",
       },
     ],
     "x-speakerops-commands": [...OPENAPI_COMMANDS],

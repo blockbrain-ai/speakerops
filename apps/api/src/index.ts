@@ -15,6 +15,7 @@
  * Section 4.2: File.PresignUpload headshot/slides + File.CompleteUpload + R2 metadata
  * Section 5.1: Comms.UpsertTemplate / Preview / Send enqueue (S-COMMS outbox)
  * Section 5.2: Send idempotency_keys + recipients + ICS UID/SEQUENCE + sandbox consumer
+ * Section 5.3: Comms admin UI reads — ListTemplates/Jobs/Ics + IcsForPlacement HTTP
  *
  * Domain routes from COMMANDS.md register here.
  *

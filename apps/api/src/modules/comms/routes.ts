@@ -1,11 +1,16 @@
 /**
- * Comms HTTP routes — COMMANDS.md map (section 5.1–5.2 / S-COMMS).
+ * Comms HTTP routes — COMMANDS.md map (section 5.1–5.3 / S-COMMS).
  *
  * PUT  /api/events/:eventId/templates/:key → Comms.UpsertTemplate
+ * GET  /api/events/:eventId/templates      → Comms.ListTemplates
+ * GET  /api/events/:eventId/comms/jobs     → Comms.ListJobs
+ * GET  /api/events/:eventId/comms/jobs/:id → Comms.GetJob
+ * GET  /api/events/:eventId/comms/ics      → Comms.ListIcs
+ * POST /api/events/:eventId/comms/ics      → Comms.IcsForPlacement
  * POST /api/comms/preview                  → Comms.Preview
  * POST /api/comms/send                     → Comms.Send (enqueue; sandbox drain in 5.2)
  *
- * Roles: admin for UpsertTemplate; admin for preview/send (browser maps admin ⊂ scopes).
+ * Roles: admin for all (browser maps admin ⊂ scopes).
  * Scope names comms:draft / comms:send apply to API keys (Phase 7); session path uses roles.
  * Send requires previewId + idempotencyKey (J08/J04); provider never called on request path.
  */
@@ -17,6 +22,12 @@ import {
   CommsPreviewResponseSchema,
   CommsSendBodySchema,
   CommsSendResponseSchema,
+  CommsListTemplatesResponseSchema,
+  CommsListJobsResponseSchema,
+  CommsGetJobResponseSchema,
+  CommsListIcsResponseSchema,
+  CommsIcsForPlacementBodySchema,
+  CommsIcsForPlacementResponseSchema,
   TemplateKeySchema,
   errorEnvelope,
   VALIDATION_ERROR,
@@ -33,7 +44,16 @@ import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { CommsStore } from "./store.js";
 import { requireRole } from "../../middleware/authz.js";
-import { upsertTemplate, previewComms, sendComms } from "./commands.js";
+import {
+  upsertTemplate,
+  previewComms,
+  sendComms,
+  listTemplates,
+  listJobs,
+  getJob,
+  listIcs,
+  icsForPlacementCommand,
+} from "./commands.js";
 
 export type CommsRouteOptions = {
   store: AuthStore;
@@ -74,6 +94,195 @@ export function createEventCommsRoutes(
   const app = new Hono<ApiEnv>();
   const { store, events, submissions, decisions, comms } = options;
   const deps = { comms, events, auth: store, submissions, decisions };
+
+  /**
+   * GET /:eventId/templates — Comms.ListTemplates
+   * Role: admin
+   */
+  app.get(
+    "/:eventId/templates",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      const eventId = c.req.param("eventId");
+      const result = await listTemplates(deps, { eventId });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = CommsListTemplatesResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * GET /:eventId/comms/jobs — Comms.ListJobs (delivery log)
+   */
+  app.get(
+    "/:eventId/comms/jobs",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      const eventId = c.req.param("eventId");
+      const result = await listJobs(deps, { eventId });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = CommsListJobsResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * GET /:eventId/comms/jobs/:jobId — Comms.GetJob
+   */
+  app.get(
+    "/:eventId/comms/jobs/:jobId",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      const eventId = c.req.param("eventId");
+      const jobId = c.req.param("jobId");
+      const result = await getJob(deps, { eventId, jobId });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = CommsGetJobResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * GET /:eventId/comms/ics — Comms.ListIcs
+   */
+  app.get(
+    "/:eventId/comms/ics",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      const eventId = c.req.param("eventId");
+      const result = await listIcs(deps, { eventId });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = CommsListIcsResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * POST /:eventId/comms/ics — Comms.IcsForPlacement (fixture-friendly for J06/J10)
+   */
+  app.post(
+    "/:eventId/comms/ics",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      const eventId = c.req.param("eventId");
+      let raw: unknown;
+      try {
+        raw = await c.req.json();
+      } catch {
+        return c.json(
+          errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
+          400,
+        );
+      }
+      const parsed = CommsIcsForPlacementBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        return c.json(
+          errorEnvelope("Validation failed", VALIDATION_ERROR, {
+            issues: parsed.error.flatten(),
+          }),
+          400,
+        );
+      }
+      const result = await icsForPlacementCommand(deps, {
+        placement: {
+          eventId,
+          placementId: parsed.data.placementId,
+          sessionId: parsed.data.sessionId ?? null,
+          summary: parsed.data.summary,
+          startsAt: parsed.data.startsAt,
+          endsAt: parsed.data.endsAt,
+          location: parsed.data.location ?? null,
+          description: parsed.data.description ?? null,
+          organizerEmail: parsed.data.organizerEmail ?? null,
+          attendeeEmail: parsed.data.attendeeEmail ?? null,
+        },
+        actorUserId: user.id,
+        correlationId: c.get("correlationId"),
+        cancel: parsed.data.cancel,
+      });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = CommsIcsForPlacementResponseSchema.safeParse(
+        result.value.response,
+      );
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      const status = result.value.invite.version === 1 ? 201 : 200;
+      return c.json(out.data, status);
+    },
+  );
 
   /**
    * PUT /:eventId/templates/:key — Comms.UpsertTemplate

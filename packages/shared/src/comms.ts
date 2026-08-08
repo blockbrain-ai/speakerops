@@ -141,6 +141,131 @@ export type CommsSendResponse = z.infer<typeof CommsSendResponseSchema>;
 /** Outbox topic written by Comms.Send (drained in 5.2). */
 export const COMMS_OUTBOX_TOPIC = "comms.send" as const;
 
+// ---------------------------------------------------------------------------
+// Section 5.3 — admin UI read models + ICS HTTP (trust-before-send SPA)
+// ---------------------------------------------------------------------------
+
+/** GET /api/events/:eventId/templates — Comms.ListTemplates */
+export const CommsListTemplatesResponseSchema = z.object({
+  templates: z.array(EmailTemplateSchema),
+  eventId: z.string().min(1),
+});
+export type CommsListTemplatesResponse = z.infer<
+  typeof CommsListTemplatesResponseSchema
+>;
+
+/** Delivery-log job summary (list). */
+export const CommsJobSummarySchema = z.object({
+  id: z.string().min(1),
+  eventId: z.string().min(1),
+  templateId: z.string().min(1),
+  status: MessageJobStatusSchema,
+  idempotencyKey: z.string().nullable(),
+  recipientCount: z.number().int().nonnegative(),
+  version: z.number().int().positive(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+});
+export type CommsJobSummary = z.infer<typeof CommsJobSummarySchema>;
+
+/** GET /api/events/:eventId/comms/jobs — Comms.ListJobs */
+export const CommsListJobsResponseSchema = z.object({
+  jobs: z.array(CommsJobSummarySchema),
+  eventId: z.string().min(1),
+});
+export type CommsListJobsResponse = z.infer<typeof CommsListJobsResponseSchema>;
+
+export const MessageRecipientSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  eventId: z.string().min(1),
+  participationId: z.string().nullable(),
+  toEmail: z.string().email(),
+  name: z.string().nullable(),
+  subject: z.string().nullable(),
+  status: z.string().min(1),
+  createdAt: z.string().min(1),
+});
+export type MessageRecipientDto = z.infer<typeof MessageRecipientSchema>;
+
+export const DeliveryEventSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  recipientId: z.string().nullable(),
+  eventId: z.string().min(1),
+  provider: z.string().min(1),
+  providerMessageId: z.string().nullable(),
+  status: z.string().min(1),
+  attempt: z.number().int().nonnegative(),
+  error: z.string().nullable(),
+  createdAt: z.string().min(1),
+});
+export type DeliveryEventDto = z.infer<typeof DeliveryEventSchema>;
+
+/** GET /api/events/:eventId/comms/jobs/:jobId — Comms.GetJob */
+export const CommsGetJobResponseSchema = z.object({
+  job: MessageJobSchema,
+  recipients: z.array(MessageRecipientSchema),
+  deliveryEvents: z.array(DeliveryEventSchema),
+});
+export type CommsGetJobResponse = z.infer<typeof CommsGetJobResponseSchema>;
+
+/** Calendar invite DTO for ICS attach display (J06/J10). */
+export const CalendarInviteSchema = z.object({
+  id: z.string().min(1),
+  eventId: z.string().min(1),
+  placementId: z.string().min(1),
+  sessionId: z.string().nullable(),
+  uid: z.string().min(1),
+  sequence: z.number().int().nonnegative(),
+  method: z.enum(["REQUEST", "CANCEL"]),
+  summary: z.string().nullable(),
+  startsAt: z.string().nullable(),
+  endsAt: z.string().nullable(),
+  location: z.string().nullable(),
+  /** ICS body present for attach display (admin only). */
+  icsBody: z.string().min(1),
+  version: z.number().int().positive(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+});
+export type CalendarInviteDto = z.infer<typeof CalendarInviteSchema>;
+
+/** GET /api/events/:eventId/comms/ics — Comms.ListIcs */
+export const CommsListIcsResponseSchema = z.object({
+  invites: z.array(CalendarInviteSchema),
+  eventId: z.string().min(1),
+});
+export type CommsListIcsResponse = z.infer<typeof CommsListIcsResponseSchema>;
+
+/**
+ * POST /api/events/:eventId/comms/ics — Comms.IcsForPlacement
+ * Fixture-friendly placement body (Phase 5; full schedule in 6.x).
+ */
+export const CommsIcsForPlacementBodySchema = z.object({
+  placementId: z.string().min(1).max(128),
+  sessionId: z.string().min(1).max(128).nullable().optional(),
+  summary: z.string().min(1).max(500),
+  startsAt: z.string().min(1).max(64),
+  endsAt: z.string().min(1).max(64),
+  location: z.string().max(500).nullable().optional(),
+  description: z.string().max(4000).nullable().optional(),
+  organizerEmail: z.string().email().nullable().optional(),
+  attendeeEmail: z.string().email().nullable().optional(),
+  /** When true, emit METHOD:CANCEL and bump SEQUENCE. */
+  cancel: z.boolean().optional(),
+});
+export type CommsIcsForPlacementBody = z.infer<
+  typeof CommsIcsForPlacementBodySchema
+>;
+
+export const CommsIcsForPlacementResponseSchema = z.object({
+  invite: CalendarInviteSchema,
+});
+export type CommsIcsForPlacementResponse = z.infer<
+  typeof CommsIcsForPlacementResponseSchema
+>;
+
 /**
  * Extract unique merge field names from `{{fieldName}}` tokens.
  * Order is first-appearance order in the combined text.

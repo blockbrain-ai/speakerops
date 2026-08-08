@@ -76,9 +76,13 @@ Auth: session cookie **or** API key with scopes.
 | Command | Scope | Input | Output |
 |---------|-------|-------|--------|
 | `Comms.UpsertTemplate` | admin | eventId, key, subject, body | template |
+| `Comms.ListTemplates` | admin | eventId | templates[] |
 | `Comms.Preview` | comms:draft | templateId, segment | { recipients[], bodies[], missingFields[] } |
 | `Comms.Send` | comms:send | previewId / draftId, idempotencyKey | job |
-| `Comms.IcsForPlacement` | system/admin | placementId | calendar_invite row |
+| `Comms.ListJobs` | admin | eventId | jobs[] (delivery log) |
+| `Comms.GetJob` | admin | eventId, jobId | job + recipients + delivery_events |
+| `Comms.ListIcs` | admin | eventId | calendar_invites[] |
+| `Comms.IcsForPlacement` | system/admin | placementId (+ fixture fields) | calendar_invite row |
 
 ## Readiness & reports
 | Command | Scope | Input | Output |
@@ -153,6 +157,11 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/events/:eventId/schedule/move | Schedule.Move |
 | POST | /api/events/:eventId/schedule/unschedule | Schedule.Unschedule |
 | PUT | /api/events/:eventId/templates/:key | Comms.UpsertTemplate |
+| GET | /api/events/:eventId/templates | Comms.ListTemplates |
+| GET | /api/events/:eventId/comms/jobs | Comms.ListJobs |
+| GET | /api/events/:eventId/comms/jobs/:jobId | Comms.GetJob |
+| GET | /api/events/:eventId/comms/ics | Comms.ListIcs |
+| POST | /api/events/:eventId/comms/ics | Comms.IcsForPlacement |
 | POST | /api/comms/preview | Comms.Preview |
 | POST | /api/comms/send | Comms.Send |
 | GET | /api/events/:eventId/readiness | Reports.Readiness |

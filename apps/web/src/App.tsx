@@ -6,7 +6,7 @@
  * + Submissions decisions (section 3.5)
  * + Portal APIs / task templates / admin speakers (section 4.1)
  * + Speaker portal UI G01–G08 (section 4.3)
- * + Comms email templates (section 5.1).
+ * + Comms email templates (section 5.1) + trust-before-send UI (section 5.3).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";

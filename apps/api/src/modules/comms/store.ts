@@ -181,6 +181,7 @@ export type CommsStore = {
     placementId: string,
   ): Promise<CalendarInviteRow | null>;
   findCalendarInviteByUid(uid: string): Promise<CalendarInviteRow | null>;
+  listCalendarInvitesForEvent(eventId: string): Promise<CalendarInviteRow[]>;
   insertCalendarInvite(row: CalendarInviteRow): Promise<CalendarInviteRow>;
   updateCalendarInvite(
     id: string,
@@ -452,6 +453,14 @@ export class MemoryCommsStore implements CommsStore {
     if (!id) return null;
     const row = this.invites.get(id);
     return row ? { ...row } : null;
+  }
+
+  async listCalendarInvitesForEvent(
+    eventId: string,
+  ): Promise<CalendarInviteRow[]> {
+    return [...this.invites.values()]
+      .filter((i) => i.eventId === eventId)
+      .map((i) => ({ ...i }));
   }
 
   async insertCalendarInvite(
@@ -943,6 +952,16 @@ export class D1CommsStore implements CommsStore {
     const r = rows[0];
     if (!r) return null;
     return mapInvite(r);
+  }
+
+  async listCalendarInvitesForEvent(
+    eventId: string,
+  ): Promise<CalendarInviteRow[]> {
+    const rows = await this.db
+      .select()
+      .from(calendarInvites)
+      .where(eq(calendarInvites.eventId, eventId));
+    return rows.map(mapInvite);
   }
 
   async insertCalendarInvite(
