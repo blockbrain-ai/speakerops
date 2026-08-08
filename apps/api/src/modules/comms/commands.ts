@@ -41,6 +41,7 @@ import {
   type EmailTemplateRow,
   type MessageJobRow,
   type CalendarInviteRow,
+  IdempotencyKeyConflictError,
   newEmailTemplateId,
   newMessageJobId,
   newOutboxEventId,
@@ -688,65 +689,116 @@ export async function sendComms(
 
   // Single transactional unit (E7): job transition + recipients + outbox +
   // idempotency_keys + audit_events. No provider HTTP here.
-  const updated = await deps.comms.enqueueSendAtomic(
-    {
-      jobId: job.id,
-      status: "queued",
-      idempotencyKey: input.body.idempotencyKey,
-      version: nextVersion,
-      expectedVersion: job.version,
-      updatedAt: now,
-      recipients: recipientRows,
-      outbox: {
-        id: newOutboxEventId(),
-        topic: COMMS_OUTBOX_TOPIC,
-        payloadJson: JSON.stringify({
-          jobId: job.id,
+  // Only a non-null return means *this* call performed the enqueue.
+  let updated: MessageJobRow | null;
+  try {
+    updated = await deps.comms.enqueueSendAtomic(
+      {
+        jobId: job.id,
+        status: "queued",
+        idempotencyKey: input.body.idempotencyKey,
+        version: nextVersion,
+        expectedVersion: job.version,
+        updatedAt: now,
+        recipients: recipientRows,
+        outbox: {
+          id: newOutboxEventId(),
+          topic: COMMS_OUTBOX_TOPIC,
+          payloadJson: JSON.stringify({
+            jobId: job.id,
+            eventId: job.eventId,
+            templateId: job.templateId,
+            idempotencyKey: input.body.idempotencyKey,
+            correlationId: input.correlationId,
+          }),
+          createdAt: now,
+          processedAt: null,
+          attempts: 0,
+          lastError: null,
+        },
+        idempotency: {
+          id: newIdempotencyKeyId(),
+          key: storageKey,
+          requestHash,
+          responseJson: JSON.stringify(response),
+          createdAt: now,
+        },
+        audit: {
+          id: uuidv7(),
           eventId: job.eventId,
-          templateId: job.templateId,
-          idempotencyKey: input.body.idempotencyKey,
+          actorType: "user",
+          actorId: input.actorUserId,
+          action: "Comms.Send",
+          entityType: "message_job",
+          entityId: job.id,
+          beforeJson: JSON.stringify({
+            status: job.status,
+            version: job.version,
+          }),
+          afterJson: JSON.stringify({
+            status: "queued",
+            version: nextVersion,
+            idempotencyKey: input.body.idempotencyKey,
+            outboxTopic: COMMS_OUTBOX_TOPIC,
+          }),
           correlationId: input.correlationId,
-        }),
-        createdAt: now,
-        processedAt: null,
-        attempts: 0,
-        lastError: null,
+          createdAt: now,
+        },
       },
-      idempotency: {
-        id: newIdempotencyKeyId(),
-        key: storageKey,
-        requestHash,
-        responseJson: JSON.stringify(response),
-        createdAt: now,
-      },
-      audit: {
-        id: uuidv7(),
-        eventId: job.eventId,
-        actorType: "user",
-        actorId: input.actorUserId,
-        action: "Comms.Send",
-        entityType: "message_job",
-        entityId: job.id,
-        beforeJson: JSON.stringify({ status: job.status, version: job.version }),
-        afterJson: JSON.stringify({
-          status: "queued",
-          version: nextVersion,
-          idempotencyKey: input.body.idempotencyKey,
-          outboxTopic: COMMS_OUTBOX_TOPIC,
-        }),
-        correlationId: input.correlationId,
-        createdAt: now,
-      },
-    },
-    (row) => deps.auth.insertAudit(row),
-  );
+      (row) => deps.auth.insertAudit(row),
+    );
+  } catch (err) {
+    if (err instanceof IdempotencyKeyConflictError) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Idempotency key reused with different request",
+        code: "CONFLICT",
+        details: { key: input.body.idempotencyKey },
+      };
+    }
+    throw err;
+  }
 
   if (!updated) {
-    // Race: another request may have claimed this preview
+    // Race: concurrent same-key winner (or different-key version CAS).
+    // Re-check requestHash so a different-preview race cannot replay as 200.
+    const againIdem = await deps.comms.findIdempotencyKey(storageKey);
+    if (againIdem) {
+      if (againIdem.requestHash !== requestHash) {
+        return {
+          ok: false,
+          status: 409,
+          error: "Idempotency key reused with different request",
+          code: "CONFLICT",
+          details: { key: input.body.idempotencyKey },
+        };
+      }
+      if (againIdem.responseJson) {
+        try {
+          const cached = JSON.parse(
+            againIdem.responseJson,
+          ) as CommsSendResponse;
+          return { ok: true, value: { ...cached, enqueued: false } };
+        } catch {
+          // Fall through to job lookup
+        }
+      }
+    }
     const again = await deps.comms.findJobByIdempotencyKey(
       input.body.idempotencyKey,
     );
     if (again) {
+      // Same key on a different preview job without matching idem row → 409.
+      if (again.id !== job.id) {
+        return {
+          ok: false,
+          status: 409,
+          error: "Idempotency key reused with different request",
+          code: "CONFLICT",
+          details: { key: input.body.idempotencyKey },
+        };
+      }
       return { ok: true, value: { job: toJobDto(again), enqueued: false } };
     }
     return {

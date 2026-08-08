@@ -832,6 +832,8 @@ describe("5.2 Comms send idempotent + ICS", () => {
   it("D1 enqueueSendAtomic gates inserts on transition-unique job fields", async () => {
     // Source contract: jobWon must not be version-alone (shared N+1 after a
     // concurrent win). Keep single-batch atomicity + transition-unique gate.
+    // Losers return null (not winner row); batch errors validate requestHash;
+    // transition stamp is restored to canonical ISO updatedAt in-batch.
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const { dirname, join } = await import("node:path");
@@ -849,8 +851,106 @@ describe("5.2 Comms send idempotent + ICS", () => {
     expect(enqueue).toMatch(/eq\(\s*messageJobs\.idempotencyKey/);
     expect(enqueue).toMatch(/eq\(\s*messageJobs\.updatedAt/);
     expect(enqueue).toMatch(/eq\(\s*messageJobs\.version/);
-    expect(enqueue).toContain("findJobByIdempotencyKey");
+    expect(enqueue).toContain("restoreUpdatedAt");
+    expect(enqueue).toContain("input.updatedAt");
+    expect(enqueue).toContain("reconcileEnqueueBatchError");
+    expect(enqueue).toContain("requestHash");
+    expect(enqueue).toContain("IdempotencyKeyConflictError");
+    // Lost CAS / same-key replay must return null (not the winner's row).
+    expect(enqueue).toMatch(
+      /d1Changes\(results\[0\]\)\s*===\s*0[\s\S]*?return null/,
+    );
     // Must not reintroduce claim-then-separate-insert (E7 orphan risk).
     expect(enqueue).not.toMatch(/claimResult/);
+  });
+
+  it("assert send stores ISO updatedAt without transition-token marker", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-send-updated-at@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "UpdatedAt Event");
+    await seedAcceptedSpeaker(admin, event.id, "upd");
+    const { preview } = await upsertAndPreview(admin, event.id, "upd-nudge");
+
+    const sendRes = await admin.app.request(
+      "http://localhost/api/comms/send",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-send-updated-at",
+        },
+        body: JSON.stringify({
+          previewId: preview.previewId,
+          idempotencyKey: "idem-updated-at-1",
+        }),
+      },
+      env,
+    );
+    expect(sendRes.status).toBe(201);
+    const body = CommsSendResponseSchema.parse(await sendRes.json());
+    // Public DTO must be canonical ISO-8601, not '<ISO>#<token>'.
+    expect(body.job.updatedAt).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    );
+    expect(body.job.updatedAt).not.toContain("#");
+
+    const stored = await admin.comms.findJobById(body.job.id);
+    expect(stored).toBeTruthy();
+    expect(stored!.updatedAt).toBe(body.job.updatedAt);
+    expect(stored!.updatedAt).not.toContain("#");
+  });
+
+  it("assert idempotency key reused with different previewId returns 409", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-send-hash-conflict@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Hash Conflict");
+    await seedAcceptedSpeaker(admin, event.id, "hash");
+    const a = await upsertAndPreview(admin, event.id, "hash-a");
+    const b = await upsertAndPreview(admin, event.id, "hash-b");
+
+    const key = "idem-hash-conflict-1";
+    const send1 = await admin.app.request(
+      "http://localhost/api/comms/send",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-hash-1",
+        },
+        body: JSON.stringify({
+          previewId: a.preview.previewId,
+          idempotencyKey: key,
+        }),
+      },
+      env,
+    );
+    expect(send1.status).toBe(201);
+
+    const send2 = await admin.app.request(
+      "http://localhost/api/comms/send",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-hash-2",
+        },
+        body: JSON.stringify({
+          previewId: b.preview.previewId,
+          idempotencyKey: key,
+        }),
+      },
+      env,
+    );
+    expect(send2.status).toBe(409);
+    const errBody = (await send2.json()) as { code?: string; error?: string };
+    expect(errBody.code).toBe("CONFLICT");
+    expect(errBody.error).toMatch(/idempotency key reused/i);
   });
 });

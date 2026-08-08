@@ -320,8 +320,13 @@ export type CommsStore = {
    * job transition + recipients + outbox + idempotency_keys + audit_events.
    * D1 uses a single batch with INSERT…SELECT gated on the winning transition
    * (version + idempotency_key + updated_at), not shared post-update version
-   * alone. Memory applies the claim first then side effects. Returns null when
-   * the job was not transitioned (version conflict).
+   * alone. Memory applies the claim first then side effects.
+   *
+   * Returns the job row only when *this* call performed the transition.
+   * Returns null when the job was not transitioned by this call (lost CAS /
+   * concurrent same-key winner) so the command can re-read and set
+   * enqueued: false. Throws IdempotencyKeyConflictError when a concurrent
+   * winner already stored the same idempotency key with a different requestHash.
    *
    * @param onAudit Memory/tests: write audit into AuthStore so listAudits works.
    *   D1 ignores this and inserts audit_events inside the same batch.
@@ -331,6 +336,18 @@ export type CommsStore = {
     onAudit?: (row: AuditWriteInput) => Promise<void>,
   ): Promise<MessageJobRow | null>;
 };
+
+/**
+ * Concurrent Comms.Send reused an idempotency key with a different request body
+ * (requestHash mismatch). Mapped to HTTP 409 CONFLICT by sendComms.
+ */
+export class IdempotencyKeyConflictError extends Error {
+  readonly code = "IDEMPOTENCY_KEY_CONFLICT" as const;
+  constructor(public readonly key: string) {
+    super("Idempotency key reused with different request");
+    this.name = "IdempotencyKeyConflictError";
+  }
+}
 
 export function newEmailTemplateId(): string {
   return uuidv7();
@@ -1423,10 +1440,14 @@ export class D1CommsStore implements CommsStore {
    *   still sees version N+1) and commits orphan side effects under different
    *   idempotency keys.
    * - Single batch + gate on a *per-attempt transition token* (uuid stamped into
-   *   updated_at) satisfies both: atomicity and no orphans. Concurrent same
-   *   idempotencyKey retries never share the gate marker even at identical ms.
-   * - If a batch still races the unique idempotency_keys index, reconcile to the
-   *   existing job (J04) instead of surfacing 500.
+   *   updated_at for INSERT…SELECT only) satisfies both: atomicity and no
+   *   orphans. Concurrent same idempotencyKey retries never share the gate
+   *   marker even at identical ms. After gated inserts, restore canonical
+   *   input.updatedAt so MessageJobDto stays ISO-8601.
+   * - If a batch still races the unique idempotency_keys index, validate the
+   *   stored requestHash: match → null (command replay, enqueued:false);
+   *   mismatch → IdempotencyKeyConflictError (409). Never return the winner's
+   *   row as if this call performed the enqueue.
    */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
@@ -1435,6 +1456,7 @@ export class D1CommsStore implements CommsStore {
     const audit = buildAuditEventRow(input.audit);
 
     // Guaranteed-unique per attempt — not wall-clock ms (J04 same-key race).
+    // Used only as an INSERT…SELECT gate; restored to input.updatedAt below.
     const transitionToken = uuidv7();
     const transitionStamp = `${input.updatedAt}#${transitionToken}`;
 
@@ -1552,6 +1574,13 @@ export class D1CommsStore implements CommsStore {
         .limit(1),
     );
 
+    // After token-gated inserts, restore canonical ISO updatedAt (do not leak
+    // the internal transition marker through MessageJobDto).
+    const restoreUpdatedAt = this.db
+      .update(messageJobs)
+      .set({ updatedAt: input.updatedAt })
+      .where(jobWon);
+
     // Single D1 batch: job + side effects commit or roll back together (E7).
     // D1 batch requires a non-empty tuple type.
     let results: unknown[];
@@ -1562,6 +1591,7 @@ export class D1CommsStore implements CommsStore {
           outboxInsert,
           idemInsert,
           auditInsert,
+          restoreUpdatedAt,
         ]);
       } else {
         results = await this.db.batch([
@@ -1571,21 +1601,52 @@ export class D1CommsStore implements CommsStore {
           outboxInsert,
           idemInsert,
           auditInsert,
+          restoreUpdatedAt,
         ]);
       }
     } catch (err) {
-      // Duplicate-key batch race on idempotency_keys: winner committed; J04 replay.
-      const existing = await this.findJobByIdempotencyKey(input.idempotencyKey);
-      if (existing) return existing;
-      throw err;
+      // Duplicate-key batch race: winner committed. Validate requestHash —
+      // never return the winner's job as created-by-this-call.
+      await this.reconcileEnqueueBatchError(input, err);
+      return null;
     }
     if (d1Changes(results[0]) === 0) {
-      // Lost version CAS. Same-key concurrent winner → idempotent return (J04).
-      const existing = await this.findJobByIdempotencyKey(input.idempotencyKey);
-      if (existing) return existing;
+      // Lost version CAS. Null so sendComms fallback returns enqueued: false
+      // (do not return the concurrent winner's row as enqueued: true).
       return null;
     }
     return this.findJobById(input.jobId);
+  }
+
+  /**
+   * After a failed enqueue batch, classify concurrent winner vs hard error.
+   * Same requestHash → silent null (J04 replay). Different hash → 409 conflict.
+   * Unknown failure with no winner row → rethrow.
+   */
+  private async reconcileEnqueueBatchError(
+    input: EnqueueSendAtomicInput,
+    err: unknown,
+  ): Promise<void> {
+    const existingIdem = await this.findIdempotencyKey(input.idempotency.key);
+    if (existingIdem) {
+      if (existingIdem.requestHash !== input.idempotency.requestHash) {
+        throw new IdempotencyKeyConflictError(input.idempotencyKey);
+      }
+      // Same request — command re-reads job and returns enqueued: false.
+      return;
+    }
+    // Winner may have set message_jobs.idempotency_key without a visible
+    // idempotency_keys row yet (unlikely in same-batch atomic path); still
+    // do not claim this call enqueued.
+    const existingJob = await this.findJobByIdempotencyKey(input.idempotencyKey);
+    if (existingJob) {
+      // Different preview under same key without idem row: job id ≠ this preview.
+      if (existingJob.id !== input.jobId) {
+        throw new IdempotencyKeyConflictError(input.idempotencyKey);
+      }
+      return;
+    }
+    throw err;
   }
 }
 
