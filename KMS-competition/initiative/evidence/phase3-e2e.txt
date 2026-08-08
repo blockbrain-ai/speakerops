@@ -1,0 +1,98 @@
+# Phase 3 CFP+eval evidence — section 3.6 (I12 keystone)
+
+Section: 3.6 CFP eval e2e proof
+Workspace: speakerops-build
+Date: 2026-08-08
+
+## Claim
+
+I12: form publish → public submit → score → accept → tasks exist.
+Inventory A01–A11, D01–D10, E01–E08, F01–F04 (plus O04) status PASS.
+
+## Evidence path
+
+This file: KMS-competition/initiative/evidence/phase3-e2e.txt
+Section notes: docs/sections/3.6-cfp-eval-e2e.md
+Keystone: playwright/e2e/cfp_eval_keystone.spec.ts
+Seed helpers: playwright/e2e/helpers/cfp-eval-seed.ts
+Implementation journeys:
+  - playwright/e2e/form_builder.spec.ts (@inv:D01–D10)
+  - playwright/e2e/public_cfp.spec.ts (@inv:A01–A11)
+  - playwright/e2e/eval_scoring.spec.ts (@inv:F01–F04, O04)
+  - playwright/e2e/submissions_decisions.spec.ts (@inv:E01–E08)
+
+## Notes
+
+- No secrets, API keys, or magic-link tokens in this evidence file.
+- Active @inv ownership remains 1:1 on implementation specs; keystone documents all Axx/Dxx/Exx/Fxx tags and runs the multi-step soul path.
+- Local e2e uses E2E_WEB_SERVER=1 (Vite + scripts/e2e-api-server.mjs).
+- S-CFP: published form version pinned on public submit.
+- S-EVAL: evaluator scores only; accept materialises session + speaker_tasks (default on_accept templates).
+
+## Gate command outputs
+
+### pnpm typecheck
+```
+> speakerops@0.1.0 typecheck /mnt/HC_Volume_105994188/speakerops-build
+> tsc -b --pretty false
+
+exit: 0
+```
+
+### pnpm test:ci (summary)
+```
+# Subtest: 3.6 cfp eval e2e proof
+    ok 1 - assert keystone path creates tasks after accept
+    ok 2 - assert all phase3 inv tags pass
+    ok 3 - section doc notes evidence path and N/A product surface
+    ok 4 - evidence path file exists for phase 3 keystone
+    ok 5 - pnpm test:e2e remains non-interactive (no --watch)
+    ok 6 - no new product handlers in API composition root (scope guard)
+    ok 7 - no secrets committed in 3.6 e2e artifacts
+ok 21 - 3.6 cfp eval e2e proof
+1..21
+# tests 225
+# suites 21
+# pass 225
+# fail 0
+
+ Test Files  18 passed (18)
+      Tests  151 passed (151)
+
+exit: 0
+```
+
+### pnpm test:e2e:inventory
+```
+> speakerops@0.1.0 test:e2e:inventory /mnt/HC_Volume_105994188/speakerops-build
+> tsx scripts/inventory-lint.ts
+
+[test:e2e:inventory] OK: baseline 108 IDs intact (108 REQUIRED non-DEFER, 0 DEFER); inventory 108 REQUIRED, 108 unique IDs, 108 unique test_ids; fingerprints match
+[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover 54 implemented/status-owned IDs (1:1, non-skip/non-fail, test_id-anchored, playwright-suite:playwright-list-json) (108 total non-DEFER REQUIRED at Phase 8)
+exit: 0
+```
+
+### pnpm test:e2e
+```
+> speakerops@0.1.0 test:e2e /mnt/HC_Volume_105994188/speakerops-build
+> node scripts/e2e-run.mjs
+
+[test:e2e] running Playwright with playwright.config.ts (E2E_WEB_SERVER=1)
+Running 58 tests using 1 worker
+
+  ✓  auth_magic_link.spec.ts @inv:B01–B03
+  ✓  auth_role_guards.spec.ts @inv:B04–B06
+  ✓  auth_settings_keystone.spec.ts keystone: login → set design → publish → public brand; role guards
+  ✓  cfp_eval_keystone.spec.ts keystone: form publish → public submit → score → accept → tasks exist
+  ✓  design_kit.spec.ts @inv:C03–C06,C08–C10
+  ✓  eval_scoring.spec.ts @inv:F01–F04,O04
+  ✓  event_settings.spec.ts @inv:C01,C02,C07,C11,O01–O03
+  ✓  form_builder.spec.ts @inv:D01–D10
+  ✓  foundation_smoke.spec.ts
+  ✓  public_cfp.spec.ts @inv:A01–A11
+  ✓  submissions_decisions.spec.ts @inv:E01–E08
+  ✓  _harness_example.spec.ts
+
+  58 passed (36.7s)
+exit: 0
+```

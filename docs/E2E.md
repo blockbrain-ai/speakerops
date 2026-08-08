@@ -72,6 +72,11 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright/e2e/design_kit.spec.ts` | Section **2.4** `@inv:C03`–`C06`/`C08`–`C10` Design Kit |
 | `playwright/e2e/auth_settings_keystone.spec.ts` | Section **2.5** I12 keystone (login → design publish → public brand) |
 | `playwright/e2e/form_builder.spec.ts` | Section **3.2** `@inv:D01`–`D10` form builder admin UI |
+| `playwright/e2e/public_cfp.spec.ts` | Section **3.3** `@inv:A01`–`A11` public CFP |
+| `playwright/e2e/eval_scoring.spec.ts` | Section **3.4** `@inv:F01`–`F04` / `O04` evaluator scoring |
+| `playwright/e2e/submissions_decisions.spec.ts` | Section **3.5** `@inv:E01`–`E08` submissions & decisions |
+| `playwright/e2e/cfp_eval_keystone.spec.ts` | Section **3.6** I12 keystone (form publish → submit → score → accept → tasks) |
+| `playwright/e2e/helpers/cfp-eval-seed.ts` | Section **3.6** seed helpers for keystone |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
@@ -79,6 +84,7 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `reports/playwright/` | HTML report (CI) |
 | `KMS-competition/initiative/evidence/phase1.txt` | Phase 1 keystone evidence (1.6) |
 | `KMS-competition/initiative/evidence/phase2-e2e.txt` | Phase 2 keystone evidence (2.5) |
+| `KMS-competition/initiative/evidence/phase3-e2e.txt` | Phase 3 keystone evidence (3.6) |
 
 ---
 
@@ -119,6 +125,8 @@ Section **1.5** only scaffolds the harness and inventory lint entry — it does 
 Section **1.6** adds foundation smoke (`foundation_smoke.spec.ts`): health 200 + Lumen admin shell (CFP / Forms) without `pageerror`. Evidence: `KMS-competition/initiative/evidence/phase1.txt`.
 
 Section **2.5** adds the phase-2 I12 keystone (`auth_settings_keystone.spec.ts`): login → set design → publish → public brand; role guards. Inventory B01–B06 / C01–C11 status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase2-e2e.txt`.
+
+Section **3.6** adds the phase-3 I12 keystone (`cfp_eval_keystone.spec.ts`): form publish → public submit → score → accept → tasks exist. Inventory A01–A11 / D01–D10 / E01–E08 / F01–F04 (O04) status **PASS**. Evidence: `KMS-competition/initiative/evidence/phase3-e2e.txt`.
 
 ---
 
