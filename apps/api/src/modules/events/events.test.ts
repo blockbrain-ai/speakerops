@@ -513,4 +513,113 @@ describe("2.3 event settings same-store isolation", () => {
     const err = ErrorEnvelopeSchema.parse(await res.json());
     expect(err.code).toBe(NOT_FOUND);
   });
+
+  it("event-scoped Bearer cannot list creator's other events or create events", async () => {
+    const { app, store, cookie } = await magicLinkSession(
+      "admin",
+      "events-bearer-scope@example.com",
+    );
+
+    // Create two events under the same admin
+    const createA = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ name: "Bearer Event A", timezone: "UTC" }),
+      },
+      env,
+    );
+    expect(createA.status).toBe(201);
+    const eventA = EventResponseSchema.parse(await createA.json()).event;
+
+    const createB = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ name: "Bearer Event B", timezone: "UTC" }),
+      },
+      env,
+    );
+    expect(createB.status).toBe(201);
+
+    // Mint event-scoped key for A
+    const keyRes = await app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "events-a-only",
+          scopes: ["events:read", "events:write"],
+          eventId: eventA.id,
+        }),
+      },
+      env,
+    );
+    expect(keyRes.status).toBe(201);
+    const key = (await keyRes.json()) as { secret: string };
+
+    // List must only return bound event, not creator's full admin set
+    const list = await app.request(
+      "http://localhost/api/events",
+      { headers: { authorization: `Bearer ${key.secret}` } },
+      env,
+    );
+    expect(list.status).toBe(200);
+    const listed = EventListResponseSchema.parse(await list.json());
+    expect(listed.events).toHaveLength(1);
+    expect(listed.events[0]!.id).toBe(eventA.id);
+
+    // Create must be denied for event-scoped key
+    const post = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${key.secret}`,
+        },
+        body: JSON.stringify({ name: "Outside Binding", timezone: "UTC" }),
+      },
+      env,
+    );
+    expect(post.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(await post.json()).code).toBe(FORBIDDEN);
+
+    // API-key Event.Update audit uses actorType api_key
+    const patch = await app.request(
+      `http://localhost/api/events/${eventA.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${key.secret}`,
+          "x-correlation-id": "corr-bearer-update",
+        },
+        body: JSON.stringify({
+          name: "Bearer Event A Renamed",
+          expectedVersion: eventA.version,
+        }),
+      },
+      env,
+    );
+    expect(patch.status).toBe(200);
+    const audits = await store.listAudits();
+    const updateAudit = audits.find(
+      (a) =>
+        a.action === "Event.Update" &&
+        a.entityId === eventA.id &&
+        a.correlationId === "corr-bearer-update",
+    );
+    expect(updateAudit).toBeTruthy();
+    expect(updateAudit!.actorType).toBe("api_key");
+  });
 });

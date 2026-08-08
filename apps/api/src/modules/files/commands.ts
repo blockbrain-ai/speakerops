@@ -70,6 +70,8 @@ function rowToDto(row: FileAssetRow): FileAssetDto {
 export type CompleteUploadInput = FileCompleteBody & {
   fileId: string;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -131,8 +133,8 @@ export async function completeFileUpload(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "File.CompleteUpload",
     entityType: "file_asset",
     entityId: input.fileId,

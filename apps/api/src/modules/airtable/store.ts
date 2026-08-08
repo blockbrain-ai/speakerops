@@ -4,7 +4,7 @@
  * projection_records + outbox_events topic airtable.project.
  * Memory store for tests; D1 store for production Worker (E1 SoR).
  */
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, or, sql } from "drizzle-orm";
 import {
   AIRTABLE_OUTBOX_TOPIC,
   AIRTABLE_PROJECTION_SYSTEM,
@@ -22,6 +22,7 @@ import {
   formatOutboxClaim,
   isActiveOutboxClaim,
   OUTBOX_CLAIM_LEASE_MS,
+  OUTBOX_CLAIM_PREFIX,
 } from "../comms/store.js";
 
 export { OUTBOX_CLAIM_LEASE_MS };
@@ -80,6 +81,11 @@ export type AirtableStore = {
     id: string,
     patch: { attempts: number; lastError: string },
   ): Promise<OutboxEventRow | null>;
+  /**
+   * Remove an unprocessed outbox row (E7 compensation when event write unit
+   * fails after outbox insert). No-op / false when missing or already processed.
+   */
+  deleteUnprocessedOutbox(id: string): Promise<boolean>;
 
   findProjection(
     system: string,
@@ -226,6 +232,14 @@ export class MemoryAirtableStore implements AirtableStore {
     };
     this.outbox[idx] = next;
     return { ...next };
+  }
+
+  async deleteUnprocessedOutbox(id: string): Promise<boolean> {
+    const idx = this.outbox.findIndex((r) => r.id === id);
+    if (idx < 0) return false;
+    if (this.outbox[idx]!.processedAt !== null) return false;
+    this.outbox.splice(idx, 1);
+    return true;
   }
 
   async findProjection(
@@ -375,16 +389,10 @@ export class D1AirtableStore implements AirtableStore {
   ): Promise<OutboxEventRow | null> {
     const nowIso = new Date().toISOString();
     const claimValue = formatOutboxClaim(patch.claimedUntil, patch.claimToken);
-    // Read-modify-write with CAS via processed_at null check
-    const existing = await this.db
-      .select()
-      .from(outboxEvents)
-      .where(eq(outboxEvents.id, id))
-      .limit(1);
-    const row = existing[0];
-    if (!row || row.processedAt != null) return null;
-    if (isActiveOutboxClaim(row.lastError, nowIso)) return null;
-
+    // Atomic exclusive CAS (parity with D1CommsStore): only one concurrent
+    // queue/cron drain wins. Claimable when unprocessed and (no claim marker
+    // OR expired lease). Compare previous claim in the UPDATE WHERE — do not
+    // read-then-update by id alone (race → duplicate Airtable records).
     const result = await this.db
       .update(outboxEvents)
       .set({
@@ -392,17 +400,32 @@ export class D1AirtableStore implements AirtableStore {
         lastError: claimValue,
       })
       .where(
-        and(eq(outboxEvents.id, id), isNull(outboxEvents.processedAt)),
+        and(
+          eq(outboxEvents.id, id),
+          isNull(outboxEvents.processedAt),
+          or(
+            isNull(outboxEvents.lastError),
+            sql`${outboxEvents.lastError} NOT LIKE ${OUTBOX_CLAIM_PREFIX + "%"}`,
+            sql`substr(${outboxEvents.lastError}, 7, 24) <= ${nowIso}`,
+          ),
+        ),
       );
     if (d1Changes(result) === 0) return null;
+    const rows = await this.db
+      .select()
+      .from(outboxEvents)
+      .where(eq(outboxEvents.id, id))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
     return {
-      id: row.id,
-      topic: row.topic,
-      payloadJson: row.payloadJson,
-      createdAt: row.createdAt,
-      processedAt: null,
-      attempts: patch.attempts,
-      lastError: claimValue,
+      id: r.id,
+      topic: r.topic,
+      payloadJson: r.payloadJson,
+      createdAt: r.createdAt,
+      processedAt: r.processedAt ?? null,
+      attempts: r.attempts,
+      lastError: r.lastError ?? null,
     };
   }
 
@@ -498,6 +521,15 @@ export class D1AirtableStore implements AirtableStore {
       attempts: r.attempts,
       lastError: r.lastError ?? null,
     };
+  }
+
+  async deleteUnprocessedOutbox(id: string): Promise<boolean> {
+    const result = await this.db
+      .delete(outboxEvents)
+      .where(
+        and(eq(outboxEvents.id, id), isNull(outboxEvents.processedAt)),
+      );
+    return d1Changes(result) > 0;
   }
 
   async findProjection(

@@ -81,15 +81,60 @@ export function generateApiKeyMaterial(): {
   return { secret, prefix };
 }
 
+/**
+ * Authorization boundary for key administration (E2).
+ * - Event-scoped API key: only keys bound to that eventId; cannot mint unscoped.
+ * - Org-scoped API key (no eventId): only keys in that orgId.
+ * - Session admin: only keys for events they administer (or unscoped keys in
+ *   orgs of those events).
+ */
+export type KeysAdminScope = {
+  /** Bound event when caller is an event-scoped API key. */
+  callerEventId?: string | null;
+  /** Bound org when caller is an API key (always set for keys). */
+  callerOrgId?: string | null;
+  /** Event ids where session user is admin (session path). */
+  adminEventIds?: string[];
+  /** Org ids derived from admin events (session path). */
+  adminOrgIds?: string[];
+};
+
+export function keyVisibleToScope(
+  row: { eventId: string | null; orgId: string },
+  scope: KeysAdminScope,
+): boolean {
+  if (scope.callerEventId) {
+    return row.eventId === scope.callerEventId;
+  }
+  if (scope.callerOrgId) {
+    return row.orgId === scope.callerOrgId;
+  }
+  if (scope.adminEventIds && scope.adminEventIds.length > 0) {
+    if (row.eventId) {
+      return scope.adminEventIds.includes(row.eventId);
+    }
+    // Unscoped key: orgs of events the admin administers
+    const orgs = scope.adminOrgIds ?? [];
+    if (orgs.length > 0) return orgs.includes(row.orgId);
+    // Bootstrap memberships without Event.Create rows yet — allow list/create
+    return true;
+  }
+  // No scope → deny (should not list globally)
+  return false;
+}
+
 export type CreateKeyInput = KeysCreateBody & {
   actorUserId: string;
   actorType?: "user" | "api_key";
   correlationId: string;
+  /** Caller authorization boundary — required for event/org isolation. */
+  scope: KeysAdminScope;
 };
 
 /**
  * Keys.Create — mint key; return secret once; store hash only.
  * Scopes are exactly those requested (default-deny is "no auto-grant").
+ * Target eventId/orgId must fall within the caller's admin boundary.
  */
 export async function createKey(
   deps: KeysCommandDeps,
@@ -124,11 +169,68 @@ export async function createKey(
     };
   }
 
-  const eventId = input.eventId ?? null;
+  let eventId = input.eventId ?? null;
+
+  // Event-scoped caller cannot mint unscoped or cross-event keys
+  if (input.scope.callerEventId) {
+    if (eventId && eventId !== input.scope.callerEventId) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Cannot create key for another event",
+        code: "FORBIDDEN",
+        details: { eventId },
+      };
+    }
+    // Force binding to caller's event (never mint unscoped from event key)
+    eventId = input.scope.callerEventId;
+  }
+
   if (eventId) {
     const event = await deps.events.findEventById(eventId);
     if (!event) {
       return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+    }
+    // Session admin must administer the target event
+    if (
+      !input.scope.callerEventId &&
+      !input.scope.callerOrgId &&
+      input.scope.adminEventIds &&
+      !input.scope.adminEventIds.includes(eventId)
+    ) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Cannot create key for an event you do not administer",
+        code: "FORBIDDEN",
+        details: { eventId },
+      };
+    }
+    // Org-scoped key must stay in org
+    if (
+      input.scope.callerOrgId &&
+      event.orgId !== input.scope.callerOrgId
+    ) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Cannot create key outside key organization",
+        code: "FORBIDDEN",
+      };
+    }
+  } else {
+    // Unscoped key create: session admin OK; org-scoped key OK; event key already forced
+    if (
+      !input.scope.callerEventId &&
+      !input.scope.callerOrgId &&
+      (!input.scope.adminEventIds || input.scope.adminEventIds.length === 0)
+    ) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Insufficient authorization to create unscoped keys",
+        code: "FORBIDDEN",
+      };
     }
   }
 
@@ -143,14 +245,45 @@ export async function createKey(
     };
   }
 
-  const orgId = input.orgId?.trim() || DEFAULT_ORG_ID;
+  let orgId = input.orgId?.trim() || DEFAULT_ORG_ID;
+  if (input.scope.callerOrgId) {
+    orgId = input.scope.callerOrgId;
+  } else if (eventId) {
+    const event = await deps.events.findEventById(eventId);
+    if (event) orgId = event.orgId;
+  } else if (
+    input.scope.adminOrgIds &&
+    input.scope.adminOrgIds.length > 0 &&
+    !input.scope.adminOrgIds.includes(orgId)
+  ) {
+    // Prefer caller's first admin org for unscoped mint
+    orgId = input.scope.adminOrgIds[0]!;
+  }
+
   // Ensure org shell exists for FK (dogfood single-org)
   await deps.events.ensureOrg({ id: orgId });
+
+  // Final visibility check on target
+  if (
+    !keyVisibleToScope(
+      { eventId, orgId },
+      input.scope,
+    )
+  ) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Cannot create key outside authorization boundary",
+      code: "FORBIDDEN",
+    };
+  }
 
   const { secret, prefix } = generateApiKeyMaterial();
   const keyHash = await hashToken(secret);
   const id = uuidv7();
 
+  // createdBy: human user when session; for api_key actor use actorUserId which
+  // routes pass as key id — store createdBy as the acting principal id.
   const row: ApiKeyRow = {
     id,
     orgId,
@@ -205,17 +338,23 @@ export async function createKey(
 
 /**
  * Keys.List — metadata only; never secret or hash.
+ * Filtered to the caller's event/org authorization boundary.
  */
 export async function listKeys(
   deps: KeysCommandDeps,
-  options?: { orgId?: string },
+  scope: KeysAdminScope,
 ): Promise<CommandOk<{ keys: ApiKeyDto[] }>> {
+  // Prefetch by org when known to reduce scan; then filter event boundary.
+  const orgFilter =
+    scope.callerOrgId ??
+    (scope.adminOrgIds?.length === 1 ? scope.adminOrgIds[0] : undefined);
   const rows = await deps.keys.listKeys(
-    options?.orgId ? { orgId: options.orgId } : undefined,
+    orgFilter ? { orgId: orgFilter } : undefined,
   );
+  const filtered = rows.filter((r) => keyVisibleToScope(r, scope));
   return {
     ok: true,
-    value: { keys: rows.map(toApiKeyDto) },
+    value: { keys: filtered.map(toApiKeyDto) },
   };
 }
 
@@ -224,10 +363,12 @@ export type RevokeKeyInput = {
   actorUserId: string;
   actorType?: "user" | "api_key";
   correlationId: string;
+  scope: KeysAdminScope;
 };
 
 /**
  * Keys.Revoke — soft-revoke; subsequent bearer auth → 401.
+ * Target must fall within the caller's event/org boundary.
  */
 export async function revokeKey(
   deps: KeysCommandDeps,
@@ -235,6 +376,10 @@ export async function revokeKey(
 ): Promise<CommandOk<{ ok: true; id: string; revokedAt: string }> | CommandErr> {
   const existing = await deps.keys.findById(input.keyId);
   if (!existing) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+  if (!keyVisibleToScope(existing, input.scope)) {
+    // Cross-boundary: do not leak existence
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
   if (existing.revokedAt) {

@@ -27,8 +27,16 @@ import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { KeysStore } from "./store.js";
-import { requireKeysAdmin } from "../../middleware/authz.js";
-import { createKey, listKeys, revokeKey } from "./commands.js";
+import {
+  requireKeysAdmin,
+  actorFromContext,
+} from "../../middleware/authz.js";
+import {
+  createKey,
+  listKeys,
+  revokeKey,
+  type KeysAdminScope,
+} from "./commands.js";
 
 export type KeysRouteOptions = {
   store: AuthStore;
@@ -56,19 +64,39 @@ function commandError(
   return c.json(errorEnvelope(err.error, code, err.details), err.status);
 }
 
-function actorFromContext(c: Context<ApiEnv>): {
-  actorUserId: string;
-  actorType: "user" | "api_key";
-} {
+/**
+ * Build event/org authorization boundary for the authenticated principal.
+ */
+async function resolveKeysAdminScope(
+  c: Context<ApiEnv>,
+  store: AuthStore,
+  events: EventsStore,
+): Promise<KeysAdminScope | null> {
   const apiKey = c.get("apiKey");
   if (apiKey) {
-    return { actorUserId: apiKey.id, actorType: "api_key" };
+    return {
+      callerEventId: apiKey.eventId,
+      callerOrgId: apiKey.orgId,
+    };
   }
   const user = c.get("user");
-  return {
-    actorUserId: user?.id ?? "unknown",
-    actorType: "user",
-  };
+  if (!user) return null;
+  const memberships = await store.listMembershipsForUser(user.id);
+  const adminEventIds = memberships
+    .filter((m) => m.role === "admin")
+    .map((m) => m.eventId);
+  const adminOrgIds: string[] = [];
+  if (adminEventIds.length > 0) {
+    const rows = await events.listEventsByIds(adminEventIds);
+    const seen = new Set<string>();
+    for (const r of rows) {
+      if (!seen.has(r.orgId)) {
+        seen.add(r.orgId);
+        adminOrgIds.push(r.orgId);
+      }
+    }
+  }
+  return { adminEventIds, adminOrgIds };
 }
 
 /**
@@ -81,10 +109,17 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
   const guard = requireKeysAdmin(store, keys);
 
   /**
-   * GET / — Keys.List (no secrets)
+   * GET / — Keys.List (no secrets); filtered to caller event/org boundary.
    */
   app.get("/", guard, async (c) => {
-    const result = await listKeys(deps);
+    const scope = await resolveKeysAdminScope(c, store, events);
+    if (!scope) {
+      return c.json(
+        errorEnvelope("Authentication required", "UNAUTHORIZED"),
+        401,
+      );
+    }
+    const result = await listKeys(deps, scope);
     const out = KeysListResponseSchema.safeParse(result.value);
     if (!out.success) {
       return c.json(
@@ -96,12 +131,18 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
   });
 
   /**
-   * POST / — Keys.Create (secret once)
+   * POST / — Keys.Create (secret once); target must be within boundary.
    */
   app.post("/", guard, async (c) => {
-    const user = c.get("user");
-    const apiKey = c.get("apiKey");
-    if (!user && !apiKey) {
+    const actor = actorFromContext(c);
+    if (!actor) {
+      return c.json(
+        errorEnvelope("Authentication required", "UNAUTHORIZED"),
+        401,
+      );
+    }
+    const scope = await resolveKeysAdminScope(c, store, events);
+    if (!scope) {
       return c.json(
         errorEnvelope("Authentication required", "UNAUTHORIZED"),
         401,
@@ -128,12 +169,12 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
       );
     }
 
-    const actor = actorFromContext(c);
     const result = await createKey(deps, {
       ...parsed.data,
-      actorUserId: actor.actorUserId,
+      actorUserId: actor.actorId,
       actorType: actor.actorType,
       correlationId: c.get("correlationId"),
+      scope,
     });
 
     if (!result.ok) {
@@ -151,12 +192,18 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
   });
 
   /**
-   * DELETE /:keyId — Keys.Revoke
+   * DELETE /:keyId — Keys.Revoke; target must be within boundary.
    */
   app.delete("/:keyId", guard, async (c) => {
-    const user = c.get("user");
-    const apiKey = c.get("apiKey");
-    if (!user && !apiKey) {
+    const actor = actorFromContext(c);
+    if (!actor) {
+      return c.json(
+        errorEnvelope("Authentication required", "UNAUTHORIZED"),
+        401,
+      );
+    }
+    const scope = await resolveKeysAdminScope(c, store, events);
+    if (!scope) {
       return c.json(
         errorEnvelope("Authentication required", "UNAUTHORIZED"),
         401,
@@ -171,12 +218,12 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
       );
     }
 
-    const actor = actorFromContext(c);
     const result = await revokeKey(deps, {
       keyId,
-      actorUserId: actor.actorUserId,
+      actorUserId: actor.actorId,
       actorType: actor.actorType,
       correlationId: c.get("correlationId"),
+      scope,
     });
 
     if (!result.ok) {

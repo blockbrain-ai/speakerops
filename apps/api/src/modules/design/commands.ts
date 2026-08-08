@@ -111,6 +111,8 @@ export async function getDesign(
 export type SetDraftInput = DesignSetDraftBody & {
   eventId: string;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -211,8 +213,8 @@ export async function setDesignDraft(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "Design.SetDraft",
     entityType: "design_token_draft",
     entityId: input.eventId,
@@ -231,6 +233,8 @@ export type PublishInput = {
   eventId: string;
   expectedVersion: number;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -320,8 +324,8 @@ export async function publishDesign(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "Design.Publish",
     entityType: "design_token_published",
     entityId: input.eventId,
@@ -387,6 +391,8 @@ export async function getPublicDesign(
 
 export type PresignInput = FilePresignBody & {
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -533,8 +539,8 @@ export async function presignFileUpload(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "File.PresignUpload",
     entityType: "file_asset",
     entityId: fileId,
@@ -569,6 +575,8 @@ export type UploadFileInput = {
   body: ArrayBuffer;
   contentType: string | undefined;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -801,8 +809,8 @@ export async function uploadFileBytes(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "File.Upload",
     entityType: "file_asset",
     entityId: input.fileId,

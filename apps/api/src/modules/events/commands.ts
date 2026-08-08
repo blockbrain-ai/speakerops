@@ -37,12 +37,18 @@ export type EventCommandDeps = {
 
 export type CreateEventInput = EventCreateBody & {
   actorUserId: string;
+  /** Audit actor type; API-key writes must use "api_key" (E3). */
+  actorType?: "user" | "api_key";
+  /** Audit actor id; defaults to actorUserId. API keys pass the key id. */
+  actorId?: string;
   correlationId: string;
 };
 
 export type UpdateEventInput = EventUpdateBody & {
   eventId: string;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -50,6 +56,8 @@ export type UpsertRoomInput = RoomUpsertBody & {
   eventId: string;
   roomId: string;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -57,8 +65,21 @@ export type UpsertTrackInput = TrackUpsertBody & {
   eventId: string;
   trackId: string;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
+
+function auditActor(input: {
+  actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
+}): { actorType: "user" | "api_key"; actorId: string } {
+  return {
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
+  };
+}
 
 export type CommandOk<T> = { ok: true; value: T };
 export type CommandErr = {
@@ -124,6 +145,10 @@ async function uniqueSlug(
 
 /**
  * Event.Create — admin creates event; grants creator admin membership.
+ *
+ * E7 transactional outbox unit: event + membership + audit + airtable.project.
+ * On side-effect failure, compensates the event insert so a failed request
+ * never leaves a durable event change without a projection outbox row.
  */
 export async function createEvent(
   deps: EventCommandDeps,
@@ -136,6 +161,7 @@ export async function createEvent(
   const baseSlug = input.slug ?? slugifyName(input.name);
   const slug = await uniqueSlug(deps.events, baseSlug);
   const id = uuidv7();
+  const actor = auditActor(input);
 
   const row: EventRow = {
     id,
@@ -152,47 +178,58 @@ export async function createEvent(
   };
 
   await deps.events.insertEvent(row);
-
-  // Creator is admin of the new event (E2 membership)
-  await deps.auth.upsertMembership({
-    eventId: id,
-    userId: input.actorUserId,
-    role: "admin",
-  });
-
-  await deps.auth.insertAudit({
-    id: uuidv7(),
-    eventId: id,
-    actorType: "user",
-    actorId: input.actorUserId,
-    action: "Event.Create",
-    entityType: "event",
-    entityId: id,
-    afterJson: JSON.stringify({
-      name: row.name,
-      timezone: row.timezone,
-      slug: row.slug,
-    }),
-    correlationId: input.correlationId,
-    createdAt: now,
-  });
-
-  // S-AIRTABLE: outbox only — never Airtable HTTP on request path (E7).
-  if (deps.airtable) {
-    await enqueueAirtableProjection(deps.airtable, {
+  let outboxId: string | null = null;
+  try {
+    // Creator is admin of the new event (E2 membership)
+    await deps.auth.upsertMembership({
       eventId: id,
-      entityType: "event",
-      internalId: id,
-      sourceVersion: row.version,
-      fields: {
-        name: row.name,
-        slug: row.slug,
-        timezone: row.timezone,
-        starts_at: row.startsAt,
-        ends_at: row.endsAt,
-      },
-      correlationId: input.correlationId,
+      userId: input.actorUserId,
+      role: "admin",
     });
+
+    // S-AIRTABLE outbox before audit — both are part of the unit; failure
+    // compensates the event so we never leave SoR without projection.
+    if (deps.airtable) {
+      const enq = await enqueueAirtableProjection(deps.airtable, {
+        eventId: id,
+        entityType: "event",
+        internalId: id,
+        sourceVersion: row.version,
+        fields: {
+          name: row.name,
+          slug: row.slug,
+          timezone: row.timezone,
+          starts_at: row.startsAt,
+          ends_at: row.endsAt,
+        },
+        correlationId: input.correlationId,
+      });
+      outboxId = enq.outboxId;
+    }
+
+    await deps.auth.insertAudit({
+      id: uuidv7(),
+      eventId: id,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      action: "Event.Create",
+      entityType: "event",
+      entityId: id,
+      afterJson: JSON.stringify({
+        name: row.name,
+        timezone: row.timezone,
+        slug: row.slug,
+      }),
+      correlationId: input.correlationId,
+      createdAt: now,
+    });
+  } catch (err) {
+    // Compensate: remove event (+ partial outbox) so error ⇒ no durable mutation.
+    await deps.events.deleteEvent(id);
+    if (outboxId && deps.airtable) {
+      await deps.airtable.deleteUnprocessedOutbox(outboxId);
+    }
+    throw err;
   }
 
   return { ok: true, value: { event: toEventDto(row) } };
@@ -200,6 +237,10 @@ export async function createEvent(
 
 /**
  * Event.Update — optimistic concurrency via expectedVersion.
+ *
+ * E7 transactional outbox unit: event CAS + audit + airtable.project.
+ * Side-effect failure restores the prior event version so a failed request
+ * never leaves a changed event without a projection outbox row.
  */
 export async function updateEvent(
   deps: EventCommandDeps,
@@ -226,6 +267,7 @@ export async function updateEvent(
   }
 
   const now = new Date().toISOString();
+  const actor = auditActor(input);
   const next: EventRow = {
     ...existing,
     name: input.name !== undefined ? input.name.trim() : existing.name,
@@ -256,48 +298,59 @@ export async function updateEvent(
     };
   }
 
-  await deps.auth.insertAudit({
-    id: uuidv7(),
-    eventId: next.id,
-    actorType: "user",
-    actorId: input.actorUserId,
-    action: "Event.Update",
-    entityType: "event",
-    entityId: next.id,
-    beforeJson: JSON.stringify({
-      name: existing.name,
-      timezone: existing.timezone,
-      startsAt: existing.startsAt,
-      endsAt: existing.endsAt,
-      version: existing.version,
-    }),
-    afterJson: JSON.stringify({
-      name: next.name,
-      timezone: next.timezone,
-      startsAt: next.startsAt,
-      endsAt: next.endsAt,
-      version: next.version,
-    }),
-    correlationId: input.correlationId,
-    createdAt: now,
-  });
+  let outboxId: string | null = null;
+  try {
+    // S-AIRTABLE: outbox only — never Airtable HTTP on request path (E7).
+    if (deps.airtable) {
+      const enq = await enqueueAirtableProjection(deps.airtable, {
+        eventId: next.id,
+        entityType: "event",
+        internalId: next.id,
+        sourceVersion: next.version,
+        fields: {
+          name: next.name,
+          slug: next.slug,
+          timezone: next.timezone,
+          starts_at: next.startsAt,
+          ends_at: next.endsAt,
+        },
+        correlationId: input.correlationId,
+      });
+      outboxId = enq.outboxId;
+    }
 
-  // S-AIRTABLE: outbox only — mutation 200 even when AIRTABLE_API_KEY unset.
-  if (deps.airtable) {
-    await enqueueAirtableProjection(deps.airtable, {
+    await deps.auth.insertAudit({
+      id: uuidv7(),
       eventId: next.id,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      action: "Event.Update",
       entityType: "event",
-      internalId: next.id,
-      sourceVersion: next.version,
-      fields: {
+      entityId: next.id,
+      beforeJson: JSON.stringify({
+        name: existing.name,
+        timezone: existing.timezone,
+        startsAt: existing.startsAt,
+        endsAt: existing.endsAt,
+        version: existing.version,
+      }),
+      afterJson: JSON.stringify({
         name: next.name,
-        slug: next.slug,
         timezone: next.timezone,
-        starts_at: next.startsAt,
-        ends_at: next.endsAt,
-      },
+        startsAt: next.startsAt,
+        endsAt: next.endsAt,
+        version: next.version,
+      }),
       correlationId: input.correlationId,
+      createdAt: now,
     });
+  } catch (err) {
+    // Compensate event CAS so error response leaves prior version intact.
+    await deps.events.updateEvent(existing, next.version);
+    if (outboxId && deps.airtable) {
+      await deps.airtable.deleteUnprocessedOutbox(outboxId);
+    }
+    throw err;
   }
 
   return { ok: true, value: { event: toEventDto(next) } };
@@ -436,11 +489,12 @@ export async function upsertRoom(
     };
   }
 
+  const actor = auditActor(input);
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: actor.actorType,
+    actorId: actor.actorId,
     action: "Room.Upsert",
     entityType: "room",
     entityId: row.id,
@@ -537,11 +591,12 @@ export async function upsertTrack(
     };
   }
 
+  const actor = auditActor(input);
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: actor.actorType,
+    actorId: actor.actorId,
     action: "Track.Upsert",
     entityType: "track",
     entityId: row.id,

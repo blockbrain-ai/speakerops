@@ -45,7 +45,7 @@ import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { CommsStore } from "./store.js";
 import type { KeysStore } from "../keys/store.js";
-import { requireRole } from "../../middleware/authz.js";
+import { requireRole, actorFromContext } from "../../middleware/authz.js";
 import {
   upsertTemplate,
   previewComms,
@@ -254,6 +254,11 @@ export function createEventCommsRoutes(
           400,
         );
       }
+      const actor = actorFromContext(c) ?? {
+        actorId: user.id,
+        actorType: "user" as const,
+        userId: user.id,
+      };
       const result = await icsForPlacementCommand(deps, {
         placement: {
           eventId,
@@ -267,7 +272,9 @@ export function createEventCommsRoutes(
           organizerEmail: parsed.data.organizerEmail ?? null,
           attendeeEmail: parsed.data.attendeeEmail ?? null,
         },
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
         cancel: parsed.data.cancel,
       });
@@ -336,11 +343,18 @@ export function createEventCommsRoutes(
         );
       }
 
+      const actor = actorFromContext(c) ?? {
+        actorId: user.id,
+        actorType: "user" as const,
+        userId: user.id,
+      };
       const result = await upsertTemplate(deps, {
         eventId,
         key: keyParsed.data,
         body: parsed.data,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
@@ -452,9 +466,16 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
         );
       }
 
+      const actor = actorFromContext(c) ?? {
+        actorId: user.id,
+        actorType: "user" as const,
+        userId: user.id,
+      };
       const result = await previewComms(deps, {
         body: parsed.data,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
@@ -546,9 +567,16 @@ export function createCommsRoutes(options: CommsRouteOptions): Hono<ApiEnv> {
         }
       }
 
+      const actor = actorFromContext(c) ?? {
+        actorId: user.id,
+        actorType: "user" as const,
+        userId: user.id,
+      };
       const result = await sendComms(deps, {
         body: parsed.data,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 

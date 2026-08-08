@@ -73,6 +73,11 @@ export type EventsStore = {
    * Returns false on version conflict (no row changed).
    */
   updateEvent(row: EventRow, expectedVersion: number): Promise<boolean>;
+  /**
+   * Hard-delete for transactional-outbox compensation after a failed
+   * Event.Create side-effect unit (E7). Not a product command.
+   */
+  deleteEvent(id: string): Promise<boolean>;
   findRoom(eventId: string, roomId: string): Promise<RoomRow | null>;
   listRooms(eventId: string): Promise<RoomRow[]>;
   /**
@@ -166,6 +171,14 @@ export class MemoryEventsStore implements EventsStore {
     }
     this.events.set(row.id, row);
     this.eventsBySlug.set(row.slug, row.id);
+    return true;
+  }
+
+  async deleteEvent(id: string): Promise<boolean> {
+    const prev = this.events.get(id);
+    if (!prev) return false;
+    this.events.delete(id);
+    this.eventsBySlug.delete(prev.slug);
     return true;
   }
 
@@ -321,6 +334,11 @@ export class D1EventsStore implements EventsStore {
         version: row.version,
       })
       .where(and(eq(events.id, row.id), eq(events.version, expectedVersion)));
+    return d1Changes(result) > 0;
+  }
+
+  async deleteEvent(id: string): Promise<boolean> {
+    const result = await this.db.delete(events).where(eq(events.id, id));
     return d1Changes(result) > 0;
   }
 

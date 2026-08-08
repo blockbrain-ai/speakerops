@@ -316,6 +316,8 @@ export async function upsertTemplate(
     key: string;
     body: CommsUpsertTemplateBody;
     actorUserId: string;
+    actorType?: "user" | "api_key";
+    actorId?: string;
     correlationId: string;
   },
 ): Promise<CommandOk<CommsUpsertTemplateResponse> | CommandErr> {
@@ -386,8 +388,8 @@ export async function upsertTemplate(
     await deps.auth.insertAudit({
       id: uuidv7(),
       eventId: input.eventId,
-      actorType: "user",
-      actorId: input.actorUserId,
+      actorType: input.actorType ?? "user",
+      actorId: input.actorId ?? input.actorUserId,
       action: "Comms.UpsertTemplate",
       entityType: "email_template",
       entityId: updated.id,
@@ -419,8 +421,8 @@ export async function upsertTemplate(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "Comms.UpsertTemplate",
     entityType: "email_template",
     entityId: row.id,
@@ -447,6 +449,8 @@ export async function previewComms(
   input: {
     body: CommsPreviewBody;
     actorUserId: string;
+    actorType?: "user" | "api_key";
+    actorId?: string;
     correlationId: string;
   },
 ): Promise<CommandOk<CommsPreviewResponse> | CommandErr> {
@@ -539,8 +543,8 @@ export async function previewComms(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: template.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "Comms.Preview",
     entityType: "message_job",
     entityId: job.id,
@@ -582,6 +586,8 @@ export async function sendComms(
   input: {
     body: CommsSendBody;
     actorUserId: string;
+    actorType?: "user" | "api_key";
+    actorId?: string;
     correlationId: string;
   },
 ): Promise<CommandOk<CommsSendResponse> | CommandErr> {
@@ -726,8 +732,8 @@ export async function sendComms(
         audit: {
           id: uuidv7(),
           eventId: job.eventId,
-          actorType: "user",
-          actorId: input.actorUserId,
+          actorType: input.actorType ?? "user",
+          actorId: input.actorId ?? input.actorUserId,
           action: "Comms.Send",
           entityType: "message_job",
           entityId: job.id,
@@ -862,6 +868,8 @@ export async function icsForPlacementCommand(
   input: {
     placement: IcsPlacementInput;
     actorUserId: string;
+    actorType?: "user" | "api_key";
+    actorId?: string;
     correlationId: string;
     cancel?: boolean;
   },
@@ -919,8 +927,8 @@ export async function icsForPlacementCommand(
     await deps.auth.insertAudit({
       id: uuidv7(),
       eventId: input.placement.eventId,
-      actorType: "user",
-      actorId: input.actorUserId,
+      actorType: input.actorType ?? "user",
+      actorId: input.actorId ?? input.actorUserId,
       action: "Comms.IcsForPlacement",
       entityType: "calendar_invite",
       entityId: row.id,
@@ -969,8 +977,8 @@ export async function icsForPlacementCommand(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.placement.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "Comms.IcsForPlacement",
     entityType: "calendar_invite",
     entityId: updated.id,

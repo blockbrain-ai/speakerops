@@ -48,6 +48,41 @@ export type AuthzUser = {
 
 export type { AuthzApiKey };
 
+/**
+ * Consequential-write actor resolved from session cookie or Bearer API key.
+ * API-key requests must audit as actorType "api_key" with the key id (E3),
+ * not as the key creator human (which is only used for membership/createdBy).
+ */
+export type RequestActor = {
+  /** Audit actor id: user id (session) or api key id (Bearer). */
+  actorId: string;
+  actorType: "user" | "api_key";
+  /** Human user id: session user, or key.createdBy for membership grants. */
+  userId: string;
+};
+
+/**
+ * Resolve audit + human principal after requireRole / requireKeysAdmin /
+ * requireSessionOrBearerScopes. Returns null when neither session nor key.
+ */
+export function actorFromContext(c: Context<ApiEnv>): RequestActor | null {
+  const apiKey = c.get("apiKey");
+  if (apiKey) {
+    return {
+      actorId: apiKey.id,
+      actorType: "api_key",
+      userId: apiKey.createdBy,
+    };
+  }
+  const user = c.get("user");
+  if (!user) return null;
+  return {
+    actorId: user.id,
+    actorType: "user",
+    userId: user.id,
+  };
+}
+
 export type RequireRoleOptions = {
   /**
    * How to resolve eventId for membership lookup.
@@ -101,7 +136,9 @@ export async function resolveBearer(
     createdBy: row.createdBy,
   };
   c.set("apiKey", principal);
-  // Synthetic user id for handlers that expect actorUserId (createdBy user)
+  // Expose createdBy as user for membership/createdBy fields only.
+  // Handlers MUST use actorFromContext() for audit actorType/actorId —
+  // never attribute API-key writes as actorType "user" (E3).
   c.set("user", { id: row.createdBy, email: "" });
   return principal;
 }

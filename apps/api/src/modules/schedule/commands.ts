@@ -199,6 +199,8 @@ function buildBundle(input: {
 export type PlaceInput = SchedulePlaceBody & {
   eventId: string;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -326,8 +328,8 @@ export async function placeSession(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "Schedule.Place",
     entityType: "schedule_placement",
     entityId: placed.id,
@@ -357,6 +359,8 @@ export async function placeSession(
 export type MoveInput = ScheduleMoveBody & {
   eventId: string;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -465,8 +469,8 @@ export async function movePlacement(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "Schedule.Move",
     entityType: "schedule_placement",
     entityId: updated.id,
@@ -501,6 +505,8 @@ export async function movePlacement(
 export type UnscheduleInput = ScheduleUnscheduleBody & {
   eventId: string;
   actorUserId: string;
+  actorType?: "user" | "api_key";
+  actorId?: string;
   correlationId: string;
 };
 
@@ -544,8 +550,8 @@ export async function unschedulePlacement(
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
+    actorType: input.actorType ?? "user",
+    actorId: input.actorId ?? input.actorUserId,
     action: "Schedule.Unschedule",
     entityType: "schedule_placement",
     entityId: input.placementId,

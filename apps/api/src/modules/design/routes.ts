@@ -31,7 +31,7 @@ import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { DesignStore } from "./store.js";
 import type { KeysStore } from "../keys/store.js";
-import { requireRole } from "../../middleware/authz.js";
+import { requireRole, actorFromContext } from "../../middleware/authz.js";
 import {
   getDesign,
   setDesignDraft,
@@ -113,8 +113,8 @@ export function createDesignRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
     "/:eventId/design",
     requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,
@@ -145,7 +145,9 @@ export function createDesignRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
       const result = await setDesignDraft(deps, {
         ...parsed.data,
         eventId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
@@ -172,8 +174,8 @@ export function createDesignRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
     "/:eventId/design/publish",
     requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,
@@ -207,7 +209,9 @@ export function createDesignRoutes(options: DesignRouteOptions): Hono<ApiEnv> {
       const result = await publishDesign(deps, {
         eventId,
         expectedVersion: parsed.data.expectedVersion,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 

@@ -437,6 +437,37 @@ describe("7.3 Airtable one-way projection", () => {
     void pending;
   });
 
+  it("claimOutboxForProcessing is exclusive (second concurrent claim loses)", async () => {
+    const store = new MemoryAirtableStore();
+    await enqueueAirtableProjection(store, {
+      eventId: "evt_claim",
+      entityType: "event",
+      internalId: "evt_claim",
+      fields: { name: "Claim Race" },
+      correlationId: "corr-claim",
+    });
+    const rows = await store.listUnprocessedOutboxByTopic(AIRTABLE_OUTBOX_TOPIC);
+    expect(rows).toHaveLength(1);
+    const id = rows[0]!.id;
+    const until = new Date(Date.now() + 60_000).toISOString();
+
+    const first = await store.claimOutboxForProcessing(id, {
+      claimToken: "token-a",
+      claimedUntil: until,
+      attempts: 1,
+    });
+    expect(first).toBeTruthy();
+    expect(first!.lastError).toContain("token-a");
+
+    // Active claim must block a second drain
+    const second = await store.claimOutboxForProcessing(id, {
+      claimToken: "token-b",
+      claimedUntil: until,
+      attempts: 1,
+    });
+    expect(second).toBeNull();
+  });
+
   it("createAirtableClient pauses when key unset (no crash)", () => {
     const client = createAirtableClient({});
     expect(client.paused).toBe(true);

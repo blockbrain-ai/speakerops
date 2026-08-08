@@ -29,6 +29,7 @@ import {
   INTERNAL_ERROR,
   NOT_FOUND,
   CONFLICT,
+  FORBIDDEN,
   type ErrorCode,
 } from "@speakerops/shared";
 import type { ApiEnv } from "../../env.js";
@@ -36,7 +37,7 @@ import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "./store.js";
 import type { KeysStore } from "../keys/store.js";
 import type { AirtableStore } from "../airtable/store.js";
-import { requireRole } from "../../middleware/authz.js";
+import { requireRole, actorFromContext } from "../../middleware/authz.js";
 import {
   createEvent,
   updateEvent,
@@ -87,17 +88,28 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
    * GET /api/events — Event.List
    * Role: admin (any event membership with role admin)
    * Bearer: events:read (7.2 CLI01)
+   * Event-scoped keys: only the bound event (never creator's full admin set).
    */
   events.get(
     "/",
     requireRole(store, ["admin"], { eventIdFrom: "none", ...bearer }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
       }
 
-      const payload = await listEventsForAdmin(deps, user.id);
+      const apiKey = c.get("apiKey");
+      let payload: Awaited<ReturnType<typeof listEventsForAdmin>>;
+      if (apiKey?.eventId) {
+        // Event-scoped Bearer: constrain list to the key's binding only (E2).
+        const one = await getEvent(deps, apiKey.eventId);
+        payload = {
+          events: one.ok ? [one.value.event] : [],
+        };
+      } else {
+        payload = await listEventsForAdmin(deps, actor.userId);
+      }
       const parsed = EventListResponseSchema.safeParse(payload);
       if (!parsed.success) {
         return c.json(
@@ -112,15 +124,28 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
   /**
    * POST /api/events — Event.Create
    * Role: admin (any admin membership — bootstrap / multi-event)
-   * Bearer: events:write (7.2)
+   * Bearer: events:write (7.2) — unscoped keys only; event-scoped keys forbidden.
    */
   events.post(
     "/",
     requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerWrite }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
+      }
+
+      // Event-scoped keys cannot create events outside their binding (E2).
+      const apiKey = c.get("apiKey");
+      if (apiKey?.eventId) {
+        return c.json(
+          errorEnvelope(
+            "Event-scoped API key cannot create events",
+            FORBIDDEN,
+            { eventId: apiKey.eventId },
+          ),
+          403,
+        );
       }
 
       let raw: unknown;
@@ -145,7 +170,9 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
 
       const result = await createEvent(deps, {
         ...parsed.data,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
@@ -193,10 +220,13 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
    */
   events.patch(
     "/:eventId",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...bearerWrite,
+    }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
       }
 
@@ -224,7 +254,9 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
       const result = await updateEvent(deps, {
         ...parsed.data,
         eventId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
@@ -292,10 +324,13 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
    */
   events.put(
     "/:eventId/rooms/:roomId",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...bearerWrite,
+    }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
       }
 
@@ -325,7 +360,9 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
         ...parsed.data,
         eventId,
         roomId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
@@ -393,10 +430,13 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
    */
   events.put(
     "/:eventId/tracks/:trackId",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...bearerWrite,
+    }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
       }
 
@@ -426,7 +466,9 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
         ...parsed.data,
         eventId,
         trackId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 

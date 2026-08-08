@@ -433,4 +433,109 @@ describe("7.1 API keys", () => {
     expect(doc.paths["/api/keys/{keyId}"]).toBeTruthy();
     expect(doc["x-speakerops-commands"]).toContain("Keys.Create");
   });
+
+  it("event-scoped keys:admin cannot list or revoke outside its event", async () => {
+    const { app, cookie, events } = await magicLinkSession(
+      "admin",
+      "keys-scope-admin@example.com",
+    );
+    // Create two events
+    const e1 = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ name: "Event Scope A", timezone: "UTC" }),
+      },
+      env,
+    );
+    const eventA = (await e1.json() as { event: { id: string } }).event;
+    const e2 = await app.request(
+      "http://localhost/api/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ name: "Event Scope B", timezone: "UTC" }),
+      },
+      env,
+    );
+    const eventB = (await e2.json() as { event: { id: string } }).event;
+    expect(eventA.id).not.toBe(eventB.id);
+
+    // Mint key for A and key for B
+    const createA = await app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "scoped-a",
+          scopes: ["keys:admin", "events:read"],
+          eventId: eventA.id,
+        }),
+      },
+      env,
+    );
+    expect(createA.status).toBe(201);
+    const keyA = KeysCreateResponseSchema.parse(await createA.json());
+
+    const createB = await app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "scoped-b",
+          scopes: ["events:read"],
+          eventId: eventB.id,
+        }),
+      },
+      env,
+    );
+    expect(createB.status).toBe(201);
+    const keyB = KeysCreateResponseSchema.parse(await createB.json());
+
+    // Event-A key lists only keys for A
+    const list = await app.request(
+      "http://localhost/api/keys",
+      { headers: { authorization: `Bearer ${keyA.secret}` } },
+      env,
+    );
+    expect(list.status).toBe(200);
+    const listed = KeysListResponseSchema.parse(await list.json());
+    expect(listed.keys.every((k) => k.eventId === eventA.id)).toBe(true);
+    expect(listed.keys.some((k) => k.id === keyB.id)).toBe(false);
+
+    // Cannot revoke B's key
+    const rev = await app.request(
+      `http://localhost/api/keys/${keyB.id}`,
+      {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${keyA.secret}` },
+      },
+      env,
+    );
+    expect(rev.status).toBe(404);
+
+    // Cannot mint unscoped key (forced to event A)
+    const mint = await app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${keyA.secret}`,
+        },
+        body: JSON.stringify({
+          name: "try-unscoped",
+          scopes: ["events:read"],
+        }),
+      },
+      env,
+    );
+    expect(mint.status).toBe(201);
+    const minted = KeysCreateResponseSchema.parse(await mint.json());
+    expect(minted.eventId).toBe(eventA.id);
+    void events;
+  });
 });

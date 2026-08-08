@@ -38,6 +38,7 @@ import {
   requireRole,
   requireSession,
   requireSessionOrBearerScopes,
+  actorFromContext,
 } from "../../middleware/authz.js";
 import {
   presignFileUpload,
@@ -260,9 +261,16 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       }
     }
 
+    const actor = actorFromContext(c) ?? {
+      actorId: user.id,
+      actorType: "user" as const,
+      userId: user.id,
+    };
     const result = await presignFileUpload(deps, {
       ...parsed.data,
-      actorUserId: user.id,
+      actorUserId: actor.userId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
       correlationId,
     });
 
@@ -390,12 +398,19 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       );
     }
 
+    const actor = actorFromContext(c) ?? {
+      actorId: user.id,
+      actorType: "user" as const,
+      userId: user.id,
+    };
     const result = await uploadFileBytes(deps, {
       eventId,
       fileId,
       body,
       contentType: c.req.header("content-type") ?? undefined,
-      actorUserId: user.id,
+      actorUserId: actor.userId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
       correlationId: c.get("correlationId"),
     });
 
@@ -501,10 +516,17 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
         }
       }
 
+      const actor = actorFromContext(c) ?? {
+        actorId: user.id,
+        actorType: "user" as const,
+        userId: user.id,
+      };
       const result = await completeFileUpload(deps, {
         ...parsed.data,
         fileId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 

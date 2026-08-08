@@ -36,7 +36,7 @@ import type { EventsStore } from "../events/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { ScheduleStore } from "./store.js";
 import type { KeysStore } from "../keys/store.js";
-import { requireRole } from "../../middleware/authz.js";
+import { requireRole, actorFromContext } from "../../middleware/authz.js";
 import {
   placeSession,
   movePlacement,
@@ -162,8 +162,8 @@ export function createScheduleRoutes(
     "/:eventId/schedule/place",
     requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,
@@ -194,7 +194,9 @@ export function createScheduleRoutes(
       const result = await placeSession(deps, {
         ...parsed.data,
         eventId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
@@ -224,8 +226,8 @@ export function createScheduleRoutes(
     "/:eventId/schedule/move",
     requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,
@@ -256,7 +258,9 @@ export function createScheduleRoutes(
       const result = await movePlacement(deps, {
         ...parsed.data,
         eventId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
@@ -286,8 +290,8 @@ export function createScheduleRoutes(
     "/:eventId/schedule/unschedule",
     requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,
@@ -318,7 +322,9 @@ export function createScheduleRoutes(
       const result = await unschedulePlacement(deps, {
         ...parsed.data,
         eventId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
         correlationId: c.get("correlationId"),
       });
 
