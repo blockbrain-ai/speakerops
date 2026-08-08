@@ -1,14 +1,16 @@
 import { z } from "zod";
 
 /**
- * Comms DTOs — email templates + outbox message jobs (section 5.1 / S-COMMS).
+ * Comms DTOs — email templates + outbox message jobs (section 5.1–5.2 / S-COMMS).
  *
  * Commands: Comms.UpsertTemplate · Comms.Preview · Comms.Send (enqueue only)
  * HTTP: PUT  /api/events/:eventId/templates/:key
  *       POST /api/comms/preview
- *       POST /api/comms/send
+ *       POST /api/comms/send  { previewId, idempotencyKey }
  *
- * No provider HTTP on the request path (E7). Send inserts message_jobs + outbox_events.
+ * No provider HTTP on the request path (E7). Send inserts message_jobs +
+ * message_recipients + outbox_events + idempotency_keys; 5.2 consumer drains
+ * with sandbox provider default. ICS UID/SEQUENCE lives in API ics helpers.
  */
 
 /** Stable template key within an event (e.g. accept-reminder). */
@@ -96,7 +98,11 @@ export const CommsPreviewResponseSchema = z.object({
 });
 export type CommsPreviewResponse = z.infer<typeof CommsPreviewResponseSchema>;
 
-/** Comms.Send body — enqueue only (no provider HTTP). */
+/**
+ * Comms.Send body — enqueue only (no provider HTTP).
+ * previewId is mandatory (J08); missing → 400 VALIDATION_ERROR.
+ * idempotencyKey is mandatory (J04); same key returns same job id.
+ */
 export const CommsSendBodySchema = z.object({
   previewId: z.string().min(1).max(128),
   idempotencyKey: z.string().min(1).max(200),

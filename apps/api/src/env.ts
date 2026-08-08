@@ -56,6 +56,20 @@ export type WorkerBindings = {
    * Local/e2e may omit — public CFP falls back to Cloudflare always-pass test key.
    */
   TURNSTILE_SITE_KEY?: string;
+  /**
+   * Email provider mode (section 5.2). Env **name** only (E10).
+   * Default: sandbox (no live HTTP). Set to "resend" only with RESEND_API_KEY.
+   */
+  EMAIL_PROVIDER?: string;
+  /**
+   * Resend API key for live email. Env **name** only — never commit values (E10).
+   * Ignored unless EMAIL_PROVIDER=resend. Sandbox remains default without it.
+   */
+  RESEND_API_KEY?: string;
+  /**
+   * Default From: address for provider sends. Env **name** only.
+   */
+  EMAIL_FROM?: string;
 };
 
 import type { MembershipRow } from "./modules/auth/store.js";

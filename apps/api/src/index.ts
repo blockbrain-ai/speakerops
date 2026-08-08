@@ -14,6 +14,7 @@
  *             + admin speakers list/detail + task templates O05 (S-PORTAL)
  * Section 4.2: File.PresignUpload headshot/slides + File.CompleteUpload + R2 metadata
  * Section 5.1: Comms.UpsertTemplate / Preview / Send enqueue (S-COMMS outbox)
+ * Section 5.2: Send idempotency_keys + recipients + ICS UID/SEQUENCE + sandbox consumer
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -361,10 +362,10 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Section 5.1 — Comms.UpsertTemplate under /api/events/:eventId/templates/:key
   app.route("/api/events", createEventCommsRoutes(commsRouteOpts));
 
-  // Section 5.1 — Comms.Preview + Comms.Send (enqueue only, no provider HTTP)
+  // Section 5.1–5.2 — Comms.Preview + Comms.Send (enqueue only, no provider HTTP)
   app.route("/api/comms", createCommsRoutes(commsRouteOpts));
 
-  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 — OpenAPI lists domain commands
+  // Section 3.1 / 3.3 / 3.4 / 3.5 / 4.1 / 5.1 / 5.2 — OpenAPI lists domain commands
   registerOpenApiRoute(app);
 
   app.notFound(notFoundHandler);

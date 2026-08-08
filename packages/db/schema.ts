@@ -3,10 +3,11 @@
  * + 2.3 rooms/tracks + 2.4 design tokens / logo file_assets + 3.1 forms
  * + 3.3 people / submissions + 3.4 eval rounds / criteria / assignments / scores
  * + 3.5 decisions / program sessions / participations / task_templates / speaker_tasks
- * + 5.1 email_templates / message_jobs (S-COMMS outbox enqueue).
+ * + 5.1 email_templates / message_jobs (S-COMMS outbox enqueue)
+ * + 5.2 message_recipients / delivery_events / calendar_invites (send + ICS).
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1.
+ * owned by 1.3 / 2.1 / 2.2 / 2.3 / 2.4 / 3.1 / 3.3 / 3.4 / 3.5 / 5.1 / 5.2.
  * Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
@@ -796,10 +797,106 @@ export const messageJobs = sqliteTable(
   ],
 );
 
-/** Comms tables owned by section 5.1. */
+/**
+ * message_recipients — per-recipient snapshot at send time (section 5.2).
+ * I16: to_email from segment preview (Comms.Preview → message_recipients.to_email).
+ */
+export const messageRecipients = sqliteTable(
+  "message_recipients",
+  {
+    id: text("id").primaryKey().notNull(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => messageJobs.id),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    participationId: text("participation_id"),
+    toEmail: text("to_email").notNull(),
+    name: text("name"),
+    subject: text("subject"),
+    body: text("body"),
+    status: text("status").notNull().default("pending"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    index("idx_message_recipients_job_id").on(t.jobId),
+    index("idx_message_recipients_event_id").on(t.eventId),
+    index("idx_message_recipients_to_email").on(t.toEmail),
+  ],
+);
+
+/**
+ * delivery_events — provider attempt log (sandbox | resend) (section 5.2).
+ */
+export const deliveryEvents = sqliteTable(
+  "delivery_events",
+  {
+    id: text("id").primaryKey().notNull(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => messageJobs.id),
+    recipientId: text("recipient_id").references(() => messageRecipients.id),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    provider: text("provider").notNull(),
+    providerMessageId: text("provider_message_id"),
+    status: text("status").notNull(),
+    attempt: integer("attempt").notNull().default(1),
+    error: text("error"),
+    payloadJson: text("payload_json"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    index("idx_delivery_events_job_id").on(t.jobId),
+    index("idx_delivery_events_recipient_id").on(t.recipientId),
+    index("idx_delivery_events_event_id").on(t.eventId),
+  ],
+);
+
+/**
+ * calendar_invites — ICS UID + SEQUENCE lifecycle (section 5.2 / S-COMMS).
+ * SCHEMA: calendar: uid, sequence, method.
+ */
+export const calendarInvites = sqliteTable(
+  "calendar_invites",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    placementId: text("placement_id").notNull(),
+    sessionId: text("session_id"),
+    uid: text("uid").notNull(),
+    sequence: integer("sequence").notNull().default(0),
+    method: text("method").notNull(),
+    summary: text("summary"),
+    startsAt: text("starts_at"),
+    endsAt: text("ends_at"),
+    location: text("location"),
+    icsBody: text("ics_body").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_calendar_invites_uid").on(t.uid),
+    uniqueIndex("idx_calendar_invites_event_placement").on(
+      t.eventId,
+      t.placementId,
+    ),
+    index("idx_calendar_invites_event_id").on(t.eventId),
+  ],
+);
+
+/** Comms tables owned by sections 5.1–5.2. */
 export const commsTables = {
   emailTemplates,
   messageJobs,
+  messageRecipients,
+  deliveryEvents,
+  calendarInvites,
 } as const;
 
 export type Organization = typeof organizations.$inferSelect;
@@ -870,6 +967,12 @@ export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type NewEmailTemplate = typeof emailTemplates.$inferInsert;
 export type MessageJob = typeof messageJobs.$inferSelect;
 export type NewMessageJob = typeof messageJobs.$inferInsert;
+export type MessageRecipient = typeof messageRecipients.$inferSelect;
+export type NewMessageRecipient = typeof messageRecipients.$inferInsert;
+export type DeliveryEvent = typeof deliveryEvents.$inferSelect;
+export type NewDeliveryEvent = typeof deliveryEvents.$inferInsert;
+export type CalendarInvite = typeof calendarInvites.$inferSelect;
+export type NewCalendarInvite = typeof calendarInvites.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -907,4 +1010,7 @@ export const schema = {
   speakerTasks,
   emailTemplates,
   messageJobs,
+  messageRecipients,
+  deliveryEvents,
+  calendarInvites,
 } as const;

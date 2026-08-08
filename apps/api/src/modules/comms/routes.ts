@@ -1,12 +1,13 @@
 /**
- * Comms HTTP routes — COMMANDS.md map (section 5.1 / S-COMMS).
+ * Comms HTTP routes — COMMANDS.md map (section 5.1–5.2 / S-COMMS).
  *
  * PUT  /api/events/:eventId/templates/:key → Comms.UpsertTemplate
  * POST /api/comms/preview                  → Comms.Preview
- * POST /api/comms/send                     → Comms.Send (enqueue only)
+ * POST /api/comms/send                     → Comms.Send (enqueue; sandbox drain in 5.2)
  *
  * Roles: admin for UpsertTemplate; admin for preview/send (browser maps admin ⊂ scopes).
  * Scope names comms:draft / comms:send apply to API keys (Phase 7); session path uses roles.
+ * Send requires previewId + idempotencyKey (J08/J04); provider never called on request path.
  */
 import { Hono, type Context } from "hono";
 import {

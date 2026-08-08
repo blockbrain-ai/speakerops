@@ -40,6 +40,9 @@ export {
   speakerTasks,
   emailTemplates,
   messageJobs,
+  messageRecipients,
+  deliveryEvents,
+  calendarInvites,
   baselineTables,
   authTables,
   membershipTables,
@@ -119,6 +122,12 @@ export {
   type NewEmailTemplate,
   type MessageJob,
   type NewMessageJob,
+  type MessageRecipient,
+  type NewMessageRecipient,
+  type DeliveryEvent,
+  type NewDeliveryEvent,
+  type CalendarInvite,
+  type NewCalendarInvite,
 } from "../schema.js";
 
 export {
@@ -154,6 +163,7 @@ export {
   EVAL_TABLES,
   DECISION_TABLES,
   COMMS_TABLES,
+  COMMS_SEND_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

@@ -1,11 +1,11 @@
 /**
- * Comms persistence — email_templates, message_jobs, outbox_events (section 5.1).
+ * Comms persistence — templates, jobs, recipients, delivery, ICS, outbox (5.1–5.2).
  *
  * MemoryCommsStore is the test / local e2e default (no D1 required).
  * D1CommsStore wraps the Worker DB binding for production (E1 SoR).
  * Event-scoped queries take eventId (E2).
  */
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import {
   createDb,
@@ -13,7 +13,11 @@ import {
   type SpeakerOpsDb,
   emailTemplates,
   messageJobs,
+  messageRecipients,
+  deliveryEvents,
+  calendarInvites,
   outboxEvents,
+  idempotencyKeys,
 } from "@speakerops/db";
 import { d1Changes } from "../auth/store.js";
 
@@ -52,6 +56,59 @@ export type OutboxEventRow = {
   processedAt: string | null;
   attempts: number;
   lastError: string | null;
+};
+
+export type MessageRecipientRow = {
+  id: string;
+  jobId: string;
+  eventId: string;
+  participationId: string | null;
+  toEmail: string;
+  name: string | null;
+  subject: string | null;
+  body: string | null;
+  status: string;
+  createdAt: string;
+};
+
+export type DeliveryEventRow = {
+  id: string;
+  jobId: string;
+  recipientId: string | null;
+  eventId: string;
+  provider: string;
+  providerMessageId: string | null;
+  status: string;
+  attempt: number;
+  error: string | null;
+  payloadJson: string | null;
+  createdAt: string;
+};
+
+export type CalendarInviteRow = {
+  id: string;
+  eventId: string;
+  placementId: string;
+  sessionId: string | null;
+  uid: string;
+  sequence: number;
+  method: string;
+  summary: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  location: string | null;
+  icsBody: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type IdempotencyKeyRow = {
+  id: string;
+  key: string;
+  requestHash: string;
+  responseJson: string | null;
+  createdAt: string;
 };
 
 export type CommsStore = {
@@ -99,6 +156,51 @@ export type CommsStore = {
   insertOutbox(row: OutboxEventRow): Promise<OutboxEventRow>;
   listOutbox(): Promise<OutboxEventRow[]>;
   listOutboxByTopic(topic: string): Promise<OutboxEventRow[]>;
+  listUnprocessedOutboxByTopic(topic: string): Promise<OutboxEventRow[]>;
+  markOutboxProcessed(
+    id: string,
+    patch: {
+      processedAt: string;
+      attempts: number;
+      lastError: string | null;
+    },
+  ): Promise<OutboxEventRow | null>;
+
+  insertRecipient(row: MessageRecipientRow): Promise<MessageRecipientRow>;
+  listRecipientsForJob(jobId: string): Promise<MessageRecipientRow[]>;
+  updateRecipientStatus(
+    id: string,
+    status: string,
+  ): Promise<MessageRecipientRow | null>;
+
+  insertDeliveryEvent(row: DeliveryEventRow): Promise<DeliveryEventRow>;
+  listDeliveryEventsForJob(jobId: string): Promise<DeliveryEventRow[]>;
+
+  findCalendarInviteByPlacement(
+    eventId: string,
+    placementId: string,
+  ): Promise<CalendarInviteRow | null>;
+  findCalendarInviteByUid(uid: string): Promise<CalendarInviteRow | null>;
+  insertCalendarInvite(row: CalendarInviteRow): Promise<CalendarInviteRow>;
+  updateCalendarInvite(
+    id: string,
+    patch: {
+      sequence: number;
+      method: string;
+      summary: string | null;
+      startsAt: string | null;
+      endsAt: string | null;
+      location: string | null;
+      icsBody: string;
+      sessionId: string | null;
+      version: number;
+      expectedVersion: number;
+      updatedAt: string;
+    },
+  ): Promise<CalendarInviteRow | null>;
+
+  findIdempotencyKey(key: string): Promise<IdempotencyKeyRow | null>;
+  insertIdempotencyKey(row: IdempotencyKeyRow): Promise<IdempotencyKeyRow>;
 };
 
 export function newEmailTemplateId(): string {
@@ -108,6 +210,18 @@ export function newMessageJobId(): string {
   return uuidv7();
 }
 export function newOutboxEventId(): string {
+  return uuidv7();
+}
+export function newMessageRecipientId(): string {
+  return uuidv7();
+}
+export function newDeliveryEventId(): string {
+  return uuidv7();
+}
+export function newCalendarInviteId(): string {
+  return uuidv7();
+}
+export function newIdempotencyKeyId(): string {
   return uuidv7();
 }
 
@@ -120,9 +234,19 @@ export class MemoryCommsStore implements CommsStore {
   private jobs = new Map<string, MessageJobRow>();
   private byIdempotency = new Map<string, string>();
   private outbox: OutboxEventRow[] = [];
+  private recipients = new Map<string, MessageRecipientRow>();
+  private deliveries: DeliveryEventRow[] = [];
+  private invites = new Map<string, CalendarInviteRow>();
+  private byPlacement = new Map<string, string>();
+  private byUid = new Map<string, string>();
+  private idemKeys = new Map<string, IdempotencyKeyRow>();
 
   private ek(eventId: string, key: string): string {
     return `${eventId}::${key}`;
+  }
+
+  private pk(eventId: string, placementId: string): string {
+    return `${eventId}::${placementId}`;
   }
 
   async findTemplateByEventKey(
@@ -245,6 +369,147 @@ export class MemoryCommsStore implements CommsStore {
 
   async listOutboxByTopic(topic: string): Promise<OutboxEventRow[]> {
     return this.outbox.filter((r) => r.topic === topic).map((r) => ({ ...r }));
+  }
+
+  async listUnprocessedOutboxByTopic(
+    topic: string,
+  ): Promise<OutboxEventRow[]> {
+    return this.outbox
+      .filter((r) => r.topic === topic && r.processedAt === null)
+      .map((r) => ({ ...r }));
+  }
+
+  async markOutboxProcessed(
+    id: string,
+    patch: {
+      processedAt: string;
+      attempts: number;
+      lastError: string | null;
+    },
+  ): Promise<OutboxEventRow | null> {
+    const idx = this.outbox.findIndex((r) => r.id === id);
+    if (idx < 0) return null;
+    const next = {
+      ...this.outbox[idx]!,
+      processedAt: patch.processedAt,
+      attempts: patch.attempts,
+      lastError: patch.lastError,
+    };
+    this.outbox[idx] = next;
+    return { ...next };
+  }
+
+  async insertRecipient(
+    row: MessageRecipientRow,
+  ): Promise<MessageRecipientRow> {
+    this.recipients.set(row.id, { ...row });
+    return { ...row };
+  }
+
+  async listRecipientsForJob(jobId: string): Promise<MessageRecipientRow[]> {
+    return [...this.recipients.values()]
+      .filter((r) => r.jobId === jobId)
+      .map((r) => ({ ...r }));
+  }
+
+  async updateRecipientStatus(
+    id: string,
+    status: string,
+  ): Promise<MessageRecipientRow | null> {
+    const existing = this.recipients.get(id);
+    if (!existing) return null;
+    const next = { ...existing, status };
+    this.recipients.set(id, next);
+    return { ...next };
+  }
+
+  async insertDeliveryEvent(row: DeliveryEventRow): Promise<DeliveryEventRow> {
+    const copy = { ...row };
+    this.deliveries.push(copy);
+    return { ...copy };
+  }
+
+  async listDeliveryEventsForJob(jobId: string): Promise<DeliveryEventRow[]> {
+    return this.deliveries
+      .filter((d) => d.jobId === jobId)
+      .map((d) => ({ ...d }));
+  }
+
+  async findCalendarInviteByPlacement(
+    eventId: string,
+    placementId: string,
+  ): Promise<CalendarInviteRow | null> {
+    const id = this.byPlacement.get(this.pk(eventId, placementId));
+    if (!id) return null;
+    const row = this.invites.get(id);
+    return row ? { ...row } : null;
+  }
+
+  async findCalendarInviteByUid(
+    uid: string,
+  ): Promise<CalendarInviteRow | null> {
+    const id = this.byUid.get(uid);
+    if (!id) return null;
+    const row = this.invites.get(id);
+    return row ? { ...row } : null;
+  }
+
+  async insertCalendarInvite(
+    row: CalendarInviteRow,
+  ): Promise<CalendarInviteRow> {
+    this.invites.set(row.id, { ...row });
+    this.byPlacement.set(this.pk(row.eventId, row.placementId), row.id);
+    this.byUid.set(row.uid, row.id);
+    return { ...row };
+  }
+
+  async updateCalendarInvite(
+    id: string,
+    patch: {
+      sequence: number;
+      method: string;
+      summary: string | null;
+      startsAt: string | null;
+      endsAt: string | null;
+      location: string | null;
+      icsBody: string;
+      sessionId: string | null;
+      version: number;
+      expectedVersion: number;
+      updatedAt: string;
+    },
+  ): Promise<CalendarInviteRow | null> {
+    const existing = this.invites.get(id);
+    if (!existing) return null;
+    if (existing.version !== patch.expectedVersion) return null;
+    if (patch.version !== patch.expectedVersion + 1) return null;
+    const next: CalendarInviteRow = {
+      ...existing,
+      sequence: patch.sequence,
+      method: patch.method,
+      summary: patch.summary,
+      startsAt: patch.startsAt,
+      endsAt: patch.endsAt,
+      location: patch.location,
+      icsBody: patch.icsBody,
+      sessionId: patch.sessionId,
+      version: patch.version,
+      updatedAt: patch.updatedAt,
+    };
+    this.invites.set(id, next);
+    return { ...next };
+  }
+
+  async findIdempotencyKey(key: string): Promise<IdempotencyKeyRow | null> {
+    const row = this.idemKeys.get(key);
+    return row ? { ...row } : null;
+  }
+
+  async insertIdempotencyKey(
+    row: IdempotencyKeyRow,
+  ): Promise<IdempotencyKeyRow> {
+    this.idemKeys.set(row.key, { ...row });
+    return { ...row };
   }
 }
 
@@ -488,6 +753,339 @@ export class D1CommsStore implements CommsStore {
       lastError: r.lastError,
     }));
   }
+
+  async listUnprocessedOutboxByTopic(
+    topic: string,
+  ): Promise<OutboxEventRow[]> {
+    const rows = await this.db
+      .select()
+      .from(outboxEvents)
+      .where(
+        and(eq(outboxEvents.topic, topic), isNull(outboxEvents.processedAt)),
+      );
+    return rows.map((r) => ({
+      id: r.id,
+      topic: r.topic,
+      payloadJson: r.payloadJson,
+      createdAt: r.createdAt,
+      processedAt: r.processedAt,
+      attempts: r.attempts,
+      lastError: r.lastError,
+    }));
+  }
+
+  async markOutboxProcessed(
+    id: string,
+    patch: {
+      processedAt: string;
+      attempts: number;
+      lastError: string | null;
+    },
+  ): Promise<OutboxEventRow | null> {
+    const result = await this.db
+      .update(outboxEvents)
+      .set({
+        processedAt: patch.processedAt,
+        attempts: patch.attempts,
+        lastError: patch.lastError,
+      })
+      .where(eq(outboxEvents.id, id));
+    if (d1Changes(result) === 0) return null;
+    const rows = await this.db
+      .select()
+      .from(outboxEvents)
+      .where(eq(outboxEvents.id, id))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.id,
+      topic: r.topic,
+      payloadJson: r.payloadJson,
+      createdAt: r.createdAt,
+      processedAt: r.processedAt,
+      attempts: r.attempts,
+      lastError: r.lastError,
+    };
+  }
+
+  async insertRecipient(
+    row: MessageRecipientRow,
+  ): Promise<MessageRecipientRow> {
+    await this.db.insert(messageRecipients).values({
+      id: row.id,
+      jobId: row.jobId,
+      eventId: row.eventId,
+      participationId: row.participationId,
+      toEmail: row.toEmail,
+      name: row.name,
+      subject: row.subject,
+      body: row.body,
+      status: row.status,
+      createdAt: row.createdAt,
+    });
+    return { ...row };
+  }
+
+  async listRecipientsForJob(jobId: string): Promise<MessageRecipientRow[]> {
+    const rows = await this.db
+      .select()
+      .from(messageRecipients)
+      .where(eq(messageRecipients.jobId, jobId));
+    return rows.map((r) => ({
+      id: r.id,
+      jobId: r.jobId,
+      eventId: r.eventId,
+      participationId: r.participationId,
+      toEmail: r.toEmail,
+      name: r.name,
+      subject: r.subject,
+      body: r.body,
+      status: r.status,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async updateRecipientStatus(
+    id: string,
+    status: string,
+  ): Promise<MessageRecipientRow | null> {
+    const result = await this.db
+      .update(messageRecipients)
+      .set({ status })
+      .where(eq(messageRecipients.id, id));
+    if (d1Changes(result) === 0) return null;
+    const rows = await this.db
+      .select()
+      .from(messageRecipients)
+      .where(eq(messageRecipients.id, id))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.id,
+      jobId: r.jobId,
+      eventId: r.eventId,
+      participationId: r.participationId,
+      toEmail: r.toEmail,
+      name: r.name,
+      subject: r.subject,
+      body: r.body,
+      status: r.status,
+      createdAt: r.createdAt,
+    };
+  }
+
+  async insertDeliveryEvent(row: DeliveryEventRow): Promise<DeliveryEventRow> {
+    await this.db.insert(deliveryEvents).values({
+      id: row.id,
+      jobId: row.jobId,
+      recipientId: row.recipientId,
+      eventId: row.eventId,
+      provider: row.provider,
+      providerMessageId: row.providerMessageId,
+      status: row.status,
+      attempt: row.attempt,
+      error: row.error,
+      payloadJson: row.payloadJson,
+      createdAt: row.createdAt,
+    });
+    return { ...row };
+  }
+
+  async listDeliveryEventsForJob(jobId: string): Promise<DeliveryEventRow[]> {
+    const rows = await this.db
+      .select()
+      .from(deliveryEvents)
+      .where(eq(deliveryEvents.jobId, jobId));
+    return rows.map((r) => ({
+      id: r.id,
+      jobId: r.jobId,
+      recipientId: r.recipientId,
+      eventId: r.eventId,
+      provider: r.provider,
+      providerMessageId: r.providerMessageId,
+      status: r.status,
+      attempt: r.attempt,
+      error: r.error,
+      payloadJson: r.payloadJson,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async findCalendarInviteByPlacement(
+    eventId: string,
+    placementId: string,
+  ): Promise<CalendarInviteRow | null> {
+    const rows = await this.db
+      .select()
+      .from(calendarInvites)
+      .where(
+        and(
+          eq(calendarInvites.eventId, eventId),
+          eq(calendarInvites.placementId, placementId),
+        ),
+      )
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return mapInvite(r);
+  }
+
+  async findCalendarInviteByUid(
+    uid: string,
+  ): Promise<CalendarInviteRow | null> {
+    const rows = await this.db
+      .select()
+      .from(calendarInvites)
+      .where(eq(calendarInvites.uid, uid))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return mapInvite(r);
+  }
+
+  async insertCalendarInvite(
+    row: CalendarInviteRow,
+  ): Promise<CalendarInviteRow> {
+    await this.db.insert(calendarInvites).values({
+      id: row.id,
+      eventId: row.eventId,
+      placementId: row.placementId,
+      sessionId: row.sessionId,
+      uid: row.uid,
+      sequence: row.sequence,
+      method: row.method,
+      summary: row.summary,
+      startsAt: row.startsAt,
+      endsAt: row.endsAt,
+      location: row.location,
+      icsBody: row.icsBody,
+      version: row.version,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+    return { ...row };
+  }
+
+  async updateCalendarInvite(
+    id: string,
+    patch: {
+      sequence: number;
+      method: string;
+      summary: string | null;
+      startsAt: string | null;
+      endsAt: string | null;
+      location: string | null;
+      icsBody: string;
+      sessionId: string | null;
+      version: number;
+      expectedVersion: number;
+      updatedAt: string;
+    },
+  ): Promise<CalendarInviteRow | null> {
+    const result = await this.db
+      .update(calendarInvites)
+      .set({
+        sequence: patch.sequence,
+        method: patch.method,
+        summary: patch.summary,
+        startsAt: patch.startsAt,
+        endsAt: patch.endsAt,
+        location: patch.location,
+        icsBody: patch.icsBody,
+        sessionId: patch.sessionId,
+        version: patch.version,
+        updatedAt: patch.updatedAt,
+      })
+      .where(
+        and(
+          eq(calendarInvites.id, id),
+          eq(calendarInvites.version, patch.expectedVersion),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
+    return this.findCalendarInviteById(id);
+  }
+
+  private async findCalendarInviteById(
+    id: string,
+  ): Promise<CalendarInviteRow | null> {
+    const rows = await this.db
+      .select()
+      .from(calendarInvites)
+      .where(eq(calendarInvites.id, id))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return mapInvite(r);
+  }
+
+  async findIdempotencyKey(key: string): Promise<IdempotencyKeyRow | null> {
+    const rows = await this.db
+      .select()
+      .from(idempotencyKeys)
+      .where(eq(idempotencyKeys.key, key))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.id,
+      key: r.key,
+      requestHash: r.requestHash,
+      responseJson: r.responseJson,
+      createdAt: r.createdAt,
+    };
+  }
+
+  async insertIdempotencyKey(
+    row: IdempotencyKeyRow,
+  ): Promise<IdempotencyKeyRow> {
+    await this.db.insert(idempotencyKeys).values({
+      id: row.id,
+      key: row.key,
+      requestHash: row.requestHash,
+      responseJson: row.responseJson,
+      createdAt: row.createdAt,
+    });
+    return { ...row };
+  }
+}
+
+function mapInvite(r: {
+  id: string;
+  eventId: string;
+  placementId: string;
+  sessionId: string | null;
+  uid: string;
+  sequence: number;
+  method: string;
+  summary: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  location: string | null;
+  icsBody: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}): CalendarInviteRow {
+  return {
+    id: r.id,
+    eventId: r.eventId,
+    placementId: r.placementId,
+    sessionId: r.sessionId,
+    uid: r.uid,
+    sequence: r.sequence,
+    method: r.method,
+    summary: r.summary,
+    startsAt: r.startsAt,
+    endsAt: r.endsAt,
+    location: r.location,
+    icsBody: r.icsBody,
+    version: r.version,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
 }
 
 function mapJob(r: {

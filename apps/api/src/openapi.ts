@@ -1187,7 +1187,7 @@ export const COMMS_OPENAPI_PATHS = {
       operationId: "Comms.Send",
       summary: "Comms.Send",
       description:
-        "Enqueue send: marks message_job queued and inserts outbox_events (topic comms.send). Never calls provider HTTP (5.2 drains outbox).",
+        "Enqueue send: requires previewId + idempotencyKey; materializes message_recipients; inserts outbox_events + idempotency_keys. Never calls provider HTTP (emailConsumer drains with sandbox default).",
       tags: ["Comms"],
       requestBody: {
         required: true,
@@ -1252,6 +1252,7 @@ export const OPENAPI_COMMANDS = [
   "Comms.UpsertTemplate",
   "Comms.Preview",
   "Comms.Send",
+  "Comms.IcsForPlacement",
 ] as const;
 
 export function buildOpenApiDocument(): Record<string, unknown> {
@@ -1261,7 +1262,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       title: "SpeakerOps API",
       version: "0.1.0",
       description:
-        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1).",
+        "Domain commands from COMMANDS.md. Form builder (3.1) + public submit (3.3) + eval scoring (3.4) + decisions (3.5) + portal (4.1) + files (4.2) + comms templates/outbox (5.1) + send/ICS (5.2).",
     },
     paths: {
       ...FORM_OPENAPI_PATHS,

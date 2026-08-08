@@ -40,6 +40,13 @@
 - `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). **Required** for production Worker construction together with the secret: omitting it or using the Cloudflare always-pass test site key makes the SPA fall back to the test UI and submit `XXXX.DUMMY.TOKEN` — blocking real protection or all CFP submissions. Local/e2e may omit it: the always-pass test site key is used for the interactive test control.
 - Never commit Turnstile secrets or log full captcha tokens.
 
+## Comms / email provider (section 5.2) — names only
+- `EMAIL_PROVIDER` — provider mode for outbox drain (`sandbox` default | `resend`). Sandbox never makes network calls.
+- `RESEND_API_KEY` — Resend API key for live send. **Ignored** unless `EMAIL_PROVIDER=resend`. Never commit values; never log the key.
+- `EMAIL_FROM` — optional default From: address for provider sends (not a secret token).
+- Comms.Send request path never uses these bindings; only `emailConsumer` / queue drain does (E7).
+- Queue binding name: `JOBS_QUEUE` (wrangler.toml) — producer placeholder; consumer drains `outbox_events` topic `comms.send`.
+
 ## Base
 Dogfood base id is in AIRTABLE_BASE_ID. Tables:
 SpeakerOps_Submissions, SpeakerOps_Speakers, SpeakerOps_Sessions, SpeakerOps_Tasks, SpeakerOps_Schedule.

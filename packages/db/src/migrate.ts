@@ -299,3 +299,10 @@ export const DECISION_TABLES = [
 
 /** Comms table names required by section 5.1 AC. */
 export const COMMS_TABLES = ["email_templates", "message_jobs"] as const;
+
+/** Comms send / ICS table names required by section 5.2 AC. */
+export const COMMS_SEND_TABLES = [
+  "message_recipients",
+  "delivery_events",
+  "calendar_invites",
+] as const;

@@ -23,6 +23,7 @@ import {
   EVAL_TABLES,
   DECISION_TABLES,
   COMMS_TABLES,
+  COMMS_SEND_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -67,6 +68,9 @@ import {
   speakerTasks,
   emailTemplates,
   messageJobs,
+  messageRecipients,
+  deliveryEvents,
+  calendarInvites,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -433,6 +437,37 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       expect(messageJobs).toBeDefined();
       expect(schema.emailTemplates).toBe(emailTemplates);
       expect(schema.messageJobs).toBe(messageJobs);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("5.2 migration creates message_recipients, delivery_events, calendar_invites", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "speakerops-db-5.2-"));
+    const dbPath = join(dir, "test.sqlite");
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0016_comms_send_ics.sql");
+      for (const table of COMMS_SEND_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.message_recipients).toContain("to_email");
+      expect(columns.message_recipients).toContain("job_id");
+      expect(columns.delivery_events).toContain("provider");
+      expect(columns.delivery_events).toContain("status");
+      expect(columns.calendar_invites).toContain("uid");
+      expect(columns.calendar_invites).toContain("sequence");
+      expect(columns.calendar_invites).toContain("method");
+      expect(messageRecipients).toBeDefined();
+      expect(deliveryEvents).toBeDefined();
+      expect(calendarInvites).toBeDefined();
+      expect(schema.messageRecipients).toBe(messageRecipients);
+      expect(schema.deliveryEvents).toBe(deliveryEvents);
+      expect(schema.calendarInvites).toBe(calendarInvites);
+      // idempotency_keys from baseline still present for Comms.Send
+      expect(result.tables).toContain("idempotency_keys");
+      expect(columns.idempotency_keys).toContain("request_hash");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

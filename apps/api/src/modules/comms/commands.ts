@@ -1,7 +1,8 @@
 /**
- * Comms domain commands (section 5.1 / S-COMMS).
+ * Comms domain commands (section 5.1–5.2 / S-COMMS).
  *
  * Comms.UpsertTemplate · Comms.Preview · Comms.Send (enqueue only — no provider HTTP)
+ * Comms.IcsForPlacement — calendar_invites UID/SEQUENCE
  *
  * Canonical registry: KMS-competition/initiative/contracts/COMMANDS.md
  */
@@ -19,6 +20,8 @@ import {
   type EmailTemplateDto,
   type MessageJobDto,
   type CommsSegment,
+  type CommsPreviewRecipient,
+  type CommsPreviewBodyItem,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
@@ -28,10 +31,23 @@ import {
   type CommsStore,
   type EmailTemplateRow,
   type MessageJobRow,
+  type CalendarInviteRow,
   newEmailTemplateId,
   newMessageJobId,
   newOutboxEventId,
+  newMessageRecipientId,
+  newIdempotencyKeyId,
+  newCalendarInviteId,
 } from "./store.js";
+import {
+  hashSendRequest,
+  commsSendIdempotencyStorageKey,
+} from "./send.js";
+import {
+  icsForPlacement,
+  type IcsPlacementInput,
+  type CalendarInviteState,
+} from "./ics.js";
 
 export type CommsCommandDeps = {
   comms: CommsStore;
@@ -375,8 +391,12 @@ export async function previewComms(
 }
 
 /**
- * Comms.Send — enqueue only: mark job queued + insert outbox_events.
- * **Never** calls an email provider HTTP API (section 5.2 drains outbox).
+ * Comms.Send — enqueue only: mark job queued + materialize recipients +
+ * insert outbox_events + idempotency_keys.
+ * **Never** calls an email provider HTTP API (emailConsumer drains outbox).
+ *
+ * J08: requires completed preview (previewId of a status=preview job).
+ * J04: same idempotencyKey returns same job id (idempotency_keys + job key).
  */
 export async function sendComms(
   deps: CommsCommandDeps,
@@ -386,17 +406,57 @@ export async function sendComms(
     correlationId: string;
   },
 ): Promise<CommandOk<CommsSendResponse> | CommandErr> {
-  // Idempotent replay: same key returns prior job without re-enqueue side effects.
+  const storageKey = commsSendIdempotencyStorageKey(input.body.idempotencyKey);
+  const requestHash = await hashSendRequest({
+    previewId: input.body.previewId,
+    idempotencyKey: input.body.idempotencyKey,
+  });
+
+  // Primary idempotency replay via idempotency_keys (SCHEMA / E7).
+  const existingIdem = await deps.comms.findIdempotencyKey(storageKey);
+  if (existingIdem) {
+    if (existingIdem.requestHash !== requestHash) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Idempotency key reused with different request",
+        code: "CONFLICT",
+        details: { key: input.body.idempotencyKey },
+      };
+    }
+    if (existingIdem.responseJson) {
+      try {
+        const cached = JSON.parse(existingIdem.responseJson) as CommsSendResponse;
+        return { ok: true, value: { ...cached, enqueued: false } };
+      } catch {
+        // Fall through to job lookup
+      }
+    }
+  }
+
+  // Secondary: message_jobs.idempotency_key (partial unique).
   const existingByKey = await deps.comms.findJobByIdempotencyKey(
     input.body.idempotencyKey,
   );
   if (existingByKey) {
-    return {
-      ok: true,
-      value: { job: toJobDto(existingByKey), enqueued: false },
+    const value: CommsSendResponse = {
+      job: toJobDto(existingByKey),
+      enqueued: false,
     };
+    if (!existingIdem) {
+      await deps.comms.insertIdempotencyKey({
+        id: newIdempotencyKeyId(),
+        key: storageKey,
+        requestHash,
+        responseJson: JSON.stringify(value),
+        createdAt: new Date().toISOString(),
+      });
+    }
+    return { ok: true, value };
   }
 
+  // J08 preview required — missing/unknown previewId fails (Zod 400 at route;
+  // unknown id → 404; wrong status → 400).
   const job = await deps.comms.findJobById(input.body.previewId);
   if (!job) {
     return {
@@ -449,6 +509,9 @@ export async function sendComms(
     };
   }
 
+  // Materialize message_recipients from preview snapshot (I16: to_email).
+  await materializeRecipients(deps.comms, updated);
+
   // Transactional outbox: request path never waits on provider (E7).
   // No fetch / Resend / SES / SMTP call here — intentionally absent.
   await deps.comms.insertOutbox({
@@ -465,6 +528,19 @@ export async function sendComms(
     processedAt: null,
     attempts: 0,
     lastError: null,
+  });
+
+  const response: CommsSendResponse = {
+    job: toJobDto(updated),
+    enqueued: true,
+  };
+
+  await deps.comms.insertIdempotencyKey({
+    id: newIdempotencyKeyId(),
+    key: storageKey,
+    requestHash,
+    responseJson: JSON.stringify(response),
+    createdAt: now,
   });
 
   await deps.auth.insertAudit({
@@ -486,5 +562,171 @@ export async function sendComms(
     createdAt: now,
   });
 
-  return { ok: true, value: { job: toJobDto(updated), enqueued: true } };
+  return { ok: true, value: response };
+}
+
+async function materializeRecipients(
+  store: CommsStore,
+  job: MessageJobRow,
+): Promise<void> {
+  const existing = await store.listRecipientsForJob(job.id);
+  if (existing.length > 0) return;
+
+  let recipients: CommsPreviewRecipient[] = [];
+  let bodies: CommsPreviewBodyItem[] = [];
+  try {
+    recipients = JSON.parse(job.recipientsJson ?? "[]") as CommsPreviewRecipient[];
+  } catch {
+    recipients = [];
+  }
+  try {
+    bodies = JSON.parse(job.bodiesJson ?? "[]") as CommsPreviewBodyItem[];
+  } catch {
+    bodies = [];
+  }
+  const bodyByPart = new Map(bodies.map((b) => [b.participationId, b]));
+  const now = new Date().toISOString();
+
+  for (const r of recipients) {
+    const body = bodyByPart.get(r.participationId);
+    await store.insertRecipient({
+      id: newMessageRecipientId(),
+      jobId: job.id,
+      eventId: job.eventId,
+      participationId: r.participationId,
+      toEmail: r.email,
+      name: r.name,
+      subject: body?.subject ?? null,
+      body: body?.body ?? null,
+      status: "queued",
+      createdAt: now,
+    });
+  }
+}
+
+/**
+ * Comms.IcsForPlacement — create or update calendar_invites with stable UID
+ * and SEQUENCE bump on reschedule (J10 / S-COMMS).
+ */
+export async function icsForPlacementCommand(
+  deps: CommsCommandDeps,
+  input: {
+    placement: IcsPlacementInput;
+    actorUserId: string;
+    correlationId: string;
+    cancel?: boolean;
+  },
+): Promise<
+  | CommandOk<{ invite: CalendarInviteRow; state: CalendarInviteState }>
+  | CommandErr
+> {
+  const event = await deps.events.findEventById(input.placement.eventId);
+  if (!event) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Event not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  const prior = await deps.comms.findCalendarInviteByPlacement(
+    input.placement.eventId,
+    input.placement.placementId,
+  );
+  const state = icsForPlacement(
+    prior
+      ? { uid: prior.uid, sequence: prior.sequence }
+      : null,
+    input.placement,
+    { cancel: input.cancel },
+  );
+
+  const now = new Date().toISOString();
+
+  if (!prior) {
+    const row = await deps.comms.insertCalendarInvite({
+      id: newCalendarInviteId(),
+      eventId: input.placement.eventId,
+      placementId: input.placement.placementId,
+      sessionId: state.sessionId,
+      uid: state.uid,
+      sequence: state.sequence,
+      method: state.method,
+      summary: state.summary,
+      startsAt: state.startsAt,
+      endsAt: state.endsAt,
+      location: state.location,
+      icsBody: state.icsBody,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await deps.auth.insertAudit({
+      id: uuidv7(),
+      eventId: input.placement.eventId,
+      actorType: "user",
+      actorId: input.actorUserId,
+      action: "Comms.IcsForPlacement",
+      entityType: "calendar_invite",
+      entityId: row.id,
+      beforeJson: null,
+      afterJson: JSON.stringify({
+        uid: row.uid,
+        sequence: row.sequence,
+        method: row.method,
+      }),
+      correlationId: input.correlationId,
+      createdAt: now,
+    });
+
+    return { ok: true, value: { invite: row, state } };
+  }
+
+  const updated = await deps.comms.updateCalendarInvite(prior.id, {
+    sequence: state.sequence,
+    method: state.method,
+    summary: state.summary,
+    startsAt: state.startsAt,
+    endsAt: state.endsAt,
+    location: state.location,
+    icsBody: state.icsBody,
+    sessionId: state.sessionId,
+    version: prior.version + 1,
+    expectedVersion: prior.version,
+    updatedAt: now,
+  });
+  if (!updated) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Calendar invite version conflict",
+      code: "CONFLICT",
+    };
+  }
+
+  await deps.auth.insertAudit({
+    id: uuidv7(),
+    eventId: input.placement.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "Comms.IcsForPlacement",
+    entityType: "calendar_invite",
+    entityId: updated.id,
+    beforeJson: JSON.stringify({
+      uid: prior.uid,
+      sequence: prior.sequence,
+      method: prior.method,
+    }),
+    afterJson: JSON.stringify({
+      uid: updated.uid,
+      sequence: updated.sequence,
+      method: updated.method,
+    }),
+    correlationId: input.correlationId,
+    createdAt: now,
+  });
+
+  return { ok: true, value: { invite: updated, state } };
 }
