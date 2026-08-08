@@ -318,15 +318,18 @@ export type CommsStore = {
   /**
    * Atomic Comms.Send enqueue (E7 transactional outbox):
    * job transition + recipients + outbox + idempotency_keys + audit_events.
-   * D1 uses a single batch with INSERT…SELECT gated on the winning transition
-   * (version + idempotency_key + updated_at), not shared post-update version
-   * alone. Memory applies the claim first then side effects.
    *
-   * Returns the job row only when *this* call performed the transition.
-   * Returns null when the job was not transitioned by this call (lost CAS /
-   * concurrent same-key winner) so the command can re-read and set
-   * enqueued: false. Throws IdempotencyKeyConflictError when a concurrent
-   * winner already stored the same idempotency key with a different requestHash.
+   * **Shared contract (Memory and D1 must both enforce — do not diverge):**
+   * - Returns the job row only when *this* call performed the transition.
+   * - Returns null when this call did not enqueue (lost job CAS, or same-key
+   *   same-requestHash race loser) so sendComms sets enqueued: false (J04).
+   * - Throws IdempotencyKeyConflictError when the key is already stored (or
+   *   held on another job) with a different requestHash → HTTP 409.
+   * - Losers must not leave orphan recipients / outbox / audit rows.
+   *
+   * D1: single batch + transition-token gate + unique idempotency_keys reconcile.
+   * Memory: synchronous check+claim (no await between) so Promise.all races
+   * cannot both pass, then side effects.
    *
    * @param onAudit Memory/tests: write audit into AuthStore so listAudits works.
    *   D1 ignores this and inserts audit_events inside the same batch.
@@ -722,33 +725,77 @@ export class MemoryCommsStore implements CommsStore {
   async insertIdempotencyKey(
     row: IdempotencyKeyRow,
   ): Promise<IdempotencyKeyRow> {
+    // Do not silently overwrite a different requestHash (unique-key parity with D1).
+    const existing = this.idemKeys.get(row.key);
+    if (existing) {
+      if (existing.requestHash !== row.requestHash) {
+        // Storage key is `comms.send:{userKey}`; surface the row key for diagnostics.
+        throw new IdempotencyKeyConflictError(row.key);
+      }
+      return { ...existing };
+    }
     this.idemKeys.set(row.key, { ...row });
     return { ...row };
   }
 
+  /**
+   * Memory parity with D1 enqueueSendAtomic (do not diverge):
+   * - J04 same key + same requestHash → only one winner enqueues; loser returns null
+   * - Same key + different requestHash → IdempotencyKeyConflictError (409)
+   * - Job version CAS loser → null (no orphan recipients/outbox/audit)
+   * - Winner selection is synchronous (no await between check and claim) so
+   *   concurrent Promise.all callers cannot both pass.
+   */
   async enqueueSendAtomic(
     input: EnqueueSendAtomicInput,
     onAudit?: (row: AuditWriteInput) => Promise<void>,
   ): Promise<MessageJobRow | null> {
-    // Memory: apply all writes as a single logical unit (no partial return).
-    const updated = await this.updateJob(input.jobId, {
-      status: input.status,
-      idempotencyKey: input.idempotencyKey,
-      version: input.version,
-      expectedVersion: input.expectedVersion,
-      updatedAt: input.updatedAt,
-    });
-    if (!updated) return null;
-
-    for (const r of input.recipients) {
-      await this.insertRecipient(r);
+    // --- Synchronous critical section (JS single-threaded between awaits) ---
+    // 1) Idempotency key / requestHash (parity with D1 unique index + reconcile).
+    const existingIdem = this.idemKeys.get(input.idempotency.key);
+    if (existingIdem) {
+      if (existingIdem.requestHash !== input.idempotency.requestHash) {
+        throw new IdempotencyKeyConflictError(input.idempotencyKey);
+      }
+      // Same request already recorded — this call did not perform the enqueue.
+      return null;
     }
-    await this.insertOutbox(input.outbox);
-    await this.insertIdempotencyKey(input.idempotency);
+
+    // Partial unique on message_jobs.idempotency_key: another job holds the key.
+    const holderJobId = this.byIdempotency.get(input.idempotencyKey);
+    if (holderJobId !== undefined && holderJobId !== input.jobId) {
+      throw new IdempotencyKeyConflictError(input.idempotencyKey);
+    }
+
+    // 2) Job version CAS — must win to enqueue.
+    const existing = this.jobs.get(input.jobId);
+    if (!existing) return null;
+    if (existing.version !== input.expectedVersion) return null;
+    if (input.version !== input.expectedVersion + 1) return null;
+
+    // 3) Claim job + idempotency + side effects before any await so concurrent
+    // callers cannot both observe an empty key and both transition to queued.
+    const next: MessageJobRow = {
+      ...existing,
+      status: input.status,
+      version: input.version,
+      updatedAt: input.updatedAt,
+      idempotencyKey: input.idempotencyKey,
+    };
+    this.jobs.set(input.jobId, next);
+    this.byIdempotency.set(input.idempotencyKey, input.jobId);
+    this.idemKeys.set(input.idempotency.key, { ...input.idempotency });
+    for (const r of input.recipients) {
+      this.recipients.set(r.id, { ...r });
+    }
+    this.outbox.push({ ...input.outbox });
+    // --- end synchronous claim ---
+
+    // Audit may await after claim; loser paths never reach here with side effects.
     if (onAudit) {
       await onAudit(input.audit);
     }
-    return updated;
+    return { ...next };
   }
 }
 

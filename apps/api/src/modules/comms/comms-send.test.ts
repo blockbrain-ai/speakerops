@@ -953,4 +953,291 @@ describe("5.2 Comms send idempotent + ICS", () => {
     expect(errBody.code).toBe("CONFLICT");
     expect(errBody.error).toMatch(/idempotency key reused/i);
   });
+
+  it("concurrent same-key different-preview: one 201 one 409, single outbox (memory parity)", async () => {
+    // Memory + D1 must share the contract: two preview jobs racing the same
+    // idempotency key cannot both enqueue (J04 + requestHash conflict).
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-send-concurrent-hash@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Concurrent Hash Conflict",
+    );
+    await seedAcceptedSpeaker(admin, event.id, "conhash");
+    const a = await upsertAndPreview(admin, event.id, "conhash-a");
+    const b = await upsertAndPreview(admin, event.id, "conhash-b");
+
+    const key = "idem-concurrent-hash-1";
+    const [resA, resB] = await Promise.all([
+      admin.app.request(
+        "http://localhost/api/comms/send",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: admin.cookie,
+            "x-correlation-id": "corr-conhash-a",
+          },
+          body: JSON.stringify({
+            previewId: a.preview.previewId,
+            idempotencyKey: key,
+          }),
+        },
+        env,
+      ),
+      admin.app.request(
+        "http://localhost/api/comms/send",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: admin.cookie,
+            "x-correlation-id": "corr-conhash-b",
+          },
+          body: JSON.stringify({
+            previewId: b.preview.previewId,
+            idempotencyKey: key,
+          }),
+        },
+        env,
+      ),
+    ]);
+
+    const statuses = [resA.status, resB.status].sort((x, y) => x - y);
+    expect(statuses).toEqual([201, 409]);
+
+    const winner = resA.status === 201 ? resA : resB;
+    const loser = resA.status === 409 ? resA : resB;
+    const winnerBody = CommsSendResponseSchema.parse(await winner.json());
+    expect(winnerBody.enqueued).toBe(true);
+
+    const loserBody = (await loser.json()) as { code?: string; error?: string };
+    expect(loserBody.code).toBe("CONFLICT");
+    expect(loserBody.error).toMatch(/idempotency key reused/i);
+
+    // Exactly one outbox event and one idempotency_keys row for this key.
+    const outboxRows = await admin.comms.listOutboxByTopic(COMMS_OUTBOX_TOPIC);
+    expect(outboxRows.length).toBe(1);
+    const payload = JSON.parse(outboxRows[0]!.payloadJson) as {
+      jobId: string;
+      idempotencyKey: string;
+    };
+    expect(payload.jobId).toBe(winnerBody.job.id);
+    expect(payload.idempotencyKey).toBe(key);
+
+    const idem = await admin.comms.findIdempotencyKey(
+      commsSendIdempotencyStorageKey(key),
+    );
+    expect(idem).toBeTruthy();
+    const expectedHash = await hashSendRequest({
+      previewId: winnerBody.job.id,
+      idempotencyKey: key,
+    });
+    expect(idem!.requestHash).toBe(expectedHash);
+
+    // Loser preview must remain unqueued (no silent overwrite / dual enqueue).
+    const loserPreviewId =
+      winnerBody.job.id === a.preview.previewId
+        ? b.preview.previewId
+        : a.preview.previewId;
+    const loserJob = await admin.comms.findJobById(loserPreviewId);
+    expect(loserJob).toBeTruthy();
+    expect(loserJob!.status).toBe("preview");
+    expect(loserJob!.idempotencyKey).toBeNull();
+  });
+
+  it("concurrent same-key same-preview: one enqueued, one replay, single outbox", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-send-concurrent-same@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Concurrent Same Key",
+    );
+    await seedAcceptedSpeaker(admin, event.id, "consame");
+    const { preview } = await upsertAndPreview(
+      admin,
+      event.id,
+      "consame-nudge",
+    );
+
+    const key = "idem-concurrent-same-1";
+    const [resA, resB] = await Promise.all([
+      admin.app.request(
+        "http://localhost/api/comms/send",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: admin.cookie,
+            "x-correlation-id": "corr-consame-a",
+          },
+          body: JSON.stringify({
+            previewId: preview.previewId,
+            idempotencyKey: key,
+          }),
+        },
+        env,
+      ),
+      admin.app.request(
+        "http://localhost/api/comms/send",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: admin.cookie,
+            "x-correlation-id": "corr-consame-b",
+          },
+          body: JSON.stringify({
+            previewId: preview.previewId,
+            idempotencyKey: key,
+          }),
+        },
+        env,
+      ),
+    ]);
+
+    const statuses = [resA.status, resB.status].sort((x, y) => x - y);
+    // Winner 201; loser 200 replay (enqueued:false) — not a second enqueue.
+    expect(statuses).toEqual([200, 201]);
+
+    const bodyA = CommsSendResponseSchema.parse(await resA.json());
+    const bodyB = CommsSendResponseSchema.parse(await resB.json());
+    expect(bodyA.job.id).toBe(bodyB.job.id);
+    expect(bodyA.job.id).toBe(preview.previewId);
+    expect([bodyA.enqueued, bodyB.enqueued].filter(Boolean).length).toBe(1);
+
+    const outboxRows = await admin.comms.listOutboxByTopic(COMMS_OUTBOX_TOPIC);
+    expect(outboxRows.length).toBe(1);
+  });
+
+  it("MemoryCommsStore.enqueueSendAtomic enforces key/requestHash atomic winner", async () => {
+    // Direct store-level contract (local/E2E runtime path).
+    const { MemoryCommsStore, IdempotencyKeyConflictError } = await import(
+      "./store.js"
+    );
+    const store = new MemoryCommsStore();
+    const now = new Date().toISOString();
+
+    const jobA = await store.insertJob({
+      id: "job_mem_a",
+      eventId: "evt_mem",
+      templateId: "tpl_mem",
+      status: "preview",
+      segmentJson: "{}",
+      recipientsJson: "[]",
+      bodiesJson: "[]",
+      missingFieldsJson: null,
+      idempotencyKey: null,
+      createdBy: "user_mem",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const jobB = await store.insertJob({
+      id: "job_mem_b",
+      eventId: "evt_mem",
+      templateId: "tpl_mem",
+      status: "preview",
+      segmentJson: "{}",
+      recipientsJson: "[]",
+      bodiesJson: "[]",
+      missingFieldsJson: null,
+      idempotencyKey: null,
+      createdBy: "user_mem",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const storageKey = "comms.send:idem-mem-race";
+    const base = {
+      status: "queued",
+      idempotencyKey: "idem-mem-race",
+      version: 2,
+      expectedVersion: 1,
+      updatedAt: now,
+      recipients: [] as never[],
+      outbox: {
+        id: "out_a",
+        topic: COMMS_OUTBOX_TOPIC,
+        payloadJson: "{}",
+        createdAt: now,
+        processedAt: null,
+        attempts: 0,
+        lastError: null,
+      },
+      audit: {
+        id: "aud_a",
+        eventId: "evt_mem",
+        actorType: "user" as const,
+        actorId: "user_mem",
+        action: "Comms.Send",
+        entityType: "message_job",
+        entityId: jobA.id,
+        beforeJson: null,
+        afterJson: null,
+        correlationId: "corr-mem-a",
+        createdAt: now,
+      },
+    };
+
+    const [r1, r2] = await Promise.all([
+      store.enqueueSendAtomic({
+        ...base,
+        jobId: jobA.id,
+        outbox: { ...base.outbox, id: "out_a" },
+        idempotency: {
+          id: "idem_row_a",
+          key: storageKey,
+          requestHash: "hash-preview-a",
+          responseJson: "{}",
+          createdAt: now,
+        },
+        audit: { ...base.audit, entityId: jobA.id, id: "aud_a" },
+      }),
+      store.enqueueSendAtomic({
+        ...base,
+        jobId: jobB.id,
+        outbox: { ...base.outbox, id: "out_b" },
+        idempotency: {
+          id: "idem_row_b",
+          key: storageKey,
+          requestHash: "hash-preview-b",
+          responseJson: "{}",
+          createdAt: now,
+        },
+        audit: { ...base.audit, entityId: jobB.id, id: "aud_b" },
+      }).catch((e: unknown) => e),
+    ]);
+
+    // One winner MessageJobRow; other throws IdempotencyKeyConflictError.
+    const results = [r1, r2];
+    const winner = results.find(
+      (r) => r && typeof r === "object" && "id" in r && !("code" in r),
+    ) as { id: string } | undefined;
+    const conflict = results.find(
+      (r) => r instanceof IdempotencyKeyConflictError,
+    );
+    expect(winner).toBeTruthy();
+    expect(conflict).toBeInstanceOf(IdempotencyKeyConflictError);
+
+    const outbox = await store.listOutboxByTopic(COMMS_OUTBOX_TOPIC);
+    expect(outbox.length).toBe(1);
+
+    const idem = await store.findIdempotencyKey(storageKey);
+    expect(idem).toBeTruthy();
+    // Stored hash belongs to the winner only (no silent overwrite).
+    expect(["hash-preview-a", "hash-preview-b"]).toContain(idem!.requestHash);
+
+    const otherId = winner!.id === jobA.id ? jobB.id : jobA.id;
+    const other = await store.findJobById(otherId);
+    expect(other!.status).toBe("preview");
+    expect(other!.idempotencyKey).toBeNull();
+  });
 });
