@@ -9,13 +9,14 @@
  * Default report paths (override via env **names** only — E10):
  *   E2E_PLAYWRIGHT_RUN_REPORT  → reports/playwright-run.json
  *   E2E_PLAYWRIGHT_HTML_DIR    → playwright-report/
- *   reports/e2e-coverage.html  ← index copied from HTML dir after run
+ *   reports/e2e-coverage.html  ← section 8.5 Lumen keystone (inventory + results)
  *
  * Env names: E2E_WEB_SERVER, E2E_BASE_URL, E2E_WEB_PORT, E2E_API_PORT,
  *            E2E_PLAYWRIGHT_RUN_REPORT, E2E_PLAYWRIGHT_SUITE_REPORT,
- *            E2E_PLAYWRIGHT_HTML_DIR, E2E_PLAYWRIGHT_HTML_MIRROR, CI
+ *            E2E_PLAYWRIGHT_HTML_DIR, E2E_PLAYWRIGHT_HTML_MIRROR,
+ *            E2E_COVERAGE_HTML, CI
  */
-import { existsSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -136,32 +137,31 @@ const result = spawnSync(
   },
 );
 
-// Post-run: store report path artifact for S-E2E-RUN / phase8 consumers
+// Post-run: store report path artifact + section 8.5 Lumen keystone HTML
 const jsonReport =
   process.env.E2E_PLAYWRIGHT_RUN_REPORT ||
   process.env.E2E_PLAYWRIGHT_SUITE_REPORT ||
   join(root, "reports", "playwright-run.json");
 const htmlDir =
   process.env.E2E_PLAYWRIGHT_HTML_DIR || join(root, "playwright-report");
-const coverageHtml = join(root, "reports", "e2e-coverage.html");
+const coverageHtml =
+  process.env.E2E_COVERAGE_HTML || join(root, "reports", "e2e-coverage.html");
 const pathManifest = join(root, "reports", "e2e-report-path.txt");
 
 try {
   mkdirSync(join(root, "reports"), { recursive: true });
-  const htmlIndex = join(htmlDir, "index.html");
-  const mirrorIndex = join(root, "reports", "playwright", "index.html");
-  if (existsSync(htmlIndex)) {
-    try {
-      copyFileSync(htmlIndex, coverageHtml);
-    } catch (e) {
-      console.warn("[test:e2e] could not copy e2e-coverage.html:", e?.message ?? e);
-    }
-  } else if (existsSync(mirrorIndex)) {
-    try {
-      copyFileSync(mirrorIndex, coverageHtml);
-    } catch (e) {
-      console.warn("[test:e2e] could not copy e2e-coverage.html:", e?.message ?? e);
-    }
+  // Section 8.5 — inventory + Playwright results → offline Lumen HTML (S-E2E-RUN)
+  const reportBuild = spawnSync(
+    "pnpm",
+    ["exec", "tsx", "scripts/build-e2e-report.ts", `--out=${coverageHtml}`],
+    { cwd: root, stdio: "inherit", shell: false, env: process.env },
+  );
+  if (reportBuild.status !== 0) {
+    console.warn(
+      "[test:e2e] build-e2e-report exited",
+      reportBuild.status === null ? 1 : reportBuild.status,
+      "— coverage HTML may be stale",
+    );
   }
   const lines = [
     `playwright_run_json=${jsonReport}`,

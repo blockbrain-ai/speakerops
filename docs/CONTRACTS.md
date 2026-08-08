@@ -37,6 +37,7 @@
 | Lumen (initiative synthesis) | [`KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`](../KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md) | Full design synthesis; 0.2 freezes essentials |
 | Synthesis | [`KMS-competition/research-pack/SYNTHESIS-BEST-FOOT-FORWARD.md`](../KMS-competition/research-pack/SYNTHESIS-BEST-FOOT-FORWARD.md) | Keep/cut decisions |
 | Security hardening (8.3) | [`docs/sections/8.3-security-hardening.md`](./sections/8.3-security-hardening.md) · [`docs/SECURITY.md`](./SECURITY.md) | CSP, cookies, Turnstile/rate limit, dependency audit policy |
+| E2E keystone HTML report (8.5) | [`docs/sections/8.5-e2e-keystone-report.md`](./sections/8.5-e2e-keystone-report.md) · [`docs/E2E.md`](./E2E.md) | `pnpm docs:e2e-report` → offline `reports/e2e-coverage.html` (S-E2E-RUN) |
 
 Engineering standards **E1–E12** live in the Section Runner RUNS_DIR as `speakerops-engineering-standards.md` (not duplicated here).
 

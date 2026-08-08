@@ -38,6 +38,7 @@ pnpm test:e2e           # Playwright (`playwright.config.ts`; full REQUIRED at P
 pnpm test:e2e:inventory # inventory anti-shrinkage + @inv coverage (`scripts/inventory-lint.ts`)
 pnpm db:generate        # verify schema + migration inventory (1.3+)
 pnpm db:migrate         # apply packages/db/migrations to local SQLite (1.3+)
+pnpm docs:e2e-report    # offline E2E coverage HTML (section 8.5)
 pnpm docs:reports       # stub until Phase 9
 ```
 

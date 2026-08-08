@@ -36,5 +36,5 @@ playwright-report/
 blob-report/
 reports/playwright/
 reports/playwright-run.json
-reports/e2e-coverage.html
+# reports/e2e-coverage.html is the section 8.5 offline keystone (committed)
 reports/e2e-report-path.txt

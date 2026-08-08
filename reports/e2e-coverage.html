@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title>SpeakerOps E2E coverage — S-E2E-RUN</title>
+  <style>
+:root {
+  --lumen-bg: #f5f5f7;
+  --lumen-surface: #ffffff;
+  --lumen-text: #1d1d1f;
+  --lumen-text-secondary: #6e6e73;
+  --lumen-border: rgba(0, 0, 0, 0.08);
+  --lumen-brand: #4f46e5;
+  --lumen-brand-soft: #eef2ff;
+  --lumen-accent: #0d9488;
+  --lumen-success: #059669;
+  --lumen-warn: #d97706;
+  --lumen-danger: #dc2626;
+  --lumen-info: #0284c7;
+  --lumen-radius-sm: 8px;
+  --lumen-radius-md: 12px;
+  --lumen-radius-lg: 16px;
+  --lumen-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --lumen-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --lumen-space-2: 8px;
+  --lumen-space-3: 12px;
+  --lumen-space-4: 16px;
+  --lumen-space-6: 24px;
+  --lumen-success-soft: #d1fae5;
+  --lumen-warn-soft: #fef3c7;
+  --lumen-danger-soft: #fee2e2;
+  --lumen-info-soft: #e0f2fe;
+}
+html { color-scheme: light; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--lumen-font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--lumen-text);
+  background: var(--lumen-bg);
+  -webkit-font-smoothing: antialiased;
+}
+*, *::before, *::after { box-sizing: border-box; }
+a { color: var(--lumen-brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: var(--lumen-space-6) var(--lumen-space-4); }
+header.card, .card {
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-lg);
+  box-shadow: var(--lumen-shadow-sm);
+  padding: var(--lumen-space-6);
+  margin-bottom: var(--lumen-space-6);
+}
+h1 {
+  margin: 0 0 var(--lumen-space-2);
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.sub {
+  color: var(--lumen-text-secondary);
+  margin: 0 0 var(--lumen-space-4);
+}
+.badges { display: flex; flex-wrap: wrap; gap: var(--lumen-space-2); margin-top: var(--lumen-space-3); }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--lumen-border);
+  background: var(--lumen-brand-soft);
+  color: var(--lumen-brand);
+}
+.badge.pass { background: var(--lumen-success-soft); color: var(--lumen-success); border-color: transparent; }
+.badge.fail { background: var(--lumen-danger-soft); color: var(--lumen-danger); border-color: transparent; }
+.badge.defer { background: var(--lumen-warn-soft); color: var(--lumen-warn); border-color: transparent; }
+.badge.other { background: var(--lumen-info-soft); color: var(--lumen-info); border-color: transparent; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--lumen-space-4); }
+.toc a {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+}
+.toc a.pass { border-color: var(--lumen-success); color: var(--lumen-success); }
+.toc a.fail { border-color: var(--lumen-danger); color: var(--lumen-danger); }
+.toc a.defer { border-color: var(--lumen-warn); color: var(--lumen-warn); }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  overflow: hidden;
+}
+th, td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--lumen-border);
+  vertical-align: top;
+}
+th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lumen-text-secondary);
+  background: var(--lumen-bg);
+}
+tr:last-child td { border-bottom: none; }
+tr:target { outline: 2px solid var(--lumen-brand); outline-offset: -2px; }
+.id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+}
+.status-pill {
+  display: inline-block;
+  min-width: 3.5rem;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.status-pill.PASS { background: var(--lumen-success-soft); color: var(--lumen-success); }
+.status-pill.FAIL { background: var(--lumen-danger-soft); color: var(--lumen-danger); }
+.status-pill.DEFER { background: var(--lumen-warn-soft); color: var(--lumen-warn); }
+.status-pill.OPEN,
+.status-pill.IMPLEMENTED,
+.status-pill.UNKNOWN,
+.status-pill.SKIPPED { background: var(--lumen-info-soft); color: var(--lumen-info); }
+.muted { color: var(--lumen-text-secondary); font-size: 12px; }
+footer.report-footer {
+  margin-top: var(--lumen-space-6);
+  padding: var(--lumen-space-4) var(--lumen-space-6);
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  color: var(--lumen-text-secondary);
+  font-size: 13px;
+}
+footer.report-footer code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--lumen-text);
+}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="card">
+      <h1>SpeakerOps E2E coverage</h1>
+      <p class="sub">
+        Inventory + Playwright results for constitution soul <strong>S-E2E-RUN</strong>.
+        Offline keystone artifact (section 8.5). Source inventory:
+        <code>KMS-competition/initiative/BROWSER_E2E_INVENTORY.md</code>.
+      </p>
+      <div class="badges" role="status" aria-label="REQUIRED summary">
+        <span class="badge">REQUIRED 108</span>
+        <span class="badge pass">PASS 108</span>
+        <span class="badge fail">FAIL 0</span>
+        <span class="badge defer">DEFER 0</span>
+        <span class="badge other">other 0</span>
+        <span class="badge">playwright 108</span>
+        <span class="badge">inventory 0</span>
+      </div>
+    </header>
+
+    <nav class="toc" aria-label="REQUIRED inventory IDs">
+      <a class="pass" href="#A01" title="PASS">A01</a>
+      <a class="pass" href="#A02" title="PASS">A02</a>
+      <a class="pass" href="#A03" title="PASS">A03</a>
+      <a class="pass" href="#A04" title="PASS">A04</a>
+      <a class="pass" href="#A05" title="PASS">A05</a>
+      <a class="pass" href="#A06" title="PASS">A06</a>
+      <a class="pass" href="#A07" title="PASS">A07</a>
+      <a class="pass" href="#A08" title="PASS">A08</a>
+      <a class="pass" href="#A09" title="PASS">A09</a>
+      <a class="pass" href="#A10" title="PASS">A10</a>
+      <a class="pass" href="#A11" title="PASS">A11</a>
+      <a class="pass" href="#B01" title="PASS">B01</a>
+      <a class="pass" href="#B02" title="PASS">B02</a>
+      <a class="pass" href="#B03" title="PASS">B03</a>
+      <a class="pass" href="#B04" title="PASS">B04</a>
+      <a class="pass" href="#B05" title="PASS">B05</a>
+      <a class="pass" href="#B06" title="PASS">B06</a>
+      <a class="pass" href="#C01" title="PASS">C01</a>
+      <a class="pass" href="#C02" title="PASS">C02</a>
+      <a class="pass" href="#C03" title="PASS">C03</a>
+      <a class="pass" href="#C04" title="PASS">C04</a>
+      <a class="pass" href="#C05" title="PASS">C05</a>
+      <a class="pass" href="#C06" title="PASS">C06</a>
+      <a class="pass" href="#C07" title="PASS">C07</a>
+      <a class="pass" href="#C08" title="PASS">C08</a>
+      <a class="pass" href="#C09" title="PASS">C09</a>
+      <a class="pass" href="#C10" title="PASS">C10</a>
+      <a class="pass" href="#C11" title="PASS">C11</a>
+      <a class="pass" href="#D01" title="PASS">D01</a>
+      <a class="pass" href="#D02" title="PASS">D02</a>
+      <a class="pass" href="#D03" title="PASS">D03</a>
+      <a class="pass" href="#D04" title="PASS">D04</a>
+      <a class="pass" href="#D05" title="PASS">D05</a>
+      <a class="pass" href="#D06" title="PASS">D06</a>
+      <a class="pass" href="#D07" title="PASS">D07</a>
+      <a class="pass" href="#D08" title="PASS">D08</a>
+      <a class="pass" href="#D09" title="PASS">D09</a>
+      <a class="pass" href="#D10" title="PASS">D10</a>
+      <a class="pass" href="#E01" title="PASS">E01</a>
+      <a class="pass" href="#E02" title="PASS">E02</a>
+      <a class="pass" href="#E03" title="PASS">E03</a>
+      <a class="pass" href="#E04" title="PASS">E04</a>
+      <a class="pass" href="#E05" title="PASS">E05</a>
+      <a class="pass" href="#E06" title="PASS">E06</a>
+      <a class="pass" href="#E07" title="PASS">E07</a>
+      <a class="pass" href="#E08" title="PASS">E08</a>
+      <a class="pass" href="#F01" title="PASS">F01</a>
+      <a class="pass" href="#F02" title="PASS">F02</a>
+      <a class="pass" href="#F03" title="PASS">F03</a>
+      <a class="pass" href="#F04" title="PASS">F04</a>
+      <a class="pass" href="#G01" title="PASS">G01</a>
+      <a class="pass" href="#G02" title="PASS">G02</a>
+      <a class="pass" href="#G03" title="PASS">G03</a>
+      <a class="pass" href="#G04" title="PASS">G04</a>
+      <a class="pass" href="#G05" title="PASS">G05</a>
+      <a class="pass" href="#G06" title="PASS">G06</a>
+      <a class="pass" href="#G07" title="PASS">G07</a>
+      <a class="pass" href="#G08" title="PASS">G08</a>
+      <a class="pass" href="#H01" title="PASS">H01</a>
+      <a class="pass" href="#H02" title="PASS">H02</a>
+      <a class="pass" href="#H03" title="PASS">H03</a>
+      <a class="pass" href="#H04" title="PASS">H04</a>
+      <a class="pass" href="#H05" title="PASS">H05</a>
+      <a class="pass" href="#I01" title="PASS">I01</a>
+      <a class="pass" href="#I02" title="PASS">I02</a>
+      <a class="pass" href="#I03" title="PASS">I03</a>
+      <a class="pass" href="#I04" title="PASS">I04</a>
+      <a class="pass" href="#I05" title="PASS">I05</a>
+      <a class="pass" href="#I06" title="PASS">I06</a>
+      <a class="pass" href="#I07" title="PASS">I07</a>
+      <a class="pass" href="#I08" title="PASS">I08</a>
+      <a class="pass" href="#I09" title="PASS">I09</a>
+      <a class="pass" href="#I10" title="PASS">I10</a>
+      <a class="pass" href="#I11" title="PASS">I11</a>
+      <a class="pass" href="#I12" title="PASS">I12</a>
+      <a class="pass" href="#I13" title="PASS">I13</a>
+      <a class="pass" href="#I14" title="PASS">I14</a>
+      <a class="pass" href="#I15" title="PASS">I15</a>
+      <a class="pass" href="#I16" title="PASS">I16</a>
+      <a class="pass" href="#J01" title="PASS">J01</a>
+      <a class="pass" href="#J02" title="PASS">J02</a>
+      <a class="pass" href="#J03" title="PASS">J03</a>
+      <a class="pass" href="#J04" title="PASS">J04</a>
+      <a class="pass" href="#J05" title="PASS">J05</a>
+      <a class="pass" href="#J06" title="PASS">J06</a>
+      <a class="pass" href="#J07" title="PASS">J07</a>
+      <a class="pass" href="#J08" title="PASS">J08</a>
+      <a class="pass" href="#J09" title="PASS">J09</a>
+      <a class="pass" href="#J10" title="PASS">J10</a>
+      <a class="pass" href="#K01" title="PASS">K01</a>
+      <a class="pass" href="#K02" title="PASS">K02</a>
+      <a class="pass" href="#K03" title="PASS">K03</a>
+      <a class="pass" href="#K04" title="PASS">K04</a>
+      <a class="pass" href="#L01" title="PASS">L01</a>
+      <a class="pass" href="#L02" title="PASS">L02</a>
+      <a class="pass" href="#L03" title="PASS">L03</a>
+      <a class="pass" href="#L04" title="PASS">L04</a>
+      <a class="pass" href="#L05" title="PASS">L05</a>
+      <a class="pass" href="#N01" title="PASS">N01</a>
+      <a class="pass" href="#N02" title="PASS">N02</a>
+      <a class="pass" href="#N03" title="PASS">N03</a>
+      <a class="pass" href="#N04" title="PASS">N04</a>
+      <a class="pass" href="#O01" title="PASS">O01</a>
+      <a class="pass" href="#O02" title="PASS">O02</a>
+      <a class="pass" href="#O03" title="PASS">O03</a>
+      <a class="pass" href="#O04" title="PASS">O04</a>
+      <a class="pass" href="#O05" title="PASS">O05</a>
+      <a class="pass" href="#O06" title="PASS">O06</a>
+    </nav>
+
+    <section class="card">
+      <h2 style="margin:0 0 12px;font-size:1.1rem">REQUIRED inventory (PASS / FAIL)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Role</th>
+            <th>Surface</th>
+            <th>Journey</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+<tr id="A01">
+  <td class="id"><a href="#A01">A01</a></td>
+  <td>public</td>
+  <td>`/cfp/:slug`</td>
+  <td>Load form; see welcome; brand tokens visible<div class="muted">e2e/public/cfp-load</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A02">
+  <td class="id"><a href="#A02">A02</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Fill required fields; conditional field appears when rule met<div class="muted">e2e/public/cfp-conditional</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A03">
+  <td class="id"><a href="#A03">A03</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Select category; observe routing metadata on submit payload<div class="muted">e2e/public/cfp-category</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A04">
+  <td class="id"><a href="#A04">A04</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Add second speaker block; min/max speaker rules<div class="muted">e2e/public/cfp-multi-speaker</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A05">
+  <td class="id"><a href="#A05">A05</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Upload supporting file within type/size<div class="muted">e2e/public/cfp-file</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A06">
+  <td class="id"><a href="#A06">A06</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Pass Turnstile (test key); submit success + confirmation<div class="muted">e2e/public/cfp-submit</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A07">
+  <td class="id"><a href="#A07">A07</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Closed window shows closed state; no submit<div class="muted">e2e/public/cfp-closed</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A08">
+  <td class="id"><a href="#A08">A08</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Validation errors inline; focus management<div class="muted">e2e/public/cfp-validation</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A09">
+  <td class="id"><a href="#A09">A09</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Mobile viewport complete submit<div class="muted">e2e/public/cfp-mobile</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A10">
+  <td class="id"><a href="#A10">A10</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>XSS string in abstract renders as text not script<div class="muted">e2e/public/cfp-xss</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A11">
+  <td class="id"><a href="#A11">A11</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Keyboard-only complete valid submit<div class="muted">e2e/public/cfp-keyboard</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="B01">
+  <td class="id"><a href="#B01">B01</a></td>
+  <td>admin</td>
+  <td>`/login`</td>
+  <td>Magic/invite login → session cookie set HttpOnly path<div class="muted">e2e/auth/admin-login</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="B02">
+  <td class="id"><a href="#B02">B02</a></td>
+  <td>speaker</td>
+  <td>magic link</td>
+  <td>Single-use link → portal; second use fails<div class="muted">e2e/auth/speaker-magic</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="B03">
+  <td class="id"><a href="#B03">B03</a></td>
+  <td>any</td>
+  <td>any authed</td>
+  <td>Logout clears session<div class="muted">e2e/auth/logout</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="B04">
+  <td class="id"><a href="#B04">B04</a></td>
+  <td>public</td>
+  <td>`/admin`</td>
+  <td>Unauthed redirect/401<div class="muted">e2e/auth/admin-guard</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="B05">
+  <td class="id"><a href="#B05">B05</a></td>
+  <td>speaker</td>
+  <td>`/admin`</td>
+  <td>Speaker cannot open admin<div class="muted">e2e/auth/role-guard-admin</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="B06">
+  <td class="id"><a href="#B06">B06</a></td>
+  <td>evaluator</td>
+  <td>`/speakers` admin write</td>
+  <td>Evaluator cannot mutate schedule<div class="muted">e2e/auth/role-guard-eval</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C01">
+  <td class="id"><a href="#C01">C01</a></td>
+  <td>admin</td>
+  <td>Events</td>
+  <td>Create event; timezone; dates<div class="muted">e2e/admin/event-create</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C02">
+  <td class="id"><a href="#C02">C02</a></td>
+  <td>admin</td>
+  <td>Events</td>
+  <td>Switch active event context<div class="muted">e2e/admin/event-switch</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C03">
+  <td class="id"><a href="#C03">C03</a></td>
+  <td>admin</td>
+  <td>Design Kit</td>
+  <td>Set brand color; live preview updates<div class="muted">e2e/admin/design-color</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C04">
+  <td class="id"><a href="#C04">C04</a></td>
+  <td>admin</td>
+  <td>Design Kit</td>
+  <td>Upload logo; preview<div class="muted">e2e/admin/design-logo</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C05">
+  <td class="id"><a href="#C05">C05</a></td>
+  <td>admin</td>
+  <td>Design Kit</td>
+  <td>Publish tokens; public CFP shows brand<div class="muted">e2e/admin/design-publish</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C06">
+  <td class="id"><a href="#C06">C06</a></td>
+  <td>admin</td>
+  <td>Design Kit</td>
+  <td>Cannot inject freeform CSS field (control absent)<div class="muted">e2e/admin/design-no-css</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C07">
+  <td class="id"><a href="#C07">C07</a></td>
+  <td>admin</td>
+  <td>Settings</td>
+  <td>Edit event name/close dates for CFP window<div class="muted">e2e/admin/settings-cfp-window</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C08">
+  <td class="id"><a href="#C08">C08</a></td>
+  <td>admin</td>
+  <td>Design Kit</td>
+  <td>Near-white brand → contrast warn/block or derived text on public CFP<div class="muted">e2e/admin/design-contrast</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C09">
+  <td class="id"><a href="#C09">C09</a></td>
+  <td>admin</td>
+  <td>Design Kit</td>
+  <td>SVG/scripty logo rejected; never executes<div class="muted">e2e/admin/design-logo-xss</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C10">
+  <td class="id"><a href="#C10">C10</a></td>
+  <td>admin</td>
+  <td>Design Kit</td>
+  <td>Draft tokens not visible on public CFP until publish<div class="muted">e2e/admin/design-draft-isolation</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="C11">
+  <td class="id"><a href="#C11">C11</a></td>
+  <td>admin</td>
+  <td>Events</td>
+  <td>Switch event A→B; no A data in B lists<div class="muted">e2e/admin/event-isolation</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D01">
+  <td class="id"><a href="#D01">D01</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Create form; add text/select/file/speaker fields<div class="muted">e2e/admin/form-create</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D02">
+  <td class="id"><a href="#D02">D02</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Reorder fields drag<div class="muted">e2e/admin/form-reorder</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D03">
+  <td class="id"><a href="#D03">D03</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Conditional rule: show field if select=X<div class="muted">e2e/admin/form-conditional</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D04">
+  <td class="id"><a href="#D04">D04</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Category field + routing target<div class="muted">e2e/admin/form-routing</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D05">
+  <td class="id"><a href="#D05">D05</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Required flags + validation<div class="muted">e2e/admin/form-required</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D06">
+  <td class="id"><a href="#D06">D06</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Welcome/thank-you copy<div class="muted">e2e/admin/form-copy</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D07">
+  <td class="id"><a href="#D07">D07</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Preview side-by-side<div class="muted">e2e/admin/form-preview</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D08">
+  <td class="id"><a href="#D08">D08</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Publish version; pin version on new submission<div class="muted">e2e/admin/form-publish-version</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D09">
+  <td class="id"><a href="#D09">D09</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Open/close + submission limit<div class="muted">e2e/admin/form-limits</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="D10">
+  <td class="id"><a href="#D10">D10</a></td>
+  <td>admin</td>
+  <td>Forms</td>
+  <td>Copy public link<div class="muted">e2e/admin/form-link</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E01">
+  <td class="id"><a href="#E01">E01</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>List filters by status/category<div class="muted">e2e/admin/sub-list</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E02">
+  <td class="id"><a href="#E02">E02</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Open detail; answers; speakers<div class="muted">e2e/admin/sub-detail</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E03">
+  <td class="id"><a href="#E03">E03</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Assign to evaluator<div class="muted">e2e/admin/sub-assign</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E04">
+  <td class="id"><a href="#E04">E04</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Accept creates session + tasks<div class="muted">e2e/admin/sub-accept</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E05">
+  <td class="id"><a href="#E05">E05</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Reject with reason<div class="muted">e2e/admin/sub-reject</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E06">
+  <td class="id"><a href="#E06">E06</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Waitlist status<div class="muted">e2e/admin/sub-waitlist</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E07">
+  <td class="id"><a href="#E07">E07</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Direct/sponsor session entry (no CFP)<div class="muted">e2e/admin/session-direct</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E08">
+  <td class="id"><a href="#E08">E08</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Bulk select + preview bulk status change<div class="muted">e2e/admin/sub-bulk</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="F01">
+  <td class="id"><a href="#F01">F01</a></td>
+  <td>evaluator</td>
+  <td>Queue</td>
+  <td>See only assigned<div class="muted">e2e/eval/queue</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="F02">
+  <td class="id"><a href="#F02">F02</a></td>
+  <td>evaluator</td>
+  <td>Score</td>
+  <td>Score criteria + comment; save<div class="muted">e2e/eval/score</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="F03">
+  <td class="id"><a href="#F03">F03</a></td>
+  <td>evaluator</td>
+  <td>Score</td>
+  <td>Cannot accept/reject<div class="muted">e2e/eval/no-decide</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="F04">
+  <td class="id"><a href="#F04">F04</a></td>
+  <td>evaluator</td>
+  <td>Score</td>
+  <td>Keyboard-only complete score<div class="muted">e2e/eval/a11y-keyboard</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G01">
+  <td class="id"><a href="#G01">G01</a></td>
+  <td>speaker</td>
+  <td>Portal</td>
+  <td>Land on next incomplete task<div class="muted">e2e/portal/home</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G02">
+  <td class="id"><a href="#G02">G02</a></td>
+  <td>speaker</td>
+  <td>Profile</td>
+  <td>Edit bio; save<div class="muted">e2e/portal/bio</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G03">
+  <td class="id"><a href="#G03">G03</a></td>
+  <td>speaker</td>
+  <td>Files</td>
+  <td>Upload headshot; preview<div class="muted">e2e/portal/headshot</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G04">
+  <td class="id"><a href="#G04">G04</a></td>
+  <td>speaker</td>
+  <td>Files</td>
+  <td>Upload slides<div class="muted">e2e/portal/slides</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G05">
+  <td class="id"><a href="#G05">G05</a></td>
+  <td>speaker</td>
+  <td>Tasks</td>
+  <td>Complete task; status flips<div class="muted">e2e/portal/task-complete</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G06">
+  <td class="id"><a href="#G06">G06</a></td>
+  <td>speaker</td>
+  <td>Tasks</td>
+  <td>Overdue visual state<div class="muted">e2e/portal/task-overdue</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G07">
+  <td class="id"><a href="#G07">G07</a></td>
+  <td>speaker</td>
+  <td>Sessions</td>
+  <td>View own session status<div class="muted">e2e/portal/session</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G08">
+  <td class="id"><a href="#G08">G08</a></td>
+  <td>speaker</td>
+  <td>Portal</td>
+  <td>Mobile complete bio+task<div class="muted">e2e/portal/mobile</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="H01">
+  <td class="id"><a href="#H01">H01</a></td>
+  <td>admin</td>
+  <td>Dashboard</td>
+  <td>Stats + outstanding list<div class="muted">e2e/dash/overview</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="H02">
+  <td class="id"><a href="#H02">H02</a></td>
+  <td>admin</td>
+  <td>Dashboard</td>
+  <td>Filter overdue<div class="muted">e2e/dash/filter</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="H03">
+  <td class="id"><a href="#H03">H03</a></td>
+  <td>admin</td>
+  <td>Dashboard</td>
+  <td>Drill to speaker<div class="muted">e2e/dash/drill</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="H04">
+  <td class="id"><a href="#H04">H04</a></td>
+  <td>admin</td>
+  <td>Dashboard</td>
+  <td>Live update after portal complete (same session or poll ≤5s)<div class="muted">e2e/dash/live</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="H05">
+  <td class="id"><a href="#H05">H05</a></td>
+  <td>admin</td>
+  <td>Dashboard</td>
+  <td>Empty state when all clear<div class="muted">e2e/dash/empty</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I01">
+  <td class="id"><a href="#I01">I01</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>List view shows sessions<div class="muted">e2e/sched/list</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I02">
+  <td class="id"><a href="#I02">I02</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Day view<div class="muted">e2e/sched/day</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I03">
+  <td class="id"><a href="#I03">I03</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Week view<div class="muted">e2e/sched/week</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I04">
+  <td class="id"><a href="#I04">I04</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Track view<div class="muted">e2e/sched/track</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I05">
+  <td class="id"><a href="#I05">I05</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Room view<div class="muted">e2e/sched/room</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I06">
+  <td class="id"><a href="#I06">I06</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Drag place into empty slot<div class="muted">e2e/sched/drag-place</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I07">
+  <td class="id"><a href="#I07">I07</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Drag causes speaker conflict; blocked with reason<div class="muted">e2e/sched/conflict-speaker</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I08">
+  <td class="id"><a href="#I08">I08</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Room overlap conflict<div class="muted">e2e/sched/conflict-room</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I09">
+  <td class="id"><a href="#I09">I09</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Keyboard move alternative<div class="muted">e2e/sched/keyboard</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I10">
+  <td class="id"><a href="#I10">I10</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Undo last move<div class="muted">e2e/sched/undo</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I11">
+  <td class="id"><a href="#I11">I11</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Unscheduled tray<div class="muted">e2e/sched/tray</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I12">
+  <td class="id"><a href="#I12">I12</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Timezone displayed<div class="muted">e2e/sched/tz</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I13">
+  <td class="id"><a href="#I13">I13</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Move already-placed session to new slot<div class="muted">e2e/sched/move</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I14">
+  <td class="id"><a href="#I14">I14</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Unschedule back to tray<div class="muted">e2e/sched/unschedule</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I15">
+  <td class="id"><a href="#I15">I15</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>Stale version conflict shows recovery UI<div class="muted">e2e/sched/stale</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="I16">
+  <td class="id"><a href="#I16">I16</a></td>
+  <td>admin</td>
+  <td>Schedule</td>
+  <td>After place, all five views + reload consistent<div class="muted">e2e/sched/persist</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J01">
+  <td class="id"><a href="#J01">J01</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>Create/edit template merge fields<div class="muted">e2e/comms/template</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J02">
+  <td class="id"><a href="#J02">J02</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>Segment audience; count<div class="muted">e2e/comms/segment</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J03">
+  <td class="id"><a href="#J03">J03</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>Preview all recipients + body<div class="muted">e2e/comms/preview</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J04">
+  <td class="id"><a href="#J04">J04</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>Send once; second send idempotent<div class="muted">e2e/comms/send-idempotent</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J05">
+  <td class="id"><a href="#J05">J05</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>Delivery log visible<div class="muted">e2e/comms/log</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J06">
+  <td class="id"><a href="#J06">J06</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>ICS attach for scheduled session<div class="muted">e2e/comms/ics</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J07">
+  <td class="id"><a href="#J07">J07</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>Role without comms:send cannot send<div class="muted">e2e/comms/authz</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J08">
+  <td class="id"><a href="#J08">J08</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>Send without completed preview blocked<div class="muted">e2e/comms/preview-required</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J09">
+  <td class="id"><a href="#J09">J09</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>Edit audience invalidates preview<div class="muted">e2e/comms/preview-invalidate</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J10">
+  <td class="id"><a href="#J10">J10</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>ICS update after reschedule keeps UID bumps SEQUENCE<div class="muted">e2e/comms/ics-update</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="K01">
+  <td class="id"><a href="#K01">K01</a></td>
+  <td>admin</td>
+  <td>API Keys</td>
+  <td>Create key with subset of scopes; secret shown once<div class="muted">e2e/keys/create</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="K02">
+  <td class="id"><a href="#K02">K02</a></td>
+  <td>admin</td>
+  <td>API Keys</td>
+  <td>Revoke key<div class="muted">e2e/keys/revoke</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="K03">
+  <td class="id"><a href="#K03">K03</a></td>
+  <td>admin</td>
+  <td>API Keys</td>
+  <td>Copy prefix only after dismiss<div class="muted">e2e/keys/secret-once</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="K04">
+  <td class="id"><a href="#K04">K04</a></td>
+  <td>admin</td>
+  <td>API Keys</td>
+  <td>Non-admin cannot open keys<div class="muted">e2e/keys/authz</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="L01">
+  <td class="id"><a href="#L01">L01</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Empty list CTA<div class="muted">e2e/states/empty-sub</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="L02">
+  <td class="id"><a href="#L02">L02</a></td>
+  <td>admin</td>
+  <td>Network</td>
+  <td>Offline/API 500 shows error state not blank<div class="muted">e2e/states/error</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="L03">
+  <td class="id"><a href="#L03">L03</a></td>
+  <td>any</td>
+  <td>Slow</td>
+  <td>Loading skeletons not infinite hang<div class="muted">e2e/states/loading</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="L04">
+  <td class="id"><a href="#L04">L04</a></td>
+  <td>any</td>
+  <td>Happy paths</td>
+  <td>No uncaught console errors<div class="muted">e2e/states/console-clean</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="L05">
+  <td class="id"><a href="#L05">L05</a></td>
+  <td>admin</td>
+  <td>Lists</td>
+  <td>150-row seed list paginates or virtualizes usable<div class="muted">e2e/states/large-list</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="N01">
+  <td class="id"><a href="#N01">N01</a></td>
+  <td>admin</td>
+  <td>Speakers</td>
+  <td>List speakers for event<div class="muted">e2e/admin/speakers-list</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="N02">
+  <td class="id"><a href="#N02">N02</a></td>
+  <td>admin</td>
+  <td>Speakers</td>
+  <td>Search/filter<div class="muted">e2e/admin/speakers-filter</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="N03">
+  <td class="id"><a href="#N03">N03</a></td>
+  <td>admin</td>
+  <td>Speakers</td>
+  <td>Detail: tasks + files<div class="muted">e2e/admin/speakers-detail</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="N04">
+  <td class="id"><a href="#N04">N04</a></td>
+  <td>admin</td>
+  <td>Speakers</td>
+  <td>Open headshot/slides metadata<div class="muted">e2e/admin/speakers-files</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="O01">
+  <td class="id"><a href="#O01">O01</a></td>
+  <td>admin</td>
+  <td>Settings</td>
+  <td>Event name/dates/tz<div class="muted">e2e/settings/event</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="O02">
+  <td class="id"><a href="#O02">O02</a></td>
+  <td>admin</td>
+  <td>Settings</td>
+  <td>Rooms CRUD<div class="muted">e2e/settings/rooms</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="O03">
+  <td class="id"><a href="#O03">O03</a></td>
+  <td>admin</td>
+  <td>Settings</td>
+  <td>Tracks CRUD<div class="muted">e2e/settings/tracks</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="O04">
+  <td class="id"><a href="#O04">O04</a></td>
+  <td>admin</td>
+  <td>Settings</td>
+  <td>Eval rubric edit<div class="muted">e2e/settings/rubric</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="O05">
+  <td class="id"><a href="#O05">O05</a></td>
+  <td>admin</td>
+  <td>Settings</td>
+  <td>Task templates on accept<div class="muted">e2e/settings/task-templates</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="O06">
+  <td class="id"><a href="#O06">O06</a></td>
+  <td>admin</td>
+  <td>Settings</td>
+  <td>Airtable projection status read<div class="muted">e2e/settings/airtable-status</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+        </tbody>
+      </table>
+    </section>
+
+    
+
+    <footer class="report-footer" data-generated-at="2026-08-08T23:44:59.288Z" data-git-sha="1297fd9">
+      <div><strong>Generated:</strong> <time datetime="2026-08-08T23:44:59.288Z">2026-08-08T23:44:59.288Z</time></div>
+      <div><strong>Git SHA:</strong> <code>1297fd9</code></div>
+      <div><strong>Suite source:</strong> <code>/mnt/HC_Volume_105994188/speakerops-build/reports/playwright-run.json</code></div>
+      <div class="muted">Section 8.5 · pnpm docs:e2e-report · no secrets in report</div>
+    </footer>
+  </div>
+</body>
+</html>

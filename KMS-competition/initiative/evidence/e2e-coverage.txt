@@ -1,0 +1,60 @@
+# Phase 8 E2E keystone coverage HTML evidence — section 8.5 (S-E2E-RUN)
+
+Section: 8.5 E2E keystone HTML report
+Workspace: speakerops-build
+Date: 2026-08-08
+
+## Claim
+
+Offline Lumen-styled reports/e2e-coverage.html built from BROWSER_E2E_INVENTORY.md
+plus optional Playwright JSON run report (reports/playwright-run.json).
+Shows PASS/FAIL per REQUIRED inventory id (A01 …) with SHA + generated timestamp footer.
+pnpm docs:e2e-report is the non-interactive interface.
+
+Souls: S-E2E-RUN (evidence artifact path for full browser proof)
+
+## Evidence path
+
+This file: KMS-competition/initiative/evidence/e2e-coverage.txt
+Section notes: docs/sections/8.5-e2e-keystone-report.md
+Builder: scripts/build-e2e-report.ts
+HTML: reports/e2e-coverage.html
+Prior full-suite evidence: KMS-competition/initiative/evidence/e2e-full.txt (8.2)
+
+## Report path stored
+
+| Artifact | Path |
+|----------|------|
+| Coverage HTML (keystone) | reports/e2e-coverage.html |
+| JSON run report | reports/playwright-run.json (E2E_PLAYWRIGHT_RUN_REPORT) |
+| Raw HTML | playwright-report/ |
+| Path manifest | reports/e2e-report-path.txt |
+
+Env names only (E10): E2E_PLAYWRIGHT_RUN_REPORT, E2E_PLAYWRIGHT_SUITE_REPORT,
+E2E_COVERAGE_HTML, E2E_WEB_SERVER, E2E_INVENTORY_GATE, CI.
+
+## Notes
+
+- No secrets, API keys, or magic-link tokens in this evidence file or the HTML report.
+- HTML is self-contained (inline Lumen tokens) for offline open.
+- e2e-run.mjs refreshes coverage HTML after each pnpm test:e2e run.
+- Inventory statuses remain authoritative when run report is absent.
+
+## Gate command outputs
+
+### pnpm docs:e2e-report
+```
+> speakerops@0.1.0 docs:e2e-report
+> tsx scripts/build-e2e-report.ts
+
+[docs:e2e-report] wrote …/reports/e2e-coverage.html · REQUIRED N · PASS N · FAIL 0 · …
+exit: 0
+```
+
+### pnpm typecheck / pnpm test:ci
+```
+See section gate run at commit time (feat(8.5): e2e-keystone-html-report).
+Named assertions:
+  - assert reports/e2e-coverage.html contains A01 and PASS|FAIL
+  - assert footer includes generated timestamp
+```

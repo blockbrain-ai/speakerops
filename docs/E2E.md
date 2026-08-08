@@ -11,9 +11,10 @@ This document is the workspace stub for Playwright usage until Phase 9 expands o
 
 | Command | Role |
 |---------|------|
-| `pnpm test:e2e` | Run Playwright suite (`playwright.config.ts`) |
+| `pnpm test:e2e` | Run Playwright suite (`playwright.config.ts`); refreshes coverage HTML |
 | `pnpm test:e2e:inventory` | Inventory lint — REQUIRED `@inv` coverage **+** admin primary discovery crawl (8.1) |
 | `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory` | Phase 8 full gate (status PASS + tags + run report) |
+| `pnpm docs:e2e-report` | Section **8.5** — build offline `reports/e2e-coverage.html` (inventory + results) |
 | `pnpm exec tsx scripts/inventory-lint.ts` | Same as `test:e2e:inventory` (TypeScript entry) |
 | `E2E_INVENTORY_SKIP_CRAWL=1` | Debug: skip admin crawl (tags only) |
 
@@ -100,7 +101,8 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright-report/` | Raw HTML report (8.2 / local run) |
 | `reports/playwright/` | HTML report mirror (CI) |
 | `reports/playwright-run.json` | JSON run report (`E2E_PLAYWRIGHT_RUN_REPORT`) |
-| `reports/e2e-coverage.html` | Coverage HTML (law path) |
+| `reports/e2e-coverage.html` | Section **8.5** Lumen keystone: inventory + results (offline) |
+| `scripts/build-e2e-report.ts` | Builder for `pnpm docs:e2e-report` / post-`test:e2e` refresh |
 | `reports/e2e-report-path.txt` | Report path manifest after `pnpm test:e2e` |
 | `KMS-competition/initiative/evidence/phase1.txt` | Phase 1 keystone evidence (1.6) |
 | `KMS-competition/initiative/evidence/phase2-e2e.txt` | Phase 2 keystone evidence (2.5) |
@@ -151,12 +153,21 @@ Env **names** only (E10) — never commit secret values:
 - Every non-DEFER REQUIRED row status `PASS` (incl. L01–L04)
 - `@inv` on Playwright-bound tests for all of them
 - Actual run report with **passed, non-skipped** results (`reports/playwright-run.json`)
-- Raw HTML: `playwright-report/`; coverage copy: `reports/e2e-coverage.html`
+- Raw HTML: `playwright-report/`
 - Path manifest: `reports/e2e-report-path.txt` (written by `scripts/e2e-run.mjs`)
 - Cross-cutting: `playwright/e2e/states_cross_cutting.spec.ts` · keystone `phase8_full_suite_keystone.spec.ts`
 - Evidence: `KMS-competition/initiative/evidence/e2e-full.txt`
 - Section notes: [`docs/sections/8.2-full-playwright-suite.md`](./sections/8.2-full-playwright-suite.md)
 - Phase 8 gate: `E2E_INVENTORY_GATE=phase8 E2E_PLAYWRIGHT_RUN_REPORT=reports/playwright-run.json pnpm test:e2e:inventory`
+
+### 8.5 — E2E keystone HTML report (landed)
+
+- Offline Lumen HTML: `reports/e2e-coverage.html` (inventory + Playwright results)
+- Builder: `scripts/build-e2e-report.ts` · interface: `pnpm docs:e2e-report`
+- PASS/FAIL per REQUIRED id (e.g. **A01**); footer with **generated timestamp** + Git SHA
+- Refreshed automatically after `pnpm test:e2e` via `scripts/e2e-run.mjs`
+- Evidence: `KMS-competition/initiative/evidence/e2e-coverage.txt`
+- Section notes: [`docs/sections/8.5-e2e-keystone-report.md`](./sections/8.5-e2e-keystone-report.md)
 
 Section **1.5** only scaffolds the harness and inventory lint entry — it does not claim `dogfood_ready` or full REQUIRED green.
 
@@ -177,6 +188,8 @@ Section **7.4** adds the phase-7 I12 keystone (`phase7_keystone.spec.ts`): K* ke
 Section **8.1** hardens inventory completeness (S-E2E-INV): tags + admin primary crawl. Evidence / notes: `docs/sections/8.1-inventory-completeness.md`.
 
 Section **8.2** runs the full Playwright suite (S-E2E-RUN): all REQUIRED **PASS**, L01–L04 state journeys, run report artifact. Evidence: `KMS-competition/initiative/evidence/e2e-full.txt`.
+
+Section **8.5** emits the offline keystone coverage HTML for S-E2E-RUN evidence (`pnpm docs:e2e-report` → `reports/e2e-coverage.html`). Evidence: `KMS-competition/initiative/evidence/e2e-coverage.txt`.
 
 ---
 

@@ -47,3 +47,50 @@ export function runInventoryLint(options?: {
 export function normalizeCell(s: string | undefined | null): string;
 export function collectFiles(dir: string, acc?: string[]): string[];
 export function findPlaywrightConfig(root: string): string | null;
+
+/** Normalized Playwright suite entry (list or run report). */
+export type PlaywrightSuiteEntry = {
+  file: string;
+  title: string;
+  status?: string;
+  outcome?: string;
+  ok?: boolean;
+};
+
+export type PlaywrightSuite = {
+  files: string[];
+  entries: PlaywrightSuiteEntry[];
+  source: string;
+  hasExecutionOutcomes: boolean;
+};
+
+export function entryHasExecutionOutcome(
+  entry: PlaywrightSuiteEntry | null | undefined,
+): boolean;
+
+export function suiteHasExecutionOutcomes(
+  suite: { entries?: PlaywrightSuiteEntry[] } | null | undefined,
+): boolean;
+
+export function isPassedNonSkippedResult(
+  entry: PlaywrightSuiteEntry | null | undefined,
+): boolean;
+
+export function isSkippedExecutionResult(
+  entry: PlaywrightSuiteEntry | null | undefined,
+): boolean;
+
+export function normalizePlaywrightSuite(
+  input: unknown,
+  root?: string,
+): PlaywrightSuite | null;
+
+export function loadPlaywrightSuiteReport(
+  reportPath: string,
+  root?: string,
+): PlaywrightSuite | null;
+
+export function parsePlaywrightListText(
+  text: string,
+  root?: string,
+): PlaywrightSuite | null;

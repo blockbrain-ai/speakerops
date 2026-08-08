@@ -49,6 +49,7 @@ pnpm test:e2e             # Playwright suite (`playwright.config.ts`; full REQUI
 pnpm db:generate          # verify Drizzle schema + migration inventory (1.3+)
 pnpm db:migrate           # apply packages/db/migrations to local SQLite (1.3+)
 pnpm seed                 # deterministic demo graph (~150 speakers; section 8.4)
+pnpm docs:e2e-report      # offline E2E coverage HTML (section 8.5 · S-E2E-RUN)
 pnpm docs:reports         # stub until Phase 9
 ```
 
