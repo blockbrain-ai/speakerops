@@ -240,3 +240,6 @@ export const BASELINE_TABLES = [
   "outbox_events",
   "idempotency_keys",
 ] as const;
+
+/** Auth table names required by section 2.1 AC. */
+export const AUTH_TABLES = ["users", "auth_sessions", "magic_links"] as const;

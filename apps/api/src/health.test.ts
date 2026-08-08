@@ -95,14 +95,10 @@ describe("1.2 Worker API health", () => {
     expect(id!.charAt(14)).toBe("7");
   });
 
-  it("health is the only product route registered in 1.2 (scope guard)", async () => {
+  it("unregistered domain routes remain 404 (scope guard)", async () => {
     const app = createApp();
-    // Auth / domain routes must remain 404 until their sections
-    for (const path of [
-      "/api/auth/magic-link",
-      "/api/events",
-      "/api/public/cfp/demo",
-    ]) {
+    // Domain routes beyond health + 2.1 auth must remain 404 until their sections
+    for (const path of ["/api/events", "/api/public/cfp/demo"]) {
       const res = await app.request(`http://localhost${path}`, { method: "GET" });
       expect(res.status).toBe(404);
       const body = (await res.json()) as { code?: string };

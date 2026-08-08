@@ -300,6 +300,19 @@ export function normalizePlaywrightSuite(input, root = "") {
   const entries = [];
 
   /**
+   * Playwright JSON --list reports file paths relative to config.rootDir
+   * (testDir), not the monorepo root. Prefer that when present so suite
+   * files resolve on disk for @inv coverage (section 2.1+ IMPLEMENTED rows).
+   */
+  let pathRoot = root;
+  if (typeof input === "object" && input && !Array.isArray(input)) {
+    const cfg = /** @type {any} */ (input).config;
+    if (cfg && typeof cfg.rootDir === "string" && cfg.rootDir.length > 0) {
+      pathRoot = cfg.rootDir;
+    }
+  }
+
+  /**
    * @param {unknown} file
    * @param {unknown} title
    * @param {{ status?: string, outcome?: string, ok?: boolean }} [meta]
@@ -433,9 +446,28 @@ export function normalizePlaywrightSuite(input, root = "") {
   const normalizedEntries = entries.map((e) => {
     /** @type {PlaywrightSuiteEntry} */
     const out = {
-      file: normalizePathKey(e.file, root) || e.file,
+      // Resolve relative suite paths against Playwright testDir (pathRoot),
+      // falling back to workspace root for absolute / repo-relative paths.
+      file: normalizePathKey(e.file, pathRoot) || e.file,
       title: e.title,
     };
+    // If pathRoot resolution missed (file under monorepo but not under testDir),
+    // try workspace root as a second pass for absolute-ish fragments.
+    if (
+      out.file &&
+      pathRoot !== root &&
+      root &&
+      !existsSync(out.file) &&
+      !isAbsolute(e.file)
+    ) {
+      const alt = normalizePathKey(e.file, root);
+      if (alt && existsSync(alt)) out.file = alt;
+      // Common layout: playwright/e2e/<file> under monorepo root
+      const underE2e = normalizePathKey(join("playwright", "e2e", e.file), root);
+      if ((!existsSync(out.file) || out.file === e.file) && underE2e && existsSync(underE2e)) {
+        out.file = underE2e;
+      }
+    }
     if (e.status) out.status = e.status;
     if (e.outcome) out.outcome = e.outcome;
     if (typeof e.ok === "boolean") out.ok = e.ok;

@@ -1,11 +1,11 @@
 /**
- * Local Hono API server for Playwright foundation smoke (section 1.6).
+ * Local Hono API server for Playwright (sections 1.6 + 2.1).
  *
- * Serves the real Worker app (`createApp`) over HTTP so Vite's `/health`
- * proxy and Playwright `request.get("/health")` hit the same composition root
- * as production — no wrangler required for local e2e.
+ * Serves the real Worker app (`createAppWithAuth`) over HTTP so Vite's
+ * `/health` and `/api` proxy hit the same composition root as production —
+ * no wrangler required for local e2e.
  *
- * Env names only (E10): E2E_API_PORT, APP_VERSION.
+ * Env names only (E10): E2E_API_PORT, APP_VERSION, AUTH_DEV_OUTBOX.
  * Does not log secrets or magic links.
  */
 import { createServer } from "node:http";
@@ -18,21 +18,26 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.E2E_API_PORT || 8787);
 const HOST = process.env.E2E_API_HOST || "127.0.0.1";
 
-async function loadCreateApp() {
+async function loadCreateAppWithAuth() {
   const distEntry = join(root, "apps", "api", "dist", "index.js");
   if (existsSync(distEntry)) {
     const mod = await import(pathToFileURL(distEntry).href);
-    return mod.createApp;
+    return mod.createAppWithAuth ?? (() => ({ app: mod.createApp() }));
   }
   // Fallback: load TypeScript source via dynamic import when dist is absent
-  // (tsx / node --experimental-strip-types environments). Prefer dist in CI.
   const srcEntry = join(root, "apps", "api", "src", "index.ts");
   const mod = await import(pathToFileURL(srcEntry).href);
-  return mod.createApp;
+  return mod.createAppWithAuth ?? (() => ({ app: mod.createApp() }));
 }
 
-const createApp = await loadCreateApp();
-const app = createApp();
+const createAppWithAuth = await loadCreateAppWithAuth();
+
+// In-memory auth + dev outbox for e2e (shared process state)
+const { app } = createAppWithAuth({
+  enableDevOutbox: true,
+  // Secure cookie flag still set; Chromium accepts Secure on localhost
+  cookieSecure: true,
+});
 
 /** Minimal Worker bindings for health (names only — no secrets). */
 const env = {
@@ -40,6 +45,7 @@ const env = {
     typeof process.env.APP_VERSION === "string" && process.env.APP_VERSION.length > 0
       ? process.env.APP_VERSION
       : "0.1.0",
+  AUTH_DEV_OUTBOX: "1",
 };
 
 const server = createServer(async (req, res) => {
@@ -71,6 +77,7 @@ const server = createServer(async (req, res) => {
     const response = await app.request(url.toString(), init, env);
     const outHeaders = {};
     response.headers.forEach((v, k) => {
+      // Node's writeHead needs set-cookie as array for multi-value; single ok
       outHeaders[k] = v;
     });
     res.writeHead(response.status, outHeaders);
@@ -86,7 +93,7 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   // Structured, non-secret log for e2e startup only
   process.stdout.write(
-    `[e2e-api] listening on http://${HOST}:${PORT} (health: /health)\n`,
+    `[e2e-api] listening on http://${HOST}:${PORT} (health + auth; dev outbox on)\n`,
   );
 });
 

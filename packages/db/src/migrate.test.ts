@@ -14,6 +14,7 @@ import {
   migrate,
   inspectSchema,
   BASELINE_TABLES,
+  AUTH_TABLES,
   resolveDbPackageRoot,
   defaultMigrationsDir,
 } from "./migrate.js";
@@ -29,6 +30,9 @@ import {
   auditEvents,
   outboxEvents,
   idempotencyKeys,
+  users,
+  authSessions,
+  magicLinks,
   schema,
 } from "../schema.js";
 import { SCHEMA_READY } from "./client.js";
@@ -97,6 +101,33 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
     expect(schema.auditEvents).toBe(auditEvents);
     expect(schema.outboxEvents).toBe(outboxEvents);
     expect(schema.idempotencyKeys).toBe(idempotencyKeys);
+  });
+
+  it("2.1 migration creates users, auth_sessions, magic_links with token_hash", async () => {
+    const { dir, dbPath } = tempDbPath();
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0002_auth.sql");
+      for (const table of AUTH_TABLES) {
+        expect(result.tables, `missing table ${table}`).toContain(table);
+      }
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.magic_links).toContain("token_hash");
+      expect(columns.magic_links).toContain("used_at");
+      expect(columns.auth_sessions).toContain("token_hash");
+      expect(columns.users).toContain("email");
+      // No plaintext token column
+      expect(columns.magic_links).not.toContain("token");
+      expect(columns.auth_sessions).not.toContain("token");
+      expect(users).toBeDefined();
+      expect(authSessions).toBeDefined();
+      expect(magicLinks).toBeDefined();
+      expect(schema.users).toBe(users);
+      expect(schema.authSessions).toBe(authSessions);
+      expect(schema.magicLinks).toBe(magicLinks);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("audit_events and outbox_events tables exist after migrate", async () => {

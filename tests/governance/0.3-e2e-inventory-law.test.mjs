@@ -234,7 +234,8 @@ describe("0.3 Browser E2E inventory law", () => {
    * Returns { status, stdout, stderr, exitCode }.
    */
   function runLintAgainstMutatedInventory(mutate) {
-    const inv = readFileSync(inventoryPath, "utf8");
+    // Start from all-OPEN so live IMPLEMENTED rows (B01+) do not skew fixtures.
+    const inv = resetAllJourneyStatusesToOpen(readFileSync(inventoryPath, "utf8"));
     const mutated = mutate(inv);
     assert.notEqual(
       mutated,
@@ -334,6 +335,18 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   /**
+   * Probe inventories must not inherit live IMPLEMENTED/PASS rows from the
+   * workspace inventory (e.g. B01–B03 after section 2.1). Fixtures assert
+   * specific status transitions from a clean all-OPEN baseline.
+   */
+  function resetAllJourneyStatusesToOpen(inv) {
+    return inv.replace(
+      /(\|\s*REQUIRED\s*\|\s*)(OPEN|IMPLEMENTED|PASS|FAIL|DEFER)(\s*\|)/gi,
+      "$1OPEN$3",
+    );
+  }
+
+  /**
    * Isolated probe workspace via in-process runInventoryLint (no nested spawn).
    * Avoids pipeline/subprocess fragility while pinning regression fixtures.
    */
@@ -349,7 +362,7 @@ describe("0.3 Browser E2E inventory law", () => {
   }) {
     const probe = mkdtempSync(join(tmpdir(), "spo-e2e-probe-"));
     try {
-      let inv = readFileSync(inventoryPath, "utf8");
+      let inv = resetAllJourneyStatusesToOpen(readFileSync(inventoryPath, "utf8"));
       if (inventoryMutate) inv = inventoryMutate(inv);
       const invPath = join(probe, "BROWSER_E2E_INVENTORY.md");
       writeFileSync(invPath, inv, "utf8");

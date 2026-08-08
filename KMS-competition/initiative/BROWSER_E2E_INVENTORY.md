@@ -46,9 +46,9 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| B01 | admin | `/login` | Magic/invite login → session cookie set HttpOnly path | e2e/auth/admin-login | Bad token 401 | REQUIRED | OPEN |
-| B02 | speaker | magic link | Single-use link → portal; second use fails | e2e/auth/speaker-magic | Replay rejected | REQUIRED | OPEN |
-| B03 | any | any authed | Logout clears session | e2e/auth/logout | — | REQUIRED | OPEN |
+| B01 | admin | `/login` | Magic/invite login → session cookie set HttpOnly path | e2e/auth/admin-login | Bad token 401 | REQUIRED | IMPLEMENTED |
+| B02 | speaker | magic link | Single-use link → portal; second use fails | e2e/auth/speaker-magic | Replay rejected | REQUIRED | IMPLEMENTED |
+| B03 | any | any authed | Logout clears session | e2e/auth/logout | — | REQUIRED | IMPLEMENTED |
 | B04 | public | `/admin` | Unauthed redirect/401 | e2e/auth/admin-guard | — | REQUIRED | OPEN |
 | B05 | speaker | `/admin` | Speaker cannot open admin | e2e/auth/role-guard-admin | 403/redirect | REQUIRED | OPEN |
 | B06 | evaluator | `/speakers` admin write | Evaluator cannot mutate schedule | e2e/auth/role-guard-eval | 403 API | REQUIRED | OPEN |

@@ -1,9 +1,11 @@
 /**
- * App router + shared admin layout (section 1.4).
+ * App router + shared admin layout (section 1.4) + auth login (section 2.1).
  * Composition root mounts this from main.tsx.
  */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminShell } from "./layout/AdminShell.js";
+import { LoginPage } from "./pages/Login.js";
+import { PortalHomePage } from "./pages/PortalHome.js";
 import {
   BareLayout,
   CfpFormsPage,
@@ -22,6 +24,22 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/admin" replace />} />
+      <Route
+        path="/login"
+        element={
+          <BareLayout>
+            <LoginPage />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/portal"
+        element={
+          <BareLayout>
+            <PortalHomePage />
+          </BareLayout>
+        }
+      />
       <Route
         path="/admin"
         element={
@@ -109,7 +127,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <BrowserRouter>
-      <div id="speakerops-root" data-section="1.4" data-testid="app-root">
+      <div id="speakerops-root" data-section="2.1" data-testid="app-root">
         <AppRoutes />
       </div>
     </BrowserRouter>

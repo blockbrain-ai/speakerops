@@ -66,6 +66,7 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright.config.ts` | Playwright project config (Chromium) |
 | `playwright/e2e/**/*.spec.ts` | Browser tests with `@inv` tags |
 | `playwright/e2e/foundation_smoke.spec.ts` | Section **1.6** I12 keystone (health + shell) |
+| `playwright/e2e/auth_magic_link.spec.ts` | Section **2.1** `@inv:B01`–`B03` magic-link auth |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |

@@ -11,7 +11,11 @@ export {
   auditEvents,
   outboxEvents,
   idempotencyKeys,
+  users,
+  authSessions,
+  magicLinks,
   baselineTables,
+  authTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -23,6 +27,12 @@ export {
   type NewOutboxEvent,
   type IdempotencyKey,
   type NewIdempotencyKey,
+  type User,
+  type NewUser,
+  type AuthSession,
+  type NewAuthSession,
+  type MagicLink,
+  type NewMagicLink,
 } from "../schema.js";
 
 export {
@@ -49,6 +59,7 @@ export {
   defaultMigrationsDir,
   resolveDbPackageRoot,
   BASELINE_TABLES,
+  AUTH_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

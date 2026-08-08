@@ -1,12 +1,12 @@
 /**
- * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline.
+ * SpeakerOps D1 schema (Drizzle) — section 1.3 baseline + 2.1 auth.
  *
  * Columns match KMS-competition/initiative/contracts/SCHEMA.md for tables
- * owned by 1.3. Later sections add domain tables via additive migrations.
+ * owned by 1.3 / 2.1. Later sections add domain tables via additive migrations.
  *
  * Path locked by E1: packages/db/schema.ts
  */
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /** organizations — multi-tenant org shell (single-org dogfood still uses this). */
 export const organizations = sqliteTable("organizations", {
@@ -98,13 +98,82 @@ export const idempotencyKeys = sqliteTable(
   (t) => [index("idx_idempotency_keys_key").on(t.key)],
 );
 
-/** Named baseline table set for exports and gate assertions. */
+/**
+ * users — auth identity (section 2.1). Person ≠ Speaker (people table is separate).
+ * Email is unique for magic-link lookup; tokens never stored on this row.
+ */
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id").primaryKey().notNull(),
+    email: text("email").notNull(),
+    name: text("name"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("idx_users_email").on(t.email)],
+);
+
+/**
+ * auth_sessions — HttpOnly cookie session material (section 2.1).
+ * token_hash only — plaintext session token never persists (E10).
+ */
+export const authSessions = sqliteTable(
+  "auth_sessions",
+  {
+    id: text("id").primaryKey().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    index("idx_auth_sessions_user_id").on(t.userId),
+    index("idx_auth_sessions_token_hash").on(t.tokenHash),
+  ],
+);
+
+/**
+ * magic_links — single-use exchange tokens (section 2.1).
+ * token_hash only; used_at marks consumption (replay → 401).
+ */
+export const magicLinks = sqliteTable(
+  "magic_links",
+  {
+    id: text("id").primaryKey().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    eventId: text("event_id"),
+    purpose: text("purpose").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    index("idx_magic_links_user_id").on(t.userId),
+    index("idx_magic_links_token_hash").on(t.tokenHash),
+    index("idx_magic_links_event_id").on(t.eventId),
+  ],
+);
+
+/** Named baseline table set for exports and gate assertions (1.3). */
 export const baselineTables = {
   organizations,
   events,
   auditEvents,
   outboxEvents,
   idempotencyKeys,
+} as const;
+
+/** Auth tables owned by section 2.1. */
+export const authTables = {
+  users,
+  authSessions,
+  magicLinks,
 } as const;
 
 export type Organization = typeof organizations.$inferSelect;
@@ -117,6 +186,12 @@ export type OutboxEvent = typeof outboxEvents.$inferSelect;
 export type NewOutboxEvent = typeof outboxEvents.$inferInsert;
 export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
 export type NewIdempotencyKey = typeof idempotencyKeys.$inferInsert;
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type AuthSession = typeof authSessions.$inferSelect;
+export type NewAuthSession = typeof authSessions.$inferInsert;
+export type MagicLink = typeof magicLinks.$inferSelect;
+export type NewMagicLink = typeof magicLinks.$inferInsert;
 
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
@@ -125,4 +200,7 @@ export const schema = {
   auditEvents,
   outboxEvents,
   idempotencyKeys,
+  users,
+  authSessions,
+  magicLinks,
 } as const;

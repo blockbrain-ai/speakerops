@@ -1,14 +1,10 @@
 /**
- * API composition root — Hono on Cloudflare Workers (section 1.2).
+ * API composition root — Hono on Cloudflare Workers.
  *
- * In scope for 1.2:
- * - GET /health → { ok: true, version }
- * - Unknown route → 404 E4 envelope
- * - Error envelope middleware
- * - wrangler bindings (DB / R2 / Queues names) — see root wrangler.toml
+ * Section 1.2: GET /health, E4 errors, correlation
+ * Section 2.1: Auth magic-link routes (session cookies)
  *
- * Domain routes from COMMANDS.md register here in later sections.
- * Auth / product commands are out of scope for 1.2; D1 schema is ready via @speakerops/db (1.3).
+ * Domain routes from COMMANDS.md register here.
  *
  * CORS: same-origin policy by default — no open Access-Control-Allow-Origin.
  * SPA and Worker share the dogfood origin (or Vite proxy in local dev);
@@ -25,42 +21,48 @@ import {
   notFoundHandler,
   onErrorHandler,
 } from "./middleware/errors.js";
+import type { ApiEnv } from "./env.js";
+import { createAuthRoutes } from "./modules/auth/routes.js";
+import {
+  MemoryAuthStore,
+  MagicLinkTestOutbox,
+  type AuthStore,
+} from "./modules/auth/store.js";
+
+export type { ApiEnv, WorkerBindings } from "./env.js";
 
 /** Default public app version when CF var APP_VERSION is unset (local tests). */
 export const DEFAULT_APP_VERSION = "0.1.0";
 
-/**
- * Worker bindings (names only — values from wrangler / CF dashboard).
- * Placeholders match wrangler.toml; real resources land in deploy sections.
- */
-export type WorkerBindings = {
-  /** D1 database binding name: DB */
-  DB?: unknown;
-  /** R2 bucket binding name: FILES */
-  FILES?: unknown;
-  /** Queue producer binding name: JOBS_QUEUE */
-  JOBS_QUEUE?: unknown;
-  /** Non-secret public version string (wrangler [vars]) */
-  APP_VERSION?: string;
-};
-
-export type ApiEnv = {
-  Bindings: WorkerBindings;
-  Variables: {
-    correlationId: string;
-  };
+export type CreateAppOptions = {
+  /** Inject auth store (defaults to in-memory for local/test). */
+  authStore?: AuthStore;
+  /** Shared test outbox for magic-link capture. */
+  magicLinkOutbox?: MagicLinkTestOutbox;
+  /** Cookie Secure flag (default true). */
+  cookieSecure?: boolean;
+  /**
+   * Register GET /api/auth/dev/outbox.
+   * Default: true when options.magicLinkOutbox is provided or AUTH_DEV_OUTBOX=1.
+   */
+  enableDevOutbox?: boolean;
 };
 
 /**
  * Create the Hono app.
  * Used by the Worker default export and by unit tests via `app.request()`.
  */
-export function createApp(): Hono<ApiEnv> {
+export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
 
   // DB package wired at composition root (1.3 schema ready; domain repos later).
   void createDbMarker();
   void SCHEMA_READY;
+
+  const authStore = options.authStore ?? new MemoryAuthStore();
+  const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
+  // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
+  const enableDevOutbox = options.enableDevOutbox === true;
 
   app.use("*", correlationMiddleware);
 
@@ -84,12 +86,48 @@ export function createApp(): Hono<ApiEnv> {
     return c.json(parsed.data, 200);
   });
 
+  // Section 2.1 — magic-link session auth
+  app.route(
+    "/api/auth",
+    createAuthRoutes({
+      store: authStore,
+      outbox: magicLinkOutbox,
+      cookieSecure: options.cookieSecure,
+      enableDevOutbox,
+    }),
+  );
+
   app.notFound(notFoundHandler);
   app.onError(onErrorHandler);
 
   return app;
 }
 
+/**
+ * Create app with always-on dev outbox (local e2e / vitest).
+ * Production Worker default export does not enable this.
+ */
+export function createAppWithAuth(
+  options: CreateAppOptions = {},
+): {
+  app: Hono<ApiEnv>;
+  store: AuthStore;
+  outbox: MagicLinkTestOutbox;
+} {
+  const store = options.authStore ?? new MemoryAuthStore();
+  const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
+  const app = createApp({
+    ...options,
+    authStore: store,
+    magicLinkOutbox: outbox,
+    enableDevOutbox: options.enableDevOutbox ?? true,
+  });
+  return { app, store, outbox };
+}
+
 /** Default export for Cloudflare Workers (wrangler main). */
-const app = createApp();
+const app = createApp({
+  // Production: no dev outbox. AUTH_DEV_OUTBOX is never read here by default.
+  enableDevOutbox: false,
+});
 export default app;

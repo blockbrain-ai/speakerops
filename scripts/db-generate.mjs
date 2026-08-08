@@ -80,6 +80,30 @@ if (!files.includes("0001_baseline.sql")) {
   fail("expected 0001_baseline.sql in migrations/");
 }
 
+// Section 2.1 auth tables (additive)
+const authSql = join(migrationsDir, "0002_auth.sql");
+if (existsSync(authSql)) {
+  const authSrc = readFileSync(authSql, "utf8");
+  for (const table of ["users", "auth_sessions", "magic_links"]) {
+    if (!new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, "i").test(authSrc)) {
+      fail(`0002_auth.sql must CREATE TABLE ${table}`);
+    }
+  }
+  if (!/token_hash/i.test(authSrc)) {
+    fail("0002_auth.sql must use token_hash (never plaintext tokens)");
+  }
+  for (const [name, re] of [
+    ["users", /export const users/],
+    ["auth_sessions", /export const authSessions/],
+    ["magic_links", /export const magicLinks/],
+  ]) {
+    if (!re.test(schemaSrc)) {
+      fail(`schema.ts must export table for ${name}`);
+    }
+  }
+  console.log("[db:generate] 0002_auth.sql present (users, auth_sessions, magic_links)");
+}
+
 console.log("[db:generate] schema.ts exports baseline tables");
 console.log("[db:generate] 0001_baseline.sql present and lists required tables");
 console.log(`[db:generate] migrations: ${files.sort().join(", ")}`);
