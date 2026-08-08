@@ -4,17 +4,25 @@
  * Pre-scaffold (0.3+): validates canonical BROWSER_E2E_INVENTORY.md
  * REQUIRED semantics, unique IDs, unique non-empty test_ids, exact ratified
  * baseline ID set + stable test_id/journey fingerprints (anti-reuse).
- * Post Playwright (1.5+): checks @inv tags for implemented / status-owned
- * rows when an e2e tree exists; full REQUIRED set only under Phase 8 gate.
  *
- * Does not claim S-E2E-RUN (full browser run) — that is Phase 8.
+ * @inv tag decision table (single coherent design — no empty-root loophole):
+ *
+ * | Mode         | Tag targets                         | Missing root / empty files |
+ * |--------------|-------------------------------------|----------------------------|
+ * | Intermediate | IMPLEMENTED/PASS/FAIL non-DEFER     | FAIL if any tag target     |
+ * |              | REQUIRED (status-owned)             | exists; OK if none claimed |
+ * | Phase 8      | all non-DEFER REQUIRED              | always FAIL                |
+ *
+ * Claiming IMPLEMENTED (or PASS/FAIL) without a matching `@inv:ID` under an
+ * e2e root is always a failure — empty `playwright/e2e/` is not "no tree yet".
+ * Tag coverage is deferred only when every journey is still OPEN/DEFER and
+ * the gate is not phase8 (pre-harness Phase 0–1.x with all-OPEN inventory).
  *
  * Phase 8 full tag enforcement:
  *   E2E_INVENTORY_GATE=phase8  pnpm test:e2e:inventory
  *   node scripts/e2e-inventory-lint.mjs --phase8
  *
- * In Phase 8 / full-gate mode, absence of an E2E root or test files is a
- * hard failure (coverage is not deferred).
+ * Does not claim S-E2E-RUN (full browser run) — that is Phase 8.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -39,7 +47,10 @@ const ALLOWED_STATUSES = new Set([
   "DEFER",
 ]);
 
-/** Statuses that mean a journey is owned/implemented and must have an @inv tag once e2e exists. */
+/**
+ * Statuses that claim ownership of a journey. Intermediate gate requires a
+ * matching `@inv:ID` for each of these (empty e2e root is not a deferral).
+ */
 const TAG_REQUIRED_STATUSES = new Set(["IMPLEMENTED", "PASS", "FAIL"]);
 
 const fullGate =
@@ -311,7 +322,7 @@ console.log(
     ` inventory ${requiredIds.length} REQUIRED, ${unique.size} unique IDs, ${testIdSet.size} unique test_ids; fingerprints match`,
 );
 
-// --- @inv tag coverage when e2e tree exists (or Phase 8 full gate) ---
+// --- @inv tag coverage (decision table — see file header) ---
 const e2eRoots = [
   join(root, "playwright", "e2e"),
   join(root, "e2e"),
@@ -320,21 +331,6 @@ const e2eRoots = [
 const existingRoots = e2eRoots.filter((d) => existsSync(d));
 const files = existingRoots.flatMap((d) => collectFiles(d));
 
-if (fullGate) {
-  // Phase 8: absence of E2E root or test files is a hard failure.
-  if (existingRoots.length === 0) {
-    fail(
-      "Phase 8 full gate: no E2E root found (expected playwright/e2e, e2e/, or apps/web/e2e) — tag coverage cannot be deferred",
-    );
-  }
-  if (files.length === 0) {
-    fail(
-      "Phase 8 full gate: E2E root(s) present but no test files (*.ts|js|mjs|tsx) — full REQUIRED @inv coverage required",
-    );
-  }
-}
-
-// Compute tag targets for intermediate vs phase8 before branching on file presence.
 /** IDs that must have @inv tags under current gate mode. */
 let tagTargets;
 let modeLabel;
@@ -355,20 +351,42 @@ if (fullGate) {
   modeLabel = "implemented/status-owned";
 }
 
-// Intermediate: E2E root exists but no test files — still enforce if any status-owned targets exist.
-if (!fullGate && existingRoots.length > 0 && files.length === 0 && tagTargets.length > 0) {
+const idList = (ids) =>
+  `${ids.slice(0, 20).join(", ")}${ids.length > 20 ? ` …(+${ids.length - 20})` : ""}`;
+
+// Phase 8: absence of root or test files is always a hard failure.
+if (fullGate) {
+  if (existingRoots.length === 0) {
+    fail(
+      "Phase 8 full gate: no E2E root found (expected playwright/e2e, e2e/, or apps/web/e2e) — tag coverage cannot be deferred",
+    );
+  }
+  if (files.length === 0) {
+    fail(
+      "Phase 8 full gate: E2E root(s) present but no test files (*.ts|js|mjs|tsx) — full REQUIRED @inv coverage required",
+    );
+  }
+}
+
+// Any mode: if tag targets exist, test files must exist and contain @inv:ID.
+// Intermediate empty-root loophole closed: status-owned claims are not deferred
+// just because playwright/e2e is empty or missing.
+if (tagTargets.length > 0 && files.length === 0) {
+  const where =
+    existingRoots.length === 0
+      ? "no E2E root found (expected playwright/e2e, e2e/, or apps/web/e2e)"
+      : "E2E root(s) present but no test files (*.ts|js|mjs|tsx)";
   fail(
-    `E2E root(s) present but no test files (*.ts|js|mjs|tsx), while ${tagTargets.length} ${modeLabel} IDs require @inv tags: ${tagTargets.slice(0, 20).join(", ")}${tagTargets.length > 20 ? ` …(+${tagTargets.length - 20})` : ""}`,
+    `${where}, while ${tagTargets.length} ${modeLabel} IDs require @inv tags: ${idList(tagTargets)}`,
   );
 }
 
-if (existingRoots.length > 0 && files.length > 0) {
+if (tagTargets.length > 0 && files.length > 0) {
   const blob = files.map((f) => readFileSync(f, "utf8")).join("\n");
-
   const missing = tagTargets.filter((id) => !blob.includes(`@inv:${id}`));
   if (missing.length > 0) {
     fail(
-      `Playwright tree present but missing @inv tags for ${modeLabel} IDs: ${missing.slice(0, 20).join(", ")}${missing.length > 20 ? ` …(+${missing.length - 20})` : ""}` +
+      `Playwright tree present but missing @inv tags for ${modeLabel} IDs: ${idList(missing)}` +
         (fullGate
           ? ""
           : " (OPEN rows deferred until owned; use E2E_INVENTORY_GATE=phase8 for full REQUIRED set)"),
@@ -376,11 +394,15 @@ if (existingRoots.length > 0 && files.length > 0) {
   }
   console.log(
     `[test:e2e:inventory] OK: @inv tags cover ${tagTargets.length} ${modeLabel} IDs under e2e roots` +
-      (fullGate ? "" : ` (${requiredIds.length - deferIds.size} total non-DEFER REQUIRED at Phase 8)`),
+      (fullGate
+        ? ""
+        : ` (${requiredIds.length - deferIds.size} total non-DEFER REQUIRED at Phase 8)`),
   );
 } else if (!fullGate) {
+  // tagTargets empty: all journeys still OPEN/DEFER — pre-harness deferral is OK
+  // even if an empty e2e root directory already exists.
   console.log(
-    "[test:e2e:inventory] note: no playwright/e2e tree yet — tag coverage deferred until harness (Phase 1.5+)",
+    "[test:e2e:inventory] note: no status-owned IDs require @inv yet — tag coverage deferred until harness / IMPLEMENTED rows (Phase 1.5+)",
   );
 }
 

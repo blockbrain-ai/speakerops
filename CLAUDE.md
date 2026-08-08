@@ -84,5 +84,5 @@ Section Runner runs implementation phases inside this workspace. Stay within the
 
 - Exit claim: **`dogfood_ready`** (Cloudflare dogfood deploy + full browser E2E green + onboarding docs).
 - Do not shrink REQUIRED inventory; only owner **DEFER** removes a row from the required PASS set.
-- Intermediate inventory lint requires `@inv` tags for **IMPLEMENTED/PASS/FAIL** rows; Phase 8 gate enforces the complete non-DEFER REQUIRED set.
+- Intermediate inventory lint requires `@inv` tags for **IMPLEMENTED/PASS/FAIL** rows (empty/missing e2e root is a failure when any status-owned ID exists; all-OPEN pre-harness may defer); Phase 8 gate enforces the complete non-DEFER REQUIRED set.
 - Mainline product work is section-runner driven; do not push directly around the pipeline from inside a section without following gate rules.

@@ -306,13 +306,15 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 
-  it("rejects empty intermediate E2E tree when IMPLEMENTED requires @inv", () => {
-    // Auditor REVISE: empty playwright/e2e + IMPLEMENTED A01 must not exit 0
-    const probe = mkdtempSync(join(tmpdir(), "spo-e2e-empty-"));
+  /**
+   * Isolated probe workspace: real lint + baseline, mutated inventory, optional e2e tree.
+   * Mirrors the auditor's archive-and-mutate technique so regressions stay pinned.
+   */
+  function runLintInProbe({ inventoryMutate, ensureEmptyE2eRoot = false, e2eFiles = null }) {
+    const probe = mkdtempSync(join(tmpdir(), "spo-e2e-probe-"));
     try {
       mkdirSync(join(probe, "scripts"), { recursive: true });
       mkdirSync(join(probe, "KMS-competition/initiative"), { recursive: true });
-      mkdirSync(join(probe, "playwright/e2e"), { recursive: true });
       cpSync(
         join(root, "scripts/e2e-inventory-lint.mjs"),
         join(probe, "scripts/e2e-inventory-lint.mjs"),
@@ -322,28 +324,109 @@ describe("0.3 Browser E2E inventory law", () => {
         join(probe, "scripts/e2e-inventory-required-baseline.json"),
       );
       let inv = readFileSync(inventoryPath, "utf8");
-      inv = inv.replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |");
+      if (inventoryMutate) inv = inventoryMutate(inv);
       writeFileSync(
         join(probe, "KMS-competition/initiative/BROWSER_E2E_INVENTORY.md"),
         inv,
       );
-      const r = spawnSync(process.execPath, [join(probe, "scripts/e2e-inventory-lint.mjs")], {
+      if (ensureEmptyE2eRoot) {
+        mkdirSync(join(probe, "playwright/e2e"), { recursive: true });
+      }
+      if (e2eFiles) {
+        mkdirSync(join(probe, "playwright/e2e"), { recursive: true });
+        for (const [name, body] of Object.entries(e2eFiles)) {
+          writeFileSync(join(probe, "playwright/e2e", name), body, "utf8");
+        }
+      }
+      return spawnSync(process.execPath, [join(probe, "scripts/e2e-inventory-lint.mjs")], {
         cwd: probe,
         encoding: "utf8",
       });
-      assert.notEqual(
-        r.status,
-        0,
-        `expected fail on empty e2e tree with IMPLEMENTED A01 (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
-      );
-      assert.match(
-        `${r.stderr}\n${r.stdout}`,
-        /no test files|@inv/i,
-        `stderr/stdout must mention empty files or @inv:\n${r.stderr}\n${r.stdout}`,
-      );
     } finally {
       rmSync(probe, { recursive: true, force: true });
     }
+  }
+
+  function markA01Implemented(inv) {
+    return inv.replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |");
+  }
+
+  it("rejects empty intermediate E2E tree when IMPLEMENTED requires @inv", () => {
+    // Coherent rule: empty playwright/e2e + IMPLEMENTED A01 must not exit 0
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      ensureEmptyE2eRoot: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `expected fail on empty e2e tree with IMPLEMENTED A01 (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /no test files|@inv/i,
+      `stderr/stdout must mention empty files or @inv:\n${r.stderr}\n${r.stdout}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /A01/,
+      `must name the status-owned ID:\n${r.stderr}\n${r.stdout}`,
+    );
+  });
+
+  it("rejects missing E2E root when IMPLEMENTED requires @inv", () => {
+    // Status-owned claim without any e2e root is not deferred (same rule as empty root).
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      ensureEmptyE2eRoot: false,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `expected fail with no e2e root + IMPLEMENTED A01 (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /no E2E root|@inv/i,
+      `stderr/stdout must mention missing root or @inv:\n${r.stderr}\n${r.stdout}`,
+    );
+  });
+
+  it("allows empty E2E root when all journeys remain OPEN", () => {
+    // Pre-harness: empty dir + all OPEN is OK (nothing status-owned yet).
+    const r = runLintInProbe({ ensureEmptyE2eRoot: true });
+    assert.equal(
+      r.status,
+      0,
+      `empty e2e + all OPEN must pass (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+    );
+  });
+
+  it("rejects e2e files missing @inv for IMPLEMENTED row", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: { "a.spec.ts": 'test("untagged", async () => {});\n' },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `expected fail when files lack @inv:A01 (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+    );
+    assert.match(`${r.stderr}\n${r.stdout}`, /missing @inv|A01/i);
+  });
+
+  it("accepts e2e files with @inv for IMPLEMENTED row", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "a.spec.ts": 'test("@inv:A01 public CFP loads", async () => {});\n',
+      },
+    });
+    assert.equal(
+      r.status,
+      0,
+      `expected pass with @inv:A01 present (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+    );
   });
 
 });
