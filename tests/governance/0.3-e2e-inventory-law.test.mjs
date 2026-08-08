@@ -7,8 +7,15 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -187,6 +194,57 @@ describe("0.3 Browser E2E inventory law", () => {
     // Prefer OK in stdout when present; exit status alone is sufficient if empty.
     if (result.stdout && result.stdout.length > 0) {
       assert.match(result.stdout, /OK/);
+    }
+  });
+
+  it("rejects unrecognized inventory status values (negative regression)", () => {
+    // Typo IMPLMENTED must fail lint — otherwise it is excluded from intermediate
+    // @inv enforcement and an implemented REQUIRED journey can skip its tag gate.
+    const inv = readFileSync(inventoryPath, "utf8");
+    const mutated = inv.replace(
+      /^\| A01 \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| REQUIRED \| OPEN \|/m,
+      "| A01 |$1|$2|$3|$4|$5| REQUIRED | IMPLMENTED |",
+    );
+    assert.notEqual(
+      mutated,
+      inv,
+      "test fixture must mutate A01 status to unrecognized IMPLMENTED",
+    );
+
+    const dir = mkdtempSync(join(tmpdir(), "e2e-inv-status-"));
+    try {
+      const badInvPath = join(dir, "BROWSER_E2E_INVENTORY.md");
+      writeFileSync(badInvPath, mutated, "utf8");
+
+      const childEnv = {
+        ...process.env,
+        E2E_INVENTORY_PATH: badInvPath,
+      };
+      delete childEnv.NODE_TEST_CONTEXT;
+      delete childEnv.NODE_TEST_NAME;
+
+      const result = spawnSync(
+        process.execPath,
+        [join(root, "scripts", "e2e-inventory-lint.mjs")],
+        { cwd: root, encoding: "utf8", env: childEnv },
+      );
+      assert.notEqual(
+        result.status,
+        0,
+        `unrecognized status must fail lint (got exit ${result.status}):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      );
+      assert.match(
+        result.stderr,
+        /unrecognized inventory status/i,
+        `stderr must name unrecognized status:\n${result.stderr}`,
+      );
+      assert.match(
+        result.stderr,
+        /IMPLMENTED|A01/i,
+        `stderr must identify the bad row:\n${result.stderr}`,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

@@ -21,17 +21,23 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const inventoryPath = join(
-  root,
-  "KMS-competition",
-  "initiative",
-  "BROWSER_E2E_INVENTORY.md",
-);
-const baselinePath = join(
-  root,
-  "scripts",
-  "e2e-inventory-required-baseline.json",
-);
+// Optional path overrides support negative regression tests without mutating
+// the canonical inventory (default: repo paths).
+const inventoryPath =
+  process.env.E2E_INVENTORY_PATH ||
+  join(root, "KMS-competition", "initiative", "BROWSER_E2E_INVENTORY.md");
+const baselinePath =
+  process.env.E2E_INVENTORY_BASELINE_PATH ||
+  join(root, "scripts", "e2e-inventory-required-baseline.json");
+
+/** Ratified inventory Status column values (docs/governance/0.3-e2e-inventory-law.md). */
+const ALLOWED_STATUSES = new Set([
+  "OPEN",
+  "IMPLEMENTED",
+  "PASS",
+  "FAIL",
+  "DEFER",
+]);
 
 /** Statuses that mean a journey is owned/implemented and must have an @inv tag once e2e exists. */
 const TAG_REQUIRED_STATUSES = new Set(["IMPLEMENTED", "PASS", "FAIL"]);
@@ -131,6 +137,22 @@ while ((m = rowRe.exec(body)) !== null) {
 
 if (journeys.length === 0) {
   fail("no inventory journey rows parsed (expected | ID | ... | REQUIRED | STATUS |)");
+}
+
+// Reject every unrecognized Status value. Typos like IMPLMENTED must not pass
+// lint or silently skip intermediate @inv enforcement for implemented rows.
+const invalidStatuses = journeys.filter((j) => !ALLOWED_STATUSES.has(j.status));
+if (invalidStatuses.length > 0) {
+  const detail = invalidStatuses
+    .slice(0, 20)
+    .map((j) => `${j.id}=${j.status}`)
+    .join(", ");
+  fail(
+    `unrecognized inventory status (allowed: OPEN|IMPLEMENTED|PASS|FAIL|DEFER): ${detail}` +
+      (invalidStatuses.length > 20
+        ? ` …(+${invalidStatuses.length - 20})`
+        : ""),
+  );
 }
 
 const ids = journeys.map((j) => j.id);
