@@ -604,6 +604,295 @@ describe("3.5 Decision.Record", () => {
     expect(decision?.decision).toBe("accept");
   });
 
+  it("partial accept→reject repair succeeds when decision row still accept", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-partial-flip@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Partial Flip Repair Event",
+    );
+    const { submissionId } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Partial Flip Talk",
+    );
+
+    // First accept fully
+    const accept = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-partial-flip-accept",
+        },
+        body: JSON.stringify({ decision: "accept" }),
+      },
+      env,
+    );
+    expect(accept.status).toBe(200);
+    const acceptBody = DecisionRecordResponseSchema.parse(await accept.json());
+    const versionAfterAccept = acceptBody.submission.version;
+
+    // Simulate accept→reject crash after status claim, before upsertDecision:
+    // status/version advanced to rejected, decision row still "accept".
+    const claimed = await admin.submissions.updateSubmission(
+      submissionId,
+      { status: "rejected", version: versionAfterAccept + 1 },
+      versionAfterAccept,
+    );
+    expect(claimed).toBeTruthy();
+    const stuck = await admin.decisions.findDecisionBySubmission(submissionId);
+    expect(stuck?.decision).toBe("accept");
+
+    const repair = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-partial-flip-repair",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Out of scope",
+          expectedVersion: versionAfterAccept, // client still holds pre-claim version
+        }),
+      },
+      env,
+    );
+    expect(repair.status).toBe(200);
+    const body = DecisionRecordResponseSchema.parse(await repair.json());
+    expect(body.decision.decision).toBe("reject");
+    expect(body.decision.reason).toBe("Out of scope");
+    expect(body.submission.status).toBe("rejected");
+    expect(body.idempotent).toBe(false);
+
+    const decision = await admin.decisions.findDecisionBySubmission(
+      submissionId,
+    );
+    expect(decision?.decision).toBe("reject");
+    expect(decision?.reason).toBe("Out of scope");
+  });
+
+  it("stale expectedVersion with different reason returns 409 (E1)", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-stale-reason@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Stale Reason Conflict Event",
+    );
+    const { submissionId, version } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Stale Reason Talk",
+    );
+
+    const first = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-stale-reason-1",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Out of scope",
+          expectedVersion: version,
+        }),
+      },
+      env,
+    );
+    expect(first.status).toBe(200);
+    const firstBody = DecisionRecordResponseSchema.parse(await first.json());
+    expect(firstBody.decision.reason).toBe("Out of scope");
+    const versionAfterFirst = firstBody.submission.version;
+
+    // Admin A updates reason (advances version)
+    const second = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-stale-reason-2",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Capacity full",
+          expectedVersion: versionAfterFirst,
+        }),
+      },
+      env,
+    );
+    expect(second.status).toBe(200);
+    const secondBody = DecisionRecordResponseSchema.parse(await second.json());
+    expect(secondBody.decision.reason).toBe("Capacity full");
+
+    // Admin B still holds version after first reject; different reason must 409
+    const stale = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-stale-reason-3",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Duplicate talk",
+          expectedVersion: versionAfterFirst,
+        }),
+      },
+      env,
+    );
+    expect(stale.status).toBe(409);
+    const envBody = ErrorEnvelopeSchema.parse(await stale.json());
+    expect(envBody.code).toBe(CONFLICT);
+
+    const stored = await admin.decisions.findDecisionBySubmission(submissionId);
+    expect(stored?.reason).toBe("Capacity full");
+  });
+
+  it("idempotent retry repairs audit after same-decision reason update", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-reason-audit-repair@example.com",
+    );
+    const event = await createEvent(
+      admin.app,
+      admin.cookie,
+      "Reason Audit Repair Event",
+    );
+    const { submissionId } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Reason Audit Talk",
+    );
+
+    const first = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-reason-audit-1",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Out of scope",
+        }),
+      },
+      env,
+    );
+    expect(first.status).toBe(200);
+
+    const second = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-reason-audit-2",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Capacity full",
+        }),
+      },
+      env,
+    );
+    expect(second.status).toBe(200);
+    const secondBody = DecisionRecordResponseSchema.parse(await second.json());
+    expect(secondBody.decision.reason).toBe("Capacity full");
+    expect(secondBody.idempotent).toBe(false);
+
+    // Simulate audit insert failure after reason upsert: drop only the latest
+    // Decision.Record audit so an older same-decision audit remains.
+    const mem = admin.store as unknown as {
+      audits: Array<{
+        action: string;
+        entityId: string;
+        afterJson: string | null;
+        correlationId: string;
+      }>;
+    };
+    const decisionAudits = mem.audits.filter(
+      (a) =>
+        a.action === "Decision.Record" && a.entityId === submissionId,
+    );
+    expect(decisionAudits.length).toBeGreaterThanOrEqual(2);
+    const latest = decisionAudits[decisionAudits.length - 1]!;
+    mem.audits = mem.audits.filter((a) => a !== latest);
+
+    const latestLeft = await admin.store.findAuditByActionAndEntity(
+      "Decision.Record",
+      "submission",
+      submissionId,
+    );
+    expect(latestLeft).toBeTruthy();
+    const leftAfter = JSON.parse(latestLeft!.afterJson ?? "{}") as {
+      decision?: string;
+      reason?: string | null;
+    };
+    expect(leftAfter.decision).toBe("reject");
+    expect(leftAfter.reason).toBe("Out of scope");
+
+    const repair = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-reason-audit-repair",
+        },
+        body: JSON.stringify({
+          decision: "reject",
+          reason: "Capacity full",
+        }),
+      },
+      env,
+    );
+    expect(repair.status).toBe(200);
+    const repairBody = DecisionRecordResponseSchema.parse(await repair.json());
+    expect(repairBody.idempotent).toBe(true);
+
+    const repaired = await admin.store.findAuditByActionAndEntity(
+      "Decision.Record",
+      "submission",
+      submissionId,
+    );
+    expect(repaired).toBeTruthy();
+    expect(repaired!.correlationId).toBe("corr-reason-audit-repair");
+    const after = JSON.parse(repaired!.afterJson ?? "{}") as {
+      decision?: string;
+      reason?: string | null;
+    };
+    expect(after.decision).toBe("reject");
+    expect(after.reason).toBe("Capacity full");
+  });
+
   it("accept then reject dematerializes session speakers and tasks", async () => {
     const admin = await magicLinkSession(
       "admin",

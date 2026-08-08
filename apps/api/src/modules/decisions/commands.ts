@@ -393,11 +393,12 @@ async function dematerializeAccept(
 }
 
 /**
- * Ensure a Decision.Record audit exists for the *current* decision value (E3).
+ * Ensure a Decision.Record audit exists for the *current* decision + reason (E3).
  * Idempotent retries repair a missing audit when decision/submission already
  * persisted but audit insert failed. Skips only when the latest Decision.Record
- * audit already records the same decision (re-decide keeps a full trail via the
- * non-idempotent insert path).
+ * audit already records the same decision *and* reason — a same-decision reason
+ * update that lost its audit must still get a repair row (re-decide / reason
+ * changes keep a full trail via the non-idempotent insert path).
  */
 async function ensureDecisionAudit(
   deps: DecisionCommandDeps,
@@ -429,8 +430,17 @@ async function ensureDecisionAudit(
   );
   if (existing?.afterJson) {
     try {
-      const after = JSON.parse(existing.afterJson) as { decision?: string };
-      if (after.decision === input.after.decision) return;
+      const after = JSON.parse(existing.afterJson) as {
+        decision?: string;
+        reason?: string | null;
+      };
+      const auditReason = after.reason ?? null;
+      if (
+        after.decision === input.after.decision &&
+        auditReason === input.after.reason
+      ) {
+        return;
+      }
     } catch {
       // fall through to insert
     }
@@ -484,8 +494,11 @@ export type RecordDecisionInput = DecisionRecordBody & {
  * 4. Same decision + same reason already recorded + status matches: re-run
  *    side-effect repair + ensure audit, return idempotent=true without bumping.
  * 5. Partial apply repair: if status already matches the target decision but a
- *    later write failed, retries (including with the original expectedVersion)
- *    complete remaining artifacts/decision/audit instead of hard-409.
+ *    later write failed (missing decision row, or decision value still previous
+ *    after accept↔reject), retries (including with the original expectedVersion)
+ *    complete remaining artifacts/decision/audit instead of hard-409. Stale
+ *    expectedVersion with same decision but a *different* reason is a real
+ *    conflict (E1), not a repair.
  */
 export async function recordDecision(
   deps: DecisionCommandDeps,
@@ -537,13 +550,20 @@ export async function recordDecision(
     existingDecision != null && existingDecision.reason === nextReason;
 
   // Version conflict — allow repair when a prior attempt already advanced status
-  // toward this same decision (partial apply; client still holds pre-claim version).
+  // toward this decision (partial apply; client still holds pre-claim version).
+  // Repairable:
+  //   - decision row missing (claim succeeded, upsert failed)
+  //   - decision value still stale after status flip (accept↔reject partial)
+  //   - same decision + same reason (idempotent retry with stale expectedVersion)
+  // NOT repairable (E1): same decision, different reason — concurrent reason
+  // update must lose on stale expectedVersion rather than overwrite.
   if (
     input.expectedVersion !== undefined &&
     submission.version !== input.expectedVersion
   ) {
     const repairablePartial =
-      statusAlreadyTarget && (!existingDecision || decisionMatches);
+      statusAlreadyTarget &&
+      (!existingDecision || !decisionMatches || reasonMatches);
     if (!repairablePartial) {
       return {
         ok: false,
