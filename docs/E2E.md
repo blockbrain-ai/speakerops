@@ -12,9 +12,10 @@ This document is the workspace stub for Playwright usage until Phase 9 expands o
 | Command | Role |
 |---------|------|
 | `pnpm test:e2e` | Run Playwright suite (`playwright.config.ts`) |
-| `pnpm test:e2e:inventory` | Inventory lint — REQUIRED column + `@inv` coverage |
+| `pnpm test:e2e:inventory` | Inventory lint — REQUIRED `@inv` coverage **+** admin primary discovery crawl (8.1) |
 | `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory` | Phase 8 full gate (status PASS + tags + run report) |
 | `pnpm exec tsx scripts/inventory-lint.ts` | Same as `test:e2e:inventory` (TypeScript entry) |
+| `E2E_INVENTORY_SKIP_CRAWL=1` | Debug: skip admin crawl (tags only) |
 
 Gates must never hang (E5): no `--watch` on CI scripts.
 
@@ -46,7 +47,7 @@ test("@inv:A01 e2e/public/cfp-load public CFP loads form and brand tokens", asyn
 
 ## Inventory lint behaviour
 
-`scripts/inventory-lint.ts` reads the **Required** column from the canonical inventory and fails (exit **1**) when tag targets lack `@inv:ID` in tests.
+`scripts/inventory-lint.ts` reads the **Required** column from the canonical inventory and fails (exit **1**) when tag targets lack `@inv:ID` in tests. From section **8.1** it also runs the **admin primary discovery crawl** against `scripts/ui-crawl-allowlist.json` (pure chrome + `controlMap`) and fails on unmapped primary controls.
 
 | Mode | Tag targets | Allow missing OPEN |
 |------|-------------|--------------------|
@@ -88,8 +89,10 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright/e2e/airtable_status.spec.ts` | Section **7.3** `@inv:O06` Airtable status |
 | `playwright/e2e/phase7_keystone.spec.ts` | Section **7.4** I12 keystone (K* → CLI07 deny → airtable pause) |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
-| `scripts/inventory-lint.ts` | Inventory lint CLI (section 1.5) |
+| `scripts/inventory-lint.ts` | Inventory lint CLI (1.5) + admin discovery crawl (8.1) |
+| `scripts/ui-crawl-allowlist.json` | Crawl chrome allowlist + primary controlMap (8.1) |
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
+| `docs/sections/8.1-inventory-completeness.md` | Completeness audit notes (S-E2E-INV) |
 | `scripts/e2e-inventory-required-baseline.json` | Anti-shrinkage baseline (108 IDs) |
 | `reports/playwright/` | HTML report (CI) |
 | `KMS-competition/initiative/evidence/phase1.txt` | Phase 1 keystone evidence (1.6) |
@@ -126,12 +129,20 @@ Env **names** only (E10) — never commit secret values:
 
 ---
 
-## Phase 8 (not this section)
+## Phase 8
+
+### 8.1 — Inventory completeness audit (landed)
+
+- Machine-check REQUIRED ↔ `@inv` for status-owned IDs (intermediate) / all non-DEFER (phase8)
+- Admin primary discovery crawl with documented allowlist (`scripts/ui-crawl-allowlist.json`)
+- Named negatives: missing REQUIRED tag fails lint; unmapped primary button fixture fails crawl
+- Section notes: [`docs/sections/8.1-inventory-completeness.md`](./sections/8.1-inventory-completeness.md)
+
+### 8.2+ (later)
 
 - Every non-DEFER REQUIRED row status `PASS`
-- `@inv` on Playwright-bound tests for all of them
+- `@inv` on Playwright-bound tests for all of them (incl. L01–L04)
 - Actual run report with **passed, non-skipped** results
-- Discovery crawl of admin primary actions
 - Report artifact: `reports/e2e-coverage.html` (Phase 9 consumers)
 
 Section **1.5** only scaffolds the harness and inventory lint entry — it does not claim `dogfood_ready` or full REQUIRED green.

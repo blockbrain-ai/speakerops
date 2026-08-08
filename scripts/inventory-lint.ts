@@ -1,14 +1,20 @@
 /**
- * Section 1.5 — Playwright inventory harness linter
+ * Section 1.5 + 8.1 — Playwright inventory harness linter + admin discovery crawl
  *
  * Reads BROWSER_E2E_INVENTORY.md Required column and fails when REQUIRED
  * inventory IDs lack `@inv:ID` on real Playwright-bound `test()` titles.
+ *
+ * Section 8.1 hardens completeness audit (S-E2E-INV):
+ * - Machine-check every REQUIRED id has @inv (strict/phase8 or fixture mode)
+ * - Admin primary-action discovery crawl against `ui-crawl-allowlist.json`
+ * - Report missing tags and unmapped primary controls
  *
  * CLI (non-interactive):
  *   pnpm test:e2e:inventory
  *   tsx scripts/inventory-lint.ts
  *   tsx scripts/inventory-lint.ts --phase8
  *   tsx scripts/inventory-lint.ts --allow-missing-until=8.2
+ *   tsx scripts/inventory-lint.ts --skip-crawl
  *
  * Default intermediate mode allows OPEN (not-yet-implemented) rows to lack
  * tags — equivalent to `--allow-missing-until=8.2`. Phase 8 full gate
@@ -17,12 +23,20 @@
  *
  * Full anti-shrinkage / DEFER / suite reconciliation lives in
  * `scripts/e2e-inventory-lint.mjs` (section 0.3). This module is the TypeScript
- * harness entry + fixture unit surface for section 1.5.
+ * harness entry + fixture unit surface for section 1.5 / 8.1.
  *
  * Convention: `@inv:A01` on Playwright `test()` titles (see docs/E2E.md).
+ * Crawl allowlist: `scripts/ui-crawl-allowlist.json` (pure chrome + controlMap).
  */
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   extractInvTaggedTests,
@@ -32,6 +46,7 @@ import {
 // Types: scripts/e2e-inventory-lint.d.mts (matches .mjs specifier)
 
 const defaultRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const defaultAllowlistPath = join(defaultRoot, "scripts", "ui-crawl-allowlist.json");
 
 /** Allowed inventory Status values (0.3 law). */
 export const ALLOWED_STATUSES = new Set([
@@ -366,9 +381,644 @@ export function parseAllowMissingUntil(
   return { fullGate, allowMissingUntil };
 }
 
+// ---------------------------------------------------------------------------
+// Section 8.1 — Admin primary-action discovery crawl
+// ---------------------------------------------------------------------------
+
+export type CrawlChromeEntry = {
+  testid: string;
+  reason: string;
+};
+
+export type CrawlControlMapEntry = {
+  testid: string;
+  inv: string;
+  surface?: string;
+  journey?: string;
+};
+
+export type CrawlAllowlist = {
+  version: number;
+  section?: string;
+  description?: string;
+  docs?: string[];
+  chrome: CrawlChromeEntry[];
+  controlMap: CrawlControlMapEntry[];
+};
+
+export type DiscoveredControl = {
+  /** Normalized testid pattern (template literals → *). Empty if only data-inv. */
+  testid: string;
+  /** Explicit data-inv when present on the control. */
+  dataInv: string;
+  file: string;
+  /** 1-based line when known. */
+  line: number;
+  kind: "button" | "submit" | "role-button" | "data-inv" | "palette-constant";
+};
+
+export type CrawlMappedControl = DiscoveredControl & {
+  inv: string;
+  via: "data-inv" | "controlMap" | "chrome";
+};
+
+export type CrawlResult = {
+  ok: boolean;
+  exitCode: 0 | 1;
+  mapped: CrawlMappedControl[];
+  chromeSkipped: CrawlMappedControl[];
+  unmapped: DiscoveredControl[];
+  invalidInv: Array<DiscoveredControl & { inv: string; reason: string }>;
+  missingReport: string[];
+  stdout: string;
+  stderr: string;
+};
+
+export type CrawlOptions = {
+  /** Allowlist document (parsed). */
+  allowlist: CrawlAllowlist;
+  /**
+   * HTML fixture fragments and/or TSX sources to crawl.
+   * Keys are labels (file paths or fixture names).
+   */
+  sources?: Record<string, string>;
+  /** Valid inventory IDs (REQUIRED set) for controlMap / data-inv validation. */
+  inventoryIds?: Set<string> | string[];
+  /** Optional label for diagnostics. */
+  label?: string;
+};
+
+const INV_ID_RE = /^[A-Z]\d{2}$/;
+
+/** Normalize template-literal / dynamic segments to glob `*`. */
+export function normalizeTestIdPattern(raw: string): string {
+  let s = (raw ?? "").trim();
+  if (!s) return "";
+  // ${expr} → *
+  s = s.replace(/\$\{[^}]*\}/g, "*");
+  // collapse multiple * 
+  s = s.replace(/\*+/g, "*");
+  return s;
+}
+
+/** Glob match: `*` matches any string (including empty / multi-segment). */
+export function matchTestIdPattern(pattern: string, value: string): boolean {
+  const p = normalizeTestIdPattern(pattern);
+  const v = normalizeTestIdPattern(value);
+  if (!p) return false;
+  if (p === v) return true;
+  // Escape regex specials except *
+  const reBody = p
+    .split("*")
+    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
+  return new RegExp(`^${reBody}$`).test(v);
+}
+
+export function loadCrawlAllowlist(
+  path: string = defaultAllowlistPath,
+): CrawlAllowlist {
+  if (!existsSync(path)) {
+    throw new Error(`ui-crawl-allowlist not found: ${path}`);
+  }
+  const raw = JSON.parse(readFileSync(path, "utf8")) as CrawlAllowlist;
+  if (!raw || typeof raw !== "object") {
+    throw new Error("ui-crawl-allowlist: invalid JSON object");
+  }
+  if (!Array.isArray(raw.chrome) || !Array.isArray(raw.controlMap)) {
+    throw new Error(
+      "ui-crawl-allowlist: require chrome[] and controlMap[] arrays",
+    );
+  }
+  for (const c of raw.chrome) {
+    if (!c?.testid || !c?.reason) {
+      throw new Error(
+        "ui-crawl-allowlist: each chrome entry needs testid + reason",
+      );
+    }
+  }
+  for (const m of raw.controlMap) {
+    if (!m?.testid || !m?.inv || !INV_ID_RE.test(m.inv)) {
+      throw new Error(
+        `ui-crawl-allowlist: controlMap entry needs testid + inv (A01 form): ${JSON.stringify(m)}`,
+      );
+    }
+  }
+  return raw;
+}
+
+/**
+ * Parse primary controls from an HTML fixture (or JSX-like fragment).
+ * Primary = button | input[type=submit] | [role=button] with data-testid or data-inv.
+ */
+export function parsePrimaryControlsFromHtml(
+  html: string,
+  fileLabel = "fixture.html",
+): DiscoveredControl[] {
+  const found: DiscoveredControl[] = [];
+  // Match opening tags for button / input / role=button containers (single-line and multi-line)
+  const tagRe =
+    /<(button|input)\b([^>]*?)\/?>|<(div|span|a|li)\b([^>]*\brole\s*=\s*["']button["'][^>]*)>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(html)) !== null) {
+    const tag = (m[1] || m[3] || "").toLowerCase();
+    const attrs = m[2] || m[4] || "";
+    const line = html.slice(0, m.index).split(/\r?\n/).length;
+
+    const typeMatch = attrs.match(/\btype\s*=\s*["']([^"']+)["']/i);
+    const type = (typeMatch?.[1] ?? "").toLowerCase();
+    const roleMatch = attrs.match(/\brole\s*=\s*["']([^"']+)["']/i);
+    const role = (roleMatch?.[1] ?? "").toLowerCase();
+
+    const isButton = tag === "button";
+    const isSubmit =
+      tag === "input" && (type === "submit" || type === "button");
+    const isRoleButton = role === "button";
+    if (!isButton && !isSubmit && !isRoleButton) continue;
+
+    const testidMatch =
+      attrs.match(/\bdata-testid\s*=\s*["']([^"']+)["']/i) ||
+      attrs.match(/\bdata-testid\s*=\s*\{\s*[`'"]([^`'"]+)[`'"]\s*\}/i);
+    const invMatch = attrs.match(/\bdata-inv\s*=\s*["']([A-Z]\d{2})["']/i);
+
+    const testid = normalizeTestIdPattern(testidMatch?.[1] ?? "");
+    const dataInv = (invMatch?.[1] ?? "").toUpperCase();
+    if (!testid && !dataInv) {
+      // Primary control without identity — still report so crawl can fail
+      found.push({
+        testid: "",
+        dataInv: "",
+        file: fileLabel,
+        line,
+        kind: isSubmit ? "submit" : isRoleButton ? "role-button" : "button",
+      });
+      continue;
+    }
+
+    found.push({
+      testid,
+      dataInv,
+      file: fileLabel,
+      line,
+      kind: isSubmit ? "submit" : isRoleButton ? "role-button" : "button",
+    });
+  }
+  return found;
+}
+
+/**
+ * Extract a single JSX/HTML open tag starting at `start` (index of `<`).
+ * Stops at the matching unquoted `>`; ignores `>` inside quotes/templates.
+ * Returns null if not a well-formed open tag within maxLen.
+ */
+export function extractJsxOpenTag(
+  source: string,
+  start: number,
+  maxLen = 4000,
+): { tag: string; attrs: string; end: number } | null {
+  if (source[start] !== "<") return null;
+  const slice = source.slice(start, start + maxLen);
+  const nameMatch = slice.match(/^<\/?([A-Za-z][\w.-]*)/);
+  if (!nameMatch) return null;
+  // Closing tags are not controls
+  if (slice.startsWith("</")) return null;
+  const tag = nameMatch[1];
+  let i = nameMatch[0].length;
+  let quote: "'" | '"' | "`" | null = null;
+  let braceDepth = 0;
+  while (i < slice.length) {
+    const ch = slice[i];
+    if (quote) {
+      if (ch === "\\" && quote !== "`") {
+        i += 2;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      quote = ch;
+      i++;
+      continue;
+    }
+    if (ch === "{") {
+      braceDepth++;
+      i++;
+      continue;
+    }
+    if (ch === "}" && braceDepth > 0) {
+      braceDepth--;
+      i++;
+      continue;
+    }
+    if (braceDepth === 0 && ch === ">") {
+      const full = slice.slice(0, i + 1);
+      const attrs = full.slice(nameMatch[0].length, full.endsWith("/>") ? -2 : -1);
+      return { tag, attrs, end: start + i + 1 };
+    }
+    i++;
+  }
+  return null;
+}
+
+function attrString(
+  attrs: string,
+  name: string,
+): string {
+  // data-testid="x" | data-testid='x' | data-testid={"x"} | data-testid={`x`} | data-testid={`x-${y}`}
+  const re = new RegExp(
+    `\\b${name}\\s*=\\s*(?:["']([^"']*)["']|\\{\\s*["']([^"']*)["']\\s*\\}|\\{\\s*\`([^\`]*)\`\\s*\\})`,
+    "i",
+  );
+  const m = attrs.match(re);
+  if (!m) return "";
+  return m[1] ?? m[2] ?? m[3] ?? "";
+}
+
+function isPrimaryOpenTag(tag: string, attrs: string): boolean {
+  const t = tag.toLowerCase();
+  if (t === "button") return true;
+  if (t === "input") {
+    const type = attrString(attrs, "type").toLowerCase();
+    return type === "submit" || type === "button";
+  }
+  // Intrinsic elements with role="button" (div/span/a/li/td/…)
+  const role = attrString(attrs, "role").toLowerCase();
+  return role === "button";
+}
+
+/**
+ * Parse primary controls from TSX/JSX source (admin UI).
+ * Handles string + template-literal data-testid / data-inv on button-like tags.
+ * Also harvests FIELD_PALETTE / palette testId constants.
+ */
+export function parsePrimaryControlsFromTsx(
+  source: string,
+  fileLabel: string,
+): DiscoveredControl[] {
+  const found: DiscoveredControl[] = [];
+
+  // 1) Complete open-tag scan (avoids attribute bleed from neighboring elements)
+  let searchFrom = 0;
+  while (searchFrom < source.length) {
+    const lt = source.indexOf("<", searchFrom);
+    if (lt < 0) break;
+    // Skip comments and closing tags quickly
+    if (source.startsWith("<!--", lt) || source.startsWith("</", lt)) {
+      searchFrom = lt + 2;
+      continue;
+    }
+    const open = extractJsxOpenTag(source, lt);
+    if (!open) {
+      searchFrom = lt + 1;
+      continue;
+    }
+    searchFrom = open.end;
+    if (!isPrimaryOpenTag(open.tag, open.attrs)) continue;
+
+    const line = source.slice(0, lt).split(/\r?\n/).length;
+    const rawTestId = attrString(open.attrs, "data-testid");
+    const testid = normalizeTestIdPattern(rawTestId);
+    const dataInv = attrString(open.attrs, "data-inv").toUpperCase();
+
+    // Dynamic data-testid={expr} without string/template literal — skip (palette constants cover known cases)
+    if (!testid && !dataInv) {
+      if (/\bdata-testid\s*=\s*\{/.test(open.attrs)) {
+        continue;
+      }
+      // Primary without identity
+      const type = attrString(open.attrs, "type").toLowerCase();
+      const role = attrString(open.attrs, "role").toLowerCase();
+      found.push({
+        testid: "",
+        dataInv: "",
+        file: fileLabel,
+        line,
+        kind:
+          type === "submit"
+            ? "submit"
+            : role === "button"
+              ? "role-button"
+              : "button",
+      });
+      continue;
+    }
+
+    const type = attrString(open.attrs, "type").toLowerCase();
+    const role = attrString(open.attrs, "role").toLowerCase();
+    found.push({
+      testid,
+      dataInv,
+      file: fileLabel,
+      line,
+      kind:
+        type === "submit"
+          ? "submit"
+          : role === "button"
+            ? "role-button"
+            : "button",
+    });
+  }
+
+  // 2) Palette / declared primary testId constants (e.g. FIELD_PALETTE)
+  const paletteRe = /\btestId\s*:\s*["'](palette-[a-z0-9-]+)["']/gi;
+  let pm: RegExpExecArray | null;
+  while ((pm = paletteRe.exec(source)) !== null) {
+    const line = source.slice(0, pm.index).split(/\r?\n/).length;
+    found.push({
+      testid: pm[1],
+      dataInv: "",
+      file: fileLabel,
+      line,
+      kind: "palette-constant",
+    });
+  }
+
+  // De-dupe by file|testid|dataInv|kind (prefer first line)
+  const seen = new Set<string>();
+  return found.filter((c) => {
+    const k = `${c.file}\0${c.testid || "@" + c.line}\0${c.dataInv}\0${c.kind}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/**
+ * Match allowlist/controlMap pattern against a discovered testid.
+ * Supports both directions so template-literal discoveries (`schedule-view-*`)
+ * match concrete map entries (`schedule-view-list`) and vice versa.
+ */
+export function controlMatchesPattern(
+  allowPattern: string,
+  discovered: string,
+): boolean {
+  if (!allowPattern || !discovered) return false;
+  if (matchTestIdPattern(allowPattern, discovered)) return true;
+  if (discovered.includes("*") && matchTestIdPattern(discovered, allowPattern)) {
+    return true;
+  }
+  // Identical normalized patterns (both templated)
+  return (
+    normalizeTestIdPattern(allowPattern) === normalizeTestIdPattern(discovered)
+  );
+}
+
+function findAllowlistMatch<T extends { testid: string }>(
+  testid: string,
+  entries: T[],
+): T | null {
+  if (!testid) return null;
+  // Prefer exact / more specific allowlist patterns first (longest non-wild prefix)
+  const sorted = [...entries].sort(
+    (a, b) => b.testid.length - a.testid.length,
+  );
+  for (const e of sorted) {
+    if (controlMatchesPattern(e.testid, testid)) return e;
+  }
+  return null;
+}
+
+/**
+ * Crawl primary controls against allowlist + inventory IDs.
+ * Fails when any primary control is unmapped or maps to an unknown inventory ID.
+ */
+export function crawlPrimaryControls(options: CrawlOptions): CrawlResult {
+  const outLines: string[] = [];
+  const errLines: string[] = [];
+  const log = (msg: string) => outLines.push(msg);
+  const logErr = (msg: string) => errLines.push(msg);
+
+  const invSet =
+    options.inventoryIds instanceof Set
+      ? options.inventoryIds
+      : new Set(options.inventoryIds ?? []);
+
+  const allow = options.allowlist;
+  const discovered: DiscoveredControl[] = [];
+  for (const [label, body] of Object.entries(options.sources ?? {})) {
+    if (/\.(tsx|jsx|ts|js)$/i.test(label) || /tsx|jsx/i.test(label)) {
+      discovered.push(...parsePrimaryControlsFromTsx(body, label));
+    } else {
+      discovered.push(...parsePrimaryControlsFromHtml(body, label));
+    }
+  }
+
+  const mapped: CrawlMappedControl[] = [];
+  const chromeSkipped: CrawlMappedControl[] = [];
+  const unmapped: DiscoveredControl[] = [];
+  const invalidInv: Array<DiscoveredControl & { inv: string; reason: string }> =
+    [];
+
+  for (const c of discovered) {
+    if (c.dataInv) {
+      if (invSet.size > 0 && !invSet.has(c.dataInv)) {
+        invalidInv.push({
+          ...c,
+          inv: c.dataInv,
+          reason: "data-inv not in inventory REQUIRED set",
+        });
+        continue;
+      }
+      mapped.push({ ...c, inv: c.dataInv, via: "data-inv" });
+      continue;
+    }
+
+    if (c.testid) {
+      const chrome = findAllowlistMatch(c.testid, allow.chrome);
+      if (chrome) {
+        chromeSkipped.push({ ...c, inv: "", via: "chrome" });
+        continue;
+      }
+      const mapEntry = findAllowlistMatch(c.testid, allow.controlMap);
+      if (mapEntry) {
+        if (invSet.size > 0 && !invSet.has(mapEntry.inv)) {
+          invalidInv.push({
+            ...c,
+            inv: mapEntry.inv,
+            reason: `controlMap inv ${mapEntry.inv} not in inventory REQUIRED set`,
+          });
+          continue;
+        }
+        mapped.push({ ...c, inv: mapEntry.inv, via: "controlMap" });
+        continue;
+      }
+    }
+
+    unmapped.push(c);
+  }
+
+  const missingReport = unmapped.map((c) => {
+    const id = c.testid || c.dataInv || "<no-testid>";
+    return `${id} @ ${c.file}:${c.line}`;
+  });
+
+  if (invalidInv.length > 0) {
+    const detail = invalidInv
+      .slice(0, 20)
+      .map((c) => `${c.testid || c.dataInv}→${c.inv} (${c.reason})`)
+      .join("; ");
+    logErr(
+      `inventory-crawl: FAIL: invalid inventory mapping: ${detail}` +
+        (options.label ? ` (${options.label})` : ""),
+    );
+  }
+
+  if (unmapped.length > 0) {
+    const detail = missingReport.slice(0, 30).join(", ");
+    logErr(
+      `inventory-crawl: FAIL: unmapped primary control(s): ${detail}` +
+        (unmapped.length > 30 ? ` …+${unmapped.length - 30} more` : "") +
+        (options.label ? ` (${options.label})` : "") +
+        ` — add data-inv, controlMap entry, or chrome allowlist reason in scripts/ui-crawl-allowlist.json`,
+    );
+  }
+
+  if (invalidInv.length > 0 || unmapped.length > 0) {
+    return {
+      ok: false,
+      exitCode: 1,
+      mapped,
+      chromeSkipped,
+      unmapped,
+      invalidInv,
+      missingReport,
+      stdout: outLines.join("\n") + (outLines.length ? "\n" : ""),
+      stderr: errLines.join("\n") + (errLines.length ? "\n" : ""),
+    };
+  }
+
+  log(
+    `inventory-crawl: OK: ${mapped.length} primary control(s) mapped` +
+      (chromeSkipped.length
+        ? `, ${chromeSkipped.length} chrome-skipped`
+        : "") +
+      (options.label ? ` (${options.label})` : ""),
+  );
+
+  return {
+    ok: true,
+    exitCode: 0,
+    mapped,
+    chromeSkipped,
+    unmapped: [],
+    invalidInv: [],
+    missingReport: [],
+    stdout: outLines.join("\n") + (outLines.length ? "\n" : ""),
+    stderr: errLines.join("\n") + (errLines.length ? "\n" : ""),
+  };
+}
+
+/** Fixture helper: assert crawl fails on unmapped primary button. */
+export function crawlFailsOnUnmappedPrimary(
+  htmlOrTsx: string,
+  allowlist?: CrawlAllowlist,
+  inventoryIds?: string[],
+): CrawlResult {
+  const allow =
+    allowlist ??
+    ({
+      version: 1,
+      chrome: [],
+      controlMap: [],
+    } satisfies CrawlAllowlist);
+  return crawlPrimaryControls({
+    allowlist: allow,
+    sources: { "fixture.html": htmlOrTsx },
+    inventoryIds: inventoryIds ?? ["A01", "C01", "D01"],
+    label: "unmapped-primary-fixture",
+  });
+}
+
+/** Default admin source roots for workspace crawl (relative to repo root). */
+export const DEFAULT_ADMIN_CRAWL_GLOBS = [
+  "apps/web/src/pages",
+  "apps/web/src/layout",
+  "apps/web/src/components",
+] as const;
+
+/** Paths under admin roots to skip (non-admin surfaces). */
+const ADMIN_CRAWL_SKIP_RE =
+  /\/(portal|PublicCfp|Login|login)\b|pages\/portal\b|PublicCfp\.tsx|Login\.tsx/;
+
+/**
+ * Collect TSX sources for admin crawl under workspace root.
+ */
+export function collectAdminCrawlSources(
+  root: string,
+  extraRoots: string[] = [],
+): Record<string, string> {
+  const roots = [
+    ...DEFAULT_ADMIN_CRAWL_GLOBS.map((r) => join(root, r)),
+    ...extraRoots,
+  ];
+  const sources: Record<string, string> = {};
+  for (const dir of roots) {
+    if (!existsSync(dir)) continue;
+    const files = collectFiles(dir).filter(
+      (f) =>
+        /\.(tsx|jsx)$/.test(f) &&
+        !ADMIN_CRAWL_SKIP_RE.test(f.replace(/\\/g, "/")),
+    );
+    for (const f of files) {
+      const rel = relative(root, f).replace(/\\/g, "/");
+      sources[rel] = readFileSync(f, "utf8");
+    }
+  }
+  return sources;
+}
+
+/**
+ * Workspace admin discovery crawl (section 8.1).
+ * Reads allowlist + inventory REQUIRED ids; fails on unmapped primary controls.
+ */
+export function runWorkspaceAdminCrawl(
+  options: {
+    root?: string;
+    allowlistPath?: string;
+    inventoryMarkdown?: string;
+    silent?: boolean;
+  } = {},
+): CrawlResult {
+  const root = options.root ?? defaultRoot;
+  const allowlistPath = options.allowlistPath ?? join(root, "scripts", "ui-crawl-allowlist.json");
+  const allowlist = loadCrawlAllowlist(allowlistPath);
+
+  let inventoryIds: string[] = [];
+  if (options.inventoryMarkdown) {
+    inventoryIds = parseRequiredIds(options.inventoryMarkdown);
+  } else {
+    const invPath = join(
+      root,
+      "KMS-competition",
+      "initiative",
+      "BROWSER_E2E_INVENTORY.md",
+    );
+    if (existsSync(invPath)) {
+      inventoryIds = parseRequiredIds(readFileSync(invPath, "utf8"));
+    }
+  }
+
+  const sources = collectAdminCrawlSources(root);
+  const result = crawlPrimaryControls({
+    allowlist,
+    sources,
+    inventoryIds,
+    label: "workspace-admin",
+  });
+
+  if (!options.silent) {
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+  }
+  return result;
+}
+
 /**
  * Workspace inventory lint entry (delegates to 0.3 full gate engine).
  * Preserves anti-shrinkage, DEFER ownership, suite reconciliation, Phase 8 run proof.
+ * Section 8.1: after tag gate OK, runs admin primary discovery crawl (unless --skip-crawl).
  */
 export function runWorkspaceInventoryLint(
   options: CliLintOptions = {},
@@ -377,14 +1027,76 @@ export function runWorkspaceInventoryLint(
   const argv = options.argv ?? process.argv;
   const env = options.env ?? process.env;
   const { fullGate } = parseAllowMissingUntil(argv, env);
+  const skipCrawl =
+    argv.includes("--skip-crawl") || env.E2E_INVENTORY_SKIP_CRAWL === "1";
 
-  return runInventoryLint({
+  const tagResult = runInventoryLint({
     root,
     argv,
     env,
     fullGate,
     silent: options.silent === true,
   }) as InventoryLintResult;
+
+  if (!tagResult.ok) {
+    return tagResult;
+  }
+
+  if (skipCrawl) {
+    if (!options.silent) {
+      process.stdout.write(
+        "[test:e2e:inventory] note: admin discovery crawl skipped (--skip-crawl)\n",
+      );
+    }
+    return tagResult;
+  }
+
+  const crawl = runWorkspaceAdminCrawl({
+    root,
+    silent: true,
+  });
+
+  const out =
+    (tagResult.stdout || "") +
+    (crawl.stdout || "") +
+    (crawl.ok
+      ? `[test:e2e:inventory] OK: admin discovery crawl — ${crawl.mapped.length} primary control(s) mapped` +
+        (crawl.chromeSkipped.length
+          ? `, ${crawl.chromeSkipped.length} chrome-skipped`
+          : "") +
+        "\n"
+      : "");
+  const err = (tagResult.stderr || "") + (crawl.stderr || "");
+
+  if (!options.silent) {
+    if (crawl.stdout) process.stdout.write(crawl.stdout);
+    if (crawl.stderr) process.stderr.write(crawl.stderr);
+    if (crawl.ok) {
+      process.stdout.write(
+        `[test:e2e:inventory] OK: admin discovery crawl — ${crawl.mapped.length} primary control(s) mapped` +
+          (crawl.chromeSkipped.length
+            ? `, ${crawl.chromeSkipped.length} chrome-skipped`
+            : "") +
+          "\n",
+      );
+    }
+  }
+
+  if (!crawl.ok) {
+    return {
+      ok: false,
+      exitCode: 1,
+      stdout: out,
+      stderr: err,
+    };
+  }
+
+  return {
+    ok: true,
+    exitCode: 0,
+    stdout: out,
+    stderr: err,
+  };
 }
 
 /**
