@@ -36,6 +36,7 @@
 | Browser E2E inventory (canonical) | [`KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md) | Exhaustive REQUIRED journeys (source of truth) |
 | Lumen (initiative synthesis) | [`KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md`](../KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md) | Full design synthesis; 0.2 freezes essentials |
 | Synthesis | [`KMS-competition/research-pack/SYNTHESIS-BEST-FOOT-FORWARD.md`](../KMS-competition/research-pack/SYNTHESIS-BEST-FOOT-FORWARD.md) | Keep/cut decisions |
+| Security hardening (8.3) | [`docs/sections/8.3-security-hardening.md`](./sections/8.3-security-hardening.md) · [`docs/SECURITY.md`](./SECURITY.md) | CSP, cookies, Turnstile/rate limit, dependency audit policy |
 
 Engineering standards **E1–E12** live in the Section Runner RUNS_DIR as `speakerops-engineering-standards.md` (not duplicated here).
 

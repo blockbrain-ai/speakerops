@@ -1,6 +1,6 @@
 /**
- * Session cookie helpers (section 2.1).
- * Flags: HttpOnly; Secure; SameSite=Lax; Path=/
+ * Session cookie helpers (section 2.1 + 8.3 production flags).
+ * Flags (E10, never weaken for demo): HttpOnly; Secure; SameSite=Lax; Path=/
  */
 import {
   SESSION_COOKIE_NAME,

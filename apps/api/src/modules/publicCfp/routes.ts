@@ -19,6 +19,7 @@ import {
   INTERNAL_ERROR,
   NOT_FOUND,
   CONFLICT,
+  RATE_LIMITED,
   type ErrorCode,
 } from "@speakerops/shared";
 import type { ApiEnv } from "../../env.js";
@@ -62,8 +63,8 @@ function commandError(
       ? CONFLICT
       : err.code === "NOT_FOUND"
         ? NOT_FOUND
-        : err.code === "RATE_LIMITED"
-          ? "RATE_LIMITED"
+        : err.code === RATE_LIMITED || err.code === "RATE_LIMITED"
+          ? RATE_LIMITED
           : (err.code as ErrorCode);
   const res = c.json(errorEnvelope(err.error, code, err.details), err.status);
   if (extraHeaders) {
@@ -107,7 +108,7 @@ export function createPublicCfpRoutes(
         {
           status: 429,
           error: "Rate limit exceeded",
-          code: "RATE_LIMITED",
+          code: RATE_LIMITED,
           details: {
             limit: rl.limit,
             retryAfterSec: rl.retryAfterSec,
@@ -182,7 +183,7 @@ export function createPublicCfpRoutes(
         {
           status: 429,
           error: "Rate limit exceeded",
-          code: "RATE_LIMITED",
+          code: RATE_LIMITED,
           details: {
             limit: rl.limit,
             retryAfterSec: rl.retryAfterSec,

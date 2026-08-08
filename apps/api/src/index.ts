@@ -21,6 +21,7 @@
  * Section 7.1: Keys.Create/Revoke/List + hashed secrets + Bearer auth (S-CLI)
  * Section 7.2: OpenAPI + speakerops CLI parity; bearerScopes on domain routes (S-CLI)
  * Section 7.3: Airtable one-way projection outbox drain + Reports.AirtableStatus (S-AIRTABLE)
+ * Section 8.3: CSP + security headers on all responses; cookie flags; CFP rate limit/Turnstile review
  *
  * Domain routes from COMMANDS.md register here.
  *
@@ -45,7 +46,9 @@ import {
   notFoundHandler,
   onErrorHandler,
 } from "./middleware/errors.js";
+import { securityHeadersMiddleware } from "./middleware/security.js";
 import type { ApiEnv, WorkerBindings } from "./env.js";
+import type { CfpRateLimiter } from "./modules/publicCfp/rateLimit.js";
 import { createAuthRoutes } from "./modules/auth/routes.js";
 import { createEventsRoutes } from "./modules/events/routes.js";
 import { createScheduleRoutes } from "./modules/schedule/routes.js";
@@ -178,9 +181,17 @@ export type CreateAppOptions = {
   airtableStore?: AirtableStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
+  /**
+   * Optional public CFP rate limiter inject (tests — deterministic 429).
+   * Production uses process-local defaultCfpRateLimiter.
+   */
+  rateLimiter?: CfpRateLimiter;
   /** Shared test outbox for magic-link capture. */
   magicLinkOutbox?: MagicLinkTestOutbox;
-  /** Cookie Secure flag (default true). */
+  /**
+   * Cookie Secure flag. Default true (E10 production-ready).
+   * Tests may pass true explicitly; never disable in createAppFromBindings.
+   */
   cookieSecure?: boolean;
   /**
    * Register GET /api/auth/dev/outbox.
@@ -226,8 +237,12 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Production: controlled. createAppWithAuth overrides to open for e2e.
   const bootstrapPolicy = options.bootstrapPolicy ?? "controlled";
   const turnstileSecret = options.turnstileSecret;
+  // Production-ready cookie flags (HttpOnly Secure SameSite=Lax) — default secure.
+  const cookieSecure = options.cookieSecure !== false;
 
   app.use("*", correlationMiddleware);
+  // Section 8.3 — CSP + security headers on all responses (including 404/500).
+  app.use("*", securityHeadersMiddleware);
 
   /**
    * GET /health — COMMANDS.md HTTP map.
@@ -255,7 +270,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     createAuthRoutes({
       store: authStore,
       outbox: magicLinkOutbox,
-      cookieSecure: options.cookieSecure,
+      cookieSecure,
       enableDevOutbox,
       bootstrapPolicy,
     }),
@@ -354,6 +369,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   );
 
   // Section 3.3 — Submission.Create + public CFP file upload
+  // Section 8.3 — rate limit inject for deterministic 429 proofs
   app.route(
     "/api/public",
     createPublicCfpRoutes({
@@ -363,6 +379,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       design: designStore,
       submissions: submissionsStore,
       turnstileSecret,
+      rateLimiter: options.rateLimiter,
     }),
   );
 
@@ -613,6 +630,8 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     turnstileSecret,
     enableDevOutbox: false,
     bootstrapPolicy: "controlled",
+    // E10 / 8.3 — production session cookies always Secure + HttpOnly + SameSite=Lax
+    cookieSecure: true,
   });
 }
 
