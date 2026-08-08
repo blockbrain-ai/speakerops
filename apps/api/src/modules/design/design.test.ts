@@ -60,6 +60,7 @@ function designStoreWithFlakyPut(): {
     findFile: (e, id) => inner.findFile(e, id),
     findFileById: (id) => inner.findFileById(id),
     claimFileUpload: (e, id, p) => inner.claimFileUpload(e, id, p),
+    completeFileUpload: (e, id) => inner.completeFileUpload(e, id),
     releaseFileUploadClaim: (e, id, p) =>
       inner.releaseFileUploadClaim(e, id, p),
     async putFileBytes(eventId: string, fileId: string, blob: FileBlob) {
@@ -900,6 +901,7 @@ describe("2.4 design kit", () => {
       purpose: "logo",
       createdAt: new Date().toISOString(),
       uploaded: false,
+      uploadState: 0,
     });
 
     const [c1, c2] = await Promise.all([
@@ -908,7 +910,9 @@ describe("2.4 design kit", () => {
     ]);
     const winners = [c1, c2].filter(Boolean);
     expect(winners).toHaveLength(1);
-    expect(winners[0]!.uploaded).toBe(true);
+    // Claim is in-progress only — not stored/ready (uploaded stays false).
+    expect(winners[0]!.uploaded).toBe(false);
+    expect(winners[0]!.uploadState).toBe(2);
 
     // Simulate putFileBytes failure recovery path.
     await design.releaseFileUploadClaim(eventId, fileId, {
@@ -916,13 +920,20 @@ describe("2.4 design kit", () => {
     });
     const afterRelease = await design.findFile(eventId, fileId);
     expect(afterRelease?.uploaded).toBe(false);
+    expect(afterRelease?.uploadState).toBe(0);
     expect(afterRelease?.size).toBe(declaredSize);
 
     const retried = await design.claimFileUpload(eventId, fileId, {
       size: declaredSize - 1,
     });
-    expect(retried?.uploaded).toBe(true);
+    expect(retried?.uploaded).toBe(false);
+    expect(retried?.uploadState).toBe(2);
     expect(retried?.size).toBe(declaredSize - 1);
+
+    // Only complete after successful storage marks ready.
+    const completed = await design.completeFileUpload(eventId, fileId);
+    expect(completed?.uploaded).toBe(true);
+    expect(completed?.uploadState).toBe(1);
   });
 
   it("File.Upload releases claim when storage put fails so client may retry", async () => {

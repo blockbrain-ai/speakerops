@@ -27,6 +27,7 @@ import {
   type DesignDraftRow,
   type DesignPublishedRow,
   type FileAssetRow,
+  FILE_UPLOAD_PENDING,
   newFileId,
 } from "./store.js";
 
@@ -535,9 +536,10 @@ export type UploadFileInput = {
  * Enforces (COMMANDS.md + FilePresignBodySchema boundary):
  * - presign TTL from created_at + FILE_PRESIGN_TTL_MS (matches returned expiresAt)
  * - body size ≤ presign-declared size and ≤ FILE_UPLOAD_MAX_BYTES (10 MiB)
- * - single-use: atomic claim (uploaded 0→1) before any R2 write; concurrent losers
- *   get 409 without writing bytes or emitting audit. On put failure the claim is
- *   released so a client may retry.
+ * - single-use: atomic claim (uploaded 0→2 in-progress) before any R2 write;
+ *   complete (2→1 stored) only after put succeeds. Concurrent losers get 409
+ *   without writing bytes or emitting audit. On put failure the claim is
+ *   released (2→0) so a client may retry. uploaded=1 never means "claimed only".
  */
 export async function uploadFileBytes(
   deps: DesignCommandDeps,
@@ -555,8 +557,9 @@ export async function uploadFileBytes(
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
-  // Fast-path reject when already terminal; authoritative single-use is claimFileUpload.
-  if (file.uploaded) {
+  // Fast-path reject when already stored or claim in flight; authoritative
+  // single-use is claimFileUpload (pending→claimed).
+  if (file.uploaded || file.uploadState !== FILE_UPLOAD_PENDING) {
     return {
       ok: false,
       status: 409,
@@ -651,7 +654,8 @@ export async function uploadFileBytes(
     };
   }
 
-  // Claim ownership before writing bytes so concurrent PUTs cannot both land.
+  // Claim ownership (pending→claimed) before writing bytes so concurrent PUTs
+  // cannot both land. Claimed is not "uploaded" — SetDraft still rejects.
   const claimed = await deps.design.claimFileUpload(
     input.eventId,
     input.fileId,
@@ -672,6 +676,24 @@ export async function uploadFileBytes(
       bytes: input.body,
       mime: "image/png",
     });
+    // Mark stored only after bytes are durable. Worker death between claim and
+    // here leaves uploadState=claimed (not ready), not a false uploaded=1.
+    const completed = await deps.design.completeFileUpload(
+      input.eventId,
+      input.fileId,
+    );
+    if (!completed) {
+      await deps.design.releaseFileUploadClaim(input.eventId, input.fileId, {
+        size: declaredSize,
+      });
+      return {
+        ok: false,
+        status: 400,
+        error: "Upload storage failed",
+        code: "VALIDATION_ERROR",
+        details: { fileId: input.fileId },
+      };
+    }
   } catch {
     // Failure recovery: release claim + restore declared size so a client may retry.
     await deps.design.releaseFileUploadClaim(input.eventId, input.fileId, {

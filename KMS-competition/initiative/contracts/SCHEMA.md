@@ -81,10 +81,10 @@ templates: `id, event_id, title, description, trigger (on_accept|manual), due_of
 tasks: `id, template_id, participation_id, status, due_at, completed_at, version`
 
 ### file_assets
-`id, event_id, owner_participation_id NULL, r2_key, filename, mime, size, checksum, purpose (logo|headshot|slides|other), created_at, uploaded (INTEGER 0|1 NOT NULL DEFAULT 0)`
+`id, event_id, owner_participation_id NULL, r2_key, filename, mime, size, checksum, purpose (logo|headshot|slides|other), created_at, uploaded (INTEGER 0|1|2 NOT NULL DEFAULT 0)`
 
 - `size` at insert is the **presign-declared** byte budget (max 10 MiB); after a successful body upload it is the **actual** stored size (≤ declared).
-- `uploaded` is the dedicated readiness flag (0 = pending body, 1 = bytes stored). **Never** overload `checksum` as an upload-readiness sentinel — `checksum` is for content digests (`File.CompleteUpload` / portal).
+- `uploaded` is the dedicated readiness flag: `0` = pending body, `2` = claim in progress (bytes not stored yet — not ready for Design.SetDraft), `1` = bytes stored. **Only `1` means ready.** File.Upload claims with `0→2`, writes object storage, then completes `2→1`; put failure releases `2→0`. **Never** overload `checksum` as an upload-readiness sentinel — `checksum` is for content digests (`File.CompleteUpload` / portal).
 - `purpose=logo` is owned by Design Kit (2.4); `headshot|slides|other` expand in portal (4.2).
 
 ### rooms / tracks

@@ -6,8 +6,13 @@
  * All event-owned queries take eventId (E2).
  *
  * Draft updates use optimistic version in WHERE (E1). Upload readiness uses the
- * dedicated `uploaded` column — never the checksum field. File.Upload claims
- * ownership with a conditional uploaded 0→1 transition before any R2 write.
+ * dedicated `uploaded` column — never the checksum field.
+ *
+ * Upload lifecycle on `uploaded` (INTEGER):
+ *   0 = pending body
+ *   2 = in-progress claim (bytes not yet stored — Design.SetDraft must reject)
+ *   1 = bytes stored (only after successful putFileBytes)
+ * File.Upload: claim 0→2, put bytes, complete 2→1; on put failure release 2→0.
  */
 import { eq, and } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
@@ -22,6 +27,17 @@ import {
 } from "@speakerops/db";
 import type { R2BucketLike } from "../../env.js";
 import { d1Changes } from "../auth/store.js";
+
+/** DB `uploaded` column values — 1 means bytes stored (SCHEMA readiness). */
+export const FILE_UPLOAD_PENDING = 0 as const;
+export const FILE_UPLOAD_STORED = 1 as const;
+/** In-progress claim: exclusive writer, not ready for Design.SetDraft. */
+export const FILE_UPLOAD_CLAIMED = 2 as const;
+
+export type FileUploadDbState =
+  | typeof FILE_UPLOAD_PENDING
+  | typeof FILE_UPLOAD_STORED
+  | typeof FILE_UPLOAD_CLAIMED;
 
 export type DesignDraftRow = {
   eventId: string;
@@ -50,8 +66,16 @@ export type FileAssetRow = {
   checksum: string | null;
   purpose: string;
   createdAt: string;
-  /** True after bytes were uploaded via the presigned URL. */
+  /**
+   * True only when bytes are stored (DB uploaded=1).
+   * False while pending (0) or claim-in-progress (2).
+   */
   uploaded: boolean;
+  /**
+   * Raw DB upload state for claim/complete transitions.
+   * Optional on insert (derived from `uploaded` when omitted).
+   */
+  uploadState?: FileUploadDbState;
 };
 
 export type FileBlob = {
@@ -73,9 +97,10 @@ export type DesignStore = {
   /** Lookup by file id only (public serve path). */
   findFileById(fileId: string): Promise<FileAssetRow | null>;
   /**
-   * Atomic single-use claim: transition uploaded 0→1 with actual size only when
-   * still pending. Returns the updated row, or null if missing / already claimed.
-   * Must win this race before putFileBytes may run (File.Upload concurrency).
+   * Atomic single-use claim: transition pending (0) → claimed (2) with actual size.
+   * Returns the updated row, or null if missing / not pending.
+   * Does NOT mark uploaded=1 — bytes are not stored yet. Call completeFileUpload
+   * only after putFileBytes succeeds.
    */
   claimFileUpload(
     eventId: string,
@@ -83,8 +108,16 @@ export type DesignStore = {
     patch: { size: number },
   ): Promise<FileAssetRow | null>;
   /**
+   * Transition claimed (2) → stored (1) after successful putFileBytes.
+   * No-op / returns null if not currently claimed (e.g. already released).
+   */
+  completeFileUpload(
+    eventId: string,
+    fileId: string,
+  ): Promise<FileAssetRow | null>;
+  /**
    * Release a won claim after putFileBytes failure so a client may retry.
-   * Restores declared size and uploaded=0 only while still claimed (uploaded=1).
+   * Restores declared size and pending (0) only while still claimed (2).
    */
   releaseFileUploadClaim(
     eventId: string,
@@ -101,6 +134,17 @@ export type DesignStore = {
     fileId: string,
   ): Promise<FileBlob | null>;
 };
+
+function rowFromUploadState(
+  base: Omit<FileAssetRow, "uploaded" | "uploadState">,
+  uploadState: FileUploadDbState,
+): FileAssetRow {
+  return {
+    ...base,
+    uploadState,
+    uploaded: uploadState === FILE_UPLOAD_STORED,
+  };
+}
 
 /**
  * In-memory design store — unit tests + e2e-api-server without D1.
@@ -148,11 +192,24 @@ export class MemoryDesignStore implements DesignStore {
   }
 
   async insertFile(row: FileAssetRow): Promise<FileAssetRow> {
-    const full = {
-      ...row,
-      uploaded: row.uploaded ?? false,
-      checksum: row.checksum ?? null,
-    };
+    const uploadState: FileUploadDbState =
+      row.uploadState ??
+      (row.uploaded ? FILE_UPLOAD_STORED : FILE_UPLOAD_PENDING);
+    const full = rowFromUploadState(
+      {
+        id: row.id,
+        eventId: row.eventId,
+        ownerParticipationId: row.ownerParticipationId,
+        r2Key: row.r2Key,
+        filename: row.filename,
+        mime: row.mime,
+        size: row.size,
+        checksum: row.checksum ?? null,
+        purpose: row.purpose,
+        createdAt: row.createdAt,
+      },
+      uploadState,
+    );
     this.files.set(this.fileKey(row.eventId, row.id), full);
     this.filesById.set(row.id, full);
     return full;
@@ -176,14 +233,49 @@ export class MemoryDesignStore implements DesignStore {
   ): Promise<FileAssetRow | null> {
     // Synchronous check-and-set: atomic under the JS event loop (no await between).
     const existing = this.files.get(this.fileKey(eventId, fileId));
-    if (!existing || existing.uploaded) return null;
-    const updated: FileAssetRow = {
-      ...existing,
-      size: patch.size,
-      uploaded: true,
-      // checksum is never used as an upload-readiness sentinel
-      checksum: existing.checksum,
-    };
+    if (!existing || existing.uploadState !== FILE_UPLOAD_PENDING) return null;
+    const updated = rowFromUploadState(
+      {
+        id: existing.id,
+        eventId: existing.eventId,
+        ownerParticipationId: existing.ownerParticipationId,
+        r2Key: existing.r2Key,
+        filename: existing.filename,
+        mime: existing.mime,
+        size: patch.size,
+        // checksum is never used as an upload-readiness sentinel
+        checksum: existing.checksum,
+        purpose: existing.purpose,
+        createdAt: existing.createdAt,
+      },
+      FILE_UPLOAD_CLAIMED,
+    );
+    this.files.set(this.fileKey(eventId, fileId), updated);
+    this.filesById.set(fileId, updated);
+    return updated;
+  }
+
+  async completeFileUpload(
+    eventId: string,
+    fileId: string,
+  ): Promise<FileAssetRow | null> {
+    const existing = this.files.get(this.fileKey(eventId, fileId));
+    if (!existing || existing.uploadState !== FILE_UPLOAD_CLAIMED) return null;
+    const updated = rowFromUploadState(
+      {
+        id: existing.id,
+        eventId: existing.eventId,
+        ownerParticipationId: existing.ownerParticipationId,
+        r2Key: existing.r2Key,
+        filename: existing.filename,
+        mime: existing.mime,
+        size: existing.size,
+        checksum: existing.checksum,
+        purpose: existing.purpose,
+        createdAt: existing.createdAt,
+      },
+      FILE_UPLOAD_STORED,
+    );
     this.files.set(this.fileKey(eventId, fileId), updated);
     this.filesById.set(fileId, updated);
     return updated;
@@ -195,12 +287,22 @@ export class MemoryDesignStore implements DesignStore {
     patch: { size: number },
   ): Promise<void> {
     const existing = this.files.get(this.fileKey(eventId, fileId));
-    if (!existing || !existing.uploaded) return;
-    const updated: FileAssetRow = {
-      ...existing,
-      size: patch.size,
-      uploaded: false,
-    };
+    if (!existing || existing.uploadState !== FILE_UPLOAD_CLAIMED) return;
+    const updated = rowFromUploadState(
+      {
+        id: existing.id,
+        eventId: existing.eventId,
+        ownerParticipationId: existing.ownerParticipationId,
+        r2Key: existing.r2Key,
+        filename: existing.filename,
+        mime: existing.mime,
+        size: patch.size,
+        checksum: existing.checksum,
+        purpose: existing.purpose,
+        createdAt: existing.createdAt,
+      },
+      FILE_UPLOAD_PENDING,
+    );
     this.files.set(this.fileKey(eventId, fileId), updated);
     this.filesById.set(fileId, updated);
   }
@@ -338,11 +440,24 @@ export class D1DesignStore implements DesignStore {
   }
 
   async insertFile(row: FileAssetRow): Promise<FileAssetRow> {
-    const full = {
-      ...row,
-      uploaded: row.uploaded ?? false,
-      checksum: row.checksum ?? null,
-    };
+    const uploadState: FileUploadDbState =
+      row.uploadState ??
+      (row.uploaded ? FILE_UPLOAD_STORED : FILE_UPLOAD_PENDING);
+    const full = rowFromUploadState(
+      {
+        id: row.id,
+        eventId: row.eventId,
+        ownerParticipationId: row.ownerParticipationId,
+        r2Key: row.r2Key,
+        filename: row.filename,
+        mime: row.mime,
+        size: row.size,
+        checksum: row.checksum ?? null,
+        purpose: row.purpose,
+        createdAt: row.createdAt,
+      },
+      uploadState,
+    );
     await this.db.insert(fileAssets).values({
       id: full.id,
       eventId: full.eventId,
@@ -354,7 +469,7 @@ export class D1DesignStore implements DesignStore {
       checksum: full.checksum,
       purpose: full.purpose,
       createdAt: full.createdAt,
-      uploaded: full.uploaded ? 1 : 0,
+      uploaded: full.uploadState,
     });
     return full;
   }
@@ -372,19 +487,28 @@ export class D1DesignStore implements DesignStore {
     createdAt: string;
     uploaded?: number | null;
   }): FileAssetRow {
-    return {
-      id: row.id,
-      eventId: row.eventId,
-      ownerParticipationId: row.ownerParticipationId ?? null,
-      r2Key: row.r2Key,
-      filename: row.filename,
-      mime: row.mime,
-      size: row.size,
-      checksum: row.checksum ?? null,
-      purpose: row.purpose,
-      createdAt: row.createdAt,
-      uploaded: (row.uploaded ?? 0) === 1,
-    };
+    const raw = row.uploaded ?? FILE_UPLOAD_PENDING;
+    const uploadState: FileUploadDbState =
+      raw === FILE_UPLOAD_STORED
+        ? FILE_UPLOAD_STORED
+        : raw === FILE_UPLOAD_CLAIMED
+          ? FILE_UPLOAD_CLAIMED
+          : FILE_UPLOAD_PENDING;
+    return rowFromUploadState(
+      {
+        id: row.id,
+        eventId: row.eventId,
+        ownerParticipationId: row.ownerParticipationId ?? null,
+        r2Key: row.r2Key,
+        filename: row.filename,
+        mime: row.mime,
+        size: row.size,
+        checksum: row.checksum ?? null,
+        purpose: row.purpose,
+        createdAt: row.createdAt,
+      },
+      uploadState,
+    );
   }
 
   async findFile(
@@ -417,18 +541,40 @@ export class D1DesignStore implements DesignStore {
     fileId: string,
     patch: { size: number },
   ): Promise<FileAssetRow | null> {
-    // Conditional D1 transition: only one concurrent winner when uploaded=0.
+    // Conditional D1: only one concurrent winner when still pending (0).
+    // Claimed state is 2 — not stored (1) — so SetDraft cannot treat as ready.
     const result = await this.db
       .update(fileAssets)
       .set({
         size: patch.size,
-        uploaded: 1,
+        uploaded: FILE_UPLOAD_CLAIMED,
       })
       .where(
         and(
           eq(fileAssets.eventId, eventId),
           eq(fileAssets.id, fileId),
-          eq(fileAssets.uploaded, 0),
+          eq(fileAssets.uploaded, FILE_UPLOAD_PENDING),
+        ),
+      );
+    if (d1Changes(result) === 0) return null;
+    return this.findFile(eventId, fileId);
+  }
+
+  async completeFileUpload(
+    eventId: string,
+    fileId: string,
+  ): Promise<FileAssetRow | null> {
+    // Only after successful storage: claimed (2) → stored (1).
+    const result = await this.db
+      .update(fileAssets)
+      .set({
+        uploaded: FILE_UPLOAD_STORED,
+      })
+      .where(
+        and(
+          eq(fileAssets.eventId, eventId),
+          eq(fileAssets.id, fileId),
+          eq(fileAssets.uploaded, FILE_UPLOAD_CLAIMED),
         ),
       );
     if (d1Changes(result) === 0) return null;
@@ -440,18 +586,18 @@ export class D1DesignStore implements DesignStore {
     fileId: string,
     patch: { size: number },
   ): Promise<void> {
-    // Only release while still claimed (uploaded=1); no-op if already pending.
+    // Only release while still claimed (2); no-op if pending or already stored.
     await this.db
       .update(fileAssets)
       .set({
         size: patch.size,
-        uploaded: 0,
+        uploaded: FILE_UPLOAD_PENDING,
       })
       .where(
         and(
           eq(fileAssets.eventId, eventId),
           eq(fileAssets.id, fileId),
-          eq(fileAssets.uploaded, 1),
+          eq(fileAssets.uploaded, FILE_UPLOAD_CLAIMED),
         ),
       );
   }

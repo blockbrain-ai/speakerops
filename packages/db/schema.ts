@@ -274,7 +274,8 @@ export const designTokenPublished = sqliteTable("design_token_published", {
 /**
  * file_assets — logo presign metadata (section 2.4 logo; portal files expand in 4.2).
  * SCHEMA.md: purpose headshot|slides|other — dogfood also uses purpose=logo.
- * `uploaded` is a dedicated readiness flag (0/1); `checksum` is for content digests only.
+ * `uploaded` is a dedicated readiness flag (0 pending / 2 claim / 1 stored);
+ * `checksum` is for content digests only.
  */
 export const fileAssets = sqliteTable(
   "file_assets",
@@ -289,7 +290,10 @@ export const fileAssets = sqliteTable(
     checksum: text("checksum"),
     purpose: text("purpose").notNull(),
     createdAt: text("created_at").notNull(),
-    /** 0 = pending upload, 1 = bytes stored (presign complete). */
+    /**
+     * Upload lifecycle: 0 = pending body, 2 = claim in progress (not ready),
+     * 1 = bytes stored. Only 1 is readiness for Design.SetDraft / public serve.
+     */
     uploaded: integer("uploaded").notNull().default(0),
   },
   (t) => [index("idx_file_assets_event_id").on(t.eventId)],

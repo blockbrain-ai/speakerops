@@ -11,6 +11,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type FormEvent,
@@ -63,46 +64,99 @@ export function DesignKitPage() {
   const [publishStatus, setPublishStatus] = useState<StatusMsg>(null);
   const [logoStatus, setLogoStatus] = useState<StatusMsg>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
+  /**
+   * Monotonic load generation + active event id for correlating async design
+   * fetches. A slower response for a previous event must not overwrite draft /
+   * published / form state (C10 race: wrong tokens saved or published).
+   */
+  const loadGenRef = useRef(0);
+  const activeEventIdRef = useRef(activeEventId);
+  activeEventIdRef.current = activeEventId;
+  const activeEventNameRef = useRef(activeEvent?.name);
+  activeEventNameRef.current = activeEvent?.name;
+
   const loadDesign = useCallback(async (eventId: string) => {
+    const gen = ++loadGenRef.current;
     setLoadError(null);
-    const res = await fetch(
-      `/api/events/${encodeURIComponent(eventId)}/design`,
-      {
-        credentials: "include",
-        headers: { accept: "application/json" },
-      },
-    );
-    if (!res.ok) {
-      setLoadError(`Failed to load design (${res.status})`);
-      return;
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(eventId)}/design`,
+        {
+          credentials: "include",
+          headers: { accept: "application/json" },
+        },
+      );
+      // Stale: event switched or a newer load started.
+      if (gen !== loadGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
+      if (!res.ok) {
+        setLoadError(`Failed to load design (${res.status})`);
+        return;
+      }
+      const raw: unknown = await res.json();
+      if (gen !== loadGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
+      const parsed = DesignGetResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        setLoadError("Invalid design response");
+        return;
+      }
+      setDraft(parsed.data.draft);
+      setPublished(parsed.data.published);
+      if (parsed.data.draft) {
+        const t = parsed.data.draft.tokens;
+        setBrand(t.brand);
+        setRadius(t.radius ?? "soft");
+        setWordmark(t.wordmark ?? "");
+        setLogoFileId(t.logoFileId ?? null);
+      } else {
+        setBrand(EMPTY_TOKENS.brand);
+        setRadius("soft");
+        setWordmark(activeEventNameRef.current ?? "");
+        setLogoFileId(null);
+      }
+    } catch {
+      if (gen !== loadGenRef.current || activeEventIdRef.current !== eventId) {
+        return;
+      }
+      setLoadError("Failed to load design");
+    } finally {
+      if (gen === loadGenRef.current) {
+        setLoading(false);
+      }
     }
-    const raw: unknown = await res.json();
-    const parsed = DesignGetResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      setLoadError("Invalid design response");
-      return;
-    }
-    setDraft(parsed.data.draft);
-    setPublished(parsed.data.published);
-    if (parsed.data.draft) {
-      const t = parsed.data.draft.tokens;
-      setBrand(t.brand);
-      setRadius(t.radius ?? "soft");
-      setWordmark(t.wordmark ?? "");
-      setLogoFileId(t.logoFileId ?? null);
-    } else {
-      setBrand(EMPTY_TOKENS.brand);
-      setRadius("soft");
-      setWordmark(activeEvent?.name ?? "");
-      setLogoFileId(null);
-    }
-  }, [activeEvent?.name]);
+  }, []);
 
   useEffect(() => {
-    if (!activeEventId) return;
+    if (!activeEventId) {
+      // Invalidate in-flight loads so they cannot write after clear.
+      loadGenRef.current += 1;
+      setLoading(false);
+      setDraft(null);
+      setPublished(null);
+      setBrand(EMPTY_TOKENS.brand);
+      setRadius("soft");
+      setWordmark("");
+      setLogoFileId(null);
+      setLoadError(null);
+      setStatus(null);
+      setPublishStatus(null);
+      return;
+    }
+    // Reset form immediately on event switch so prior event tokens cannot be
+    // saved/published against the new event while the load is in flight.
+    setDraft(null);
+    setPublished(null);
+    setStatus(null);
+    setPublishStatus(null);
+    setLogoStatus(null);
     void loadDesign(activeEventId);
   }, [activeEventId, loadDesign]);
 
@@ -135,7 +189,8 @@ export function DesignKitPage() {
 
   async function onSaveDraft(e: FormEvent) {
     e.preventDefault();
-    if (!activeEventId) return;
+    if (!activeEventId || loading) return;
+    const eventId = activeEventId;
     setSaving(true);
     setStatus(null);
     try {
@@ -144,7 +199,7 @@ export function DesignKitPage() {
         expectedVersion: draft?.version,
       };
       const res = await fetch(
-        `/api/events/${encodeURIComponent(activeEventId)}/design`,
+        `/api/events/${encodeURIComponent(eventId)}/design`,
         {
           method: "PUT",
           credentials: "include",
@@ -152,7 +207,10 @@ export function DesignKitPage() {
           body: JSON.stringify(body),
         },
       );
+      // Ignore result if the user switched events mid-save.
+      if (activeEventIdRef.current !== eventId) return;
       const raw: unknown = await res.json().catch(() => null);
+      if (activeEventIdRef.current !== eventId) return;
       if (!res.ok) {
         const env = ErrorEnvelopeSchema.safeParse(raw);
         setStatus({
@@ -169,33 +227,40 @@ export function DesignKitPage() {
       setDraft(parsed.data.draft);
       setStatus({ kind: "ok", text: "Draft saved" });
     } catch {
+      if (activeEventIdRef.current !== eventId) return;
       setStatus({ kind: "error", text: "Network error" });
     } finally {
-      setSaving(false);
+      if (activeEventIdRef.current === eventId) {
+        setSaving(false);
+      }
     }
   }
 
   async function onPublish() {
-    if (!activeEventId || !draft) {
+    if (!activeEventId || !draft || loading) {
       setPublishStatus({
         kind: "error",
         text: "Save a draft before publishing",
       });
       return;
     }
+    const eventId = activeEventId;
+    const expectedVersion = draft.version;
     setPublishing(true);
     setPublishStatus(null);
     try {
       const res = await fetch(
-        `/api/events/${encodeURIComponent(activeEventId)}/design/publish`,
+        `/api/events/${encodeURIComponent(eventId)}/design/publish`,
         {
           method: "POST",
           credentials: "include",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ expectedVersion: draft.version }),
+          body: JSON.stringify({ expectedVersion }),
         },
       );
+      if (activeEventIdRef.current !== eventId) return;
       const raw: unknown = await res.json().catch(() => null);
+      if (activeEventIdRef.current !== eventId) return;
       if (!res.ok) {
         const env = ErrorEnvelopeSchema.safeParse(raw);
         const code = env.success ? env.data.code : "";
@@ -212,21 +277,28 @@ export function DesignKitPage() {
         return;
       }
       setPublished(parsed.data.published);
-      // Reload draft (may include derived brandFg)
-      await loadDesign(activeEventId);
+      // Reload draft (may include derived brandFg) — only if still this event.
+      if (activeEventIdRef.current === eventId) {
+        await loadDesign(eventId);
+      }
+      if (activeEventIdRef.current !== eventId) return;
       setPublishStatus({
         kind: "ok",
         text: `Published (brandFg ${parsed.data.published.tokens.brandFg ?? "derived"})`,
       });
     } catch {
+      if (activeEventIdRef.current !== eventId) return;
       setPublishStatus({ kind: "error", text: "Network error" });
     } finally {
-      setPublishing(false);
+      if (activeEventIdRef.current === eventId) {
+        setPublishing(false);
+      }
     }
   }
 
   async function onLogoFileChange(fileList: FileList | null) {
-    if (!activeEventId || !fileList || fileList.length === 0) return;
+    if (!activeEventId || loading || !fileList || fileList.length === 0) return;
+    const eventId = activeEventId;
     const file = fileList[0]!;
     setLogoStatus(null);
 
@@ -252,14 +324,16 @@ export function DesignKitPage() {
         credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          eventId: activeEventId,
+          eventId,
           purpose: "logo",
           mime: file.type || "image/png",
           size: file.size,
           filename: file.name,
         }),
       });
+      if (activeEventIdRef.current !== eventId) return;
       const raw: unknown = await res.json().catch(() => null);
+      if (activeEventIdRef.current !== eventId) return;
       if (!res.ok) {
         const env = ErrorEnvelopeSchema.safeParse(raw);
         setLogoStatus({
@@ -281,6 +355,7 @@ export function DesignKitPage() {
         headers: { "content-type": "image/png" },
         body: file,
       });
+      if (activeEventIdRef.current !== eventId) return;
       if (!uploadRes.ok) {
         const uploadRaw: unknown = await uploadRes.json().catch(() => null);
         const env = ErrorEnvelopeSchema.safeParse(uploadRaw);
@@ -302,9 +377,12 @@ export function DesignKitPage() {
         text: `Logo ready (${parsed.data.fileId.slice(0, 8)}…)`,
       });
     } catch {
+      if (activeEventIdRef.current !== eventId) return;
       setLogoStatus({ kind: "error", text: "Network error" });
     }
   }
+
+  const formBusy = loading || saving || publishing;
 
   return (
     <div className="design-kit" data-testid="page-design-kit" data-section="2.4">
@@ -337,6 +415,8 @@ export function DesignKitPage() {
             className="event-settings__card design-kit__form"
             onSubmit={onSaveDraft}
             data-testid="design-form"
+            data-loading={loading ? "true" : "false"}
+            aria-busy={loading}
           >
             <h3 className="event-settings__heading">Draft tokens</h3>
 
@@ -351,6 +431,7 @@ export function DesignKitPage() {
                 data-testid="design-brand-color"
                 value={brand.length === 7 ? brand : "#4f46e5"}
                 onChange={(ev) => setBrand(ev.target.value)}
+                disabled={formBusy}
               />
               <input
                 className="event-settings__input lumen-focusable"
@@ -360,6 +441,7 @@ export function DesignKitPage() {
                 pattern="^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
                 maxLength={7}
                 aria-label="Brand hex"
+                disabled={formBusy}
               />
             </div>
 
@@ -372,6 +454,7 @@ export function DesignKitPage() {
               data-testid="design-radius"
               value={radius}
               onChange={(ev) => setRadius(ev.target.value as DesignRadius)}
+              disabled={formBusy}
             >
               {RADIUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -390,6 +473,7 @@ export function DesignKitPage() {
               value={wordmark}
               onChange={(ev) => setWordmark(ev.target.value)}
               maxLength={120}
+              disabled={formBusy}
             />
 
             <label className="event-settings__label" htmlFor="design-logo">
@@ -402,6 +486,7 @@ export function DesignKitPage() {
               className="event-settings__input lumen-focusable"
               data-testid="design-logo-input"
               onChange={(ev) => void onLogoFileChange(ev.target.files)}
+              disabled={formBusy}
             />
             {logoStatus ? (
               <p
@@ -428,9 +513,9 @@ export function DesignKitPage() {
               type="submit"
               className="event-settings__submit lumen-focusable"
               data-testid="design-save-draft"
-              disabled={saving}
+              disabled={formBusy}
             >
-              {saving ? "Saving…" : "Save draft"}
+              {saving ? "Saving…" : loading ? "Loading…" : "Save draft"}
             </button>
             {status ? (
               <p
@@ -451,7 +536,7 @@ export function DesignKitPage() {
                 type="button"
                 className="event-settings__submit lumen-focusable"
                 data-testid="design-publish"
-                disabled={publishing || !draft}
+                disabled={formBusy || !draft}
                 onClick={() => void onPublish()}
               >
                 {publishing ? "Publishing…" : "Publish tokens"}
