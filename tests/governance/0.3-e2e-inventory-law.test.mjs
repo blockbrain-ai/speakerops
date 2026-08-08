@@ -11,7 +11,6 @@ import {
   existsSync,
   mkdtempSync,
   mkdirSync,
-  cpSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -20,6 +19,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { runInventoryLint } from "../../scripts/e2e-inventory-lint.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const lawPath = join(root, "docs", "governance", "0.3-e2e-inventory-law.md");
@@ -31,6 +31,20 @@ const inventoryPath = join(
   "BROWSER_E2E_INVENTORY.md",
 );
 const packageJsonPath = join(root, "package.json");
+const baselinePath = join(root, "scripts", "e2e-inventory-required-baseline.json");
+const lintScriptPath = join(root, "scripts", "e2e-inventory-lint.mjs");
+
+/** Format lint/spawn result for assertion messages. */
+function fmtResult(r) {
+  const status = r.status ?? r.exitCode;
+  const err =
+    r.error && typeof r.error === "object" && "message" in r.error
+      ? r.error.message
+      : r.error
+        ? String(r.error)
+        : "";
+  return `status=${status} signal=${r.signal ?? ""}\nerror=${err}\nstdout=${r.stdout ?? ""}\nstderr=${r.stderr ?? ""}`;
+}
 
 describe("0.3 Browser E2E inventory law", () => {
   it("assert law doc exists", () => {
@@ -178,30 +192,37 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   it("inventory lint script passes (anti-shrinkage baseline)", () => {
-    // Strip node:test runner context so the child is a plain script process.
-    // Inheriting NODE_TEST_CONTEXT can suppress child stdout under some runners.
+    // CLI smoke: real process entry (no nested node:test context required).
     const childEnv = { ...process.env };
     delete childEnv.NODE_TEST_CONTEXT;
     delete childEnv.NODE_TEST_NAME;
-    const result = spawnSync(
-      process.execPath,
-      [join(root, "scripts", "e2e-inventory-lint.mjs")],
-      { cwd: root, encoding: "utf8", env: childEnv },
-    );
+    const result = spawnSync(process.execPath, [lintScriptPath], {
+      cwd: root,
+      encoding: "utf8",
+      env: childEnv,
+      timeout: 30_000,
+    });
     assert.equal(
       result.status,
       0,
-      `test:e2e:inventory must pass (exit 0):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `test:e2e:inventory must pass (exit 0):\n${fmtResult(result)}`,
     );
-    // Prefer OK in stdout when present; exit status alone is sufficient if empty.
     if (result.stdout && result.stdout.length > 0) {
       assert.match(result.stdout, /OK/);
     }
+
+    // In-process API must agree (pipeline-safe, no subprocess).
+    const inProcess = runInventoryLint({ root, silent: true });
+    assert.equal(
+      inProcess.exitCode,
+      0,
+      `runInventoryLint must pass:\n${fmtResult(inProcess)}`,
+    );
   });
 
   /**
-   * Spawn inventory lint against a temp inventory mutation.
-   * Returns { status, stdout, stderr }.
+   * In-process lint against a temp inventory mutation (no spawn).
+   * Returns { status, stdout, stderr, exitCode }.
    */
   function runLintAgainstMutatedInventory(mutate) {
     const inv = readFileSync(inventoryPath, "utf8");
@@ -217,18 +238,18 @@ describe("0.3 Browser E2E inventory law", () => {
       const badInvPath = join(dir, "BROWSER_E2E_INVENTORY.md");
       writeFileSync(badInvPath, mutated, "utf8");
 
-      const childEnv = {
-        ...process.env,
-        E2E_INVENTORY_PATH: badInvPath,
+      const result = runInventoryLint({
+        inventoryPath: badInvPath,
+        baselinePath,
+        e2eRoots: [], // status checks run before e2e; empty roots OK for OPEN-only
+        silent: true,
+      });
+      return {
+        status: result.exitCode,
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
       };
-      delete childEnv.NODE_TEST_CONTEXT;
-      delete childEnv.NODE_TEST_NAME;
-
-      return spawnSync(
-        process.execPath,
-        [join(root, "scripts", "e2e-inventory-lint.mjs")],
-        { cwd: root, encoding: "utf8", env: childEnv },
-      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -243,14 +264,13 @@ describe("0.3 Browser E2E inventory law", () => {
   }
 
   it("rejects unrecognized inventory status values (word-character typo)", () => {
-    // Typo IMPLMENTED is still \w+ — must fail after parse, not be treated as a valid status.
     const result = runLintAgainstMutatedInventory((inv) =>
       withA01Status(inv, "IMPLMENTED"),
     );
     assert.notEqual(
       result.status,
       0,
-      `unrecognized status must fail lint (got exit ${result.status}):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `unrecognized status must fail lint:\n${fmtResult(result)}`,
     );
     assert.match(
       result.stderr,
@@ -265,12 +285,11 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   it("rejects blank inventory status (not skipped by parse)", () => {
-    // Blank Status must be parsed as a journey row then rejected — not omitted by a \w+ status regex.
     const result = runLintAgainstMutatedInventory((inv) => withA01Status(inv, ""));
     assert.notEqual(
       result.status,
       0,
-      `blank status must fail lint (got exit ${result.status}):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `blank status must fail lint:\n${fmtResult(result)}`,
     );
     assert.match(
       result.stderr,
@@ -285,14 +304,13 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   it("rejects non-word invalid inventory status (IMPLEMENTED!)", () => {
-    // Non-word Status (punctuation) must not be silently skipped by a \w+ capture group.
     const result = runLintAgainstMutatedInventory((inv) =>
       withA01Status(inv, "IMPLEMENTED!"),
     );
     assert.notEqual(
       result.status,
       0,
-      `non-word invalid status must fail lint (got exit ${result.status}):\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+      `non-word invalid status must fail lint:\n${fmtResult(result)}`,
     );
     assert.match(
       result.stderr,
@@ -307,41 +325,54 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   /**
-   * Isolated probe workspace: real lint + baseline, mutated inventory, optional e2e tree.
-   * Mirrors the auditor's archive-and-mutate technique so regressions stay pinned.
+   * Isolated probe workspace via in-process runInventoryLint (no nested spawn).
+   * Avoids pipeline/subprocess fragility while pinning regression fixtures.
    */
-  function runLintInProbe({ inventoryMutate, ensureEmptyE2eRoot = false, e2eFiles = null }) {
+  function runLintInProbe({
+    inventoryMutate,
+    ensureEmptyE2eRoot = false,
+    e2eFiles = null,
+    fullGate = false,
+  }) {
     const probe = mkdtempSync(join(tmpdir(), "spo-e2e-probe-"));
     try {
-      mkdirSync(join(probe, "scripts"), { recursive: true });
-      mkdirSync(join(probe, "KMS-competition/initiative"), { recursive: true });
-      cpSync(
-        join(root, "scripts/e2e-inventory-lint.mjs"),
-        join(probe, "scripts/e2e-inventory-lint.mjs"),
-      );
-      cpSync(
-        join(root, "scripts/e2e-inventory-required-baseline.json"),
-        join(probe, "scripts/e2e-inventory-required-baseline.json"),
-      );
       let inv = readFileSync(inventoryPath, "utf8");
       if (inventoryMutate) inv = inventoryMutate(inv);
-      writeFileSync(
-        join(probe, "KMS-competition/initiative/BROWSER_E2E_INVENTORY.md"),
-        inv,
-      );
-      if (ensureEmptyE2eRoot) {
-        mkdirSync(join(probe, "playwright/e2e"), { recursive: true });
-      }
+      const invPath = join(probe, "BROWSER_E2E_INVENTORY.md");
+      writeFileSync(invPath, inv, "utf8");
+
+      const e2eDir = join(probe, "playwright", "e2e");
+      /** @type {string[]} */
+      let e2eRoots;
       if (e2eFiles) {
-        mkdirSync(join(probe, "playwright/e2e"), { recursive: true });
+        mkdirSync(e2eDir, { recursive: true });
         for (const [name, body] of Object.entries(e2eFiles)) {
-          writeFileSync(join(probe, "playwright/e2e", name), body, "utf8");
+          const dest = join(e2eDir, name);
+          mkdirSync(dirname(dest), { recursive: true });
+          writeFileSync(dest, body, "utf8");
         }
+        e2eRoots = [e2eDir];
+      } else if (ensureEmptyE2eRoot) {
+        mkdirSync(e2eDir, { recursive: true });
+        e2eRoots = [e2eDir];
+      } else {
+        // Missing root: point at a non-existent path under the probe.
+        e2eRoots = [join(probe, "playwright", "e2e")];
       }
-      return spawnSync(process.execPath, [join(probe, "scripts/e2e-inventory-lint.mjs")], {
-        cwd: probe,
-        encoding: "utf8",
+
+      const result = runInventoryLint({
+        inventoryPath: invPath,
+        baselinePath,
+        e2eRoots,
+        fullGate,
+        silent: true,
       });
+      return {
+        status: result.exitCode,
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      };
     } finally {
       rmSync(probe, { recursive: true, force: true });
     }
@@ -351,8 +382,11 @@ describe("0.3 Browser E2E inventory law", () => {
     return inv.replace(/^(\| A01 \|.*\| REQUIRED \|) OPEN \|/m, "$1 IMPLEMENTED |");
   }
 
+  /** Valid A01 fixture: real test() title with @inv + test_id anchor. */
+  const a01RealTest =
+    'test("@inv:A01 e2e/public/cfp-load public CFP loads", async () => {});\n';
+
   it("rejects empty intermediate E2E tree when IMPLEMENTED requires @inv", () => {
-    // Coherent rule: empty playwright/e2e + IMPLEMENTED A01 must not exit 0
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       ensureEmptyE2eRoot: true,
@@ -360,22 +394,21 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.notEqual(
       r.status,
       0,
-      `expected fail on empty e2e tree with IMPLEMENTED A01 (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+      `expected fail on empty e2e tree with IMPLEMENTED A01:\n${fmtResult(r)}`,
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
       /no test files|@inv/i,
-      `stderr/stdout must mention empty files or @inv:\n${r.stderr}\n${r.stdout}`,
+      `stderr/stdout must mention empty files or @inv:\n${fmtResult(r)}`,
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
       /A01/,
-      `must name the status-owned ID:\n${r.stderr}\n${r.stdout}`,
+      `must name the status-owned ID:\n${fmtResult(r)}`,
     );
   });
 
   it("rejects missing E2E root when IMPLEMENTED requires @inv", () => {
-    // Status-owned claim without any e2e root is not deferred (same rule as empty root).
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       ensureEmptyE2eRoot: false,
@@ -383,22 +416,21 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.notEqual(
       r.status,
       0,
-      `expected fail with no e2e root + IMPLEMENTED A01 (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+      `expected fail with no e2e root + IMPLEMENTED A01:\n${fmtResult(r)}`,
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
-      /no E2E root|@inv/i,
-      `stderr/stdout must mention missing root or @inv:\n${r.stderr}\n${r.stdout}`,
+      /no E2E root|@inv|no test files/i,
+      `stderr/stdout must mention missing root or @inv:\n${fmtResult(r)}`,
     );
   });
 
   it("allows empty E2E root when all journeys remain OPEN", () => {
-    // Pre-harness: empty dir + all OPEN is OK (nothing status-owned yet).
     const r = runLintInProbe({ ensureEmptyE2eRoot: true });
     assert.equal(
       r.status,
       0,
-      `empty e2e + all OPEN must pass (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+      `empty e2e + all OPEN must pass:\n${fmtResult(r)}`,
     );
   });
 
@@ -410,23 +442,135 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.notEqual(
       r.status,
       0,
-      `expected fail when files lack @inv:A01 (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+      `expected fail when files lack @inv:A01:\n${fmtResult(r)}`,
     );
     assert.match(`${r.stderr}\n${r.stdout}`, /missing @inv|A01/i);
   });
 
-  it("accepts e2e files with @inv for IMPLEMENTED row", () => {
+  it("accepts e2e files with @inv on real test() for IMPLEMENTED row", () => {
     const r = runLintInProbe({
       inventoryMutate: markA01Implemented,
       e2eFiles: {
-        "a.spec.ts": 'test("@inv:A01 public CFP loads", async () => {});\n',
+        "public/cfp-load.spec.ts": a01RealTest,
       },
     });
     assert.equal(
       r.status,
       0,
-      `expected pass with @inv:A01 present (got ${r.status}):\n${r.stdout}\n${r.stderr}`,
+      `expected pass with @inv:A01 on real test():\n${fmtResult(r)}`,
     );
   });
 
+  it("rejects comment-only @inv tags for IMPLEMENTED row (not 1:1)", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "tags-only.spec.ts": "// @inv:A01 comment is not a Playwright test\n",
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `comment-only @inv must fail:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /outside test\(\)|comments|missing @inv|A01/i,
+      `must explain comment-only failure:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects skipped-only @inv coverage for IMPLEMENTED row", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          'test.skip("@inv:A01 e2e/public/cfp-load skipped", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `test.skip-only @inv must fail:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /skipped|fixme|A01/i,
+      `must explain skip-only failure:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects @inv not anchored to inventory test_id", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "wrong-name.spec.ts":
+          'test("@inv:A01 unrelated title without path anchor", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `wrong test_id anchor must fail:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /test_id|anchored|A01/i,
+      `must explain test_id mismatch:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate rejects comment-only tags for all REQUIRED IDs", () => {
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+    const ids = baseline.required_ids;
+    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    const comments = ids.map((id) => `// @inv:${id}`).join("\n") + "\n";
+    const r = runLintInProbe({
+      e2eFiles: { "comments-only.spec.ts": comments },
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 must not accept 108 comment-only tags:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /outside test\(\)|comments|missing @inv/i,
+      `phase8 diagnostics for comment-only:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("Phase 8 gate fails when E2E root is empty (coverage not deferred)", () => {
+    const r = runLintInProbe({
+      ensureEmptyE2eRoot: true,
+      fullGate: true,
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `phase8 empty tree must fail:\n${fmtResult(r)}`,
+    );
+  });
+
+  it("rejects duplicate active @inv owners for the same ID", () => {
+    const r = runLintInProbe({
+      inventoryMutate: markA01Implemented,
+      e2eFiles: {
+        "public/cfp-load.spec.ts":
+          'test("@inv:A01 e2e/public/cfp-load first", async () => {});\n' +
+          'test("@inv:A01 e2e/public/cfp-load second", async () => {});\n',
+      },
+    });
+    assert.notEqual(
+      r.status,
+      0,
+      `duplicate @inv:A01 must fail 1:1 map:\n${fmtResult(r)}`,
+    );
+    assert.match(
+      `${r.stderr}\n${r.stdout}`,
+      /duplicate|1:1|A01/i,
+      `must explain duplicate owners:\n${fmtResult(r)}`,
+    );
+  });
 });
