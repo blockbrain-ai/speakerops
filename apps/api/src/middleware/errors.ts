@@ -49,10 +49,16 @@ export const notFoundHandler: NotFoundHandler = (c: Context) => {
 export const onErrorHandler: ErrorHandler = (err, c) => {
   // Structured log placeholder: message only, no stack/secrets to client.
   // Real logger lands with observability sections; void keeps no console in product path.
+  // DEMO_MODE dogfood: surface message (not stack) so live D proofs can diagnose
+  // Worker failures without reading wrangler tail.
+  const demo =
+    (c.env as { DEMO_MODE?: string } | undefined)?.DEMO_MODE === "1" ||
+    (c.env as { DEMO_MODE?: string } | undefined)?.DEMO_MODE === "true";
+  const message =
+    demo && err instanceof Error && err.message
+      ? `Unexpected error: ${err.message}`
+      : "Unexpected error";
   void err;
-  const body: ErrorEnvelope = errorEnvelope(
-    "Unexpected error",
-    INTERNAL_ERROR,
-  );
+  const body: ErrorEnvelope = errorEnvelope(message, INTERNAL_ERROR);
   return c.json(body, 500);
 };
