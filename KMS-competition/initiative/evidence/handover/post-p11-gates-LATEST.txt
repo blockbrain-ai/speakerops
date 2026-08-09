@@ -1,0 +1,3387 @@
+=== typecheck ===
+
+> speakerops@0.1.0 typecheck /mnt/HC_Volume_105994188/speakerops-build
+> tsc -b --pretty false
+
+TYPECHECK_EXIT=0
+=== test:ci ===
+
+> speakerops@0.1.0 test:ci /mnt/HC_Volume_105994188/speakerops-build
+> node --test tests/ && vitest run
+
+TAP version 13
+# Subtest: 0.1 programme contract
+    # Subtest: assert file docs/governance/0.1-programme-contract.md exists
+    ok 1 - assert file docs/governance/0.1-programme-contract.md exists
+      ---
+      duration_ms: 1.028548
+      ...
+    # Subtest: assert contains 'D1' and 'Airtable' and 'non-goals'
+    ok 2 - assert contains 'D1' and 'Airtable' and 'non-goals'
+      ---
+      duration_ms: 1.279068
+      ...
+    # Subtest: assert links path to 00_CONSTITUTION.md
+    ok 3 - assert links path to 00_CONSTITUTION.md
+      ---
+      duration_ms: 0.921339
+      ...
+    # Subtest: includes human review checklist checkboxes
+    ok 4 - includes human review checklist checkboxes
+      ---
+      duration_ms: 1.836879
+      ...
+    # Subtest: stack lock rejects dual-stack / Next / agent fleet inventions
+    ok 5 - stack lock rejects dual-stack / Next / agent fleet inventions
+      ---
+      duration_ms: 1.154889
+      ...
+    # Subtest: points to browser E2E inventory law and Phase 9 exit
+    ok 6 - points to browser E2E inventory law and Phase 9 exit
+      ---
+      duration_ms: 0.361658
+      ...
+    # Subtest: docs/CONTRACTS.md index exists and links constitution + D1
+    ok 7 - docs/CONTRACTS.md index exists and links constitution + D1
+      ---
+      duration_ms: 1.223499
+      ...
+    # Subtest: soul test pointer lists S-* ids without replacing constitution
+    ok 8 - soul test pointer lists S-* ids without replacing constitution
+      ---
+      duration_ms: 0.414359
+      ...
+    1..8
+ok 1 - 0.1 programme contract
+  ---
+  duration_ms: 11.143966
+  type: 'suite'
+  ...
+# Subtest: 0.2 Lumen design system lock
+    # Subtest: assert lumen lock doc exists
+    ok 1 - assert lumen lock doc exists
+      ---
+      duration_ms: 1.170789
+      ...
+    # Subtest: assert lumen lock doc lists --lumen-focus-ring
+    ok 2 - assert lumen lock doc lists --lumen-focus-ring
+      ---
+      duration_ms: 1.832288
+      ...
+    # Subtest: assert SVG rejected language present
+    ok 3 - assert SVG rejected language present
+      ---
+      duration_ms: 0.402951
+      ...
+    # Subtest: assert retheme blast radius public+portal only
+    ok 4 - assert retheme blast radius public+portal only
+      ---
+      duration_ms: 0.533999
+      ...
+    # Subtest: contrast gate rule is explicit (AA / block publish)
+    ok 5 - contrast gate rule is explicit (AA / block publish)
+      ---
+      duration_ms: 0.411611
+      ...
+    # Subtest: component list includes schedule tile and Design Kit
+    ok 6 - component list includes schedule tile and Design Kit
+      ---
+      duration_ms: 0.341599
+      ...
+    # Subtest: linked from standards E6 via CONTRACTS index and lock doc
+    ok 7 - linked from standards E6 via CONTRACTS index and lock doc
+      ---
+      duration_ms: 0.457309
+      ...
+    # Subtest: points at initiative Lumen source and does not implement app CSS
+    ok 8 - points at initiative Lumen source and does not implement app CSS
+      ---
+      duration_ms: 0.584199
+      ...
+    # Subtest: includes human review checklist and AC proof map
+    ok 9 - includes human review checklist and AC proof map
+      ---
+      duration_ms: 0.51377
+      ...
+    1..9
+ok 2 - 0.2 Lumen design system lock
+  ---
+  duration_ms: 8.1974
+  type: 'suite'
+  ...
+# Subtest: 0.3 Browser E2E inventory law
+    # Subtest: assert law doc exists
+    ok 1 - assert law doc exists
+      ---
+      duration_ms: 6.444572
+      ...
+    # Subtest: assert inventory law forbids shrinkage
+    ok 2 - assert inventory law forbids shrinkage
+      ---
+      duration_ms: 0.679029
+      ...
+    # Subtest: assert REQUIRED definition present
+    ok 3 - assert REQUIRED definition present
+      ---
+      duration_ms: 4.230805
+      ...
+    # Subtest: assert discovery crawl REQUIRED at phase 8
+    ok 4 - assert discovery crawl REQUIRED at phase 8
+      ---
+      duration_ms: 0.802288
+      ...
+    # Subtest: maps phases to inventory letter ranges
+    ok 5 - maps phases to inventory letter ranges
+      ---
+      duration_ms: 0.40536
+      ...
+    # Subtest: documents @inv tagging convention
+    ok 6 - documents @inv tagging convention
+      ---
+      duration_ms: 0.246191
+      ...
+    # Subtest: documents pnpm test:e2e and test:e2e:inventory
+    ok 7 - documents pnpm test:e2e and test:e2e:inventory
+      ---
+      duration_ms: 0.439519
+      ...
+    # Subtest: points at canonical inventory and constitution souls
+    ok 8 - points at canonical inventory and constitution souls
+      ---
+      duration_ms: 0.409989
+      ...
+    # Subtest: linked from docs/CONTRACTS.md
+    ok 9 - linked from docs/CONTRACTS.md
+      ---
+      duration_ms: 0.826039
+      ...
+    # Subtest: includes human review checklist and AC proof map
+    ok 10 - includes human review checklist and AC proof map
+      ---
+      duration_ms: 0.39195
+      ...
+    # Subtest: inventory lint script passes (anti-shrinkage baseline)
+    ok 11 - inventory lint script passes (anti-shrinkage baseline)
+      ---
+      duration_ms: 8796.897702
+      ...
+    # Subtest: rejects unrecognized inventory status values (word-character typo)
+    ok 12 - rejects unrecognized inventory status values (word-character typo)
+      ---
+      duration_ms: 5.776512
+      ...
+    # Subtest: rejects blank inventory status (not skipped by parse)
+    ok 13 - rejects blank inventory status (not skipped by parse)
+      ---
+      duration_ms: 1.330748
+      ...
+    # Subtest: rejects non-word invalid inventory status (IMPLEMENTED!)
+    ok 14 - rejects non-word invalid inventory status (IMPLEMENTED!)
+      ---
+      duration_ms: 4.422145
+      ...
+    # Subtest: rejects empty intermediate E2E tree when IMPLEMENTED requires @inv
+    ok 15 - rejects empty intermediate E2E tree when IMPLEMENTED requires @inv
+      ---
+      duration_ms: 5.421512
+      ...
+    # Subtest: rejects missing E2E root when IMPLEMENTED requires @inv
+    ok 16 - rejects missing E2E root when IMPLEMENTED requires @inv
+      ---
+      duration_ms: 1.464517
+      ...
+    # Subtest: allows empty E2E root when all journeys remain OPEN
+    ok 17 - allows empty E2E root when all journeys remain OPEN
+      ---
+      duration_ms: 4.569494
+      ...
+    # Subtest: rejects e2e files missing @inv for IMPLEMENTED row
+    ok 18 - rejects e2e files missing @inv for IMPLEMENTED row
+      ---
+      duration_ms: 2.388167
+      ...
+    # Subtest: accepts e2e files with @inv on Playwright-bound test() for IMPLEMENTED row
+    ok 19 - accepts e2e files with @inv on Playwright-bound test() for IMPLEMENTED row
+      ---
+      duration_ms: 3.148696
+      ...
+    # Subtest: accepts fixture rebind (test as base + base.extend) as Playwright-bound
+    ok 20 - accepts fixture rebind (test as base + base.extend) as Playwright-bound
+      ---
+      duration_ms: 5.438283
+      ...
+    # Subtest: accepts typed fixture rebind (base.extend<MyFixtures>) as Playwright-bound
+    ok 21 - accepts typed fixture rebind (base.extend<MyFixtures>) as Playwright-bound
+      ---
+      duration_ms: 2.215586
+      ...
+    # Subtest: accepts nested generic fixture rebind (base.extend<Foo<Bar>>)
+    ok 22 - accepts nested generic fixture rebind (base.extend<Foo<Bar>>)
+      ---
+      duration_ms: 2.034338
+      ...
+    # Subtest: accepts multi-arg generic fixture rebind (base.extend<Foo, Bar>)
+    ok 23 - accepts multi-arg generic fixture rebind (base.extend<Foo, Bar>)
+      ---
+      duration_ms: 1.928747
+      ...
+    # Subtest: accepts single-line fixture callback with commas as Playwright-bound
+    ok 24 - accepts single-line fixture callback with commas as Playwright-bound
+      ---
+      duration_ms: 3.790406
+      ...
+    # Subtest: isPlaywrightRebindRhs keeps multi-generic and fixture commas intact
+    ok 25 - isPlaywrightRebindRhs keeps multi-generic and fixture commas intact
+      ---
+      duration_ms: 0.258949
+      ...
+    # Subtest: rejects local no-op test() without Playwright import for IMPLEMENTED row
+    ok 26 - rejects local no-op test() without Playwright import for IMPLEMENTED row
+      ---
+      duration_ms: 3.687286
+      ...
+    # Subtest: extractPlaywrightTestBindings rejects import type { test } (type-only)
+    ok 27 - extractPlaywrightTestBindings rejects import type { test } (type-only)
+      ---
+      duration_ms: 0.217339
+      ...
+    # Subtest: rejects import type { test } as Playwright-bound coverage for IMPLEMENTED row
+    ok 28 - rejects import type { test } as Playwright-bound coverage for IMPLEMENTED row
+      ---
+      duration_ms: 4.322065
+      ...
+    # Subtest: rejects import { type test } inline type-only as Playwright-bound coverage
+    ok 29 - rejects import { type test } inline type-only as Playwright-bound coverage
+      ---
+      duration_ms: 1.763598
+      ...
+    # Subtest: rejects comment-only @inv tags for IMPLEMENTED row (not 1:1)
+    ok 30 - rejects comment-only @inv tags for IMPLEMENTED row (not 1:1)
+      ---
+      duration_ms: 5.302174
+      ...
+    # Subtest: rejects skipped-only @inv coverage for IMPLEMENTED row
+    ok 31 - rejects skipped-only @inv coverage for IMPLEMENTED row
+      ---
+      duration_ms: 1.972277
+      ...
+    # Subtest: rejects test.fail()-only @inv coverage for IMPLEMENTED row (not dogfood proof)
+    ok 32 - rejects test.fail()-only @inv coverage for IMPLEMENTED row (not dogfood proof)
+      ---
+      duration_ms: 4.521823
+      ...
+    # Subtest: rejects multi-@inv tag on a single test() title (breaks 1:1 map)
+    ok 33 - rejects multi-@inv tag on a single test() title (breaks 1:1 map)
+      ---
+      duration_ms: 2.222147
+      ...
+    # Subtest: rejects @inv not anchored to inventory test_id
+    ok 34 - rejects @inv not anchored to inventory test_id
+      ---
+      duration_ms: 13.085315
+      ...
+    # Subtest: Phase 8 gate rejects OPEN statuses even with full Playwright-bound @inv map
+    ok 35 - Phase 8 gate rejects OPEN statuses even with full Playwright-bound @inv map
+      ---
+      duration_ms: 6.210722
+      ...
+    # Subtest: Phase 8 gate rejects mass DEFER without owner amendments (anti greenwash)
+    ok 36 - Phase 8 gate rejects mass DEFER without owner amendments (anti greenwash)
+      ---
+      duration_ms: 2.538617
+      ...
+    # Subtest: rejects single inventory DEFER without constitution owner amendment
+    ok 37 - rejects single inventory DEFER without constitution owner amendment
+      ---
+      duration_ms: 2.829728
+      ...
+    # Subtest: Phase 8 gate exempts owner-authorized DEFER from PASS set
+    ok 38 - Phase 8 gate exempts owner-authorized DEFER from PASS set
+      ---
+      duration_ms: 150.406838
+      ...
+    # Subtest: rejects DEFER with empty reason/date/owner placeholder amendment
+    ok 39 - rejects DEFER with empty reason/date/owner placeholder amendment
+      ---
+      duration_ms: 3.346556
+      ...
+    # Subtest: rejects nested template-expression string import spoof
+    ok 40 - rejects nested template-expression string import spoof
+      ---
+      duration_ms: 3.699255
+      ...
+    # Subtest: rejects bare reassignment of Playwright test binding
+    ok 41 - rejects bare reassignment of Playwright test binding
+      ---
+      duration_ms: 4.387474
+      ...
+    # Subtest: Phase 8 rejects stringified test() decoy calls when real import present
+    ok 42 - Phase 8 rejects stringified test() decoy calls when real import present
+      ---
+      duration_ms: 5.431853
+      ...
+    # Subtest: Phase 8 gate rejects string-literal import spoof + local test rebinding
+    ok 43 - Phase 8 gate rejects string-literal import spoof + local test rebinding
+      ---
+      duration_ms: 6.418082
+      ...
+    # Subtest: Phase 8 gate rejects bare decoy-import string with tagged test() calls
+    ok 44 - Phase 8 gate rejects bare decoy-import string with tagged test() calls
+      ---
+      duration_ms: 5.778112
+      ...
+    # Subtest: rejects @inv that appears only inside a string despite real Playwright import
+    ok 45 - rejects @inv that appears only inside a string despite real Playwright import
+      ---
+      duration_ms: 4.949633
+      ...
+    # Subtest: accepts real test() when a string contains shadow/import decoy text
+    ok 46 - accepts real test() when a string contains shadow/import decoy text
+      ---
+      duration_ms: 4.337135
+      ...
+    # Subtest: rejects real import shadowed by local const test = noop
+    ok 47 - rejects real import shadowed by local const test = noop
+      ---
+      duration_ms: 3.533656
+      ...
+    # Subtest: Phase 8 gate rejects local no-op test() map even when all statuses are PASS
+    ok 48 - Phase 8 gate rejects local no-op test() map even when all statuses are PASS
+      ---
+      duration_ms: 5.535184
+      ...
+    # Subtest: Phase 8 gate rejects comment-only tags for all REQUIRED IDs
+    ok 49 - Phase 8 gate rejects comment-only tags for all REQUIRED IDs
+      ---
+      duration_ms: 2.200257
+      ...
+    # Subtest: Phase 8 gate fails when E2E root is empty (coverage not deferred)
+    ok 50 - Phase 8 gate fails when E2E root is empty (coverage not deferred)
+      ---
+      duration_ms: 1.441938
+      ...
+    # Subtest: rejects duplicate active @inv owners for the same ID
+    ok 51 - rejects duplicate active @inv owners for the same ID
+      ---
+      duration_ms: 2.488957
+      ...
+    # Subtest: Phase 8 gate rejects single test() owning all REQUIRED @inv tags
+    ok 52 - Phase 8 gate rejects single test() owning all REQUIRED @inv tags
+      ---
+      duration_ms: 2.183246
+      ...
+    # Subtest: Phase 8 gate rejects test.fail() as active coverage for all REQUIRED IDs
+    ok 53 - Phase 8 gate rejects test.fail() as active coverage for all REQUIRED IDs
+      ---
+      duration_ms: 5.106254
+      ...
+    # Subtest: Phase 8 gate accepts full PASS inventory + 1:1 Playwright-bound @inv map + run report
+    ok 54 - Phase 8 gate accepts full PASS inventory + 1:1 Playwright-bound @inv map + run report
+      ---
+      duration_ms: 93.648891
+      ...
+    # Subtest: rejects @inv nested under test.describe.skip (static extractor)
+    ok 55 - rejects @inv nested under test.describe.skip (static extractor)
+      ---
+      duration_ms: 5.313443
+      ...
+    # Subtest: Phase 8 gate rejects all baseline @inv nested under test.describe.skip
+    ok 56 - Phase 8 gate rejects all baseline @inv nested under test.describe.skip
+      ---
+      duration_ms: 9.783508
+      ...
+    # Subtest: Phase 8 gate rejects list-only suite without execution outcomes
+    ok 57 - Phase 8 gate rejects list-only suite without execution outcomes
+      ---
+      duration_ms: 131.106904
+      ...
+    # Subtest: Phase 8 gate rejects run report where every result is skipped
+    ok 58 - Phase 8 gate rejects run report where every result is skipped
+      ---
+      duration_ms: 94.14752
+      ...
+    # Subtest: Phase 8 gate rejects run report with failed outcomes
+    ok 59 - Phase 8 gate rejects run report with failed outcomes
+      ---
+      duration_ms: 149.73167
+      ...
+    # Subtest: rejects new REQUIRED inventory IDs not ratified into persistent baseline
+    ok 60 - rejects new REQUIRED inventory IDs not ratified into persistent baseline
+      ---
+      duration_ms: 3.178457
+      ...
+    # Subtest: rejects when baseline omits an inventory REQUIRED ID (growth unprotected)
+    ok 61 - rejects when baseline omits an inventory REQUIRED ID (growth unprotected)
+      ---
+      duration_ms: 9.709788
+      ...
+    # Subtest: rejects @inv only in files excluded from Playwright config-selected suite
+    ok 62 - rejects @inv only in files excluded from Playwright config-selected suite
+      ---
+      duration_ms: 2.994557
+      ...
+    # Subtest: rejects @inv only on titles not listed in Playwright selected suite (dead code)
+    ok 63 - rejects @inv only on titles not listed in Playwright selected suite (dead code)
+      ---
+      duration_ms: 10.830346
+      ...
+    # Subtest: accepts @inv when Playwright suite selects the tagged title
+    ok 64 - accepts @inv when Playwright suite selects the tagged title
+      ---
+      duration_ms: 2.016808
+      ...
+    # Subtest: accepts suite report file for config-selected reconciliation
+    ok 65 - accepts suite report file for config-selected reconciliation
+      ---
+      duration_ms: 2.146588
+      ...
+    # Subtest: package.json test scripts use Node recursive discovery (not shell **)
+    ok 66 - package.json test scripts use Node recursive discovery (not shell **)
+      ---
+      duration_ms: 5.984663
+      ...
+    # Subtest: extractInvTaggedTests marks describe.skip nests as skipped
+    ok 67 - extractInvTaggedTests marks describe.skip nests as skipped
+      ---
+      duration_ms: 2.345227
+      ...
+    # Subtest: normalizePlaywrightSuite preserves execution outcomes from JSON reporter
+    ok 68 - normalizePlaywrightSuite preserves execution outcomes from JSON reporter
+      ---
+      duration_ms: 0.29373
+      ...
+    # Subtest: normalizePlaywrightSuite list-only entries have no execution outcomes
+    ok 69 - normalizePlaywrightSuite list-only entries have no execution outcomes
+      ---
+      duration_ms: 0.132809
+      ...
+    # Subtest: resolvePlaywrightRunReport rejects playwright-list-* and prefers real run report
+    ok 70 - resolvePlaywrightRunReport rejects playwright-list-* and prefers real run report
+      ---
+      duration_ms: 0.78544
+      ...
+    # Subtest: law doc requires Phase 8 run report execution proof
+    ok 71 - law doc requires Phase 8 run report execution proof
+      ---
+      duration_ms: 0.326459
+      ...
+    1..71
+ok 3 - 0.3 Browser E2E inventory law
+  ---
+  duration_ms: 9652.461985
+  type: 'suite'
+  ...
+# Subtest: 0.4 Domain and command map
+    # Subtest: assert domain map doc exists
+    ok 1 - assert domain map doc exists
+      ---
+      duration_ms: 1.307369
+      ...
+    # Subtest: assert COMMANDS and SCHEMA linked
+    ok 2 - assert COMMANDS and SCHEMA linked
+      ---
+      duration_ms: 2.703147
+      ...
+    # Subtest: assert Person≠Speaker sentence
+    ok 3 - assert Person≠Speaker sentence
+      ---
+      duration_ms: 0.474988
+      ...
+    # Subtest: assert scopes default-deny listed
+    ok 4 - assert scopes default-deny listed
+      ---
+      duration_ms: 1.5826
+      ...
+    # Subtest: includes command list summary and schema ownership
+    ok 5 - includes command list summary and schema ownership
+      ---
+      duration_ms: 0.447069
+      ...
+    # Subtest: points at S-CLI and composition roots
+    ok 6 - points at S-CLI and composition roots
+      ---
+      duration_ms: 1.971197
+      ...
+    # Subtest: linked from docs/CONTRACTS.md and README
+    ok 7 - linked from docs/CONTRACTS.md and README
+      ---
+      duration_ms: 0.325769
+      ...
+    # Subtest: includes human review checklist and AC proof map
+    ok 8 - includes human review checklist and AC proof map
+      ---
+      duration_ms: 0.36479
+      ...
+    # Subtest: no secrets or magic-link tokens in domain map
+    ok 9 - no secrets or magic-link tokens in domain map
+      ---
+      duration_ms: 1.852438
+      ...
+    # Subtest: canonical contracts still declare default-deny high-risk scopes
+    ok 10 - canonical contracts still declare default-deny high-risk scopes
+      ---
+      duration_ms: 0.521099
+      ...
+    1..10
+ok 4 - 0.4 Domain and command map
+  ---
+  duration_ms: 13.562843
+  type: 'suite'
+  ...
+# Subtest: 0.5 Docs and onboarding outline
+    # Subtest: assert outline doc exists
+    ok 1 - assert outline doc exists
+      ---
+      duration_ms: 2.978627
+      ...
+    # Subtest: assert ONBOARDING.md and AGENT_SETUP.md and reports/index.html in outline
+    ok 2 - assert ONBOARDING.md and AGENT_SETUP.md and reports/index.html in outline
+      ---
+      duration_ms: 1.483539
+      ...
+    # Subtest: assert S-ONB souls named
+    ok 3 - assert S-ONB souls named
+      ---
+      duration_ms: 0.736888
+      ...
+    # Subtest: tree matches Phase 9 index docs/ and reports/ leaves
+    ok 4 - tree matches Phase 9 index docs/ and reports/ leaves
+      ---
+      duration_ms: 1.621229
+      ...
+    # Subtest: lists evidence requirements for 9.6 and BC13–BC15
+    ok 5 - lists evidence requirements for 9.6 and BC13–BC15
+      ---
+      duration_ms: 0.479789
+      ...
+    # Subtest: linked from docs/CONTRACTS.md and README
+    ok 6 - linked from docs/CONTRACTS.md and README
+      ---
+      duration_ms: 0.357739
+      ...
+    # Subtest: includes human review checklist and AC proof map
+    ok 7 - includes human review checklist and AC proof map
+      ---
+      duration_ms: 0.86207
+      ...
+    # Subtest: declares no product handlers / final prose in scope
+    ok 8 - declares no product handlers / final prose in scope
+      ---
+      duration_ms: 2.435097
+      ...
+    # Subtest: no secrets or magic-link tokens in outline
+    ok 9 - no secrets or magic-link tokens in outline
+      ---
+      duration_ms: 0.65071
+      ...
+    # Subtest: phase 9 build order 9.1–9.6 present
+    ok 10 - phase 9 build order 9.1–9.6 present
+      ---
+      duration_ms: 1.074828
+      ...
+    1..10
+ok 5 - 0.5 Docs and onboarding outline
+  ---
+  duration_ms: 15.814649
+  type: 'suite'
+  ...
+# Subtest: 1.1 monorepo and CI gates
+    # Subtest: assert pnpm-workspace packages include web,api,shared,db,cli
+    ok 1 - assert pnpm-workspace packages include web,api,shared,db,cli
+      ---
+      duration_ms: 7.639941
+      ...
+    # Subtest: assert package.json scripts typecheck and test:ci lack --watch
+    ok 2 - assert package.json scripts typecheck and test:ci lack --watch
+      ---
+      duration_ms: 0.4118
+      ...
+    # Subtest: assert vitest config watch false
+    ok 3 - assert vitest config watch false
+      ---
+      duration_ms: 0.287438
+      ...
+    # Subtest: assert AGENTS.md references speakerops standards path
+    ok 4 - assert AGENTS.md references speakerops standards path
+      ---
+      duration_ms: 0.38856
+      ...
+    # Subtest: composition roots and section doc exist
+    ok 5 - composition roots and section doc exist
+      ---
+      duration_ms: 0.83365
+      ...
+    # Subtest: shared package exports E4 error envelope (Zod)
+    ok 6 - shared package exports E4 error envelope (Zod)
+      ---
+      duration_ms: 0.654948
+      ...
+    # Subtest: gitignore includes .pipeline/ and .dev.vars
+    ok 7 - gitignore includes .pipeline/ and .dev.vars
+      ---
+      duration_ms: 0.35144
+      ...
+    # Subtest: typescript project references list workspace packages
+    ok 8 - typescript project references list workspace packages
+      ---
+      duration_ms: 0.784129
+      ...
+    1..8
+ok 6 - 1.1 monorepo and CI gates
+  ---
+  duration_ms: 14.405811
+  type: 'suite'
+  ...
+# Subtest: 1.2 worker API health
+    # Subtest: assert wrangler.toml has binding name DB without secret values
+    ok 1 - assert wrangler.toml has binding name DB without secret values
+      ---
+      duration_ms: 2.353596
+      ...
+    # Subtest: composition root implements GET /health and E4 notFound
+    ok 2 - composition root implements GET /health and E4 notFound
+      ---
+      duration_ms: 2.073317
+      ...
+    # Subtest: shared HealthResponseSchema requires ok + version (Zod)
+    ok 3 - shared HealthResponseSchema requires ok + version (Zod)
+      ---
+      duration_ms: 0.31209
+      ...
+    # Subtest: section doc and vitest health tests exist
+    ok 4 - section doc and vitest health tests exist
+      ---
+      duration_ms: 0.398589
+      ...
+    # Subtest: no consequential writes in 1.2 (audit_events N/A until domain writes)
+    ok 5 - no consequential writes in 1.2 (audit_events N/A until domain writes)
+      ---
+      duration_ms: 0.466419
+      ...
+    1..5
+ok 7 - 1.2 worker API health
+  ---
+  duration_ms: 7.024651
+  type: 'suite'
+  ...
+# Subtest: 1.3 D1 Drizzle baseline
+    # Subtest: assert packages/db/schema.ts and 0001_baseline.sql exist with baseline tables
+    ok 1 - assert packages/db/schema.ts and 0001_baseline.sql exist with baseline tables
+      ---
+      duration_ms: 4.714384
+      ...
+    # Subtest: assert events.version column exists in schema and migration
+    ok 2 - assert events.version column exists in schema and migration
+      ---
+      duration_ms: 0.938949
+      ...
+    # Subtest: assert audit_events and outbox_events exist with correlation / payload columns
+    ok 3 - assert audit_events and outbox_events exist with correlation / payload columns
+      ---
+      duration_ms: 0.790509
+      ...
+    # Subtest: pnpm db:migrate / db:generate scripts are real (not stub)
+    ok 4 - pnpm db:migrate / db:generate scripts are real (not stub)
+      ---
+      duration_ms: 0.40719
+      ...
+    # Subtest: repository helpers implement eventId scoping pattern
+    ok 5 - repository helpers implement eventId scoping pattern
+      ---
+      duration_ms: 0.300859
+      ...
+    # Subtest: wrangler.toml points migrations_dir at packages/db/migrations
+    ok 6 - wrangler.toml points migrations_dir at packages/db/migrations
+      ---
+      duration_ms: 0.255711
+      ...
+    # Subtest: section doc and named vitest migration tests exist
+    ok 7 - section doc and named vitest migration tests exist
+      ---
+      duration_ms: 0.406689
+      ...
+    # Subtest: migrations are linear additive NNNN_*.sql only (no domain tables in 1.3)
+    ok 8 - migrations are linear additive NNNN_*.sql only (no domain tables in 1.3)
+      ---
+      duration_ms: 0.697579
+      ...
+    # Subtest: no secrets in schema/migration/wrangler paths
+    ok 9 - no secrets in schema/migration/wrangler paths
+      ---
+      duration_ms: 0.988858
+      ...
+    1..9
+ok 8 - 1.3 D1 Drizzle baseline
+  ---
+  duration_ms: 12.756673
+  type: 'suite'
+  ...
+# Subtest: 1.4 web shell and Lumen tokens
+    # Subtest: assert lumen.css defines --lumen-brand and --lumen-focus-ring
+    ok 1 - assert lumen.css defines --lumen-brand and --lumen-focus-ring
+      ---
+      duration_ms: 1.653128
+      ...
+    # Subtest: assert AdminShell source includes CFP / Forms and Settings nav
+    ok 2 - assert AdminShell source includes CFP / Forms and Settings nav
+      ---
+      duration_ms: 0.34956
+      ...
+    # Subtest: assert production build exits 0
+    ok 3 - assert production build exits 0
+      ---
+      duration_ms: 7073.320509
+      ...
+    # Subtest: composition root, Vite entry, and section doc exist
+    ok 4 - composition root, Vite entry, and section doc exist
+      ---
+      duration_ms: 0.966539
+      ...
+    # Subtest: no dark-default theme (light lock)
+    ok 5 - no dark-default theme (light lock)
+      ---
+      duration_ms: 1.711008
+      ...
+    # Subtest: no HTTP product handlers invented in 1.4 (N/A with proof)
+    ok 6 - no HTTP product handlers invented in 1.4 (N/A with proof)
+      ---
+      duration_ms: 0.48953
+      ...
+    # Subtest: web package has vite + react-router-dom dependencies
+    ok 7 - web package has vite + react-router-dom dependencies
+      ---
+      duration_ms: 2.733325
+      ...
+    1..7
+ok 9 - 1.4 web shell and Lumen tokens
+  ---
+  duration_ms: 7086.559063
+  type: 'suite'
+  ...
+# Subtest: 1.5 Playwright inventory harness
+    # Subtest: assert playwright.config.ts exists
+    ok 1 - assert playwright.config.ts exists
+      ---
+      duration_ms: 4.053615
+      ...
+    # Subtest: scripts/inventory-lint.ts and docs/E2E.md exist
+    ok 2 - scripts/inventory-lint.ts and docs/E2E.md exist
+      ---
+      duration_ms: 0.32936
+      ...
+    # Subtest: documents @inv:A01 convention
+    ok 3 - documents @inv:A01 convention
+      ---
+      duration_ms: 0.543529
+      ...
+    # Subtest: CI script non-interactive (package.json test:e2e:inventory → inventory-lint)
+    ok 4 - CI script non-interactive (package.json test:e2e:inventory → inventory-lint)
+      ---
+      duration_ms: 0.361109
+      ...
+    # Subtest: assert inventory-lint exits 1 when REQUIRED id A01 missing from fixtures
+    ok 5 - assert inventory-lint exits 1 when REQUIRED id A01 missing from fixtures
+      ---
+      duration_ms: 1259.863371
+      ...
+    # Subtest: assert inventory-lint exits 0 when fixture tags all required subset
+    ok 6 - assert inventory-lint exits 0 when fixture tags all required subset
+      ---
+      duration_ms: 1357.109577
+      ...
+    # Subtest: workspace inventory lint (pnpm test:e2e:inventory) exits 0
+    ok 7 - workspace inventory lint (pnpm test:e2e:inventory) exits 0
+      ---
+      duration_ms: 5986.306859
+      ...
+    # Subtest: section 1.5 scope: no product HTTP handlers invented
+    ok 8 - section 1.5 scope: no product HTTP handlers invented
+      ---
+      duration_ms: 15.915169
+      ...
+    1..8
+ok 10 - 1.5 Playwright inventory harness
+  ---
+  duration_ms: 8626.906306
+  type: 'suite'
+  ...
+# Subtest: 1.6 foundation e2e proof
+    # Subtest: foundation_smoke.spec.ts exists with named assertions
+    ok 1 - foundation_smoke.spec.ts exists with named assertions
+      ---
+      duration_ms: 2.227167
+      ...
+    # Subtest: wires local baseURL + webServer for health + SPA
+    ok 2 - wires local baseURL + webServer for health + SPA
+      ---
+      duration_ms: 3.242767
+      ...
+    # Subtest: section doc notes evidence path and N/A product surface
+    ok 3 - section doc notes evidence path and N/A product surface
+      ---
+      duration_ms: 0.417159
+      ...
+    # Subtest: evidence path file exists for phase 1 keystone
+    ok 4 - evidence path file exists for phase 1 keystone
+      ---
+      duration_ms: 0.261539
+      ...
+    # Subtest: pnpm test:e2e remains non-interactive (no --watch)
+    ok 5 - pnpm test:e2e remains non-interactive (no --watch)
+      ---
+      duration_ms: 0.384291
+      ...
+    # Subtest: foundation smoke stays secret-free; API keeps /health (scope guard)
+    ok 6 - foundation smoke stays secret-free; API keeps /health (scope guard)
+      ---
+      duration_ms: 2.809466
+      ...
+    # Subtest: no secrets committed in 1.6 e2e artifacts
+    ok 7 - no secrets committed in 1.6 e2e artifacts
+      ---
+      duration_ms: 2.485026
+      ...
+    1..7
+ok 11 - 1.6 foundation e2e proof
+  ---
+  duration_ms: 14.98022
+  type: 'suite'
+  ...
+# Subtest: 11.8 visual score gates (S-L2-SCORE)
+    # Subtest: visual_lumen2.spec.ts exists and names nine artifact classes
+    ok 1 - visual_lumen2.spec.ts exists and names nine artifact classes
+      ---
+      duration_ms: 2.588865
+      ...
+    # Subtest: LUMEN2_TASTE_SCORE.md overall ≥ 8.0 and no primary < 7.0
+    ok 2 - LUMEN2_TASTE_SCORE.md overall ≥ 8.0 and no primary < 7.0
+      ---
+      duration_ms: 0.939919
+      ...
+    # Subtest: LUMEN2_QA_EVIDENCE.md covers visual suite and QA checklist
+    ok 3 - LUMEN2_QA_EVIDENCE.md covers visual suite and QA checklist
+      ---
+      duration_ms: 1.428187
+      ...
+    # Subtest: package.json exposes test:e2e:visual wired to visual_lumen2.spec.ts
+    ok 4 - package.json exposes test:e2e:visual wired to visual_lumen2.spec.ts
+      ---
+      duration_ms: 0.42166
+      ...
+    # Subtest: livability matrix maps S-L2-SCORE to visual_lumen2 + taste score
+    ok 5 - livability matrix maps S-L2-SCORE to visual_lumen2 + taste score
+      ---
+      duration_ms: 0.29275
+      ...
+    # Subtest: apps/web package.json has no new UI kit / icon / chart / font runtime deps
+    ok 6 - apps/web package.json has no new UI kit / icon / chart / font runtime deps
+      ---
+      duration_ms: 0.383218
+      ...
+    1..6
+ok 12 - 11.8 visual score gates (S-L2-SCORE)
+  ---
+  duration_ms: 7.68988
+  type: 'suite'
+  ...
+# Subtest: 2.1 session auth magic link governance
+    # Subtest: 0002_auth.sql creates users, auth_sessions, magic_links with token_hash only
+    ok 1 - 0002_auth.sql creates users, auth_sessions, magic_links with token_hash only
+      ---
+      duration_ms: 2.012398
+      ...
+    # Subtest: schema exports users, authSessions, magicLinks
+    ok 2 - schema exports users, authSessions, magicLinks
+      ---
+      duration_ms: 1.701458
+      ...
+    # Subtest: auth routes map COMMANDS.md paths
+    ok 3 - auth routes map COMMANDS.md paths
+      ---
+      duration_ms: 0.348951
+      ...
+    # Subtest: named assertions present in auth.test.ts
+    ok 4 - named assertions present in auth.test.ts
+      ---
+      duration_ms: 0.362579
+      ...
+    # Subtest: Login page and Playwright @inv B01–B03 exist
+    ok 5 - Login page and Playwright @inv B01–B03 exist
+      ---
+      duration_ms: 0.29242
+      ...
+    # Subtest: inventory B01–B03 status IMPLEMENTED or PASS
+    ok 6 - inventory B01–B03 status IMPLEMENTED or PASS
+      ---
+      duration_ms: 0.521519
+      ...
+    # Subtest: section doc exists
+    ok 7 - section doc exists
+      ---
+      duration_ms: 0.26984
+      ...
+    # Subtest: no secrets in auth module sources
+    ok 8 - no secrets in auth module sources
+      ---
+      duration_ms: 2.645187
+      ...
+    1..8
+ok 13 - 2.1 session auth magic link governance
+  ---
+  duration_ms: 10.390587
+  type: 'suite'
+  ...
+# Subtest: 2.2 roles and route guards governance
+    # Subtest: 0003_event_memberships.sql creates event_memberships with role
+    ok 1 - 0003_event_memberships.sql creates event_memberships with role
+      ---
+      duration_ms: 35.551154
+      ...
+    # Subtest: schema exports eventMemberships
+    ok 2 - schema exports eventMemberships
+      ---
+      duration_ms: 3.311586
+      ...
+    # Subtest: requireRole middleware exists with 401/403/404 policy
+    ok 3 - requireRole middleware exists with 401/403/404 policy
+      ---
+      duration_ms: 0.680009
+      ...
+    # Subtest: named assertions present in authz.test.ts
+    ok 4 - named assertions present in authz.test.ts
+      ---
+      duration_ms: 0.28253
+      ...
+    # Subtest: RequireRole UI and Playwright @inv B04–B06 exist
+    ok 5 - RequireRole UI and Playwright @inv B04–B06 exist
+      ---
+      duration_ms: 8.38412
+      ...
+    # Subtest: inventory B04–B06 status IMPLEMENTED or PASS
+    ok 6 - inventory B04–B06 status IMPLEMENTED or PASS
+      ---
+      duration_ms: 0.516848
+      ...
+    # Subtest: section doc exists
+    ok 7 - section doc exists
+      ---
+      duration_ms: 0.33227
+      ...
+    # Subtest: no secrets in authz / events / schedule sources
+    ok 8 - no secrets in authz / events / schedule sources
+      ---
+      duration_ms: 3.008227
+      ...
+    1..8
+ok 14 - 2.2 roles and route guards governance
+  ---
+  duration_ms: 53.854692
+  type: 'suite'
+  ...
+# Subtest: 2.3 event settings governance
+    # Subtest: 0004_rooms_tracks.sql creates rooms and tracks
+    ok 1 - 0004_rooms_tracks.sql creates rooms and tracks
+      ---
+      duration_ms: 2.751097
+      ...
+    # Subtest: schema exports rooms and tracks
+    ok 2 - schema exports rooms and tracks
+      ---
+      duration_ms: 2.550467
+      ...
+    # Subtest: shared event DTOs and API routes exist
+    ok 3 - shared event DTOs and API routes exist
+      ---
+      duration_ms: 0.41177
+      ...
+    # Subtest: named assertions present in events.test.ts
+    ok 4 - named assertions present in events.test.ts
+      ---
+      duration_ms: 0.329638
+      ...
+    # Subtest: EventSettings UI and Playwright @inv C01 C02 C07 C11 O01–O03 exist
+    ok 5 - EventSettings UI and Playwright @inv C01 C02 C07 C11 O01–O03 exist
+      ---
+      duration_ms: 0.31583
+      ...
+    # Subtest: inventory C01 C02 C07 C11 O01–O03 status IMPLEMENTED or PASS
+    ok 6 - inventory C01 C02 C07 C11 O01–O03 status IMPLEMENTED or PASS
+      ---
+      duration_ms: 0.74951
+      ...
+    # Subtest: section doc exists
+    ok 7 - section doc exists
+      ---
+      duration_ms: 1.984678
+      ...
+    # Subtest: no secrets in events module sources
+    ok 8 - no secrets in events module sources
+      ---
+      duration_ms: 3.967896
+      ...
+    1..8
+ok 15 - 2.3 event settings governance
+  ---
+  duration_ms: 15.944609
+  type: 'suite'
+  ...
+# Subtest: 2.4 design kit governance
+    # Subtest: 0005_design_tokens.sql creates design draft/published and file_assets
+    ok 1 - 0005_design_tokens.sql creates design draft/published and file_assets
+      ---
+      duration_ms: 6.195202
+      ...
+    # Subtest: schema exports design tables
+    ok 2 - schema exports design tables
+      ---
+      duration_ms: 10.211168
+      ...
+    # Subtest: shared design DTOs and API routes exist
+    ok 3 - shared design DTOs and API routes exist
+      ---
+      duration_ms: 0.56016
+      ...
+    # Subtest: named assertions present in design.test.ts
+    ok 4 - named assertions present in design.test.ts
+      ---
+      duration_ms: 0.470818
+      ...
+    # Subtest: DesignKit UI and Playwright @inv C03–C06 C08–C10 exist
+    ok 5 - DesignKit UI and Playwright @inv C03–C06 C08–C10 exist
+      ---
+      duration_ms: 0.36335
+      ...
+    # Subtest: inventory C03–C06 C08–C10 status IMPLEMENTED or PASS
+    ok 6 - inventory C03–C06 C08–C10 status IMPLEMENTED or PASS
+      ---
+      duration_ms: 11.648735
+      ...
+    # Subtest: section doc exists
+    ok 7 - section doc exists
+      ---
+      duration_ms: 0.373869
+      ...
+    # Subtest: no freeform CSS field in DesignKit page
+    ok 8 - no freeform CSS field in DesignKit page
+      ---
+      duration_ms: 10.352707
+      ...
+    # Subtest: no secrets in design module sources
+    ok 9 - no secrets in design module sources
+      ---
+      duration_ms: 3.008685
+      ...
+    1..9
+ok 16 - 2.4 design kit governance
+  ---
+  duration_ms: 48.399368
+  type: 'suite'
+  ...
+# Subtest: 2.5 auth settings e2e proof
+    # Subtest: assert keystone covers login and design publish path end-to-end
+    ok 1 - assert keystone covers login and design publish path end-to-end
+      ---
+      duration_ms: 1.679908
+      ...
+    # Subtest: assert B04 and C05 tags present in keystone file
+    ok 2 - assert B04 and C05 tags present in keystone file
+      ---
+      duration_ms: 0.32134
+      ...
+    # Subtest: phase 2 inventory B01–B06 and C01–C11 status PASS
+    ok 3 - phase 2 inventory B01–B06 and C01–C11 status PASS
+      ---
+      duration_ms: 1.071818
+      ...
+    # Subtest: section doc notes evidence path and N/A product surface
+    ok 4 - section doc notes evidence path and N/A product surface
+      ---
+      duration_ms: 0.511049
+      ...
+    # Subtest: evidence path file exists for phase 2 keystone
+    ok 5 - evidence path file exists for phase 2 keystone
+      ---
+      duration_ms: 0.271699
+      ...
+    # Subtest: pnpm test:e2e remains non-interactive (no --watch)
+    ok 6 - pnpm test:e2e remains non-interactive (no --watch)
+      ---
+      duration_ms: 0.295441
+      ...
+    # Subtest: no new product handlers in API composition root (scope guard)
+    ok 7 - no new product handlers in API composition root (scope guard)
+      ---
+      duration_ms: 0.4536
+      ...
+    # Subtest: no secrets committed in 2.5 e2e artifacts
+    ok 8 - no secrets committed in 2.5 e2e artifacts
+      ---
+      duration_ms: 0.92974
+      ...
+    1..8
+ok 17 - 2.5 auth settings e2e proof
+  ---
+  duration_ms: 12.672224
+  type: 'suite'
+  ...
+# Subtest: 3.1 form builder API governance
+    # Subtest: 0007_forms.sql creates forms, form_versions, form_fields, form_rules
+    ok 1 - 0007_forms.sql creates forms, form_versions, form_fields, form_rules
+      ---
+      duration_ms: 2.070497
+      ...
+    # Subtest: schema exports form tables
+    ok 2 - schema exports form tables
+      ---
+      duration_ms: 3.565954
+      ...
+    # Subtest: shared form DTOs, routes, OpenAPI, and composition wiring exist
+    ok 3 - shared form DTOs, routes, OpenAPI, and composition wiring exist
+      ---
+      duration_ms: 1.026748
+      ...
+    # Subtest: named assertions present in forms.test.ts
+    ok 4 - named assertions present in forms.test.ts
+      ---
+      duration_ms: 1.271049
+      ...
+    # Subtest: section doc exists
+    ok 5 - section doc exists
+      ---
+      duration_ms: 1.038218
+      ...
+    1..5
+ok 18 - 3.1 form builder API governance
+  ---
+  duration_ms: 10.886246
+  type: 'suite'
+  ...
+# Subtest: 3.2 form builder admin UI governance
+    # Subtest: FormBuilder page, FormPreview, utils exist
+    ok 1 - FormBuilder page, FormPreview, utils exist
+      ---
+      duration_ms: 1.087909
+      ...
+    # Subtest: App routes /admin/cfp to FormBuilderPage
+    ok 2 - App routes /admin/cfp to FormBuilderPage
+      ---
+      duration_ms: 9.102007
+      ...
+    # Subtest: assert @inv:D01 through @inv:D10 each appear in playwright file
+    ok 3 - assert @inv:D01 through @inv:D10 each appear in playwright file
+      ---
+      duration_ms: 0.403611
+      ...
+    # Subtest: assert preview shows field label after add (utils + UI anchors)
+    ok 4 - assert preview shows field label after add (utils + UI anchors)
+      ---
+      duration_ms: 1.050248
+      ...
+    # Subtest: assert publish button disabled when invariant violated
+    ok 5 - assert publish button disabled when invariant violated
+      ---
+      duration_ms: 4.095505
+      ...
+    # Subtest: wires Form.* APIs only (Create, UpdateDraft, Publish)
+    ok 6 - wires Form.* APIs only (Create, UpdateDraft, Publish)
+      ---
+      duration_ms: 1.141249
+      ...
+    # Subtest: Lumen-only form-builder styles (no freeform hex palette in builder CSS)
+    ok 7 - Lumen-only form-builder styles (no freeform hex palette in builder CSS)
+      ---
+      duration_ms: 1.308578
+      ...
+    # Subtest: inventory D01–D10 status IMPLEMENTED or PASS
+    ok 8 - inventory D01–D10 status IMPLEMENTED or PASS
+      ---
+      duration_ms: 0.905277
+      ...
+    # Subtest: empty state + keyboard-reachable control anchors exist
+    ok 9 - empty state + keyboard-reachable control anchors exist
+      ---
+      duration_ms: 1.167569
+      ...
+    1..9
+ok 19 - 3.2 form builder admin UI governance
+  ---
+  duration_ms: 23.087391
+  type: 'suite'
+  ...
+# Subtest: 3.4 evaluation scoring governance
+    # Subtest: 0009_eval.sql creates eval_rounds, eval_criteria, eval_assignments, scores
+    ok 1 - 0009_eval.sql creates eval_rounds, eval_criteria, eval_assignments, scores
+      ---
+      duration_ms: 3.974406
+      ...
+    # Subtest: schema exports eval tables
+    ok 2 - schema exports eval tables
+      ---
+      duration_ms: 3.365646
+      ...
+    # Subtest: shared eval DTOs, routes, OpenAPI, and composition wiring exist
+    ok 3 - shared eval DTOs, routes, OpenAPI, and composition wiring exist
+      ---
+      duration_ms: 3.250026
+      ...
+    # Subtest: named unit assertions and UI pages exist
+    ok 4 - named unit assertions and UI pages exist
+      ---
+      duration_ms: 0.669709
+      ...
+    # Subtest: Playwright @inv tags F01–F04 O04 and inventory PASS
+    ok 5 - Playwright @inv tags F01–F04 O04 and inventory PASS
+      ---
+      duration_ms: 3.965816
+      ...
+    # Subtest: section doc exists
+    ok 6 - section doc exists
+      ---
+      duration_ms: 0.25724
+      ...
+    1..6
+ok 20 - 3.4 evaluation scoring governance
+  ---
+  duration_ms: 17.428249
+  type: 'suite'
+  ...
+# Subtest: 3.5 decisions governance
+    # Subtest: 0010_decisions.sql creates decisions, sessions, tasks tables
+    ok 1 - 0010_decisions.sql creates decisions, sessions, tasks tables
+      ---
+      duration_ms: 1.5989
+      ...
+    # Subtest: schema exports decision tables
+    ok 2 - schema exports decision tables
+      ---
+      duration_ms: 1.754209
+      ...
+    # Subtest: shared DTOs, routes, OpenAPI, and composition wiring exist
+    ok 3 - shared DTOs, routes, OpenAPI, and composition wiring exist
+      ---
+      duration_ms: 1.676079
+      ...
+    # Subtest: named test assertions present in decisions.test.ts
+    ok 4 - named test assertions present in decisions.test.ts
+      ---
+      duration_ms: 0.421048
+      ...
+    # Subtest: Submissions SPA and Playwright inventory tags E01–E08
+    ok 5 - Submissions SPA and Playwright inventory tags E01–E08
+      ---
+      duration_ms: 2.308227
+      ...
+    # Subtest: section doc 3.5-decisions.md exists
+    ok 6 - section doc 3.5-decisions.md exists
+      ---
+      duration_ms: 0.22129
+      ...
+    1..6
+ok 21 - 3.5 decisions governance
+  ---
+  duration_ms: 9.665877
+  type: 'suite'
+  ...
+# Subtest: 3.6 cfp eval e2e proof
+    # Subtest: assert keystone path creates tasks after accept
+    ok 1 - assert keystone path creates tasks after accept
+      ---
+      duration_ms: 2.912656
+      ...
+    # Subtest: assert all phase3 inv tags pass
+    ok 2 - assert all phase3 inv tags pass
+      ---
+      duration_ms: 7.088701
+      ...
+    # Subtest: section doc notes evidence path and N/A product surface
+    ok 3 - section doc notes evidence path and N/A product surface
+      ---
+      duration_ms: 0.440389
+      ...
+    # Subtest: evidence path file exists for phase 3 keystone
+    ok 4 - evidence path file exists for phase 3 keystone
+      ---
+      duration_ms: 0.358668
+      ...
+    # Subtest: pnpm test:e2e remains non-interactive (no --watch)
+    ok 5 - pnpm test:e2e remains non-interactive (no --watch)
+      ---
+      duration_ms: 0.324461
+      ...
+    # Subtest: no new product handlers in API composition root (scope guard)
+    ok 6 - no new product handlers in API composition root (scope guard)
+      ---
+      duration_ms: 0.413229
+      ...
+    # Subtest: no secrets committed in 3.6 e2e artifacts
+    ok 7 - no secrets committed in 3.6 e2e artifacts
+      ---
+      duration_ms: 1.354608
+      ...
+    1..7
+ok 22 - 3.6 cfp eval e2e proof
+  ---
+  duration_ms: 18.041838
+  type: 'suite'
+  ...
+# Subtest: 4.1 portal API governance
+    # Subtest: 0012_portal.sql adds participation user_id index
+    ok 1 - 0012_portal.sql adds participation user_id index
+      ---
+      duration_ms: 1.326569
+      ...
+    # Subtest: portal module + shared DTOs + composition root exist
+    ok 2 - portal module + shared DTOs + composition root exist
+      ---
+      duration_ms: 1.180309
+      ...
+    # Subtest: COMMANDS.md maps portal + speakers + task-templates routes
+    ok 3 - COMMANDS.md maps portal + speakers + task-templates routes
+      ---
+      duration_ms: 0.38946
+      ...
+    # Subtest: OpenAPI registers portal commands
+    ok 4 - OpenAPI registers portal commands
+      ---
+      duration_ms: 0.595009
+      ...
+    # Subtest: unit tests name required assertions
+    ok 5 - unit tests name required assertions
+      ---
+      duration_ms: 0.3563
+      ...
+    # Subtest: UI pages + Playwright inventory tags for O05 and N01–N04
+    ok 6 - UI pages + Playwright inventory tags for O05 and N01–N04
+      ---
+      duration_ms: 0.32294
+      ...
+    # Subtest: inventory O05 and N01–N04 are IMPLEMENTED or PASS
+    ok 7 - inventory O05 and N01–N04 are IMPLEMENTED or PASS
+      ---
+      duration_ms: 0.852659
+      ...
+    1..7
+ok 23 - 4.1 portal API governance
+  ---
+  duration_ms: 6.542151
+  type: 'suite'
+  ...
+# Subtest: 4.2 R2 file uploads governance
+    # Subtest: 0013 migration adds virus_scan_status stub
+    ok 1 - 0013 migration adds virus_scan_status stub
+      ---
+      duration_ms: 2.252678
+      ...
+    # Subtest: schema exports virusScanStatus on file_assets
+    ok 2 - schema exports virusScanStatus on file_assets
+      ---
+      duration_ms: 2.520137
+      ...
+    # Subtest: shared files DTOs and mime allowlists exist
+    ok 3 - shared files DTOs and mime allowlists exist
+      ---
+      duration_ms: 0.338229
+      ...
+    # Subtest: files module routes and commands exist
+    ok 4 - files module routes and commands exist
+      ---
+      duration_ms: 0.40072
+      ...
+    # Subtest: composition root mounts /api/files
+    ok 5 - composition root mounts /api/files
+      ---
+      duration_ms: 0.349541
+      ...
+    # Subtest: OpenAPI registers File.PresignUpload and File.CompleteUpload
+    ok 6 - OpenAPI registers File.PresignUpload and File.CompleteUpload
+      ---
+      duration_ms: 1.115438
+      ...
+    # Subtest: named assertions present in files.test.ts
+    ok 7 - named assertions present in files.test.ts
+      ---
+      duration_ms: 0.361169
+      ...
+    # Subtest: section doc and contracts mention file_assets / R2
+    ok 8 - section doc and contracts mention file_assets / R2
+      ---
+      duration_ms: 0.53672
+      ...
+    # Subtest: wrangler.toml binds R2 as FILES
+    ok 9 - wrangler.toml binds R2 as FILES
+      ---
+      duration_ms: 0.695699
+      ...
+    1..9
+ok 24 - 4.2 R2 file uploads governance
+  ---
+  duration_ms: 11.461655
+  type: 'suite'
+  ...
+# Subtest: 4.3 speaker portal UI governance
+    # Subtest: portal page, utils, e2e, section doc exist
+    ok 1 - portal page, utils, e2e, section doc exist
+      ---
+      duration_ms: 1.717798
+      ...
+    # Subtest: assert @inv:G01-G08 appear in Playwright e2e file
+    ok 2 - assert @inv:G01-G08 appear in Playwright e2e file
+      ---
+      duration_ms: 2.473117
+      ...
+    # Subtest: assert bio XSS text content not script (utils + UI)
+    ok 3 - assert bio XSS text content not script (utils + UI)
+      ---
+      duration_ms: 0.558059
+      ...
+    # Subtest: assert mobile viewport task complete in G08 e2e
+    ok 4 - assert mobile viewport task complete in G08 e2e
+      ---
+      duration_ms: 0.34301
+      ...
+    # Subtest: portal CSS uses Lumen tokens only (no freeform hex in portal-*)
+    ok 5 - portal CSS uses Lumen tokens only (no freeform hex in portal-*)
+      ---
+      duration_ms: 1.538828
+      ...
+    # Subtest: App routes portal and section data-section is 4.3
+    ok 6 - App routes portal and section data-section is 4.3
+      ---
+      duration_ms: 0.447411
+      ...
+    # Subtest: inventory G01–G08 status PASS (no shrinkage)
+    ok 7 - inventory G01–G08 status PASS (no shrinkage)
+      ---
+      duration_ms: 2.208247
+      ...
+    # Subtest: optimistic complete + headshot/slides testids wired
+    ok 8 - optimistic complete + headshot/slides testids wired
+      ---
+      duration_ms: 0.395928
+      ...
+    1..8
+ok 25 - 4.3 speaker portal UI governance
+  ---
+  duration_ms: 12.131724
+  type: 'suite'
+  ...
+# Subtest: 4.4 portal e2e proof
+    # Subtest: assert portal keystone green after seed accept
+    ok 1 - assert portal keystone green after seed accept
+      ---
+      duration_ms: 4.348675
+      ...
+    # Subtest: assert G01–G08 (and O05) inv tags pass
+    ok 2 - assert G01–G08 (and O05) inv tags pass
+      ---
+      duration_ms: 2.195477
+      ...
+    # Subtest: section doc notes evidence path and N/A product surface
+    ok 3 - section doc notes evidence path and N/A product surface
+      ---
+      duration_ms: 2.651908
+      ...
+    # Subtest: evidence path file exists for phase 4 keystone
+    ok 4 - evidence path file exists for phase 4 keystone
+      ---
+      duration_ms: 0.310159
+      ...
+    # Subtest: pnpm test:e2e remains non-interactive (no --watch)
+    ok 5 - pnpm test:e2e remains non-interactive (no --watch)
+      ---
+      duration_ms: 0.3133
+      ...
+    # Subtest: no new product handlers in API composition root (scope guard)
+    ok 6 - no new product handlers in API composition root (scope guard)
+      ---
+      duration_ms: 0.4441
+      ...
+    # Subtest: no secrets committed in 4.4 e2e artifacts
+    ok 7 - no secrets committed in 4.4 e2e artifacts
+      ---
+      duration_ms: 3.096876
+      ...
+    1..7
+ok 26 - 4.4 portal e2e proof
+  ---
+  duration_ms: 21.249852
+  type: 'suite'
+  ...
+# Subtest: 5.1 email templates outbox governance
+    # Subtest: 0015_comms.sql creates email_templates and message_jobs
+    ok 1 - 0015_comms.sql creates email_templates and message_jobs
+      ---
+      duration_ms: 7.33072
+      ...
+    # Subtest: schema.ts defines emailTemplates and messageJobs
+    ok 2 - schema.ts defines emailTemplates and messageJobs
+      ---
+      duration_ms: 1.362819
+      ...
+    # Subtest: shared DTOs and merge field helpers exist
+    ok 3 - shared DTOs and merge field helpers exist
+      ---
+      duration_ms: 1.444868
+      ...
+    # Subtest: comms module implements UpsertTemplate, Preview, Send enqueue
+    ok 4 - comms module implements UpsertTemplate, Preview, Send enqueue
+      ---
+      duration_ms: 2.166397
+      ...
+    # Subtest: composition root registers comms routes
+    ok 5 - composition root registers comms routes
+      ---
+      duration_ms: 0.393179
+      ...
+    # Subtest: OpenAPI lists Comms commands
+    ok 6 - OpenAPI lists Comms commands
+      ---
+      duration_ms: 0.6212
+      ...
+    # Subtest: named test assertions present in unit suite
+    ok 7 - named test assertions present in unit suite
+      ---
+      duration_ms: 0.319609
+      ...
+    # Subtest: admin Comms SPA page wired
+    ok 8 - admin Comms SPA page wired
+      ---
+      duration_ms: 4.792574
+      ...
+    # Subtest: Playwright @inv:J01 exists
+    ok 9 - Playwright @inv:J01 exists
+      ---
+      duration_ms: 0.31259
+      ...
+    # Subtest: section doc and COMMANDS map
+    ok 10 - section doc and COMMANDS map
+      ---
+      duration_ms: 0.3843
+      ...
+    # Subtest: inventory J01 is IMPLEMENTED or PASS (not shrunk)
+    ok 11 - inventory J01 is IMPLEMENTED or PASS (not shrunk)
+      ---
+      duration_ms: 0.327829
+      ...
+    1..11
+ok 27 - 5.1 email templates outbox governance
+  ---
+  duration_ms: 26.487916
+  type: 'suite'
+  ...
+# Subtest: 5.2 send idempotent ICS governance
+    # Subtest: 0016 migration creates recipients, delivery_events, calendar_invites
+    ok 1 - 0016 migration creates recipients, delivery_events, calendar_invites
+      ---
+      duration_ms: 1.616608
+      ...
+    # Subtest: schema.ts defines 5.2 comms tables
+    ok 2 - schema.ts defines 5.2 comms tables
+      ---
+      duration_ms: 2.667746
+      ...
+    # Subtest: ICS UID/SEQUENCE helpers exist
+    ok 3 - ICS UID/SEQUENCE helpers exist
+      ---
+      duration_ms: 0.25028
+      ...
+    # Subtest: provider adapter defaults to sandbox
+    ok 4 - provider adapter defaults to sandbox
+      ---
+      duration_ms: 0.28359
+      ...
+    # Subtest: email consumer drains outbox without request-path provider
+    ok 5 - email consumer drains outbox without request-path provider
+      ---
+      duration_ms: 0.650769
+      ...
+    # Subtest: named test assertions present
+    ok 6 - named test assertions present
+      ---
+      duration_ms: 0.379009
+      ...
+    # Subtest: section doc and secrets env names
+    ok 7 - section doc and secrets env names
+      ---
+      duration_ms: 1.641887
+      ...
+    # Subtest: OpenAPI and COMMANDS include Comms.Send and IcsForPlacement
+    ok 8 - OpenAPI and COMMANDS include Comms.Send and IcsForPlacement
+      ---
+      duration_ms: 0.689719
+      ...
+    1..8
+ok 28 - 5.2 send idempotent ICS governance
+  ---
+  duration_ms: 14.452633
+  type: 'suite'
+  ...
+# Subtest: 5.3 comms admin UI governance
+    # Subtest: primary files exist
+    ok 1 - primary files exist
+      ---
+      duration_ms: 2.047558
+      ...
+    # Subtest: assert @inv:J01-J10 appear in Playwright e2e files
+    ok 2 - assert @inv:J01-J10 appear in Playwright e2e files
+      ---
+      duration_ms: 0.845549
+      ...
+    # Subtest: assert send button disabled until preview
+    ok 3 - assert send button disabled until preview
+      ---
+      duration_ms: 0.898779
+      ...
+    # Subtest: Comms SPA wires segment, preview, send, log, ICS
+    ok 4 - Comms SPA wires segment, preview, send, log, ICS
+      ---
+      duration_ms: 0.66983
+      ...
+    # Subtest: App routes /admin/comms to CommsPage
+    ok 5 - App routes /admin/comms to CommsPage
+      ---
+      duration_ms: 0.336938
+      ...
+    # Subtest: API list/get routes and ICS HTTP exist
+    ok 6 - API list/get routes and ICS HTTP exist
+      ---
+      duration_ms: 1.486579
+      ...
+    # Subtest: shared DTOs for list jobs and ICS
+    ok 7 - shared DTOs for list jobs and ICS
+      ---
+      duration_ms: 0.626897
+      ...
+    # Subtest: OpenAPI and COMMANDS include 5.3 list/ICS routes
+    ok 8 - OpenAPI and COMMANDS include 5.3 list/ICS routes
+      ---
+      duration_ms: 0.70879
+      ...
+    # Subtest: inventory J01–J10 are IMPLEMENTED (not shrunk)
+    ok 9 - inventory J01–J10 are IMPLEMENTED (not shrunk)
+      ---
+      duration_ms: 2.688217
+      ...
+    # Subtest: section doc covers trust-before-send
+    ok 10 - section doc covers trust-before-send
+      ---
+      duration_ms: 0.29311
+      ...
+    1..10
+ok 29 - 5.3 comms admin UI governance
+  ---
+  duration_ms: 15.311279
+  type: 'suite'
+  ...
+# Subtest: 5.4 comms e2e proof
+    # Subtest: assert comms keystone passes J08
+    ok 1 - assert comms keystone passes J08
+      ---
+      duration_ms: 1.946757
+      ...
+    # Subtest: assert J01–J10 inv tags pass
+    ok 2 - assert J01–J10 inv tags pass
+      ---
+      duration_ms: 5.260353
+      ...
+    # Subtest: section doc notes evidence path and N/A product surface
+    ok 3 - section doc notes evidence path and N/A product surface
+      ---
+      duration_ms: 0.394469
+      ...
+    # Subtest: evidence path file exists for phase 5 keystone
+    ok 4 - evidence path file exists for phase 5 keystone
+      ---
+      duration_ms: 1.197689
+      ...
+    # Subtest: pnpm test:e2e remains non-interactive (no --watch)
+    ok 5 - pnpm test:e2e remains non-interactive (no --watch)
+      ---
+      duration_ms: 0.312549
+      ...
+    # Subtest: no new product handlers in API composition root (scope guard)
+    ok 6 - no new product handlers in API composition root (scope guard)
+      ---
+      duration_ms: 0.44084
+      ...
+    # Subtest: no secrets committed in 5.4 e2e artifacts
+    ok 7 - no secrets committed in 5.4 e2e artifacts
+      ---
+      duration_ms: 3.171416
+      ...
+    1..7
+ok 30 - 5.4 comms e2e proof
+  ---
+  duration_ms: 16.654748
+  type: 'suite'
+  ...
+# Subtest: 6.1 schedule conflict engine governance
+    # Subtest: 0017_schedule.sql creates placements and reservation tables
+    ok 1 - 0017_schedule.sql creates placements and reservation tables
+      ---
+      duration_ms: 4.334684
+      ...
+    # Subtest: schema exports schedule tables
+    ok 2 - schema exports schedule tables
+      ---
+      duration_ms: 3.275365
+      ...
+    # Subtest: API module implements Place/Move/Unschedule/List
+    ok 3 - API module implements Place/Move/Unschedule/List
+      ---
+      duration_ms: 0.44543
+      ...
+    # Subtest: shared DTOs include conflict + VERSION codes
+    ok 4 - shared DTOs include conflict + VERSION codes
+      ---
+      duration_ms: 0.318759
+      ...
+    # Subtest: named test assertions present
+    ok 5 - named test assertions present
+      ---
+      duration_ms: 2.456807
+      ...
+    # Subtest: composition root wires schedule store + OpenAPI commands
+    ok 6 - composition root wires schedule store + OpenAPI commands
+      ---
+      duration_ms: 2.882816
+      ...
+    # Subtest: section doc exists and forbids OR-Tools
+    ok 7 - section doc exists and forbids OR-Tools
+      ---
+      duration_ms: 0.34476
+      ...
+    # Subtest: no secrets in schedule sources
+    ok 8 - no secrets in schedule sources
+      ---
+      duration_ms: 7.54544
+      ...
+    1..8
+ok 31 - 6.1 schedule conflict engine governance
+  ---
+  duration_ms: 25.462707
+  type: 'suite'
+  ...
+# Subtest: 6.2 schedule studio UI governance
+    # Subtest: primary files exist
+    ok 1 - primary files exist
+      ---
+      duration_ms: 1.129779
+      ...
+    # Subtest: App routes ScheduleStudioPage at /admin/schedule
+    ok 2 - App routes ScheduleStudioPage at /admin/schedule
+      ---
+      duration_ms: 3.329726
+      ...
+    # Subtest: Studio wires real Schedule.* APIs (no placeholder mutations)
+    ok 3 - Studio wires real Schedule.* APIs (no placeholder mutations)
+      ---
+      duration_ms: 0.956368
+      ...
+    # Subtest: shell.css defines schedule tile + toast with Lumen tokens only
+    ok 4 - shell.css defines schedule tile + toast with Lumen tokens only
+      ---
+      duration_ms: 1.246758
+      ...
+    # Subtest: shared schedule DTO allows list title join for Studio
+    ok 5 - shared schedule DTO allows list title join for Studio
+      ---
+      duration_ms: 0.212619
+      ...
+    # Subtest: assert each @inv:I01-I16 in playwright
+    ok 6 - assert each @inv:I01-I16 in playwright
+      ---
+      duration_ms: 2.674458
+      ...
+    # Subtest: inventory I01–I16 marked PASS with schedule test_id rows
+    ok 7 - inventory I01–I16 marked PASS with schedule test_id rows
+      ---
+      duration_ms: 3.936485
+      ...
+    # Subtest: section doc exists and lists I01–I16
+    ok 8 - section doc exists and lists I01–I16
+      ---
+      duration_ms: 0.894868
+      ...
+    1..8
+ok 32 - 6.2 schedule studio UI governance
+  ---
+  duration_ms: 16.772348
+  type: 'suite'
+  ...
+# Subtest: 6.3 readiness dashboard governance
+    # Subtest: primary files exist
+    ok 1 - primary files exist
+      ---
+      duration_ms: 10.546787
+      ...
+    # Subtest: App routes ReadinessPage at /admin
+    ok 2 - App routes ReadinessPage at /admin
+      ---
+      duration_ms: 0.48152
+      ...
+    # Subtest: composition root registers readiness routes
+    ok 3 - composition root registers readiness routes
+      ---
+      duration_ms: 0.445068
+      ...
+    # Subtest: OpenAPI registers Reports.Readiness
+    ok 4 - OpenAPI registers Reports.Readiness
+      ---
+      duration_ms: 0.61584
+      ...
+    # Subtest: Readiness UI wires real Reports.Readiness API + live poll
+    ok 5 - Readiness UI wires real Reports.Readiness API + live poll
+      ---
+      duration_ms: 1.483349
+      ...
+    # Subtest: Speakers page paginates large list (L05)
+    ok 6 - Speakers page paginates large list (L05)
+      ---
+      duration_ms: 1.217417
+      ...
+    # Subtest: shell.css defines readiness dashboard with Lumen tokens only
+    ok 7 - shell.css defines readiness dashboard with Lumen tokens only
+      ---
+      duration_ms: 3.197977
+      ...
+    # Subtest: assert readiness outstanding decreases after task complete poll
+    ok 8 - assert readiness outstanding decreases after task complete poll
+      ---
+      duration_ms: 0.412439
+      ...
+    # Subtest: assert @inv:H01-H05 and N01-N04
+    ok 9 - assert @inv:H01-H05 and N01-N04
+      ---
+      duration_ms: 4.156845
+      ...
+    # Subtest: assert 150-row list scrollable/paginated
+    ok 10 - assert 150-row list scrollable/paginated
+      ---
+      duration_ms: 0.395919
+      ...
+    # Subtest: inventory H01–H05 L05 PASS and N01–N04 PASS or IMPLEMENTED
+    ok 11 - inventory H01–H05 L05 PASS and N01–N04 PASS or IMPLEMENTED
+      ---
+      duration_ms: 4.293405
+      ...
+    # Subtest: section doc exists and lists H* N* L05
+    ok 12 - section doc exists and lists H* N* L05
+      ---
+      duration_ms: 1.357198
+      ...
+    1..12
+ok 33 - 6.3 readiness dashboard governance
+  ---
+  duration_ms: 33.740447
+  type: 'suite'
+  ...
+# Subtest: 6.4 schedule+dash e2e proof
+    # Subtest: assert schedule+dash keystone green
+    ok 1 - assert schedule+dash keystone green
+      ---
+      duration_ms: 4.318305
+      ...
+    # Subtest: assert I* H* N* L05 inv tags pass
+    ok 2 - assert I* H* N* L05 inv tags pass
+      ---
+      duration_ms: 3.118386
+      ...
+    # Subtest: section doc notes evidence path and N/A product surface
+    ok 3 - section doc notes evidence path and N/A product surface
+      ---
+      duration_ms: 0.457369
+      ...
+    # Subtest: evidence path file exists for phase 6 keystone
+    ok 4 - evidence path file exists for phase 6 keystone
+      ---
+      duration_ms: 0.431711
+      ...
+    # Subtest: pnpm test:e2e remains non-interactive (no --watch)
+    ok 5 - pnpm test:e2e remains non-interactive (no --watch)
+      ---
+      duration_ms: 0.389219
+      ...
+    # Subtest: no new product handlers in API composition root (scope guard)
+    ok 6 - no new product handlers in API composition root (scope guard)
+      ---
+      duration_ms: 1.778048
+      ...
+    # Subtest: no secrets committed in 6.4 e2e artifacts
+    ok 7 - no secrets committed in 6.4 e2e artifacts
+      ---
+      duration_ms: 2.007817
+      ...
+    1..7
+ok 34 - 6.4 schedule+dash e2e proof
+  ---
+  duration_ms: 15.37531
+  type: 'suite'
+  ...
+# Subtest: 7.1 API keys governance
+    # Subtest: primary files exist
+    ok 1 - primary files exist
+      ---
+      duration_ms: 3.904075
+      ...
+    # Subtest: migration creates api_keys with hash columns only
+    ok 2 - migration creates api_keys with hash columns only
+      ---
+      duration_ms: 0.66961
+      ...
+    # Subtest: schema exports apiKeys table
+    ok 3 - schema exports apiKeys table
+      ---
+      duration_ms: 5.560723
+      ...
+    # Subtest: shared DTOs export Keys schemas + default-deny
+    ok 4 - shared DTOs export Keys schemas + default-deny
+      ---
+      duration_ms: 0.37728
+      ...
+    # Subtest: composition root registers /api/keys
+    ok 5 - composition root registers /api/keys
+      ---
+      duration_ms: 2.464356
+      ...
+    # Subtest: authz has requireKeysAdmin + Bearer support
+    ok 6 - authz has requireKeysAdmin + Bearer support
+      ---
+      duration_ms: 0.339749
+      ...
+    # Subtest: commands hash secret and audit without secret
+    ok 7 - commands hash secret and audit without secret
+      ---
+      duration_ms: 0.47037
+      ...
+    # Subtest: API unit tests name required assertions
+    ok 8 - API unit tests name required assertions
+      ---
+      duration_ms: 3.327715
+      ...
+    # Subtest: UI page + route + Lumen CSS
+    ok 9 - UI page + route + Lumen CSS
+      ---
+      duration_ms: 1.671278
+      ...
+    # Subtest: Playwright binds @inv:K01–K04
+    ok 10 - Playwright binds @inv:K01–K04
+      ---
+      duration_ms: 0.343729
+      ...
+    # Subtest: inventory K01–K04 are not OPEN (IMPLEMENTED or PASS)
+    ok 11 - inventory K01–K04 are not OPEN (IMPLEMENTED or PASS)
+      ---
+      duration_ms: 2.931347
+      ...
+    # Subtest: OpenAPI registers Keys commands
+    ok 12 - OpenAPI registers Keys commands
+      ---
+      duration_ms: 1.426937
+      ...
+    # Subtest: migrations stay linear additive NNNN_*.sql
+    ok 13 - migrations stay linear additive NNNN_*.sql
+      ---
+      duration_ms: 1.146789
+      ...
+    # Subtest: section doc exists
+    ok 14 - section doc exists
+      ---
+      duration_ms: 2.641817
+      ...
+    1..14
+ok 35 - 7.1 API keys governance
+  ---
+  duration_ms: 29.412283
+  type: 'suite'
+  ...
+# Subtest: 7.2 OpenAPI and CLI governance
+    # Subtest: primary files exist
+    ok 1 - primary files exist
+      ---
+      duration_ms: 10.379337
+      ...
+    # Subtest: packages/cli bin is speakerops
+    ok 2 - packages/cli bin is speakerops
+      ---
+      duration_ms: 0.659609
+      ...
+    # Subtest: assert CLI01-CLI12 from CLI_INVENTORY.md covered by tests
+    ok 3 - assert CLI01-CLI12 from CLI_INVENTORY.md covered by tests
+      ---
+      duration_ms: 1.771217
+      ...
+    # Subtest: assert reports-only key schedule place exit code 2
+    ok 4 - assert reports-only key schedule place exit code 2
+      ---
+      duration_ms: 0.589959
+      ...
+    # Subtest: assert readiness --json parses
+    ok 5 - assert readiness --json parses
+      ---
+      duration_ms: 0.484788
+      ...
+    # Subtest: assert openapi.json includes /api/events
+    ok 6 - assert openapi.json includes /api/events
+      ---
+      duration_ms: 0.98257
+      ...
+    # Subtest: docs/CLI.md lists commands and exit codes
+    ok 7 - docs/CLI.md lists commands and exit codes
+      ---
+      duration_ms: 4.073165
+      ...
+    # Subtest: bearer scope wiring present for CLI surfaces
+    ok 8 - bearer scope wiring present for CLI surfaces
+      ---
+      duration_ms: 3.785116
+      ...
+    # Subtest: CLI maps to domain commands not god-mode bypass
+    ok 9 - CLI maps to domain commands not god-mode bypass
+      ---
+      duration_ms: 0.452869
+      ...
+    # Subtest: section doc exists and references S-CLI
+    ok 10 - section doc exists and references S-CLI
+      ---
+      duration_ms: 0.290749
+      ...
+    1..10
+ok 36 - 7.2 OpenAPI and CLI governance
+  ---
+  duration_ms: 37.056183
+  type: 'suite'
+  ...
+# Subtest: 7.3 Airtable one-way projection governance
+    # Subtest: primary files exist
+    ok 1 - primary files exist
+      ---
+      duration_ms: 7.80397
+      ...
+    # Subtest: schema and migration define projection_records with internal_id
+    ok 2 - schema and migration define projection_records with internal_id
+      ---
+      duration_ms: 1.236019
+      ...
+    # Subtest: shared exports AIRTABLE_OUTBOX_TOPIC and status schema
+    ok 3 - shared exports AIRTABLE_OUTBOX_TOPIC and status schema
+      ---
+      duration_ms: 0.421909
+      ...
+    # Subtest: assert named tests present in airtable.test.ts
+    ok 4 - assert named tests present in airtable.test.ts
+      ---
+      duration_ms: 0.343079
+      ...
+    # Subtest: routes and consumer avoid request-path Airtable
+    ok 5 - routes and consumer avoid request-path Airtable
+      ---
+      duration_ms: 0.88401
+      ...
+    # Subtest: env documents AIRTABLE_API_KEY and AIRTABLE_BASE_ID names only
+    ok 6 - env documents AIRTABLE_API_KEY and AIRTABLE_BASE_ID names only
+      ---
+      duration_ms: 0.508769
+      ...
+    # Subtest: OpenAPI lists Reports.AirtableStatus
+    ok 7 - OpenAPI lists Reports.AirtableStatus
+      ---
+      duration_ms: 1.646018
+      ...
+    # Subtest: O06 UI page + inventory IMPLEMENTED or PASS + @inv tag
+    ok 8 - O06 UI page + inventory IMPLEMENTED or PASS + @inv tag
+      ---
+      duration_ms: 4.107685
+      ...
+    # Subtest: section doc maps ACs to named assertions
+    ok 9 - section doc maps ACs to named assertions
+      ---
+      duration_ms: 0.37753
+      ...
+    # Subtest: no dual-write Airtable on domain command path
+    ok 10 - no dual-write Airtable on domain command path
+      ---
+      duration_ms: 0.672849
+      ...
+    1..10
+ok 37 - 7.3 Airtable one-way projection governance
+  ---
+  duration_ms: 20.270844
+  type: 'suite'
+  ...
+# Subtest: 7.4 CLI Airtable e2e proof
+    # Subtest: assert phase7 keystone includes CLI07 deny and airtable pause
+    ok 1 - assert phase7 keystone includes CLI07 deny and airtable pause
+      ---
+      duration_ms: 8.196529
+      ...
+    # Subtest: assert K01–K04 and O06 inv tags pass
+    ok 2 - assert K01–K04 and O06 inv tags pass
+      ---
+      duration_ms: 1.047729
+      ...
+    # Subtest: section doc notes evidence path and N/A product surface
+    ok 3 - section doc notes evidence path and N/A product surface
+      ---
+      duration_ms: 0.454959
+      ...
+    # Subtest: evidence path file exists for phase 7 keystone
+    ok 4 - evidence path file exists for phase 7 keystone
+      ---
+      duration_ms: 0.329228
+      ...
+    # Subtest: pnpm test:e2e remains non-interactive and builds CLI for keystone
+    ok 5 - pnpm test:e2e remains non-interactive and builds CLI for keystone
+      ---
+      duration_ms: 0.38387
+      ...
+    # Subtest: no new product handlers in API composition root (scope guard)
+    ok 6 - no new product handlers in API composition root (scope guard)
+      ---
+      duration_ms: 3.231346
+      ...
+    # Subtest: no secrets committed in 7.4 e2e artifacts
+    ok 7 - no secrets committed in 7.4 e2e artifacts
+      ---
+      duration_ms: 4.805135
+      ...
+    1..7
+ok 38 - 7.4 CLI Airtable e2e proof
+  ---
+  duration_ms: 23.74891
+  type: 'suite'
+  ...
+# Subtest: 8.1 Inventory completeness audit
+    # Subtest: deliverables exist (lint, allowlist, section doc, vitest)
+    ok 1 - deliverables exist (lint, allowlist, section doc, vitest)
+      ---
+      duration_ms: 2.026238
+      ...
+    # Subtest: assert lint fails on missing REQUIRED tag (fixture via vitest file presence + unit)
+    ok 2 - assert lint fails on missing REQUIRED tag (fixture via vitest file presence + unit)
+      ---
+      duration_ms: 734.164058
+      ...
+    # Subtest: assert crawl fails on unmapped primary button fixture
+    ok 3 - assert crawl fails on unmapped primary button fixture
+      ---
+      duration_ms: 394.722558
+      ...
+    # Subtest: crawl allowlist documents pure chrome reasons
+    ok 4 - crawl allowlist documents pure chrome reasons
+      ---
+      duration_ms: 1.166029
+      ...
+    # Subtest: pnpm test:e2e:inventory exits 0 (tags + crawl)
+    ok 5 - pnpm test:e2e:inventory exits 0 (tags + crawl)
+      ---
+      duration_ms: 5986.865854
+      ...
+    # Subtest: package.json wires test:e2e:inventory non-interactively
+    ok 6 - package.json wires test:e2e:inventory non-interactively
+      ---
+      duration_ms: 0.74298
+      ...
+    # Subtest: docs mention discovery crawl allowlist (8.1)
+    ok 7 - docs mention discovery crawl allowlist (8.1)
+      ---
+      duration_ms: 0.614069
+      ...
+    # Subtest: no product HTTP handlers invented in 8.1 section doc
+    ok 8 - no product HTTP handlers invented in 8.1 section doc
+      ---
+      duration_ms: 0.26521
+      ...
+    1..8
+ok 39 - 8.1 Inventory completeness audit
+  ---
+  duration_ms: 7124.107821
+  type: 'suite'
+  ...
+# Subtest: 8.2 Full Playwright suite
+    # Subtest: deliverables exist (states, keystone, section, evidence, vitest)
+    ok 1 - deliverables exist (states, keystone, section, evidence, vitest)
+      ---
+      duration_ms: 7.99004
+      ...
+    # Subtest: assert every REQUIRED inventory id status PASS in report JSON
+    ok 2 - assert every REQUIRED inventory id status PASS in report JSON
+      ---
+      duration_ms: 530.926454
+      ...
+    # Subtest: assert no inventory rows deleted in git diff of inventory file
+    ok 3 - assert no inventory rows deleted in git diff of inventory file
+      ---
+      duration_ms: 5.530304
+      ...
+    # Subtest: L01–L04 Playwright @inv tags on real test() imports
+    ok 4 - L01–L04 Playwright @inv tags on real test() imports
+      ---
+      duration_ms: 0.622218
+      ...
+    # Subtest: e2e-run + playwright config wire report artifacts
+    ok 5 - e2e-run + playwright config wire report artifacts
+      ---
+      duration_ms: 1.856688
+      ...
+    # Subtest: pnpm test:e2e:inventory still exits 0 (tags + crawl, intermediate)
+    ok 6 - pnpm test:e2e:inventory still exits 0 (tags + crawl, intermediate)
+      ---
+      duration_ms: 6087.899867
+      ...
+    # Subtest: section + E2E docs mention 8.2 full suite and report path
+    ok 7 - section + E2E docs mention 8.2 full suite and report path
+      ---
+      duration_ms: 0.473821
+      ...
+    # Subtest: no new product HTTP handlers in API composition root (scope guard)
+    ok 8 - no new product HTTP handlers in API composition root (scope guard)
+      ---
+      duration_ms: 0.49581
+      ...
+    # Subtest: no secrets committed in 8.2 e2e artifacts
+    ok 9 - no secrets committed in 8.2 e2e artifacts
+      ---
+      duration_ms: 0.980998
+      ...
+    # Subtest: package.json e2e scripts non-interactive
+    ok 10 - package.json e2e scripts non-interactive
+      ---
+      duration_ms: 2.268758
+      ...
+    1..10
+ok 40 - 8.2 Full Playwright suite
+  ---
+  duration_ms: 6645.494879
+  type: 'suite'
+  ...
+# Subtest: 8.3 Security hardening
+    # Subtest: deliverables exist
+    ok 1 - deliverables exist
+      ---
+      duration_ms: 10.277928
+      ...
+    # Subtest: CSP middleware registered and policy exports frame-ancestors none
+    ok 2 - CSP middleware registered and policy exports frame-ancestors none
+      ---
+      duration_ms: 0.773828
+      ...
+    # Subtest: assert Content-Security-Policy header present on HTML (named test)
+    ok 3 - assert Content-Security-Policy header present on HTML (named test)
+      ---
+      duration_ms: 0.42967
+      ...
+    # Subtest: assert rate limit returns 429 after threshold in test (named test)
+    ok 4 - assert rate limit returns 429 after threshold in test (named test)
+      ---
+      duration_ms: 5.853982
+      ...
+    # Subtest: npm/pnpm audit policy documented
+    ok 5 - npm/pnpm audit policy documented
+      ---
+      duration_ms: 1.959918
+      ...
+    # Subtest: XSS inventory A10 and C09 remain REQUIRED PASS with Playwright @inv
+    ok 6 - XSS inventory A10 and C09 remain REQUIRED PASS with Playwright @inv
+      ---
+      duration_ms: 1.943917
+      ...
+    # Subtest: production cookieSecure forced in createAppFromBindings
+    ok 7 - production cookieSecure forced in createAppFromBindings
+      ---
+      duration_ms: 0.4222
+      ...
+    # Subtest: SPA HTML has CSP meta and Vite headers
+    ok 8 - SPA HTML has CSP meta and Vite headers
+      ---
+      duration_ms: 0.348481
+      ...
+    # Subtest: no secret values in 8.3 security deliverables
+    ok 9 - no secret values in 8.3 security deliverables
+      ---
+      duration_ms: 7.019601
+      ...
+    # Subtest: section implements only security hardening (no invent dual-write/OR-Tools)
+    ok 10 - section implements only security hardening (no invent dual-write/OR-Tools)
+      ---
+      duration_ms: 2.839476
+      ...
+    1..10
+ok 41 - 8.3 Security hardening
+  ---
+  duration_ms: 38.115481
+  type: 'suite'
+  ...
+# Subtest: 8.4 Demo seed and role switcher
+    # Subtest: deliverables exist
+    ok 1 - deliverables exist
+      ---
+      duration_ms: 2.868886
+      ...
+    # Subtest: pnpm seed script wired
+    ok 2 - pnpm seed script wired
+      ---
+      duration_ms: 8.951308
+      ...
+    # Subtest: assert seed twice yields same speaker count (named test present)
+    ok 3 - assert seed twice yields same speaker count (named test present)
+      ---
+      duration_ms: 0.46766
+      ...
+    # Subtest: assert seed includes ≥1 schedule conflict and missing headshots (named test)
+    ok 4 - assert seed includes ≥1 schedule conflict and missing headshots (named test)
+      ---
+      duration_ms: 0.422219
+      ...
+    # Subtest: README seed instructions present
+    ok 5 - README seed instructions present
+      ---
+      duration_ms: 4.611565
+      ...
+    # Subtest: role switcher is flag-gated (dev/dogfood only)
+    ok 6 - role switcher is flag-gated (dev/dogfood only)
+      ---
+      duration_ms: 1.354948
+      ...
+    # Subtest: COMMANDS.md lists Auth.DevRoleSwitch
+    ok 7 - COMMANDS.md lists Auth.DevRoleSwitch
+      ---
+      duration_ms: 0.820479
+      ...
+    # Subtest: L05 remains Playwright-bound (seed supports L05)
+    ok 8 - L05 remains Playwright-bound (seed supports L05)
+      ---
+      duration_ms: 5.236373
+      ...
+    # Subtest: no secrets committed in 8.4 files
+    ok 9 - no secrets committed in 8.4 files
+      ---
+      duration_ms: 5.196823
+      ...
+    1..9
+ok 42 - 8.4 Demo seed and role switcher
+  ---
+  duration_ms: 32.921447
+  type: 'suite'
+  ...
+# Subtest: 8.5 E2E keystone HTML report
+    # Subtest: deliverables exist
+    ok 1 - deliverables exist
+      ---
+      duration_ms: 5.280043
+      ...
+    # Subtest: pnpm docs:e2e-report wires build-e2e-report.ts
+    ok 2 - pnpm docs:e2e-report wires build-e2e-report.ts
+      ---
+      duration_ms: 0.565969
+      ...
+    # Subtest: assert reports/e2e-coverage.html contains A01 and PASS|FAIL
+    ok 3 - assert reports/e2e-coverage.html contains A01 and PASS|FAIL
+      ---
+      duration_ms: 0.52495
+      ...
+    # Subtest: assert footer includes generated timestamp
+    ok 4 - assert footer includes generated timestamp
+      ---
+      duration_ms: 0.608878
+      ...
+    # Subtest: HTML is Lumen-styled offline (E6 tokens inlined)
+    ok 5 - HTML is Lumen-styled offline (E6 tokens inlined)
+      ---
+      duration_ms: 1.18004
+      ...
+    # Subtest: e2e-run invokes build-e2e-report (not raw Playwright copy alone)
+    ok 6 - e2e-run invokes build-e2e-report (not raw Playwright copy alone)
+      ---
+      duration_ms: 0.291739
+      ...
+    # Subtest: named vitest assertions present
+    ok 7 - named vitest assertions present
+      ---
+      duration_ms: 1.950536
+      ...
+    # Subtest: section doc maps ACs and N/A handlers/writes
+    ok 8 - section doc maps ACs and N/A handlers/writes
+      ---
+      duration_ms: 0.32306
+      ...
+    # Subtest: docs/E2E.md references keystone report path and docs:e2e-report
+    ok 9 - docs/E2E.md references keystone report path and docs:e2e-report
+      ---
+      duration_ms: 1.181478
+      ...
+    # Subtest: no new product HTTP handlers in builder scope
+    ok 10 - no new product HTTP handlers in builder scope
+      ---
+      duration_ms: 0.778068
+      ...
+    # Subtest: no secrets in 8.5 deliverables
+    ok 11 - no secrets in 8.5 deliverables
+      ---
+      duration_ms: 1.077218
+      ...
+    1..11
+ok 43 - 8.5 E2E keystone HTML report
+  ---
+  duration_ms: 21.426372
+  type: 'suite'
+  ...
+# Subtest: 8.6 Cloudflare dogfood deploy
+    # Subtest: deliverables exist
+    ok 1 - deliverables exist
+      ---
+      duration_ms: 4.041775
+      ...
+    # Subtest: assert deploy script exits nonzero without creds with message
+    ok 2 - assert deploy script exits nonzero without creds with message
+      ---
+      duration_ms: 16.838149
+      ...
+    # Subtest: assert OPERATIONS.md lists wrangler steps
+    ok 3 - assert OPERATIONS.md lists wrangler steps
+      ---
+      duration_ms: 0.979109
+      ...
+    # Subtest: assert evidence template path exists
+    ok 4 - assert evidence template path exists
+      ---
+      duration_ms: 0.430341
+      ...
+    # Subtest: pnpm deploy:dogfood script wired
+    ok 5 - pnpm deploy:dogfood script wired
+      ---
+      duration_ms: 0.515899
+      ...
+    # Subtest: BUILD_CHECKLIST BC10 points at cf-dogfood evidence
+    ok 6 - BUILD_CHECKLIST BC10 points at cf-dogfood evidence
+      ---
+      duration_ms: 1.519118
+      ...
+    # Subtest: named vitest assertions present
+    ok 7 - named vitest assertions present
+      ---
+      duration_ms: 0.608479
+      ...
+    # Subtest: wrangler dogfood env + no secrets committed
+    ok 8 - wrangler dogfood env + no secrets committed
+      ---
+      duration_ms: 3.634165
+      ...
+    # Subtest: SECRETS.md documents dogfood deploy names
+    ok 9 - SECRETS.md documents dogfood deploy names
+      ---
+      duration_ms: 4.612323
+      ...
+    # Subtest: optional SMOKE_BASE_URL playwright has no @inv
+    ok 10 - optional SMOKE_BASE_URL playwright has no @inv
+      ---
+      duration_ms: 0.48223
+      ...
+    # Subtest: section doc declares N/A for new handlers/writes
+    ok 11 - section doc declares N/A for new handlers/writes
+      ---
+      duration_ms: 0.39491
+      ...
+    1..11
+ok 44 - 8.6 Cloudflare dogfood deploy
+  ---
+  duration_ms: 35.921214
+  type: 'suite'
+  ...
+# Subtest: 9.1 Docs IA and README map
+    # Subtest: assert every outline path exists as file
+    ok 1 - assert every outline path exists as file
+      ---
+      duration_ms: 5.234044
+      ...
+    # Subtest: assert linkcheck 0 broken internal links
+    ok 2 - assert linkcheck 0 broken internal links
+      ---
+      duration_ms: 39.6731
+      ...
+    # Subtest: README has 5-minute orientation and docs map links
+    ok 3 - README has 5-minute orientation and docs map links
+      ---
+      duration_ms: 0.456499
+      ...
+    # Subtest: section doc declares N/A product surface and named tests
+    ok 4 - section doc declares N/A product surface and named tests
+      ---
+      duration_ms: 0.37705
+      ...
+    # Subtest: stubs name purpose and owning phase sections
+    ok 5 - stubs name purpose and owning phase sections
+      ---
+      duration_ms: 3.010856
+      ...
+    # Subtest: no secrets or magic-link tokens in 9.1 docs surface
+    ok 6 - no secrets or magic-link tokens in 9.1 docs surface
+      ---
+      duration_ms: 5.048314
+      ...
+    1..6
+ok 45 - 9.1 Docs IA and README map
+  ---
+  duration_ms: 61.712671
+  type: 'suite'
+  ...
+# Subtest: 9.2 Human onboarding path
+    # Subtest: assert ONBOARDING has numbered steps ≥10
+    ok 1 - assert ONBOARDING has numbered steps ≥10
+      ---
+      duration_ms: 5.239723
+      ...
+    # Subtest: assert env names table has no values matching sk- or eyJ
+    ok 2 - assert env names table has no values matching sk- or eyJ
+      ---
+      duration_ms: 3.426155
+      ...
+    # Subtest: assert demo path mentions CFP and schedule
+    ok 3 - assert demo path mentions CFP and schedule
+      ---
+      duration_ms: 1.065809
+      ...
+    # Subtest: section 9.2 note wires AC → proof and N/A product surface
+    ok 4 - section 9.2 note wires AC → proof and N/A product surface
+      ---
+      duration_ms: 0.350668
+      ...
+    # Subtest: no secrets in section note
+    ok 5 - no secrets in section note
+      ---
+      duration_ms: 0.261549
+      ...
+    1..5
+ok 46 - 9.2 Human onboarding path
+  ---
+  duration_ms: 12.018195
+  type: 'suite'
+  ...
+# Subtest: 9.3 Agent setup and CLI runbook
+    # Subtest: assert AGENT_SETUP contains speakerops reports readiness
+    ok 1 - assert AGENT_SETUP contains speakerops reports readiness
+      ---
+      duration_ms: 1.714998
+      ...
+    # Subtest: assert scope deny example
+    ok 2 - assert scope deny example
+      ---
+      duration_ms: 4.959303
+      ...
+    # Subtest: assert CLI_INVENTORY referenced
+    ok 3 - assert CLI_INVENTORY referenced
+      ---
+      duration_ms: 1.951588
+      ...
+    # Subtest: no secret values in agent docs
+    ok 4 - no secret values in agent docs
+      ---
+      duration_ms: 1.825498
+      ...
+    # Subtest: section 9.3 note wires AC → proof and N/A product surface
+    ok 5 - section 9.3 note wires AC → proof and N/A product surface
+      ---
+      duration_ms: 0.432959
+      ...
+    # Subtest: CLI.md covers key mint, scopes, readiness, design, deny, OpenAPI, exit codes
+    ok 6 - CLI.md covers key mint, scopes, readiness, design, deny, OpenAPI, exit codes
+      ---
+      duration_ms: 0.338549
+      ...
+    1..6
+ok 47 - 9.3 Agent setup and CLI runbook
+  ---
+  duration_ms: 16.044549
+  type: 'suite'
+  ...
+# Subtest: 9.4 Architecture security ops docs
+    # Subtest: assert each deep doc file line count ≥ 40
+    ok 1 - assert each deep doc file line count ≥ 40
+      ---
+      duration_ms: 4.271284
+      ...
+    # Subtest: assert ARCHITECTURE mentions D1 and one-way Airtable
+    ok 2 - assert ARCHITECTURE mentions D1 and one-way Airtable
+      ---
+      duration_ms: 0.49833
+      ...
+    # Subtest: assert COMPETITION lists struck items
+    ok 3 - assert COMPETITION lists struck items
+      ---
+      duration_ms: 0.44237
+      ...
+    # Subtest: SECURITY matches E10 and failure modes
+    ok 4 - SECURITY matches E10 and failure modes
+      ---
+      duration_ms: 0.4193
+      ...
+    # Subtest: section 9.4 note and N/A product surface
+    ok 5 - section 9.4 note and N/A product surface
+      ---
+      duration_ms: 0.351179
+      ...
+    # Subtest: no secrets or magic-link tokens in 9.4 docs surface
+    ok 6 - no secrets or magic-link tokens in 9.4 docs surface
+      ---
+      duration_ms: 3.320725
+      ...
+    # Subtest: OPERATIONS documents D1 Time Travel rollback
+    ok 7 - OPERATIONS documents D1 Time Travel rollback
+      ---
+      duration_ms: 0.338861
+      ...
+    1..7
+ok 48 - 9.4 Architecture security ops docs
+  ---
+  duration_ms: 11.468765
+  type: 'suite'
+  ...
+# Subtest: 9.5 Beautiful HTML reports
+    # Subtest: pnpm docs:reports wires build-docs-reports.ts
+    ok 1 - pnpm docs:reports wires build-docs-reports.ts
+      ---
+      duration_ms: 1.314678
+      ...
+    # Subtest: assert generator exit 0
+    ok 2 - assert generator exit 0
+      ---
+      duration_ms: 634.358605
+      ...
+    # Subtest: assert reports/index.html links onboarding and e2e-coverage
+    ok 3 - assert reports/index.html links onboarding and e2e-coverage
+      ---
+      duration_ms: 0.708808
+      ...
+    # Subtest: report set files exist for S-DOCS portal
+    ok 4 - report set files exist for S-DOCS portal
+      ---
+      duration_ms: 0.367871
+      ...
+    # Subtest: section doc names AC assertions and S-DOCS
+    ok 5 - section doc names AC assertions and S-DOCS
+      ---
+      duration_ms: 0.41605
+      ...
+    # Subtest: no secrets in builder source
+    ok 6 - no secrets in builder source
+      ---
+      duration_ms: 0.646549
+      ...
+    1..6
+ok 49 - 9.5 Beautiful HTML reports
+  ---
+  duration_ms: 639.495158
+  type: 'suite'
+  ...
+# Subtest: 9.6 Onboarding proof keystone
+    # Subtest: assert evidence bundle checklist file exists
+    ok 1 - assert evidence bundle checklist file exists
+      ---
+      duration_ms: 1.521929
+      ...
+    # Subtest: assert BC13-15 paths schema in checklist
+    ok 2 - assert BC13-15 paths schema in checklist
+      ---
+      duration_ms: 0.403379
+      ...
+    # Subtest: assert rejects claim without CF evidence or DEFER row
+    ok 3 - assert rejects claim without CF evidence or DEFER row
+      ---
+      duration_ms: 1980.188155
+      ...
+    # Subtest: checker script exit 0 and package script wired
+    ok 4 - checker script exit 0 and package script wired
+      ---
+      duration_ms: 1852.080507
+      ...
+    # Subtest: BUILD_CHECKLIST BC13–15 DONE_WITH_EVIDENCE with onboarding-proof path
+    ok 5 - BUILD_CHECKLIST BC13–15 DONE_WITH_EVIDENCE with onboarding-proof path
+      ---
+      duration_ms: 5.716423
+      ...
+    # Subtest: section doc lists named assertions
+    ok 6 - section doc lists named assertions
+      ---
+      duration_ms: 0.28477
+      ...
+    1..6
+ok 50 - 9.6 Onboarding proof keystone
+  ---
+  duration_ms: 3846.355224
+  type: 'suite'
+  ...
+1..50
+# tests 470
+# suites 50
+# pass 470
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17806.045646
+
+ RUN  v2.1.9 /mnt/HC_Volume_105994188/speakerops-build
+
+ ✓ apps/api/src/modules/comms/comms-send.test.ts (21 tests) 550ms
+ ✓ apps/api/src/modules/publicCfp/publicCfp.test.ts (26 tests) 715ms
+ ✓ apps/api/src/modules/decisions/decisions.test.ts (24 tests) 767ms
+ ✓ apps/api/src/modules/design/design.test.ts (14 tests) 361ms
+ ✓ apps/api/src/modules/eval/eval.test.ts (15 tests) 393ms
+ ✓ apps/api/src/modules/portal/portal.test.ts (8 tests) 322ms
+ ✓ apps/api/src/modules/schedule/schedule.test.ts (11 tests) 448ms
+ ✓ apps/api/src/modules/auth/role-switch.test.ts (11 tests) 317ms
+ ✓ apps/api/src/modules/forms/forms.test.ts (9 tests) 384ms
+ ✓ apps/api/src/modules/files/files.test.ts (12 tests) 477ms
+ ✓ apps/api/src/modules/events/events.test.ts (13 tests) 330ms
+ ✓ apps/api/src/modules/keys/keys.test.ts (15 tests) 454ms
+ ✓ packages/db/src/migrate.test.ts (22 tests) 2205ms
+   ✓ 1.3 D1 Drizzle baseline migrations > assert migration creates organizations,events,audit_events,outbox_events,idempotency_keys 416ms
+ ✓ packages/cli/src/cli.test.ts (16 tests) 582ms
+ ✓ apps/api/src/modules/comms/comms.test.ts (9 tests) 258ms
+ ✓ apps/api/src/modules/auth/auth.test.ts (18 tests) 296ms
+ ✓ apps/api/src/modules/decisions/list.test.ts (8 tests) 356ms
+ ✓ apps/api/src/modules/airtable/airtable.test.ts (11 tests) 265ms
+ ✓ apps/api/src/middleware/security.test.ts (8 tests) 225ms
+ ✓ apps/api/src/modules/readiness/readiness.test.ts (9 tests) 315ms
+ ✓ apps/web/src/components/ui/ui.test.tsx (13 tests) 33ms
+ ✓ apps/api/src/health.test.ts (20 tests) 335ms
+ ✓ apps/web/src/pages/comms-utils.test.ts (10 tests) 18ms
+ ✓ tests/9.6-onboarding-proof.test.ts (9 tests) 1894ms
+   ✓ 9.6 Onboarding proof keystone > pnpm check:onboarding-proof wires script and exits 0 1793ms
+ ✓ apps/web/src/pages/schedule/schedule-utils.test.ts (13 tests) 106ms
+ ✓ tests/8.5-e2e-keystone-report.test.ts (11 tests) 56ms
+ ✓ tests/9.5-html-reports.test.ts (12 tests) 1553ms
+   ✓ 9.5 Beautiful HTML reports > assert generator exit 0 1406ms
+ ✓ apps/web/src/styles/lumen.test.ts (11 tests) 35ms
+ ✓ apps/api/src/middleware/authz.test.ts (9 tests) 169ms
+ ✓ tests/8.6-cloudflare-dogfood-deploy.test.ts (8 tests) 67ms
+ ✓ apps/api/src/modules/publicCfp/turnstile.test.ts (14 tests) 81ms
+ ✓ apps/web/src/pages/portal/portal-utils.test.ts (6 tests) 22ms
+ ✓ tests/8.3-security-hardening.test.ts (11 tests) 21ms
+ ✓ tests/unit/eval-export.test.ts (8 tests) 60ms
+ ✓ tests/9.2-human-onboarding.test.ts (6 tests) 13ms
+ ✓ tests/9.4-deep-docs.test.ts (8 tests) 19ms
+ ✓ tests/9.3-agent-setup.test.ts (7 tests) 15ms
+ ✓ tests/8.2-full-playwright-suite.test.ts (5 tests) 4520ms
+   ✓ 8.2 full Playwright suite > assert no inventory rows deleted in git diff of inventory file 4471ms
+ ✓ packages/shared/src/eval.test.ts (5 tests) 40ms
+ ✓ apps/web/src/components/forms/form-builder-utils.test.ts (7 tests) 25ms
+ ✓ tests/1.5-inventory-lint.test.ts (6 tests) 19ms
+ ✓ tests/9.1-docs-ia.test.ts (4 tests) 73ms
+ ✓ tests/8.4-demo-seed.test.ts (4 tests) 1576ms
+   ✓ 8.4 demo seed and role switcher > assert seed twice yields same speaker count 1222ms
+   ✓ 8.4 demo seed and role switcher > assert seed includes ≥1 schedule conflict and missing headshots 350ms
+ ✓ tests/8.1-inventory-completeness.test.ts (7 tests) 5202ms
+   ✓ 8.1 inventory completeness audit > workspace inventory lint (tags + crawl) exits 0 4959ms
+ ✓ apps/web/src/pages/speakers-utils.test.ts (5 tests) 17ms
+ ✓ packages/shared/src/design.test.ts (5 tests) 17ms
+ ✓ apps/web/src/layout/AdminShell.test.tsx (8 tests) 112ms
+ ✓ apps/web/src/pages/readiness-utils.test.ts (7 tests) 10ms
+ ✓ packages/shared/src/comms.test.ts (6 tests) 19ms
+stderr | apps/web/src/layout/SettingsShell.test.tsx > 11.7 SettingsShell two-pane > renders two-pane shell with nav and content region
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at MemoryRouter (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1097:7)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at LinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:807:9)
+    at NavLinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:885:25)
+    at nav
+    at aside
+    at div
+    at SettingsShell (/mnt/HC_Volume_105994188/speakerops-build/apps/web/src/layout/SettingsShell.tsx:73:26)
+    at Router (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1203:17)
+    at MemoryRouter (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1097:7)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at LinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:807:9)
+    at NavLinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:885:25)
+    at nav
+    at aside
+    at div
+    at SettingsShell (/mnt/HC_Volume_105994188/speakerops-build/apps/web/src/layout/SettingsShell.tsx:73:26)
+    at Router (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1203:17)
+    at MemoryRouter (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1097:7)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at LinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:807:9)
+    at NavLinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:885:25)
+    at nav
+    at aside
+    at div
+    at SettingsShell (/mnt/HC_Volume_105994188/speakerops-build/apps/web/src/layout/SettingsShell.tsx:73:26)
+    at Router (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1203:17)
+    at MemoryRouter (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1097:7)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at LinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:807:9)
+    at NavLinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:885:25)
+    at nav
+    at aside
+    at div
+    at SettingsShell (/mnt/HC_Volume_105994188/speakerops-build/apps/web/src/layout/SettingsShell.tsx:73:26)
+    at Router (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1203:17)
+    at MemoryRouter (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1097:7)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at LinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:807:9)
+    at NavLinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:885:25)
+    at nav
+    at aside
+    at div
+    at SettingsShell (/mnt/HC_Volume_105994188/speakerops-build/apps/web/src/layout/SettingsShell.tsx:73:26)
+    at Router (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1203:17)
+    at MemoryRouter (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1097:7)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at LinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:807:9)
+    at NavLinkWithRef (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router-dom@6.30.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:885:25)
+    at nav
+    at aside
+    at div
+    at SettingsShell (/mnt/HC_Volume_105994188/speakerops-build/apps/web/src/layout/SettingsShell.tsx:73:26)
+    at Router (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1203:17)
+    at MemoryRouter (/mnt/HC_Volume_105994188/speakerops-build/node_modules/.pnpm/react-router@6.30.4_react@18.3.1/node_modules/react-router/dist/umd/react-router.development.js:1097:7)
+
+ ✓ apps/web/src/layout/SettingsShell.test.tsx (2 tests) 72ms
+ ✓ apps/web/src/components/RoleSwitcher.test.tsx (2 tests) 37ms
+ ✓ packages/shared/src/errors.test.ts (4 tests) 15ms
+ ✓ packages/shared/src/uuid.test.ts (3 tests) 22ms
+ ✓ packages/shared/src/health.test.ts (3 tests) 8ms
+
+ Test Files  54 passed (54)
+      Tests  539 passed (539)
+   Start at  17:06:26
+   Duration  24.70s (transform 4.29s, setup 0ms, collect 23.58s, tests 26.30s, environment 55ms, prepare 8.44s)
+
+TESTCI_EXIT=0
+=== inventory ===
+
+> speakerops@0.1.0 test:e2e:inventory /mnt/HC_Volume_105994188/speakerops-build
+> tsx scripts/inventory-lint.ts
+
+[test:e2e:inventory] OK: baseline 115 IDs intact (115 REQUIRED non-DEFER, 0 DEFER); inventory 115 REQUIRED, 115 unique IDs, 115 unique test_ids; fingerprints match
+[test:e2e:inventory] OK: Phase 8 status claim — 115 non-DEFER REQUIRED rows are PASS
+[test:e2e:inventory] FAIL: Phase 8 full gate: non-DEFER REQUIRED IDs have @inv tags but no matching Playwright run-report entry (file/title): A01, A02, A03, A04, A05, A06, A07, A08, A09, A10, A11, A17, B01, B02, B03, B04, B05, B06, C01, C02 …(+95)
+ ELIFECYCLE  Command failed with exit code 1.
+INV_EXIT=1
+=== e2e full ===
+
+> speakerops@0.1.0 test:e2e /mnt/HC_Volume_105994188/speakerops-build
+> node scripts/e2e-run.mjs
+
+[test:e2e] building @speakerops/shared + @speakerops/api + @speakerops/cli for e2e…
+Scope: 3 of 6 workspace projects
+packages/shared build$ tsc -b
+packages/shared build: Done
+apps/api build$ tsc -b
+packages/cli build$ tsc -b
+packages/cli build: Done
+apps/api build: Done
+[test:e2e] running Playwright with /mnt/HC_Volume_105994188/speakerops-build/playwright.config.ts (E2E_WEB_SERVER=1)
+[WebServer] [e2e-api] listening on http://127.0.0.1:8787 (health + auth; dev outbox on)
+[WebServer] 
+[WebServer]   VITE v5.4.21  ready in 196 ms
+[WebServer] 
+[WebServer]   ➜  Local:   http://127.0.0.1:5173/
+
+Running 207 tests using 2 workers
+
+  ✓    2 [chromium] › playwright/e2e/_harness_example.spec.ts:22:1 › harness: Playwright wiring smoke (no inventory ownership claim) (166ms)
+  ✓    1 [chromium] › playwright/e2e/airtable_status.spec.ts:80:1 › @inv:O06 e2e/settings/airtable-status Airtable projection status read (1.5s)
+  ✓    3 [chromium] › playwright/e2e/api_keys.spec.ts:84:1 › @inv:K01 e2e/keys/create create key with subset of scopes; secret shown once (1.3s)
+  ✓    4 [chromium] › playwright/e2e/api_keys.spec.ts:145:1 › @inv:K02 e2e/keys/revoke revoke key (839ms)
+  ✓    5 [chromium] › playwright/e2e/api_keys.spec.ts:192:1 › @inv:K03 e2e/keys/secret-once copy prefix only after dismiss (956ms)
+  ✓    6 [chromium] › playwright/e2e/api_keys.spec.ts:241:1 › @inv:K04 e2e/keys/authz non-admin cannot open keys (643ms)
+  ✓    7 [chromium] › playwright/e2e/auth_magic_link.spec.ts:43:1 › @inv:B01 e2e/auth/admin-login magic link sets HttpOnly session cookie (715ms)
+  ✓    8 [chromium] › playwright/e2e/auth_magic_link.spec.ts:85:1 › @inv:B02 e2e/auth/speaker-magic single-use link; replay rejected (617ms)
+  ✓    9 [chromium] › playwright/e2e/auth_magic_link.spec.ts:108:1 › @inv:B03 e2e/auth/logout clears session cookie (683ms)
+  ✓   10 [chromium] › playwright/e2e/auth_role_guards.spec.ts:60:1 › @inv:B04 e2e/auth/admin-guard unauthed /admin redirects to login (626ms)
+  ✓   12 [chromium] › playwright/e2e/auth_role_guards.spec.ts:120:1 › @inv:B06 e2e/auth/role-guard-eval evaluator cannot mutate schedule (126ms)
+  ✓   11 [chromium] › playwright/e2e/auth_role_guards.spec.ts:79:1 › @inv:B05 e2e/auth/role-guard-admin speaker cannot open admin (707ms)
+  ✓   13 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:47:3 › 10.4 S-AUTH-ROLES demo persona session reliability › AC-10.4-A organizer session reaches /admin and sticks after reload (948ms)
+  ✓   14 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:99:3 › 10.4 S-AUTH-ROLES demo persona session reliability › AC-10.4-B speaker session reaches portal tasks surface (992ms)
+  ✓   15 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:155:3 › 10.4 S-AUTH-ROLES demo persona session reliability › AC-10.4-C evaluator session reaches queue (929ms)
+  ✓   16 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:192:3 › 10.4 S-AUTH-ROLES demo persona session reliability › must-not: unauthenticated user cannot read admin shell (608ms)
+  ✓   17 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:206:3 › 10.4 S-AUTH-ROLES demo persona session reliability › must-not: evaluator session cannot open admin navigation (625ms)
+  ✓   18 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:232:3 › 10.4 S-AUTH-ROLES demo persona session reliability › login sent copy does not promise a public test outbox (738ms)
+  -   20 [chromium] › playwright/e2e/cf_dogfood_smoke.spec.ts:18:3 › 8.6 optional CF dogfood smoke (S-CF) › remote GET /health returns 200 when SMOKE_BASE_URL is set
+  ✓   21 [chromium] › playwright/e2e/cfp_draft.spec.ts:143:3 › 10.5 public CFP draft save/resume › @inv:A17 e2e/public/cfp-draft save title-only and resume on reload (1.2s)
+  ✓   22 [chromium] › playwright/e2e/cfp_draft.spec.ts:205:3 › 10.5 public CFP draft save/resume › e2e/public/cfp-draft closed disables draft save (752ms)
+  ✓   19 [chromium] › playwright/e2e/auth_settings_keystone.spec.ts:135:3 › 2.5 auth settings keystone (I12) › keystone: login → set design → publish → public brand; role guards (3.2s)
+  ✓   24 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:124:3 › 11.3 CFP lumen2 builder + public › AC-11.3-A builder three regions outline canvas inspector (1.1s)
+  ✓   23 [chromium] › playwright/e2e/cfp_eval_keystone.spec.ts:82:3 › 3.6 cfp eval keystone (I12) › keystone: form publish → public submit → score → accept → tasks exist (3.7s)
+  ✓   25 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:186:3 › 11.3 CFP lumen2 builder + public › AC-11.3-C publish and preview parity (1.8s)
+  ✓   26 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:250:3 › 11.3 CFP lumen2 builder + public › AC-11.3-D progressive advanced disclosure (1.0s)
+  ✓   27 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:301:3 › 11.3 CFP lumen2 builder + public › AC-11.3-B public branded intro progress recovery (1.3s)
+  ✓   28 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:376:3 › 11.3 CFP lumen2 builder + public › AC-11.3-N closed CFP and unauthenticated admin (1.3s)
+  ✓   29 [chromium] › playwright/e2e/comms_admin.spec.ts:165:3 › 5.3 Comms admin UI J02–J10 › @inv:J02 e2e/comms/segment audience count (877ms)
+  ✓   30 [chromium] › playwright/e2e/comms_admin.spec.ts:192:3 › 5.3 Comms admin UI J02–J10 › @inv:J03 e2e/comms/preview all recipients + body (1.1s)
+  ✓   31 [chromium] › playwright/e2e/comms_admin.spec.ts:230:3 › 5.3 Comms admin UI J02–J10 › @inv:J04 e2e/comms/send-idempotent send once; second send same job (1.1s)
+  ✓   33 [chromium] › playwright/e2e/comms_admin.spec.ts:313:3 › 5.3 Comms admin UI J02–J10 › @inv:J06 e2e/comms/ics ICS attach for scheduled session (939ms)
+  ✓   32 [chromium] › playwright/e2e/comms_admin.spec.ts:280:3 › 5.3 Comms admin UI J02–J10 › @inv:J05 e2e/comms/log delivery log visible (1.1s)
+  ✓   34 [chromium] › playwright/e2e/comms_admin.spec.ts:348:3 › 5.3 Comms admin UI J02–J10 › @inv:J07 e2e/comms/authz role without comms:send cannot send (692ms)
+  ✓   35 [chromium] › playwright/e2e/comms_admin.spec.ts:427:3 › 5.3 Comms admin UI J02–J10 › @inv:J08 e2e/comms/preview-required send without preview blocked (876ms)
+  ✓   36 [chromium] › playwright/e2e/comms_admin.spec.ts:465:3 › 5.3 Comms admin UI J02–J10 › @inv:J09 e2e/comms/preview-invalidate edit audience invalidates preview (1.1s)
+  ✓   37 [chromium] › playwright/e2e/comms_admin.spec.ts:503:3 › 5.3 Comms admin UI J02–J10 › @inv:J10 e2e/comms/ics-update reschedule keeps UID bumps SEQUENCE (1.2s)
+  ✓   39 [chromium] › playwright/e2e/comms_lumen2.spec.ts:91:3 › 11.2 comms campaign lumen2 › AC-11.2-UI four steps + summary rail (796ms)
+  ✓   40 [chromium] › playwright/e2e/comms_lumen2.spec.ts:153:3 › 11.2 comms campaign lumen2 › AC-11.2-SCALE 150 audience without 150-checkbox wall (992ms)
+  ✓   38 [chromium] › playwright/e2e/comms_keystone.spec.ts:102:3 › 5.4 comms keystone (I12) › keystone: template → preview-required → send → ICS → authz (J01–J10) (2.3s)
+  ✓   42 [chromium] › playwright/e2e/comms_lumen2.spec.ts:295:3 › 11.2 comms campaign lumen2 › AC-11.2-SEND preview required + idempotent send + double-submit guard (1.3s)
+  ✓   41 [chromium] › playwright/e2e/comms_lumen2.spec.ts:220:3 › 11.2 comms campaign lumen2 › AC-11.2-SEL selection stable across page; audience edit invalidates (1.5s)
+  ✓   43 [chromium] › playwright/e2e/comms_lumen2.spec.ts:369:3 › 11.2 comms campaign lumen2 › AC-11.2-AUTHZ non-admin cannot send (657ms)
+  ✓   44 [chromium] › playwright/e2e/comms_template.spec.ts:102:3 › 5.1 Comms templates › @inv:J01 e2e/comms/template create/edit template merge fields (892ms)
+  ✓   45 [chromium] › playwright/e2e/design_kit.spec.ts:131:1 › @inv:C03 e2e/admin/design-color set brand; live preview updates (972ms)
+  ✓   46 [chromium] › playwright/e2e/design_kit.spec.ts:159:1 › @inv:C04 e2e/admin/design-logo upload PNG; preview (972ms)
+  ✓   48 [chromium] › playwright/e2e/design_kit.spec.ts:243:1 › @inv:C06 e2e/admin/design-no-css freeform CSS control absent (738ms)
+  ✓   47 [chromium] › playwright/e2e/design_kit.spec.ts:190:1 › @inv:C05 e2e/admin/design-publish publish; public CFP shows brand (1.1s)
+  ✓   50 [chromium] › playwright/e2e/design_kit.spec.ts:315:1 › @inv:C09 e2e/admin/design-logo-xss SVG rejected (912ms)
+  ✓   49 [chromium] › playwright/e2e/design_kit.spec.ts:268:1 › @inv:C08 e2e/admin/design-contrast near-white brand safe fg or block (1.5s)
+  ✓   51 [chromium] › playwright/e2e/design_kit.spec.ts:364:1 › @inv:C10 e2e/admin/design-draft-isolation draft not on public until publish (1.7s)
+  ✓   52 [chromium] › playwright/e2e/eval_export_sort.spec.ts:113:3 › 10.6 eval export/sort › AC-10.6-B @inv:F05 e2e/eval/export sort + CSV download (1.2s)
+  ✓   53 [chromium] › playwright/e2e/eval_export_sort.spec.ts:280:3 › 10.6 eval export/sort › negative: evaluator cannot export scores (403) (60ms)
+  ✓   54 [chromium] › playwright/e2e/eval_scoring.spec.ts:199:1 › @inv:F01 e2e/eval/queue See only assigned (unassigned hidden) (711ms)
+  ✓   55 [chromium] › playwright/e2e/eval_scoring.spec.ts:280:1 › @inv:F02 e2e/eval/score Score criteria + comment; out-of-range rejected (820ms)
+  ✓   56 [chromium] › playwright/e2e/eval_scoring.spec.ts:359:1 › @inv:F03 e2e/eval/no-decide Cannot accept/reject — control absent (846ms)
+  ✓   57 [chromium] › playwright/e2e/eval_scoring.spec.ts:414:1 › @inv:F04 e2e/eval/a11y-keyboard Keyboard-only complete score (1.1s)
+  ✓   58 [chromium] › playwright/e2e/eval_scoring.spec.ts:472:1 › @inv:O04 e2e/settings/rubric Eval rubric edit (1.3s)
+  ✓   60 [chromium] › playwright/e2e/evaluations_progress.spec.ts:362:3 › 10.2 evaluations progress UI › AC-10.2 negative: unauthenticated rollup is 401 (17ms)
+  ✓   61 [chromium] › playwright/e2e/evaluations_progress.spec.ts:374:3 › 10.2 evaluations progress UI › AC-10.2 negative: evaluator cannot read admin rollup (403) (60ms)
+  ✓   59 [chromium] › playwright/e2e/evaluations_progress.spec.ts:194:3 › 10.2 evaluations progress UI › AC-10.2-A: admin evaluations loads progress without Response validation failed (1.5s)
+  ✓   62 [chromium] › playwright/e2e/event_settings.spec.ts:98:1 › @inv:C01 e2e/admin/event-create create event with timezone (898ms)
+  ✓   63 [chromium] › playwright/e2e/event_settings.spec.ts:155:1 › @inv:C02 e2e/admin/event-switch switch active event updates event-context (950ms)
+  ✓   64 [chromium] › playwright/e2e/event_settings.spec.ts:201:1 › @inv:C07 e2e/admin/settings-cfp-window edit event name and close dates (862ms)
+  ✓   65 [chromium] › playwright/e2e/event_settings.spec.ts:269:1 › @inv:C11 e2e/admin/event-isolation switch A→B no A rooms in B (1.1s)
+  ✓   66 [chromium] › playwright/e2e/event_settings.spec.ts:345:1 › @inv:O01 e2e/settings/event name dates tz settings form (885ms)
+  ✓   67 [chromium] › playwright/e2e/event_settings.spec.ts:380:1 › @inv:O02 e2e/settings/rooms rooms CRUD (819ms)
+  ✓   68 [chromium] › playwright/e2e/event_settings.spec.ts:416:1 › @inv:O03 e2e/settings/tracks tracks CRUD (909ms)
+  ✓   69 [chromium] › playwright/e2e/form_builder.spec.ts:150:1 › @inv:D01 e2e/admin/form-create create form; add text/select/file/speaker fields (1.1s)
+  ✓   70 [chromium] › playwright/e2e/form_builder.spec.ts:200:1 › @inv:D02 e2e/admin/form-reorder reorder fields drag / move controls (915ms)
+  ✓   72 [chromium] › playwright/e2e/form_builder.spec.ts:287:1 › @inv:D04 e2e/admin/form-routing category field + routing target (1.1s)
+  ✓   71 [chromium] › playwright/e2e/form_builder.spec.ts:235:1 › @inv:D03 e2e/admin/form-conditional conditional rule; circular rule blocked (1.5s)
+  ✓   73 [chromium] › playwright/e2e/form_builder.spec.ts:350:1 › @inv:D05 e2e/admin/form-required required flags + validation (1.3s)
+  ✓   74 [chromium] › playwright/e2e/form_builder.spec.ts:402:1 › @inv:D06 e2e/admin/form-copy welcome/thank-you copy (915ms)
+  ✓   75 [chromium] › playwright/e2e/form_builder.spec.ts:435:1 › @inv:D07 e2e/admin/form-preview preview side-by-side (878ms)
+  ✓   76 [chromium] › playwright/e2e/form_builder.spec.ts:465:1 › @inv:D08 e2e/admin/form-publish-version publish version; edit creates new version (1.4s)
+  ✓   77 [chromium] › playwright/e2e/form_builder.spec.ts:512:1 › @inv:D09 e2e/admin/form-limits open/close + submission limit (985ms)
+  ✓   78 [chromium] › playwright/e2e/form_builder.spec.ts:552:1 › @inv:D10 e2e/admin/form-link copy public link (1.1s)
+  ✓   79 [chromium] › playwright/e2e/foundation_smoke.spec.ts:35:3 › 1.6 foundation smoke (I12 keystone) › foundation: health 200 + shell CFP chrome without pageerror or console.error (894ms)
+  ✓   81 [chromium] › playwright/e2e/lumen2_state_sheet.spec.ts:128:1 › L2 state sheet unauthenticated users cannot read admin sheet (602ms)
+  ✓   80 [chromium] › playwright/e2e/lumen2_state_sheet.spec.ts:74:1 › @inv:L2-01 e2e/lumen2/state-sheet primitives + state anatomy reviewable (975ms)
+  ✓   82 [chromium] › playwright/e2e/overview_lumen2.spec.ts:183:1 › AC-11.1-A overview attention + metrics + primary action within 5s (927ms)
+  ✓   83 [chromium] › playwright/e2e/overview_lumen2.spec.ts:259:1 › 11.1 mobile 390px nav drawer is usable (1.1s)
+  ✓   84 [chromium] › playwright/e2e/overview_lumen2.spec.ts:298:1 › 11.1 session-expired recovers via login not shell alert (853ms)
+  ✓   85 [chromium] › playwright/e2e/overview_lumen2.spec.ts:330:1 › 11.1 must-not unauthenticated overview (redirect) (580ms)
+  ✓   86 [chromium] › playwright/e2e/overview_lumen2.spec.ts:341:1 › 11.1 must-not evaluator admin nav (577ms)
+  ✓   88 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:474:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-CFP-SUBMIT DEMO + S-CFP-DRAFT save/resume (1.5s)
+  ✓   89 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:580:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-CFP-CLOSED closed UI + POST 4xx (668ms)
+  ✓   90 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:658:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-AUTH-ROLES speaker portal + evaluator queue (904ms)
+  ✓   87 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:214:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-AUTH-ROLES admin + S-SUB-LIST + S-EVAL-UI + S-EVAL-EXPORT (3.7s)
+  ✓   91 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:723:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-SCHED-CHROME week days ⊆ event range (938ms)
+  ✓   93 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:859:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: documents all eight Phase 10 F soul proofs (6ms)
+  -   94 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:141:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-DOGFOOD health 200 + deploy.md revision recorded
+  ✓   92 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:789:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: must-not unauth admin + evaluator no export/admin (937ms)
+  -   95 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:165:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-AUTH-ROLES three role landings on dogfood
+  -   97 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:212:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-SUB-LIST submissions list on dogfood ≤5s
+  -   96 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:250:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-EVAL-UI evaluations progress on dogfood
+  -   99 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:324:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-CFP-SUBMIT public CFP DEMO submit on dogfood
+  -   98 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:278:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-EVAL-EXPORT export/sort or absence proof on dogfood
+  -  100 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:480:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-CFP-CLOSED closed window on dogfood
+  -  101 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:422:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-CFP-DRAFT draft save/resume on dogfood
+  -  103 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:629:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-SYSTEM state sheet still present post-deploy
+  -  102 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:597:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-SCHED-CHROME + S-L2-SCHED schedule on dogfood
+  -  104 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:647:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-SHELL overview attention on dogfood
+  -  105 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:973:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-CFP builder + public on dogfood
+  -  106 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:678:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-COMMS J01–J10 + scale + preview/send + idempotency on dogfood
+  -  107 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1001:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-SUB submissions UI on dogfood
+  -  108 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1021:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-PORTAL portal on dogfood
+  -  110 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1064:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-SCORE LUMEN2_TASTE_SCORE.md ≥8.0 with screenshots
+  -  109 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1039:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-A11Y session recovery on dogfood
+  -  111 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1085:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: must-not unauth admin submissions + evaluator no admin shell
+  -  112 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1127:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: documents all 18 constitution soul IDs for S-DOGFOOD
+  ✓  113 [chromium] › playwright/e2e/phase8_full_suite_keystone.spec.ts:70:1 › keystone 8.2: health → admin shell → empty CTA → console-clean soul path (978ms)
+  ✓  115 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:197:1 › @inv:O05 e2e/settings/task-templates Task templates CRUD on accept (806ms)
+  ✓  114 [chromium] › playwright/e2e/phase7_keystone.spec.ts:188:3 › 7.4 phase7 keystone (I12 K* + CLI deny + airtable pause) › keystone: K* keys → CLI07 deny → airtable pause (phase7) (2.6s)
+  ✓  116 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:269:1 › @inv:N01 e2e/admin/speakers-list List speakers for event (817ms)
+  ✓  117 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:313:1 › @inv:N02 e2e/admin/speakers-filter Search/filter speakers (809ms)
+  ✓  118 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:349:1 › @inv:N03 e2e/admin/speakers-detail Detail: tasks + files (855ms)
+  ✓  119 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:391:1 › @inv:N04 e2e/admin/speakers-files Open headshot/slides metadata; no cross-speaker leak (266ms)
+  ✓  121 [chromium] › playwright/e2e/portal_lumen2.spec.ts:202:3 › 11.6 portal + speakers lumen2 › AC-11.6-PORTAL-NEXT branded welcome, progress, next-task dominant (823ms)
+  ✓  122 [chromium] › playwright/e2e/portal_lumen2.spec.ts:269:3 › 11.6 portal + speakers lumen2 › AC-11.6-PORTAL-MOBILE 390px usable next-task + bottom nav (714ms)
+  ✓  120 [chromium] › playwright/e2e/portal_keystone.spec.ts:213:3 › 4.4 portal keystone (I12) › keystone: seed accept → portal green (G01–G08) (1.9s)
+  ✓  123 [chromium] › playwright/e2e/portal_lumen2.spec.ts:317:3 › 11.6 portal + speakers lumen2 › AC-11.6-SPEAKERS-LIFE lifecycle table + readiness indicators (1.2s)
+  ✓  124 [chromium] › playwright/e2e/portal_lumen2.spec.ts:404:3 › 11.6 portal + speakers lumen2 › AC-11.6-SPEAKERS-DETAIL structured detail pane (1.2s)
+  ✓  125 [chromium] › playwright/e2e/portal_lumen2.spec.ts:472:3 › 11.6 portal + speakers lumen2 › AC-11.6-AUTHZ unauth portal + speaker cannot list admin speakers (684ms)
+  ✓  126 [chromium] › playwright/e2e/portal_ui.spec.ts:303:1 › @inv:G01 e2e/portal/home Land on next incomplete task (859ms)
+  ✓  127 [chromium] › playwright/e2e/portal_ui.spec.ts:334:1 › @inv:G02 e2e/portal/bio Edit bio; save — XSS text-only (841ms)
+  ✓  128 [chromium] › playwright/e2e/portal_ui.spec.ts:390:1 › @inv:G03 e2e/portal/headshot Upload headshot; preview — bad type rejected (775ms)
+  ✓  129 [chromium] › playwright/e2e/portal_ui.spec.ts:442:1 › @inv:G04 e2e/portal/slides Upload slides (760ms)
+  ✓  130 [chromium] › playwright/e2e/portal_ui.spec.ts:476:1 › @inv:G05 e2e/portal/task-complete Complete task; status flips (723ms)
+  ✓  131 [chromium] › playwright/e2e/portal_ui.spec.ts:516:1 › @inv:G06 e2e/portal/task-overdue Overdue visual state (699ms)
+  ✓  132 [chromium] › playwright/e2e/portal_ui.spec.ts:554:1 › @inv:G07 e2e/portal/session View own session status — no other speakers' private data (803ms)
+  ✓  133 [chromium] › playwright/e2e/portal_ui.spec.ts:616:1 › @inv:G08 e2e/portal/mobile Mobile complete bio+task (804ms)
+  ✓  134 [chromium] › playwright/e2e/public_cfp_submit_demo.spec.ts:159:3 › 10.3 Public CFP DEMO captcha + closed window › AC-10.3-A DEMO_MODE submit succeeds without captcha dead-end (805ms)
+  ✓  135 [chromium] › playwright/e2e/public_cfp_submit_demo.spec.ts:198:3 › 10.3 Public CFP DEMO captcha + closed window › AC-10.3-B closed window: public-cfp-closed + POST 4xx (671ms)
+  ✓  136 [chromium] › playwright/e2e/public_cfp.spec.ts:244:1 › @inv:A01 e2e/public/cfp-load public CFP loads form and brand tokens (971ms)
+  ✓  137 [chromium] › playwright/e2e/public_cfp.spec.ts:278:1 › @inv:A02 e2e/public/cfp-conditional conditional field appears when rule met (944ms)
+  ✓  138 [chromium] › playwright/e2e/public_cfp.spec.ts:309:1 › @inv:A03 e2e/public/cfp-category category routing metadata on submit (818ms)
+  ✓  139 [chromium] › playwright/e2e/public_cfp.spec.ts:358:1 › @inv:A04 e2e/public/cfp-multi-speaker min/max speaker rules (892ms)
+  ✓  140 [chromium] › playwright/e2e/public_cfp.spec.ts:385:1 › @inv:A05 e2e/public/cfp-file upload within type/size; oversize/type rejected (712ms)
+  ✓  141 [chromium] › playwright/e2e/public_cfp.spec.ts:431:1 › @inv:A06 e2e/public/cfp-submit Turnstile pass; missing captcha blocked (849ms)
+  ✓  142 [chromium] › playwright/e2e/public_cfp.spec.ts:465:1 › @inv:A07 e2e/public/cfp-closed closed window shows closed state; no submit (624ms)
+  ✓  143 [chromium] › playwright/e2e/public_cfp.spec.ts:484:1 › @inv:A08 e2e/public/cfp-validation validation errors inline; focus management (784ms)
+  ✓  144 [chromium] › playwright/e2e/public_cfp.spec.ts:503:1 › @inv:A09 e2e/public/cfp-mobile mobile viewport complete submit (970ms)
+  ✓  145 [chromium] › playwright/e2e/public_cfp.spec.ts:524:1 › @inv:A10 e2e/public/cfp-xss XSS string renders as text not script (881ms)
+  ✓  146 [chromium] › playwright/e2e/public_cfp.spec.ts:554:1 › @inv:A11 e2e/public/cfp-keyboard keyboard-only complete valid submit (958ms)
+  ✓  147 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:239:1 › @inv:H01 e2e/dash/overview Stats + outstanding list (640ms)
+  ✓  148 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:278:1 › @inv:H02 e2e/dash/filter Filter overdue (893ms)
+  ✓  149 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:334:1 › @inv:H03 e2e/dash/drill Drill to speaker (1.0s)
+  ✓  151 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:442:1 › @inv:H05 e2e/dash/empty Empty state when all clear (682ms)
+  ✓  152 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:466:1 › @inv:L05 e2e/states/large-list 150-row list paginates or virtualizes usable (824ms)
+  ✓  150 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:376:1 › @inv:H04 e2e/dash/live Live update after portal complete (3.8s)
+  ✓  154 [chromium] › playwright/e2e/schedule_day_chrome.spec.ts:21:3 › 10.6 schedule day chrome › AC-10.6-A e2e/sched/week-chrome no pre-event empty days (753ms)
+  ✓  155 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:163:3 › 11.5 schedule studio lumen2 › AC-11.5-SURFACE full-height L2 surface + board (941ms)
+  ✓  156 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:205:3 › 11.5 schedule studio lumen2 › AC-11.5-STICKY sticky time/room headers (957ms)
+  ✓  157 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:258:3 › 11.5 schedule studio lumen2 › AC-11.5-CONFLICT tile + summary after blocked place (1.3s)
+  ✓  158 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:342:3 › 11.5 schedule studio lumen2 › AC-11.5-KEYBOARD place without drag (1.4s)
+  ✓  159 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:391:3 › 11.5 schedule studio lumen2 › AC-11.5-AUTHZ unauthenticated blocked; evaluator no admin schedule (996ms)
+  ✓  160 [chromium] › playwright/e2e/schedule_studio.spec.ts:204:3 › 6.2 Schedule Studio I01–I16 › @inv:I01 e2e/sched/list List view shows sessions (1.1s)
+  ✓  161 [chromium] › playwright/e2e/schedule_studio.spec.ts:240:3 › 6.2 Schedule Studio I01–I16 › @inv:I02 e2e/sched/day Day view (700ms)
+  ✓  162 [chromium] › playwright/e2e/schedule_studio.spec.ts:262:3 › 6.2 Schedule Studio I01–I16 › @inv:I03 e2e/sched/week Week view (1.0s)
+  ✓  163 [chromium] › playwright/e2e/schedule_studio.spec.ts:293:3 › 6.2 Schedule Studio I01–I16 › @inv:I04 e2e/sched/track Track view (944ms)
+  ✓  153 [chromium] › playwright/e2e/schedule_dash_keystone.spec.ts:320:3 › 6.4 schedule+dash keystone (I12) › keystone: schedule → readiness → speakers → L05 (I* H* N* L05) (13.2s)
+  ✓  164 [chromium] › playwright/e2e/schedule_studio.spec.ts:325:3 › 6.2 Schedule Studio I01–I16 › @inv:I05 e2e/sched/room Room view (1.2s)
+  ✓  165 [chromium] › playwright/e2e/schedule_studio.spec.ts:359:3 › 6.2 Schedule Studio I01–I16 › @inv:I06 e2e/sched/drag-place Drag place into empty slot (1.4s)
+  ✓  166 [chromium] › playwright/e2e/schedule_studio.spec.ts:398:3 › 6.2 Schedule Studio I01–I16 › @inv:I07 e2e/sched/conflict-speaker speaker conflict blocked (1.3s)
+  ✓  167 [chromium] › playwright/e2e/schedule_studio.spec.ts:456:3 › 6.2 Schedule Studio I01–I16 › @inv:I08 e2e/sched/conflict-room Room overlap conflict (1.2s)
+  ✓  168 [chromium] › playwright/e2e/schedule_studio.spec.ts:509:3 › 6.2 Schedule Studio I01–I16 › @inv:I09 e2e/sched/keyboard Keyboard place creates placement (1.5s)
+  ✓  170 [chromium] › playwright/e2e/schedule_studio.spec.ts:576:3 › 6.2 Schedule Studio I01–I16 › @inv:I11 e2e/sched/tray Unscheduled tray (938ms)
+  ✓  169 [chromium] › playwright/e2e/schedule_studio.spec.ts:541:3 › 6.2 Schedule Studio I01–I16 › @inv:I10 e2e/sched/undo Undo last move (1.6s)
+  ✓  171 [chromium] › playwright/e2e/schedule_studio.spec.ts:597:3 › 6.2 Schedule Studio I01–I16 › @inv:I12 e2e/sched/tz Timezone displayed (1.0s)
+  ✓  172 [chromium] › playwright/e2e/schedule_studio.spec.ts:615:3 › 6.2 Schedule Studio I01–I16 › @inv:I13 e2e/sched/move Move already-placed session (1.5s)
+  ✓  173 [chromium] › playwright/e2e/schedule_studio.spec.ts:664:3 › 6.2 Schedule Studio I01–I16 › @inv:I14 e2e/sched/unschedule Unschedule back to tray (1.5s)
+  ✓  174 [chromium] › playwright/e2e/schedule_studio.spec.ts:698:3 › 6.2 Schedule Studio I01–I16 › @inv:I15 e2e/sched/stale Stale version recovery UI (1.6s)
+  ✓  176 [chromium] › playwright/e2e/security_hardening.spec.ts:17:1 › CSP header present on HTML document (553ms)
+  ✓  177 [chromium] › playwright/e2e/security_hardening.spec.ts:50:1 › security inventory A10/C09 tags exist in suite sources (10ms)
+  ✓  178 [chromium] › playwright/e2e/session_states_a11y.spec.ts:109:1 › @inv:L2-02 e2e/lumen2/session-expired recovers via login not shell (928ms)
+  ✓  179 [chromium] › playwright/e2e/session_states_a11y.spec.ts:154:1 › @inv:L2-03 e2e/lumen2/settings-two-pane category nav + content (856ms)
+  ✓  180 [chromium] › playwright/e2e/session_states_a11y.spec.ts:213:1 › @inv:L2-04 e2e/lumen2/design-preview-public live CFP depth (682ms)
+  ✓  175 [chromium] › playwright/e2e/schedule_studio.spec.ts:756:3 › 6.2 Schedule Studio I01–I16 › @inv:I16 e2e/sched/persist five views + reload consistent (4.7s)
+  ✓  181 [chromium] › playwright/e2e/session_states_a11y.spec.ts:250:1 › @inv:L2-05 e2e/lumen2/settings-a11y-keyboard focus journeys (747ms)
+  ✓  183 [chromium] › playwright/e2e/session_states_a11y.spec.ts:335:1 › 11.7 must-not evaluator settings nav (601ms)
+  ✓  182 [chromium] › playwright/e2e/session_states_a11y.spec.ts:314:1 › 11.7 must-not unauthenticated settings surfaces (1.2s)
+  ✓  184 [chromium] › playwright/e2e/states_cross_cutting.spec.ts:130:1 › @inv:L01 e2e/states/empty-sub empty submissions list shows CTA (1.2s)
+  ✓  185 [chromium] › playwright/e2e/states_cross_cutting.spec.ts:162:1 › @inv:L02 e2e/states/error API 500 shows error state not blank (1.2s)
+  ✓  186 [chromium] › playwright/e2e/states_cross_cutting.spec.ts:210:1 › @inv:L03 e2e/states/loading loading skeleton resolves (not infinite hang) (1.3s)
+  ✓  187 [chromium] › playwright/e2e/states_cross_cutting.spec.ts:269:1 › @inv:L04 e2e/states/console-clean happy paths have no uncaught console errors (1.7s)
+  ✓  188 [chromium] › playwright/e2e/submissions_decisions.spec.ts:207:3 › 3.5 submissions decisions › @inv:E01 e2e/admin/sub-list list filters by status/category (1.3s)
+  ✓  189 [chromium] › playwright/e2e/submissions_decisions.spec.ts:257:3 › 3.5 submissions decisions › @inv:E02 e2e/admin/sub-detail open detail answers speakers (1.3s)
+  ✓  190 [chromium] › playwright/e2e/submissions_decisions.spec.ts:291:3 › 3.5 submissions decisions › @inv:E03 e2e/admin/sub-assign assign to evaluator (1.3s)
+  ✓  191 [chromium] › playwright/e2e/submissions_decisions.spec.ts:342:3 › 3.5 submissions decisions › @inv:E04 e2e/admin/sub-accept accept creates session + tasks (1.3s)
+  ✓  192 [chromium] › playwright/e2e/submissions_decisions.spec.ts:409:3 › 3.5 submissions decisions › @inv:E05 e2e/admin/sub-reject reject with reason (1.2s)
+  ✓  193 [chromium] › playwright/e2e/submissions_decisions.spec.ts:444:3 › 3.5 submissions decisions › @inv:E06 e2e/admin/sub-waitlist waitlist status (1.2s)
+  ✓  194 [chromium] › playwright/e2e/submissions_decisions.spec.ts:476:3 › 3.5 submissions decisions › @inv:E07 e2e/admin/session-direct direct sponsor session (1.2s)
+  ✓  195 [chromium] › playwright/e2e/submissions_decisions.spec.ts:507:3 › 3.5 submissions decisions › @inv:E08 e2e/admin/sub-bulk bulk select + preview empty blocked (1.3s)
+  ✓  196 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:211:3 › 10.1 submissions list reliability › AC-10.1-A fixture ≥150: page-submissions + ≥1 row; loading gone ≤5s (1.8s)
+  ✓  197 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:310:3 › 10.1 submissions list reliability › AC-10.1-B API failure shows recovery; spinner does not persist (1.3s)
+  ✓  199 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:408:3 › 10.1 submissions list reliability › AC-10.1-E pagination keeps filters server-side (1.1s)
+  ✓  198 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:359:3 › 10.1 submissions list reliability › AC-10.1-C unauthenticated list → 401 (must-not leak rows) (2.1s)
+  ✓  200 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:494:3 › 10.1 submissions list reliability › AC-10.1-D cross-event: active event A does not show event B rows (1.0s)
+  ✓  201 [chromium] › playwright/e2e/submissions_lumen2.spec.ts:173:3 › 11.4 submissions + evaluations lumen2 › AC-11.4-BULK selection reveals sticky bulk bar (1.4s)
+  ✓  202 [chromium] › playwright/e2e/submissions_lumen2.spec.ts:237:3 › 11.4 submissions + evaluations lumen2 › AC-11.4-DETAIL hierarchy + filter chips (1.3s)
+  ✓  203 [chromium] › playwright/e2e/submissions_lumen2.spec.ts:321:3 › 11.4 submissions + evaluations lumen2 › AC-11.4-EVAL coverage progress admin + evaluator queue (1.3s)
+  ✓  204 [chromium] › playwright/e2e/submissions_lumen2.spec.ts:420:3 › 11.4 submissions + evaluations lumen2 › AC-11.4-AUTHZ unauth blocked; evaluator no admin nav (1.0s)
+  ✓  206 [chromium] › playwright/e2e/visual_lumen2.spec.ts:615:3 › 11.8 visual lumen2 suite › AC-11.8-AUTHZ unauthenticated cannot read admin visual surfaces (1.9s)
+  ✓  207 [chromium] › playwright/e2e/visual_lumen2.spec.ts:636:3 › 11.8 visual lumen2 suite › AC-11.8-SCORE taste score document gates overall ≥8.0 (18ms)
+  ✓  205 [chromium] › playwright/e2e/visual_lumen2.spec.ts:339:3 › 11.8 visual lumen2 suite › AC-11.8-SUITE nine artifact classes captured at fixed viewport (5.5s)
+
+  20 skipped
+  187 passed (1.9m)
+[docs:e2e-report] wrote /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-coverage.html · REQUIRED 115 · PASS 115 · FAIL 0 · DEFER 0 · sha 891dd45 · at 2026-08-09T17:08:55.125Z
+[test:e2e] report path stored: /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-report-path.txt
+[test:e2e] JSON run report: /mnt/HC_Volume_105994188/speakerops-build/reports/playwright-run.json (exists=true)
+[test:e2e] HTML dir: /mnt/HC_Volume_105994188/speakerops-build/playwright-report (exists=true)
+[test:e2e] coverage HTML: /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-coverage.html
+E2E_EXIT=0
+=== visual ===
+
+> speakerops@0.1.0 test:e2e:visual /mnt/HC_Volume_105994188/speakerops-build
+> node scripts/e2e-run.mjs playwright/e2e/visual_lumen2.spec.ts
+
+[test:e2e] building @speakerops/shared + @speakerops/api + @speakerops/cli for e2e…
+Scope: 3 of 6 workspace projects
+packages/shared build$ tsc -b
+packages/shared build: Done
+apps/api build$ tsc -b
+packages/cli build$ tsc -b
+packages/cli build: Done
+apps/api build: Done
+[test:e2e] running Playwright with /mnt/HC_Volume_105994188/speakerops-build/playwright.config.ts (E2E_WEB_SERVER=1) args=playwright/e2e/visual_lumen2.spec.ts
+[WebServer] [e2e-api] listening on http://127.0.0.1:8787 (health + auth; dev outbox on)
+[WebServer] 
+[WebServer]   VITE v5.4.21  ready in 200 ms
+[WebServer] 
+[WebServer]   ➜  Local:   http://127.0.0.1:5173/
+
+Running 3 tests using 2 workers
+
+  ✓  1 [chromium] › playwright/e2e/visual_lumen2.spec.ts:615:3 › 11.8 visual lumen2 suite › AC-11.8-AUTHZ unauthenticated cannot read admin visual surfaces (2.4s)
+  ✓  3 [chromium] › playwright/e2e/visual_lumen2.spec.ts:636:3 › 11.8 visual lumen2 suite › AC-11.8-SCORE taste score document gates overall ≥8.0 (22ms)
+  ✓  2 [chromium] › playwright/e2e/visual_lumen2.spec.ts:339:3 › 11.8 visual lumen2 suite › AC-11.8-SUITE nine artifact classes captured at fixed viewport (6.4s)
+
+  3 passed (9.1s)
+[docs:e2e-report] wrote /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-coverage.html · REQUIRED 115 · PASS 0 · FAIL 115 · DEFER 0 · sha 891dd45 · at 2026-08-09T17:09:07.479Z
+[test:e2e] report path stored: /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-report-path.txt
+[test:e2e] JSON run report: /mnt/HC_Volume_105994188/speakerops-build/reports/playwright-run.json (exists=true)
+[test:e2e] HTML dir: /mnt/HC_Volume_105994188/speakerops-build/playwright-report (exists=true)
+[test:e2e] coverage HTML: /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-coverage.html
+VISUAL_EXIT=0
+=== phase11 keystone (skip if no secrets in this shell) ===
+=== DONE ===
+2026-08-09T17:09:07+00:00
+=== REGEN full e2e @ 2026-08-09T17:15:41+00:00 tip=891dd45 ===
+
+> speakerops@0.1.0 test:e2e /mnt/HC_Volume_105994188/speakerops-build
+> node scripts/e2e-run.mjs
+
+[test:e2e] building @speakerops/shared + @speakerops/api + @speakerops/cli for e2e…
+Scope: 3 of 6 workspace projects
+packages/shared build$ tsc -b
+packages/shared build: Done
+apps/api build$ tsc -b
+packages/cli build$ tsc -b
+packages/cli build: Done
+apps/api build: Done
+[test:e2e] running Playwright with /mnt/HC_Volume_105994188/speakerops-build/playwright.config.ts (E2E_WEB_SERVER=1)
+[WebServer] [e2e-api] listening on http://127.0.0.1:8787 (health + auth; dev outbox on)
+[WebServer] 
+[WebServer]   VITE v5.4.21  ready in 211 ms
+[WebServer] 
+[WebServer]   ➜  Local:   http://127.0.0.1:5173/
+
+Running 207 tests using 1 worker
+
+  ✓    1 [chromium] › playwright/e2e/_harness_example.spec.ts:22:1 › harness: Playwright wiring smoke (no inventory ownership claim) (192ms)
+  ✓    2 [chromium] › playwright/e2e/airtable_status.spec.ts:80:1 › @inv:O06 e2e/settings/airtable-status Airtable projection status read (919ms)
+  ✓    3 [chromium] › playwright/e2e/api_keys.spec.ts:84:1 › @inv:K01 e2e/keys/create create key with subset of scopes; secret shown once (705ms)
+  ✓    4 [chromium] › playwright/e2e/api_keys.spec.ts:145:1 › @inv:K02 e2e/keys/revoke revoke key (583ms)
+  ✓    5 [chromium] › playwright/e2e/api_keys.spec.ts:192:1 › @inv:K03 e2e/keys/secret-once copy prefix only after dismiss (652ms)
+  ✓    6 [chromium] › playwright/e2e/api_keys.spec.ts:241:1 › @inv:K04 e2e/keys/authz non-admin cannot open keys (428ms)
+  ✓    7 [chromium] › playwright/e2e/auth_magic_link.spec.ts:43:1 › @inv:B01 e2e/auth/admin-login magic link sets HttpOnly session cookie (550ms)
+  ✓    8 [chromium] › playwright/e2e/auth_magic_link.spec.ts:85:1 › @inv:B02 e2e/auth/speaker-magic single-use link; replay rejected (433ms)
+  ✓    9 [chromium] › playwright/e2e/auth_magic_link.spec.ts:108:1 › @inv:B03 e2e/auth/logout clears session cookie (490ms)
+  ✓   10 [chromium] › playwright/e2e/auth_role_guards.spec.ts:60:1 › @inv:B04 e2e/auth/admin-guard unauthed /admin redirects to login (403ms)
+  ✓   11 [chromium] › playwright/e2e/auth_role_guards.spec.ts:79:1 › @inv:B05 e2e/auth/role-guard-admin speaker cannot open admin (436ms)
+  ✓   12 [chromium] › playwright/e2e/auth_role_guards.spec.ts:120:1 › @inv:B06 e2e/auth/role-guard-eval evaluator cannot mutate schedule (40ms)
+  ✓   13 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:47:3 › 10.4 S-AUTH-ROLES demo persona session reliability › AC-10.4-A organizer session reaches /admin and sticks after reload (651ms)
+  ✓   14 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:99:3 › 10.4 S-AUTH-ROLES demo persona session reliability › AC-10.4-B speaker session reaches portal tasks surface (705ms)
+  ✓   15 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:155:3 › 10.4 S-AUTH-ROLES demo persona session reliability › AC-10.4-C evaluator session reaches queue (610ms)
+  ✓   16 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:192:3 › 10.4 S-AUTH-ROLES demo persona session reliability › must-not: unauthenticated user cannot read admin shell (396ms)
+  ✓   17 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:206:3 › 10.4 S-AUTH-ROLES demo persona session reliability › must-not: evaluator session cannot open admin navigation (429ms)
+  ✓   18 [chromium] › playwright/e2e/auth_roles_dogfood.spec.ts:232:3 › 10.4 S-AUTH-ROLES demo persona session reliability › login sent copy does not promise a public test outbox (529ms)
+  ✓   19 [chromium] › playwright/e2e/auth_settings_keystone.spec.ts:135:3 › 2.5 auth settings keystone (I12) › keystone: login → set design → publish → public brand; role guards (1.8s)
+  -   20 [chromium] › playwright/e2e/cf_dogfood_smoke.spec.ts:18:3 › 8.6 optional CF dogfood smoke (S-CF) › remote GET /health returns 200 when SMOKE_BASE_URL is set
+  ✓   21 [chromium] › playwright/e2e/cfp_draft.spec.ts:143:3 › 10.5 public CFP draft save/resume › @inv:A17 e2e/public/cfp-draft save title-only and resume on reload (682ms)
+  ✓   22 [chromium] › playwright/e2e/cfp_draft.spec.ts:205:3 › 10.5 public CFP draft save/resume › e2e/public/cfp-draft closed disables draft save (433ms)
+  ✓   23 [chromium] › playwright/e2e/cfp_eval_keystone.spec.ts:82:3 › 3.6 cfp eval keystone (I12) › keystone: form publish → public submit → score → accept → tasks exist (2.1s)
+  ✓   24 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:124:3 › 11.3 CFP lumen2 builder + public › AC-11.3-A builder three regions outline canvas inspector (762ms)
+  ✓   25 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:186:3 › 11.3 CFP lumen2 builder + public › AC-11.3-C publish and preview parity (965ms)
+  ✓   26 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:250:3 › 11.3 CFP lumen2 builder + public › AC-11.3-D progressive advanced disclosure (786ms)
+  ✓   27 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:301:3 › 11.3 CFP lumen2 builder + public › AC-11.3-B public branded intro progress recovery (951ms)
+  ✓   28 [chromium] › playwright/e2e/cfp_lumen2.spec.ts:376:3 › 11.3 CFP lumen2 builder + public › AC-11.3-N closed CFP and unauthenticated admin (865ms)
+  ✓   29 [chromium] › playwright/e2e/comms_admin.spec.ts:165:3 › 5.3 Comms admin UI J02–J10 › @inv:J02 e2e/comms/segment audience count (545ms)
+  ✓   30 [chromium] › playwright/e2e/comms_admin.spec.ts:192:3 › 5.3 Comms admin UI J02–J10 › @inv:J03 e2e/comms/preview all recipients + body (687ms)
+  ✓   31 [chromium] › playwright/e2e/comms_admin.spec.ts:230:3 › 5.3 Comms admin UI J02–J10 › @inv:J04 e2e/comms/send-idempotent send once; second send same job (887ms)
+  ✓   32 [chromium] › playwright/e2e/comms_admin.spec.ts:280:3 › 5.3 Comms admin UI J02–J10 › @inv:J05 e2e/comms/log delivery log visible (909ms)
+  ✓   33 [chromium] › playwright/e2e/comms_admin.spec.ts:313:3 › 5.3 Comms admin UI J02–J10 › @inv:J06 e2e/comms/ics ICS attach for scheduled session (619ms)
+  ✓   34 [chromium] › playwright/e2e/comms_admin.spec.ts:348:3 › 5.3 Comms admin UI J02–J10 › @inv:J07 e2e/comms/authz role without comms:send cannot send (448ms)
+  ✓   35 [chromium] › playwright/e2e/comms_admin.spec.ts:427:3 › 5.3 Comms admin UI J02–J10 › @inv:J08 e2e/comms/preview-required send without preview blocked (643ms)
+  ✓   36 [chromium] › playwright/e2e/comms_admin.spec.ts:465:3 › 5.3 Comms admin UI J02–J10 › @inv:J09 e2e/comms/preview-invalidate edit audience invalidates preview (792ms)
+  ✓   37 [chromium] › playwright/e2e/comms_admin.spec.ts:503:3 › 5.3 Comms admin UI J02–J10 › @inv:J10 e2e/comms/ics-update reschedule keeps UID bumps SEQUENCE (793ms)
+  ✓   38 [chromium] › playwright/e2e/comms_keystone.spec.ts:102:3 › 5.4 comms keystone (I12) › keystone: template → preview-required → send → ICS → authz (J01–J10) (1.7s)
+  ✓   39 [chromium] › playwright/e2e/comms_lumen2.spec.ts:91:3 › 11.2 comms campaign lumen2 › AC-11.2-UI four steps + summary rail (595ms)
+  ✓   40 [chromium] › playwright/e2e/comms_lumen2.spec.ts:153:3 › 11.2 comms campaign lumen2 › AC-11.2-SCALE 150 audience without 150-checkbox wall (699ms)
+  ✓   41 [chromium] › playwright/e2e/comms_lumen2.spec.ts:220:3 › 11.2 comms campaign lumen2 › AC-11.2-SEL selection stable across page; audience edit invalidates (1.1s)
+  ✓   42 [chromium] › playwright/e2e/comms_lumen2.spec.ts:295:3 › 11.2 comms campaign lumen2 › AC-11.2-SEND preview required + idempotent send + double-submit guard (885ms)
+  ✓   43 [chromium] › playwright/e2e/comms_lumen2.spec.ts:369:3 › 11.2 comms campaign lumen2 › AC-11.2-AUTHZ non-admin cannot send (459ms)
+  ✓   44 [chromium] › playwright/e2e/comms_template.spec.ts:102:3 › 5.1 Comms templates › @inv:J01 e2e/comms/template create/edit template merge fields (658ms)
+  ✓   45 [chromium] › playwright/e2e/design_kit.spec.ts:131:1 › @inv:C03 e2e/admin/design-color set brand; live preview updates (543ms)
+  ✓   46 [chromium] › playwright/e2e/design_kit.spec.ts:159:1 › @inv:C04 e2e/admin/design-logo upload PNG; preview (714ms)
+  ✓   47 [chromium] › playwright/e2e/design_kit.spec.ts:190:1 › @inv:C05 e2e/admin/design-publish publish; public CFP shows brand (772ms)
+  ✓   48 [chromium] › playwright/e2e/design_kit.spec.ts:243:1 › @inv:C06 e2e/admin/design-no-css freeform CSS control absent (657ms)
+  ✓   49 [chromium] › playwright/e2e/design_kit.spec.ts:268:1 › @inv:C08 e2e/admin/design-contrast near-white brand safe fg or block (902ms)
+  ✓   50 [chromium] › playwright/e2e/design_kit.spec.ts:315:1 › @inv:C09 e2e/admin/design-logo-xss SVG rejected (657ms)
+  ✓   51 [chromium] › playwright/e2e/design_kit.spec.ts:364:1 › @inv:C10 e2e/admin/design-draft-isolation draft not on public until publish (1.3s)
+  ✓   52 [chromium] › playwright/e2e/eval_export_sort.spec.ts:113:3 › 10.6 eval export/sort › AC-10.6-B @inv:F05 e2e/eval/export sort + CSV download (803ms)
+  ✓   53 [chromium] › playwright/e2e/eval_export_sort.spec.ts:280:3 › 10.6 eval export/sort › negative: evaluator cannot export scores (403) (42ms)
+  ✓   54 [chromium] › playwright/e2e/eval_scoring.spec.ts:199:1 › @inv:F01 e2e/eval/queue See only assigned (unassigned hidden) (522ms)
+  ✓   55 [chromium] › playwright/e2e/eval_scoring.spec.ts:280:1 › @inv:F02 e2e/eval/score Score criteria + comment; out-of-range rejected (656ms)
+  ✓   56 [chromium] › playwright/e2e/eval_scoring.spec.ts:359:1 › @inv:F03 e2e/eval/no-decide Cannot accept/reject — control absent (559ms)
+  ✓   57 [chromium] › playwright/e2e/eval_scoring.spec.ts:414:1 › @inv:F04 e2e/eval/a11y-keyboard Keyboard-only complete score (613ms)
+  ✓   58 [chromium] › playwright/e2e/eval_scoring.spec.ts:472:1 › @inv:O04 e2e/settings/rubric Eval rubric edit (906ms)
+  ✓   59 [chromium] › playwright/e2e/evaluations_progress.spec.ts:194:3 › 10.2 evaluations progress UI › AC-10.2-A: admin evaluations loads progress without Response validation failed (1.0s)
+  ✓   60 [chromium] › playwright/e2e/evaluations_progress.spec.ts:362:3 › 10.2 evaluations progress UI › AC-10.2 negative: unauthenticated rollup is 401 (7ms)
+  ✓   61 [chromium] › playwright/e2e/evaluations_progress.spec.ts:374:3 › 10.2 evaluations progress UI › AC-10.2 negative: evaluator cannot read admin rollup (403) (43ms)
+  ✓   62 [chromium] › playwright/e2e/event_settings.spec.ts:98:1 › @inv:C01 e2e/admin/event-create create event with timezone (676ms)
+  ✓   63 [chromium] › playwright/e2e/event_settings.spec.ts:155:1 › @inv:C02 e2e/admin/event-switch switch active event updates event-context (635ms)
+  ✓   64 [chromium] › playwright/e2e/event_settings.spec.ts:201:1 › @inv:C07 e2e/admin/settings-cfp-window edit event name and close dates (640ms)
+  ✓   65 [chromium] › playwright/e2e/event_settings.spec.ts:269:1 › @inv:C11 e2e/admin/event-isolation switch A→B no A rooms in B (655ms)
+  ✓   66 [chromium] › playwright/e2e/event_settings.spec.ts:345:1 › @inv:O01 e2e/settings/event name dates tz settings form (550ms)
+  ✓   67 [chromium] › playwright/e2e/event_settings.spec.ts:380:1 › @inv:O02 e2e/settings/rooms rooms CRUD (595ms)
+  ✓   68 [chromium] › playwright/e2e/event_settings.spec.ts:416:1 › @inv:O03 e2e/settings/tracks tracks CRUD (702ms)
+  ✓   69 [chromium] › playwright/e2e/form_builder.spec.ts:150:1 › @inv:D01 e2e/admin/form-create create form; add text/select/file/speaker fields (801ms)
+  ✓   70 [chromium] › playwright/e2e/form_builder.spec.ts:200:1 › @inv:D02 e2e/admin/form-reorder reorder fields drag / move controls (716ms)
+  ✓   71 [chromium] › playwright/e2e/form_builder.spec.ts:235:1 › @inv:D03 e2e/admin/form-conditional conditional rule; circular rule blocked (974ms)
+  ✓   72 [chromium] › playwright/e2e/form_builder.spec.ts:287:1 › @inv:D04 e2e/admin/form-routing category field + routing target (939ms)
+  ✓   73 [chromium] › playwright/e2e/form_builder.spec.ts:350:1 › @inv:D05 e2e/admin/form-required required flags + validation (821ms)
+  ✓   74 [chromium] › playwright/e2e/form_builder.spec.ts:402:1 › @inv:D06 e2e/admin/form-copy welcome/thank-you copy (738ms)
+  ✓   75 [chromium] › playwright/e2e/form_builder.spec.ts:435:1 › @inv:D07 e2e/admin/form-preview preview side-by-side (760ms)
+  ✓   76 [chromium] › playwright/e2e/form_builder.spec.ts:465:1 › @inv:D08 e2e/admin/form-publish-version publish version; edit creates new version (885ms)
+  ✓   77 [chromium] › playwright/e2e/form_builder.spec.ts:512:1 › @inv:D09 e2e/admin/form-limits open/close + submission limit (755ms)
+  ✓   78 [chromium] › playwright/e2e/form_builder.spec.ts:552:1 › @inv:D10 e2e/admin/form-link copy public link (661ms)
+  ✓   79 [chromium] › playwright/e2e/foundation_smoke.spec.ts:35:3 › 1.6 foundation smoke (I12 keystone) › foundation: health 200 + shell CFP chrome without pageerror or console.error (628ms)
+  ✓   80 [chromium] › playwright/e2e/lumen2_state_sheet.spec.ts:74:1 › @inv:L2-01 e2e/lumen2/state-sheet primitives + state anatomy reviewable (630ms)
+  ✓   81 [chromium] › playwright/e2e/lumen2_state_sheet.spec.ts:128:1 › L2 state sheet unauthenticated users cannot read admin sheet (420ms)
+  ✓   82 [chromium] › playwright/e2e/overview_lumen2.spec.ts:183:1 › AC-11.1-A overview attention + metrics + primary action within 5s (716ms)
+  ✓   83 [chromium] › playwright/e2e/overview_lumen2.spec.ts:259:1 › 11.1 mobile 390px nav drawer is usable (784ms)
+  ✓   84 [chromium] › playwright/e2e/overview_lumen2.spec.ts:298:1 › 11.1 session-expired recovers via login not shell alert (578ms)
+  ✓   85 [chromium] › playwright/e2e/overview_lumen2.spec.ts:330:1 › 11.1 must-not unauthenticated overview (redirect) (416ms)
+  ✓   86 [chromium] › playwright/e2e/overview_lumen2.spec.ts:341:1 › 11.1 must-not evaluator admin nav (400ms)
+  ✓   87 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:214:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-AUTH-ROLES admin + S-SUB-LIST + S-EVAL-UI + S-EVAL-EXPORT (2.4s)
+  ✓   88 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:474:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-CFP-SUBMIT DEMO + S-CFP-DRAFT save/resume (962ms)
+  ✓   89 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:580:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-CFP-CLOSED closed UI + POST 4xx (448ms)
+  ✓   90 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:658:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-AUTH-ROLES speaker portal + evaluator queue (706ms)
+  ✓   91 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:723:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: S-SCHED-CHROME week days ⊆ event range (596ms)
+  ✓   92 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:789:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: must-not unauth admin + evaluator no export/admin (633ms)
+  ✓   93 [chromium] › playwright/e2e/phase10_product_keystone.spec.ts:859:3 › 10.7 Phase 10 product reliability keystone (I12) › keystone: documents all eight Phase 10 F soul proofs (5ms)
+  -   94 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:141:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-DOGFOOD health 200 + deploy.md revision recorded
+  -   95 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:165:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-AUTH-ROLES three role landings on dogfood
+  -   96 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:212:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-SUB-LIST submissions list on dogfood ≤5s
+  -   97 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:250:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-EVAL-UI evaluations progress on dogfood
+  -   98 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:278:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-EVAL-EXPORT export/sort or absence proof on dogfood
+  -   99 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:324:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-CFP-SUBMIT public CFP DEMO submit on dogfood
+  -  100 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:422:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-CFP-DRAFT draft save/resume on dogfood
+  -  101 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:480:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-CFP-CLOSED closed window on dogfood
+  -  102 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:597:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-SCHED-CHROME + S-L2-SCHED schedule on dogfood
+  -  103 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:629:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-SYSTEM state sheet still present post-deploy
+  -  104 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:647:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-SHELL overview attention on dogfood
+  -  105 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:678:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-COMMS J01–J10 + scale + preview/send + idempotency on dogfood
+  -  106 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:973:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-CFP builder + public on dogfood
+  -  107 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1001:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-SUB submissions UI on dogfood
+  -  108 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1021:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-PORTAL portal on dogfood
+  -  109 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1039:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-A11Y session recovery on dogfood
+  -  110 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1064:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: S-L2-SCORE LUMEN2_TASTE_SCORE.md ≥8.0 with screenshots
+  -  111 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1085:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: must-not unauth admin submissions + evaluator no admin shell
+  -  112 [chromium] › playwright/e2e/phase11_handover_keystone.spec.ts:1127:3 › 11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D) › D: documents all 18 constitution soul IDs for S-DOGFOOD
+  ✓  113 [chromium] › playwright/e2e/phase7_keystone.spec.ts:188:3 › 7.4 phase7 keystone (I12 K* + CLI deny + airtable pause) › keystone: K* keys → CLI07 deny → airtable pause (phase7) (1.8s)
+  ✓  114 [chromium] › playwright/e2e/phase8_full_suite_keystone.spec.ts:70:1 › keystone 8.2: health → admin shell → empty CTA → console-clean soul path (695ms)
+  ✓  115 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:197:1 › @inv:O05 e2e/settings/task-templates Task templates CRUD on accept (709ms)
+  ✓  116 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:269:1 › @inv:N01 e2e/admin/speakers-list List speakers for event (619ms)
+  ✓  117 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:313:1 › @inv:N02 e2e/admin/speakers-filter Search/filter speakers (535ms)
+  ✓  118 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:349:1 › @inv:N03 e2e/admin/speakers-detail Detail: tasks + files (770ms)
+  ✓  119 [chromium] › playwright/e2e/portal_api_tasks.spec.ts:391:1 › @inv:N04 e2e/admin/speakers-files Open headshot/slides metadata; no cross-speaker leak (159ms)
+  ✓  120 [chromium] › playwright/e2e/portal_keystone.spec.ts:213:3 › 4.4 portal keystone (I12) › keystone: seed accept → portal green (G01–G08) (1.3s)
+  ✓  121 [chromium] › playwright/e2e/portal_lumen2.spec.ts:202:3 › 11.6 portal + speakers lumen2 › AC-11.6-PORTAL-NEXT branded welcome, progress, next-task dominant (619ms)
+  ✓  122 [chromium] › playwright/e2e/portal_lumen2.spec.ts:269:3 › 11.6 portal + speakers lumen2 › AC-11.6-PORTAL-MOBILE 390px usable next-task + bottom nav (599ms)
+  ✓  123 [chromium] › playwright/e2e/portal_lumen2.spec.ts:317:3 › 11.6 portal + speakers lumen2 › AC-11.6-SPEAKERS-LIFE lifecycle table + readiness indicators (925ms)
+  ✓  124 [chromium] › playwright/e2e/portal_lumen2.spec.ts:404:3 › 11.6 portal + speakers lumen2 › AC-11.6-SPEAKERS-DETAIL structured detail pane (857ms)
+  ✓  125 [chromium] › playwright/e2e/portal_lumen2.spec.ts:472:3 › 11.6 portal + speakers lumen2 › AC-11.6-AUTHZ unauth portal + speaker cannot list admin speakers (430ms)
+  ✓  126 [chromium] › playwright/e2e/portal_ui.spec.ts:303:1 › @inv:G01 e2e/portal/home Land on next incomplete task (478ms)
+  ✓  127 [chromium] › playwright/e2e/portal_ui.spec.ts:334:1 › @inv:G02 e2e/portal/bio Edit bio; save — XSS text-only (556ms)
+  ✓  128 [chromium] › playwright/e2e/portal_ui.spec.ts:390:1 › @inv:G03 e2e/portal/headshot Upload headshot; preview — bad type rejected (537ms)
+  ✓  129 [chromium] › playwright/e2e/portal_ui.spec.ts:442:1 › @inv:G04 e2e/portal/slides Upload slides (658ms)
+  ✓  130 [chromium] › playwright/e2e/portal_ui.spec.ts:476:1 › @inv:G05 e2e/portal/task-complete Complete task; status flips (524ms)
+  ✓  131 [chromium] › playwright/e2e/portal_ui.spec.ts:516:1 › @inv:G06 e2e/portal/task-overdue Overdue visual state (534ms)
+  ✓  132 [chromium] › playwright/e2e/portal_ui.spec.ts:554:1 › @inv:G07 e2e/portal/session View own session status — no other speakers' private data (502ms)
+  ✓  133 [chromium] › playwright/e2e/portal_ui.spec.ts:616:1 › @inv:G08 e2e/portal/mobile Mobile complete bio+task (606ms)
+  ✓  134 [chromium] › playwright/e2e/public_cfp_submit_demo.spec.ts:159:3 › 10.3 Public CFP DEMO captcha + closed window › AC-10.3-A DEMO_MODE submit succeeds without captcha dead-end (588ms)
+  ✓  135 [chromium] › playwright/e2e/public_cfp_submit_demo.spec.ts:198:3 › 10.3 Public CFP DEMO captcha + closed window › AC-10.3-B closed window: public-cfp-closed + POST 4xx (529ms)
+  ✓  136 [chromium] › playwright/e2e/public_cfp.spec.ts:244:1 › @inv:A01 e2e/public/cfp-load public CFP loads form and brand tokens (582ms)
+  ✓  137 [chromium] › playwright/e2e/public_cfp.spec.ts:278:1 › @inv:A02 e2e/public/cfp-conditional conditional field appears when rule met (587ms)
+  ✓  138 [chromium] › playwright/e2e/public_cfp.spec.ts:309:1 › @inv:A03 e2e/public/cfp-category category routing metadata on submit (570ms)
+  ✓  139 [chromium] › playwright/e2e/public_cfp.spec.ts:358:1 › @inv:A04 e2e/public/cfp-multi-speaker min/max speaker rules (655ms)
+  ✓  140 [chromium] › playwright/e2e/public_cfp.spec.ts:385:1 › @inv:A05 e2e/public/cfp-file upload within type/size; oversize/type rejected (521ms)
+  ✓  141 [chromium] › playwright/e2e/public_cfp.spec.ts:431:1 › @inv:A06 e2e/public/cfp-submit Turnstile pass; missing captcha blocked (723ms)
+  ✓  142 [chromium] › playwright/e2e/public_cfp.spec.ts:465:1 › @inv:A07 e2e/public/cfp-closed closed window shows closed state; no submit (418ms)
+  ✓  143 [chromium] › playwright/e2e/public_cfp.spec.ts:484:1 › @inv:A08 e2e/public/cfp-validation validation errors inline; focus management (497ms)
+  ✓  144 [chromium] › playwright/e2e/public_cfp.spec.ts:503:1 › @inv:A09 e2e/public/cfp-mobile mobile viewport complete submit (535ms)
+  ✓  145 [chromium] › playwright/e2e/public_cfp.spec.ts:524:1 › @inv:A10 e2e/public/cfp-xss XSS string renders as text not script (607ms)
+  ✓  146 [chromium] › playwright/e2e/public_cfp.spec.ts:554:1 › @inv:A11 e2e/public/cfp-keyboard keyboard-only complete valid submit (650ms)
+  ✓  147 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:239:1 › @inv:H01 e2e/dash/overview Stats + outstanding list (592ms)
+  ✓  148 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:278:1 › @inv:H02 e2e/dash/filter Filter overdue (731ms)
+  ✓  149 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:334:1 › @inv:H03 e2e/dash/drill Drill to speaker (750ms)
+  ✓  150 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:376:1 › @inv:H04 e2e/dash/live Live update after portal complete (3.7s)
+  ✓  151 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:442:1 › @inv:H05 e2e/dash/empty Empty state when all clear (583ms)
+  ✓  152 [chromium] › playwright/e2e/readiness_dashboard.spec.ts:466:1 › @inv:L05 e2e/states/large-list 150-row list paginates or virtualizes usable (800ms)
+  ✓  153 [chromium] › playwright/e2e/schedule_dash_keystone.spec.ts:320:3 › 6.4 schedule+dash keystone (I12) › keystone: schedule → readiness → speakers → L05 (I* H* N* L05) (11.3s)
+  ✓  154 [chromium] › playwright/e2e/schedule_day_chrome.spec.ts:21:3 › 10.6 schedule day chrome › AC-10.6-A e2e/sched/week-chrome no pre-event empty days (790ms)
+  ✓  155 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:163:3 › 11.5 schedule studio lumen2 › AC-11.5-SURFACE full-height L2 surface + board (656ms)
+  ✓  156 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:205:3 › 11.5 schedule studio lumen2 › AC-11.5-STICKY sticky time/room headers (751ms)
+  ✓  157 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:258:3 › 11.5 schedule studio lumen2 › AC-11.5-CONFLICT tile + summary after blocked place (1.1s)
+  ✓  158 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:342:3 › 11.5 schedule studio lumen2 › AC-11.5-KEYBOARD place without drag (1.1s)
+  ✓  159 [chromium] › playwright/e2e/schedule_lumen2.spec.ts:391:3 › 11.5 schedule studio lumen2 › AC-11.5-AUTHZ unauthenticated blocked; evaluator no admin schedule (570ms)
+  ✓  160 [chromium] › playwright/e2e/schedule_studio.spec.ts:204:3 › 6.2 Schedule Studio I01–I16 › @inv:I01 e2e/sched/list List view shows sessions (896ms)
+  ✓  161 [chromium] › playwright/e2e/schedule_studio.spec.ts:240:3 › 6.2 Schedule Studio I01–I16 › @inv:I02 e2e/sched/day Day view (784ms)
+  ✓  162 [chromium] › playwright/e2e/schedule_studio.spec.ts:262:3 › 6.2 Schedule Studio I01–I16 › @inv:I03 e2e/sched/week Week view (917ms)
+  ✓  163 [chromium] › playwright/e2e/schedule_studio.spec.ts:293:3 › 6.2 Schedule Studio I01–I16 › @inv:I04 e2e/sched/track Track view (918ms)
+  ✓  164 [chromium] › playwright/e2e/schedule_studio.spec.ts:325:3 › 6.2 Schedule Studio I01–I16 › @inv:I05 e2e/sched/room Room view (955ms)
+  ✓  165 [chromium] › playwright/e2e/schedule_studio.spec.ts:359:3 › 6.2 Schedule Studio I01–I16 › @inv:I06 e2e/sched/drag-place Drag place into empty slot (1.1s)
+  ✓  166 [chromium] › playwright/e2e/schedule_studio.spec.ts:398:3 › 6.2 Schedule Studio I01–I16 › @inv:I07 e2e/sched/conflict-speaker speaker conflict blocked (921ms)
+  ✓  167 [chromium] › playwright/e2e/schedule_studio.spec.ts:456:3 › 6.2 Schedule Studio I01–I16 › @inv:I08 e2e/sched/conflict-room Room overlap conflict (878ms)
+  ✓  168 [chromium] › playwright/e2e/schedule_studio.spec.ts:509:3 › 6.2 Schedule Studio I01–I16 › @inv:I09 e2e/sched/keyboard Keyboard place creates placement (1.1s)
+  ✓  169 [chromium] › playwright/e2e/schedule_studio.spec.ts:541:3 › 6.2 Schedule Studio I01–I16 › @inv:I10 e2e/sched/undo Undo last move (1.3s)
+  ✓  170 [chromium] › playwright/e2e/schedule_studio.spec.ts:576:3 › 6.2 Schedule Studio I01–I16 › @inv:I11 e2e/sched/tray Unscheduled tray (674ms)
+  ✓  171 [chromium] › playwright/e2e/schedule_studio.spec.ts:597:3 › 6.2 Schedule Studio I01–I16 › @inv:I12 e2e/sched/tz Timezone displayed (669ms)
+  ✓  172 [chromium] › playwright/e2e/schedule_studio.spec.ts:615:3 › 6.2 Schedule Studio I01–I16 › @inv:I13 e2e/sched/move Move already-placed session (1.1s)
+  ✓  173 [chromium] › playwright/e2e/schedule_studio.spec.ts:664:3 › 6.2 Schedule Studio I01–I16 › @inv:I14 e2e/sched/unschedule Unschedule back to tray (1.2s)
+  ✓  174 [chromium] › playwright/e2e/schedule_studio.spec.ts:698:3 › 6.2 Schedule Studio I01–I16 › @inv:I15 e2e/sched/stale Stale version recovery UI (1.3s)
+  ✓  175 [chromium] › playwright/e2e/schedule_studio.spec.ts:756:3 › 6.2 Schedule Studio I01–I16 › @inv:I16 e2e/sched/persist five views + reload consistent (3.4s)
+  ✓  176 [chromium] › playwright/e2e/security_hardening.spec.ts:17:1 › CSP header present on HTML document (423ms)
+  ✓  177 [chromium] › playwright/e2e/security_hardening.spec.ts:50:1 › security inventory A10/C09 tags exist in suite sources (1ms)
+  ✓  178 [chromium] › playwright/e2e/session_states_a11y.spec.ts:109:1 › @inv:L2-02 e2e/lumen2/session-expired recovers via login not shell (691ms)
+  ✓  179 [chromium] › playwright/e2e/session_states_a11y.spec.ts:154:1 › @inv:L2-03 e2e/lumen2/settings-two-pane category nav + content (674ms)
+  ✓  180 [chromium] › playwright/e2e/session_states_a11y.spec.ts:213:1 › @inv:L2-04 e2e/lumen2/design-preview-public live CFP depth (506ms)
+  ✓  181 [chromium] › playwright/e2e/session_states_a11y.spec.ts:250:1 › @inv:L2-05 e2e/lumen2/settings-a11y-keyboard focus journeys (610ms)
+  ✓  182 [chromium] › playwright/e2e/session_states_a11y.spec.ts:314:1 › 11.7 must-not unauthenticated settings surfaces (698ms)
+  ✓  183 [chromium] › playwright/e2e/session_states_a11y.spec.ts:335:1 › 11.7 must-not evaluator settings nav (422ms)
+  ✓  184 [chromium] › playwright/e2e/states_cross_cutting.spec.ts:130:1 › @inv:L01 e2e/states/empty-sub empty submissions list shows CTA (782ms)
+  ✓  185 [chromium] › playwright/e2e/states_cross_cutting.spec.ts:162:1 › @inv:L02 e2e/states/error API 500 shows error state not blank (799ms)
+  ✓  186 [chromium] › playwright/e2e/states_cross_cutting.spec.ts:210:1 › @inv:L03 e2e/states/loading loading skeleton resolves (not infinite hang) (878ms)
+  ✓  187 [chromium] › playwright/e2e/states_cross_cutting.spec.ts:269:1 › @inv:L04 e2e/states/console-clean happy paths have no uncaught console errors (1.2s)
+  ✓  188 [chromium] › playwright/e2e/submissions_decisions.spec.ts:207:3 › 3.5 submissions decisions › @inv:E01 e2e/admin/sub-list list filters by status/category (784ms)
+  ✓  189 [chromium] › playwright/e2e/submissions_decisions.spec.ts:257:3 › 3.5 submissions decisions › @inv:E02 e2e/admin/sub-detail open detail answers speakers (813ms)
+  ✓  190 [chromium] › playwright/e2e/submissions_decisions.spec.ts:291:3 › 3.5 submissions decisions › @inv:E03 e2e/admin/sub-assign assign to evaluator (883ms)
+  ✓  191 [chromium] › playwright/e2e/submissions_decisions.spec.ts:342:3 › 3.5 submissions decisions › @inv:E04 e2e/admin/sub-accept accept creates session + tasks (942ms)
+  ✓  192 [chromium] › playwright/e2e/submissions_decisions.spec.ts:409:3 › 3.5 submissions decisions › @inv:E05 e2e/admin/sub-reject reject with reason (894ms)
+  ✓  193 [chromium] › playwright/e2e/submissions_decisions.spec.ts:444:3 › 3.5 submissions decisions › @inv:E06 e2e/admin/sub-waitlist waitlist status (891ms)
+  ✓  194 [chromium] › playwright/e2e/submissions_decisions.spec.ts:476:3 › 3.5 submissions decisions › @inv:E07 e2e/admin/session-direct direct sponsor session (827ms)
+  ✓  195 [chromium] › playwright/e2e/submissions_decisions.spec.ts:507:3 › 3.5 submissions decisions › @inv:E08 e2e/admin/sub-bulk bulk select + preview empty blocked (977ms)
+  ✓  196 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:211:3 › 10.1 submissions list reliability › AC-10.1-A fixture ≥150: page-submissions + ≥1 row; loading gone ≤5s (1.2s)
+  ✓  197 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:310:3 › 10.1 submissions list reliability › AC-10.1-B API failure shows recovery; spinner does not persist (815ms)
+  ✓  198 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:359:3 › 10.1 submissions list reliability › AC-10.1-C unauthenticated list → 401 (must-not leak rows) (1.9s)
+  ✓  199 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:408:3 › 10.1 submissions list reliability › AC-10.1-E pagination keeps filters server-side (980ms)
+  ✓  200 [chromium] › playwright/e2e/submissions_list_reliability.spec.ts:494:3 › 10.1 submissions list reliability › AC-10.1-D cross-event: active event A does not show event B rows (720ms)
+  ✓  201 [chromium] › playwright/e2e/submissions_lumen2.spec.ts:173:3 › 11.4 submissions + evaluations lumen2 › AC-11.4-BULK selection reveals sticky bulk bar (971ms)
+  ✓  202 [chromium] › playwright/e2e/submissions_lumen2.spec.ts:237:3 › 11.4 submissions + evaluations lumen2 › AC-11.4-DETAIL hierarchy + filter chips (1.1s)
+  ✓  203 [chromium] › playwright/e2e/submissions_lumen2.spec.ts:321:3 › 11.4 submissions + evaluations lumen2 › AC-11.4-EVAL coverage progress admin + evaluator queue (912ms)
+  ✓  204 [chromium] › playwright/e2e/submissions_lumen2.spec.ts:420:3 › 11.4 submissions + evaluations lumen2 › AC-11.4-AUTHZ unauth blocked; evaluator no admin nav (2.8s)
+  ✓  205 [chromium] › playwright/e2e/visual_lumen2.spec.ts:339:3 › 11.8 visual lumen2 suite › AC-11.8-SUITE nine artifact classes captured at fixed viewport (4.8s)
+  ✓  206 [chromium] › playwright/e2e/visual_lumen2.spec.ts:615:3 › 11.8 visual lumen2 suite › AC-11.8-AUTHZ unauthenticated cannot read admin visual surfaces (1.2s)
+  ✓  207 [chromium] › playwright/e2e/visual_lumen2.spec.ts:636:3 › 11.8 visual lumen2 suite › AC-11.8-SCORE taste score document gates overall ≥8.0 (10ms)
+
+  20 skipped
+  187 passed (2.8m)
+[docs:e2e-report] wrote /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-coverage.html · REQUIRED 115 · PASS 115 · FAIL 0 · DEFER 0 · sha 891dd45 · at 2026-08-09T17:18:31.051Z
+[test:e2e] report path stored: /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-report-path.txt
+[test:e2e] JSON run report: /mnt/HC_Volume_105994188/speakerops-build/reports/playwright-run.json (exists=true)
+[test:e2e] HTML dir: /mnt/HC_Volume_105994188/speakerops-build/playwright-report (exists=true)
+[test:e2e] coverage HTML: /mnt/HC_Volume_105994188/speakerops-build/reports/e2e-coverage.html
+E2E_EXIT=0
+=== phase8 inventory ===
+
+> speakerops@0.1.0 test:e2e:inventory /mnt/HC_Volume_105994188/speakerops-build
+> tsx scripts/inventory-lint.ts
+
+[test:e2e:inventory] OK: baseline 115 IDs intact (115 REQUIRED non-DEFER, 0 DEFER); inventory 115 REQUIRED, 115 unique IDs, 115 unique test_ids; fingerprints match
+[test:e2e:inventory] OK: Phase 8 status claim — 115 non-DEFER REQUIRED rows are PASS
+[test:e2e:inventory] OK: Phase 8 run report — 115 non-DEFER REQUIRED IDs have passed, non-skipped execution results (source: /mnt/HC_Volume_105994188/speakerops-build/reports/playwright-run.json)
+[test:e2e:inventory] OK: @inv on Playwright-bound test() titles cover 115 phase8 full REQUIRED IDs (1:1, non-skip/non-fail, test_id-anchored, playwright-suite:playwright-list-json)
+inventory-crawl: OK: 66 primary control(s) mapped, 15 chrome-skipped (workspace-admin)
+[test:e2e:inventory] OK: admin discovery crawl — 66 primary control(s) mapped, 15 chrome-skipped
+INV_EXIT=0
+=== coverage regenerate via docs if needed ===
+{'startTime': '2026-08-09T17:15:44.065Z', 'duration': 165673.265, 'expected': 187, 'skipped': 20, 'unexpected': 0, 'flaky': 0}
+=== DONE 2026-08-09T17:18:33+00:00 ===

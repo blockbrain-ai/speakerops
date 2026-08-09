@@ -1,37 +1,12 @@
-# Handover progress — post SR RUN_COMPLETE
+# Handover progress — post-P11
 
-- **UTC:** 2026-08-09T01:58Z
-- **Product tip:** `ce32819db83f89e28924f228b7e00e5716aa9a86`
-- **Handover docs tip (pending commit):** local checklist updates
-- **Pipeline:** 50/50; Phases 0–9 Codex APPROVE; RUN_COMPLETE
+| Field | Value |
+|-------|-------|
+| Updated | 2026-08-09T17:19:28Z |
+| Product tip | `891dd45fb8185f23842e04379a9578504ac798c2` |
+| Stage | Finish B — gates green; Codex Sol re-co-sign pending |
+| SR | RUN_COMPLETE 67/67 · P0–P11 APPROVE |
+| Dual AGREE | **PENDING** dual re-sign on tip 891dd45 (prior pre-P10 AGREE superseded) |
+| Gates | typecheck·test:ci·e2e 187·inv 115/115·docs·CF health all PASS |
 
-## A. Capture & backup — DONE
-- Final push product `ce32819`; handover evidence prior `dcd34fcd`
-
-## Gates (tip ce32819)
-| Gate | Result |
-|------|--------|
-| typecheck / test:ci | PASS |
-| inventory | 108/108 |
-| Playwright | 119 passed / 1 skip / coverage 108 PASS |
-| onboarding claim | PASS |
-| docs:reports | PASS |
-| gitleaks | clean |
-
-## B/C Checklist union
-| Doc | OPEN | PASS | FAIL/GAP |
-|-----|------|------|----------|
-| Master PRODUCTION_HANDOVER_CHECKLIST | **0** | 628 | 0 |
-| Codex PRODUCTION_HANDOVER_CHECKLIST-codex | **0** target | ~585 | 0 |
-
-- Automated PH-ID verify: `ph-id-verify-20260809.json` (534 PASS)
-- Master residual INT/PERF/CR/GATE/OPS closed this fire
-- Codex depth IDs closed with evidence pointers to gates+phase APPROVE+verify JSON
-
-## §14 dual AGREE
-- **Not signed full AGREE yet this fire** — formal dual AGREE block to be set only after final commit of checklist union + optional Codex Sol re-confirm of random sample.
-- Grok master: PROVISIONAL fill complete (OPEN=0)
-- Next: commit+push checklist union; spot-check any weak evidence paths; then §14 AGREE both sides.
-
-## Forbidden
-- No inventory shrink; no force-push; no secrets
+See `post-p11-revalidation-COMPLETE.md`.

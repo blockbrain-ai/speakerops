@@ -1,0 +1,6 @@
+Post-P11 handover gate re-validation
+Date UTC: 2026-08-09T17:06:07+00:00
+Tip: 891dd45fb8185f23842e04379a9578504ac798c2
+Tip short: 891dd45
+Dogfood health: {"ok":true,"version":"0.1.0-demo+2ab9f55"}
+---
