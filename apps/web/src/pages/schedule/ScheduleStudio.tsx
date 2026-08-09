@@ -1,5 +1,10 @@
 /**
- * Schedule Studio — five views + tray + DnD + keyboard place + undo (section 6.2 / S-SCHED).
+ * Schedule Studio — five views + tray + DnD + keyboard place + undo
+ * (section 6.2 / S-SCHED · 11.5 / S-L2-SCHED visual polish).
+ *
+ * Lumen 2: full-height working surface, sticky time/room headers, richer
+ * session tiles (track encoding, conflict/pending), navigable conflict summary.
+ * Native HTML5 drag only — no DnD package.
  *
  * Inventory I01–I16. APIs (COMMANDS.md):
  *   GET  /api/events/:eventId/schedule
@@ -17,6 +22,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
 } from "react";
@@ -37,14 +43,24 @@ import {
 } from "@speakerops/shared";
 import { useEventContext } from "../../events/EventContext.js";
 import {
+  Alert,
+  Badge,
+  Button,
+  PageHeader,
+} from "../../components/ui/index.js";
+import {
   SCHEDULE_VIEWS,
   type ScheduleViewMode,
   type UndoAction,
+  type LocalScheduleConflict,
   DEFAULT_SLOT_MINUTES,
   addMinutesIso,
+  apiConflictsToLocal,
   buildDayKeys,
   buildTimeSlots,
+  conflictedPlacementIds,
   dayWindowForEvent,
+  detectLocalRoomConflicts,
   durationMinutes,
   formatConflictMessage,
   formatTimeLabel,
@@ -52,6 +68,7 @@ import {
   groupByTrack,
   placementInSlot,
   placementsOnDay,
+  safeTrackColor,
   slotKey,
   undoForMove,
   undoForPlace,
@@ -90,7 +107,8 @@ export function ScheduleStudioPage() {
   const activeEventIdRef = useRef(activeEventId);
   activeEventIdRef.current = activeEventId;
 
-  const [view, setView] = useState<ScheduleViewMode>("list");
+  /** Default day-by-room studio per page-atlas (L2). */
+  const [view, setView] = useState<ScheduleViewMode>("day");
   const [placements, setPlacements] = useState<SchedulePlacementDto[]>([]);
   const [unscheduled, setUnscheduled] = useState<UnscheduledSessionDto[]>([]);
   const [rooms, setRooms] = useState<RoomDto[]>([]);
@@ -98,6 +116,11 @@ export function ScheduleStudioPage() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Placement/session currently mid-mutation (pending tile chrome). */
+  const [pendingPlacementId, setPendingPlacementId] = useState<string | null>(
+    null,
+  );
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
 
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
@@ -110,6 +133,10 @@ export function ScheduleStudioPage() {
   const [staleRecovery, setStaleRecovery] = useState<StaleRecovery | null>(
     null,
   );
+  /** API conflict rows kept for summary + tile marks until cleared. */
+  const [apiConflictRows, setApiConflictRows] = useState<
+    LocalScheduleConflict[]
+  >([]);
 
   const [dragPayload, setDragPayload] = useState<DragPayload | null>(null);
   /** Sync ref so HTML5 drop sees payload even when React state has not flushed. */
@@ -142,6 +169,37 @@ export function ScheduleStudioPage() {
       return tracks.find((t) => t.id === trackId)?.name ?? trackId;
     },
     [tracks],
+  );
+  const trackColor = useCallback(
+    (trackId: string | null | undefined): string | null => {
+      if (!trackId || trackId === "untracked") return null;
+      return safeTrackColor(tracks.find((t) => t.id === trackId)?.color);
+    },
+    [tracks],
+  );
+
+  const localRoomConflicts = useMemo(
+    () => detectLocalRoomConflicts(placements),
+    [placements],
+  );
+
+  const allConflicts = useMemo(() => {
+    // Prefer fresh local room geometry; append API rows not already covered.
+    const localIds = new Set(
+      localRoomConflicts.map(
+        (c) => `${c.type}:${c.affectedPlacementIds.slice().sort().join(",")}`,
+      ),
+    );
+    const extra = apiConflictRows.filter((c) => {
+      const key = `${c.type}:${c.affectedPlacementIds.slice().sort().join(",")}`;
+      return !localIds.has(key);
+    });
+    return [...localRoomConflicts, ...extra];
+  }, [localRoomConflicts, apiConflictRows]);
+
+  const conflictPlacementSet = useMemo(
+    () => conflictedPlacementIds(allConflicts),
+    [allConflicts],
   );
 
   const isCurrent = useCallback(
@@ -226,6 +284,7 @@ export function ScheduleStudioPage() {
   }, []);
 
   const showConflict = useCallback((conflicts: ScheduleConflictItem[]) => {
+    setApiConflictRows(apiConflictsToLocal(conflicts));
     setToast({
       kind: "conflict",
       text: formatConflictMessage(conflicts),
@@ -283,6 +342,7 @@ export function ScheduleStudioPage() {
     }) => {
       if (!activeEventId || busy) return false;
       setBusy(true);
+      setPendingSessionId(input.sessionId);
       setToast(null);
       try {
         const res = await fetch(
@@ -317,6 +377,7 @@ export function ScheduleStudioPage() {
         }
         setSelectedSessionId(null);
         setStaleRecovery(null);
+        setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session placed" });
         await loadAll(activeEventId);
         return true;
@@ -325,6 +386,7 @@ export function ScheduleStudioPage() {
         return false;
       } finally {
         setBusy(false);
+        setPendingSessionId(null);
       }
     },
     [activeEventId, busy, handleApiError, loadAll, pushUndo],
@@ -342,6 +404,7 @@ export function ScheduleStudioPage() {
     }) => {
       if (!activeEventId || busy) return false;
       setBusy(true);
+      setPendingPlacementId(input.placementId);
       setToast(null);
       try {
         const res = await fetch(
@@ -376,6 +439,7 @@ export function ScheduleStudioPage() {
           pushUndo(undoForMove(parsed.data.placement, input.previous));
         }
         setStaleRecovery(null);
+        setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session moved" });
         await loadAll(activeEventId);
         return true;
@@ -384,6 +448,7 @@ export function ScheduleStudioPage() {
         return false;
       } finally {
         setBusy(false);
+        setPendingPlacementId(null);
       }
     },
     [activeEventId, busy, handleApiError, loadAll, pushUndo],
@@ -403,6 +468,7 @@ export function ScheduleStudioPage() {
     }) => {
       if (!activeEventId || busy) return false;
       setBusy(true);
+      setPendingPlacementId(input.placementId);
       setToast(null);
       try {
         const res = await fetch(
@@ -435,6 +501,7 @@ export function ScheduleStudioPage() {
         }
         setSelectedPlacementId(null);
         setStaleRecovery(null);
+        setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session unscheduled" });
         await loadAll(activeEventId);
         return true;
@@ -443,6 +510,7 @@ export function ScheduleStudioPage() {
         return false;
       } finally {
         setBusy(false);
+        setPendingPlacementId(null);
       }
     },
     [activeEventId, busy, handleApiError, loadAll, pushUndo],
@@ -659,6 +727,109 @@ export function ScheduleStudioPage() {
   const placementTitle = (p: SchedulePlacementDto) =>
     p.title ?? p.sessionId;
 
+  const focusConflictPlacement = useCallback(
+    (conflict: LocalScheduleConflict) => {
+      const id =
+        conflict.placementId ?? conflict.affectedPlacementIds[0] ?? null;
+      if (id) {
+        setSelectedPlacementId(id);
+        setSelectedSessionId(null);
+        setView("day");
+      }
+    },
+    [],
+  );
+
+  const renderTile = (
+    occupant: SchedulePlacementDto,
+    opts?: { compact?: boolean },
+  ) => {
+    const compact = opts?.compact === true;
+    const isSelected = selectedPlacementId === occupant.id;
+    const isConflict = conflictPlacementSet.has(occupant.id);
+    const isPending = pendingPlacementId === occupant.id;
+    const color = trackColor(occupant.trackId);
+    const style: CSSProperties | undefined = color
+      ? ({ ["--schedule-track-color" as string]: color } as CSSProperties)
+      : undefined;
+
+    return (
+      <div
+        key={occupant.id}
+        className={[
+          "schedule-tile",
+          "lumen-focusable",
+          compact ? "schedule-tile--compact" : "",
+          isSelected ? "schedule-tile--selected" : "",
+          isConflict ? "schedule-tile--conflict" : "",
+          isPending ? "schedule-tile--pending" : "",
+          color ? "schedule-tile--tracked" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        style={style}
+        data-testid={`schedule-placement-${occupant.id}`}
+        data-session-id={occupant.sessionId}
+        data-placement-id={occupant.id}
+        data-version={occupant.version}
+        data-conflict={isConflict ? "true" : undefined}
+        data-pending={isPending ? "true" : undefined}
+        draggable={!compact}
+        tabIndex={0}
+        onDragStart={
+          compact
+            ? undefined
+            : (e) => onPlacementDragStart(e, occupant)
+        }
+        onDragEnd={compact ? undefined : onDragEnd}
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedPlacementId(occupant.id);
+          setSelectedSessionId(null);
+        }}
+      >
+        {!compact ? (
+          <span className="schedule-tile__track" aria-hidden />
+        ) : null}
+        <div className="schedule-tile__body">
+          <span className="schedule-tile__title">
+            {placementTitle(occupant)}
+          </span>
+          <span className="schedule-tile__meta">
+            {formatTimeLabel(occupant.startsAt, timezone)}–
+            {formatTimeLabel(occupant.endsAt, timezone)}
+            {" · "}
+            {roomName(occupant.roomId)}
+          </span>
+          {occupant.trackId ? (
+            <span className="schedule-tile__track-label">
+              {trackName(occupant.trackId)}
+            </span>
+          ) : null}
+          {isConflict ? (
+            <Badge
+              tone="danger"
+              showDot
+              className="schedule-tile__badge"
+              data-testid={`schedule-tile-conflict-${occupant.id}`}
+            >
+              Conflict
+            </Badge>
+          ) : null}
+          {isPending ? (
+            <Badge
+              tone="info"
+              className="schedule-tile__badge"
+              data-testid={`schedule-tile-pending-${occupant.id}`}
+            >
+              Saving…
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
   const renderSlot = (roomId: string, startsAt: string) => {
     const key = slotKey(roomId, startsAt);
     // Match by slot window (not exact ISO equality) so e.g. 10:30 appears in 10:00 hour.
@@ -668,6 +839,7 @@ export function ScheduleStudioPage() {
       placementInSlot(p, roomId, startsAt, DEFAULT_SLOT_MINUTES),
     );
     const isOver = dragOverSlot === key;
+    const hasConflict = occupants.some((o) => conflictPlacementSet.has(o.id));
     return (
       <div
         key={key}
@@ -676,6 +848,10 @@ export function ScheduleStudioPage() {
           "lumen-focusable",
           isOver ? "schedule-studio__slot--over" : "",
           occupants.length > 0 ? "schedule-studio__slot--filled" : "",
+          hasConflict ? "schedule-studio__slot--conflict" : "",
+          busy && (selectedSessionId || selectedPlacementId || dragPayload)
+            ? "schedule-studio__slot--pending-target"
+            : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -700,40 +876,7 @@ export function ScheduleStudioPage() {
           {formatTimeLabel(startsAt, timezone)}
         </span>
         {occupants.length > 0 ? (
-          occupants.map((occupant) => (
-            <div
-              key={occupant.id}
-              className={[
-                "schedule-tile",
-                "lumen-focusable",
-                selectedPlacementId === occupant.id
-                  ? "schedule-tile--selected"
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              data-testid={`schedule-placement-${occupant.id}`}
-              data-session-id={occupant.sessionId}
-              data-placement-id={occupant.id}
-              data-version={occupant.version}
-              draggable
-              tabIndex={0}
-              onDragStart={(e) => onPlacementDragStart(e, occupant)}
-              onDragEnd={onDragEnd}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedPlacementId(occupant.id);
-                setSelectedSessionId(null);
-              }}
-            >
-              <span className="schedule-tile__title">
-                {placementTitle(occupant)}
-              </span>
-              <span className="schedule-tile__meta">
-                {roomName(occupant.roomId)}
-              </span>
-            </div>
-          ))
+          occupants.map((occupant) => renderTile(occupant))
         ) : (
           <span className="schedule-studio__slot-empty">Empty</span>
         )}
@@ -753,32 +896,59 @@ export function ScheduleStudioPage() {
       rooms.length > 0
         ? rooms
         : [{ id: "room_default", name: "Default room" } as RoomDto];
+    const colStyle = {
+      gridTemplateColumns: `var(--schedule-time-col, 4.5rem) repeat(${roomList.length}, minmax(9rem, 1fr))`,
+    } as CSSProperties;
 
     return (
       <div
-        className="schedule-studio__grid"
-        data-testid={`schedule-day-grid-${dayKey}`}
+        className="schedule-studio__board"
+        data-testid="schedule-board"
+        data-day-key={dayKey}
       >
-        <div className="schedule-studio__grid-header">
-          <div className="schedule-studio__grid-corner">Time</div>
-          {roomList.map((r) => (
+        <div
+          className="schedule-studio__grid"
+          data-testid={`schedule-day-grid-${dayKey}`}
+        >
+          <div
+            className="schedule-studio__grid-header"
+            data-testid="schedule-grid-header"
+            role="row"
+            style={colStyle}
+          >
             <div
-              key={r.id}
-              className="schedule-studio__grid-room"
-              data-testid={`schedule-room-col-${r.id}`}
+              className="schedule-studio__grid-corner"
+              data-testid="schedule-grid-corner"
             >
-              {r.name}
+              Time
+            </div>
+            {roomList.map((r) => (
+              <div
+                key={r.id}
+                className="schedule-studio__grid-room"
+                data-testid={`schedule-room-col-${r.id}`}
+              >
+                {r.name}
+              </div>
+            ))}
+          </div>
+          {slots.map((startsAt) => (
+            <div
+              key={startsAt}
+              className="schedule-studio__grid-row"
+              role="row"
+              style={colStyle}
+            >
+              <div
+                className="schedule-studio__grid-time"
+                data-testid="schedule-grid-time"
+              >
+                {formatTimeLabel(startsAt, timezone)}
+              </div>
+              {roomList.map((r) => renderSlot(r.id, startsAt))}
             </div>
           ))}
         </div>
-        {slots.map((startsAt) => (
-          <div key={startsAt} className="schedule-studio__grid-row">
-            <div className="schedule-studio__grid-time">
-              {formatTimeLabel(startsAt, timezone)}
-            </div>
-            {roomList.map((r) => renderSlot(r.id, startsAt))}
-          </div>
-        ))}
       </div>
     );
   };
@@ -810,6 +980,11 @@ export function ScheduleStudioPage() {
                 key={p.id}
                 data-testid={`schedule-list-row-${p.id}`}
                 data-session-id={p.sessionId}
+                className={
+                  conflictPlacementSet.has(p.id)
+                    ? "schedule-studio__list-row--conflict"
+                    : undefined
+                }
               >
                 <td>
                   <button
@@ -823,6 +998,11 @@ export function ScheduleStudioPage() {
                   >
                     {placementTitle(p)}
                   </button>
+                  {conflictPlacementSet.has(p.id) ? (
+                    <Badge tone="danger" showDot className="schedule-tile__badge">
+                      Conflict
+                    </Badge>
+                  ) : null}
                 </td>
                 <td data-testid={`schedule-list-room-${p.id}`}>
                   {roomName(p.roomId)}
@@ -833,11 +1013,12 @@ export function ScheduleStudioPage() {
                 <td>{formatTimeLabel(p.endsAt, timezone)}</td>
                 <td data-version={p.version}>{p.version}</td>
                 <td>
-                  <button
-                    type="button"
-                    className="event-settings__submit lumen-focusable schedule-studio__btn-secondary"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     data-testid={`schedule-unschedule-${p.id}`}
                     disabled={busy}
+                    pending={pendingPlacementId === p.id}
                     onClick={() =>
                       void unschedulePlacement({
                         placementId: p.id,
@@ -852,7 +1033,7 @@ export function ScheduleStudioPage() {
                     }
                   >
                     Unschedule
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))
@@ -895,10 +1076,7 @@ export function ScheduleStudioPage() {
                   key={p.id}
                   data-testid={`schedule-week-placement-${p.id}`}
                 >
-                  <span className="schedule-tile schedule-tile--compact">
-                    {formatTimeLabel(p.startsAt, timezone)} ·{" "}
-                    {placementTitle(p)} · {roomName(p.roomId)}
-                  </span>
+                  {renderTile(p, { compact: true })}
                 </li>
               ))
             )}
@@ -931,10 +1109,7 @@ export function ScheduleStudioPage() {
           <ul className="eval-queue__list">
             {list.map((p) => (
               <li key={p.id} data-testid={`schedule-track-placement-${p.id}`}>
-                <div className="schedule-tile schedule-tile--compact">
-                  {placementTitle(p)} · {formatTimeLabel(p.startsAt, timezone)} ·{" "}
-                  {roomName(p.roomId)}
-                </div>
+                {renderTile(p, { compact: true })}
               </li>
             ))}
           </ul>
@@ -960,9 +1135,7 @@ export function ScheduleStudioPage() {
           <ul className="eval-queue__list">
             {list.map((p) => (
               <li key={p.id} data-testid={`schedule-room-placement-${p.id}`}>
-                <div className="schedule-tile schedule-tile--compact">
-                  {placementTitle(p)} · {formatTimeLabel(p.startsAt, timezone)}
-                </div>
+                {renderTile(p, { compact: true })}
               </li>
             ))}
           </ul>
@@ -1020,18 +1193,49 @@ export function ScheduleStudioPage() {
     }
   })();
 
+  const placeHint =
+    selectedSessionId || selectedPlacementId
+      ? "Selection active — click or press Enter on a slot to place/move."
+      : "Select a tray session or placement, then keyboard-place into a slot.";
+
   return (
     <div
-      className="schedule-studio"
+      className="schedule-studio schedule-studio--l2"
       data-testid="page-schedule"
-      data-section="6.2"
+      data-section="11.5"
     >
-      <p className="page-stub__overline">Schedule</p>
-      <h2 className="page-stub__title">Schedule Studio</h2>
-      <p className="page-stub__body">
-        Place sessions with drag-and-drop or keyboard. Hard conflicts block
-        commits; undo reverses the last move.
-      </p>
+      <PageHeader
+        eyebrow="Schedule"
+        title="Schedule Studio"
+        description="Place sessions with drag-and-drop or keyboard. Hard conflicts block commits; undo reverses the last move."
+        data-testid="schedule-page-header"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="schedule-undo"
+              disabled={busy || undoStack.length === 0}
+              onClick={() => void runUndo()}
+            >
+              Undo
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="schedule-refresh"
+              disabled={busy || loading}
+              pending={loading && !busy}
+              onClick={() => {
+                setStaleRecovery(null);
+                if (activeEventId) void loadAll(activeEventId);
+              }}
+            >
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
       {!activeEventId ? (
         <p className="eval-queue__muted" data-testid="schedule-no-event">
@@ -1039,7 +1243,7 @@ export function ScheduleStudioPage() {
         </p>
       ) : (
         <>
-          <div className="schedule-studio__toolbar">
+          <div className="schedule-studio__toolbar" data-testid="schedule-toolbar">
             <div
               className="schedule-studio__tz"
               data-testid="schedule-timezone"
@@ -1054,27 +1258,33 @@ export function ScheduleStudioPage() {
             >
               Placements: {placements.length}
             </div>
-            <button
-              type="button"
-              className="event-settings__submit lumen-focusable schedule-studio__btn-secondary"
-              data-testid="schedule-undo"
-              disabled={busy || undoStack.length === 0}
-              onClick={() => void runUndo()}
+            <div
+              className="schedule-studio__count"
+              data-testid="schedule-unscheduled-count"
+              data-count={unscheduled.length}
             >
-              Undo
-            </button>
-            <button
-              type="button"
-              className="event-settings__submit lumen-focusable schedule-studio__btn-secondary"
-              data-testid="schedule-refresh"
-              disabled={busy || loading}
-              onClick={() => {
-                setStaleRecovery(null);
-                void loadAll(activeEventId);
-              }}
+              Unscheduled: {unscheduled.length}
+            </div>
+            {allConflicts.length > 0 ? (
+              <Badge
+                tone="danger"
+                showDot
+                data-testid="schedule-conflict-count"
+              >
+                {allConflicts.length} conflict
+                {allConflicts.length === 1 ? "" : "s"}
+              </Badge>
+            ) : (
+              <Badge tone="success" data-testid="schedule-conflict-clear">
+                No conflicts
+              </Badge>
+            )}
+            <span
+              className="schedule-studio__place-hint"
+              data-testid="schedule-place-hint"
             >
-              Refresh
-            </button>
+              {placeHint}
+            </span>
           </div>
 
           <div
@@ -1104,6 +1314,58 @@ export function ScheduleStudioPage() {
             ))}
           </div>
 
+          {allConflicts.length > 0 ? (
+            <section
+              className="schedule-studio__conflict-summary"
+              data-testid="schedule-conflict-summary"
+              aria-label="Schedule conflicts"
+            >
+              <div className="schedule-studio__conflict-summary-head">
+                <h3 className="schedule-studio__conflict-summary-title">
+                  Conflict summary
+                </h3>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  data-testid="schedule-conflict-dismiss"
+                  onClick={() => {
+                    setApiConflictRows([]);
+                    if (toast?.kind === "conflict") setToast(null);
+                  }}
+                >
+                  Dismiss API alerts
+                </Button>
+              </div>
+              <ul
+                className="schedule-studio__conflict-list"
+                data-testid="schedule-conflict-list"
+              >
+                {allConflicts.map((c, i) => (
+                  <li key={`${c.type}-${c.message}-${i}`}>
+                    <button
+                      type="button"
+                      className="schedule-studio__conflict-item lumen-focusable"
+                      data-testid={`schedule-conflict-item-${i}`}
+                      data-conflict-type={c.type}
+                      onClick={() => focusConflictPlacement(c)}
+                    >
+                      <Badge
+                        tone="danger"
+                        showDot
+                        className="schedule-studio__conflict-type"
+                      >
+                        {c.type}
+                      </Badge>
+                      <span className="schedule-studio__conflict-msg">
+                        {c.message}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           {staleRecovery ? (
             <div
               className="schedule-studio__stale"
@@ -1115,9 +1377,9 @@ export function ScheduleStudioPage() {
                 expectedVersion={String(staleRecovery.expectedVersion ?? "—")}{" "}
                 actual={String(staleRecovery.actual ?? "—")}
               </p>
-              <button
-                type="button"
-                className="event-settings__submit lumen-focusable"
+              <Button
+                variant="primary"
+                size="sm"
                 data-testid="schedule-stale-refresh"
                 onClick={() => {
                   setStaleRecovery(null);
@@ -1125,7 +1387,7 @@ export function ScheduleStudioPage() {
                 }}
               >
                 Refresh schedule
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -1162,12 +1424,9 @@ export function ScheduleStudioPage() {
           ) : null}
 
           {loadError ? (
-            <p
-              className="event-settings__status event-settings__status--error"
-              data-testid="schedule-load-error"
-            >
+            <Alert tone="danger" data-testid="schedule-load-error">
               {loadError}
-            </p>
+            </Alert>
           ) : null}
           {loading ? (
             <p className="eval-queue__muted" data-testid="schedule-loading">
@@ -1205,11 +1464,17 @@ export function ScheduleStudioPage() {
                           selectedSessionId === s.id
                             ? "schedule-tray-item--selected"
                             : "",
+                          pendingSessionId === s.id
+                            ? "schedule-tray-item--pending"
+                            : "",
                         ]
                           .filter(Boolean)
                           .join(" ")}
                         data-testid={`schedule-tray-item-${s.id}`}
                         data-session-id={s.id}
+                        data-pending={
+                          pendingSessionId === s.id ? "true" : undefined
+                        }
                         draggable
                         aria-selected={selectedSessionId === s.id}
                         onDragStart={(e) => onTrayDragStart(e, s)}

@@ -4,19 +4,24 @@
 import { describe, it, expect } from "vitest";
 import {
   addMinutesIso,
+  apiConflictsToLocal,
   buildDayKeys,
   buildTimeSlots,
+  conflictedPlacementIds,
   dayWindowForEvent,
   dayWindowUtc,
   DEFAULT_SLOT_MINUTES,
+  detectLocalRoomConflicts,
   durationMinutes,
   formatConflictMessage,
   groupByRoom,
   groupByTrack,
+  intervalsOverlap,
   isDayWithinEventRange,
   isScheduleView,
   placementInSlot,
   placementsOnDay,
+  safeTrackColor,
   slotKey,
   undoForMove,
   undoForPlace,
@@ -236,5 +241,67 @@ describe("schedule-utils", () => {
     ).toBe("Room busy · Speaker busy");
     expect(isScheduleView("day")).toBe(true);
     expect(isScheduleView("auto")).toBe(false);
+  });
+
+  it("intervalsOverlap and detectLocalRoomConflicts for tile + summary", () => {
+    expect(
+      intervalsOverlap(
+        "2026-09-01T10:00:00.000Z",
+        "2026-09-01T11:00:00.000Z",
+        "2026-09-01T10:30:00.000Z",
+        "2026-09-01T11:30:00.000Z",
+      ),
+    ).toBe(true);
+    expect(
+      intervalsOverlap(
+        "2026-09-01T10:00:00.000Z",
+        "2026-09-01T11:00:00.000Z",
+        "2026-09-01T11:00:00.000Z",
+        "2026-09-01T12:00:00.000Z",
+      ),
+    ).toBe(false);
+
+    const a: SchedulePlacementDto = {
+      ...sample,
+      id: "plc_a",
+      title: "Talk A",
+    };
+    const b: SchedulePlacementDto = {
+      ...sample,
+      id: "plc_b",
+      sessionId: "ses_b",
+      title: "Talk B",
+      startsAt: "2026-09-01T10:30:00.000Z",
+      endsAt: "2026-09-01T11:30:00.000Z",
+    };
+    const otherRoom: SchedulePlacementDto = {
+      ...sample,
+      id: "plc_c",
+      roomId: "room_b",
+      title: "Other room",
+    };
+    const conflicts = detectLocalRoomConflicts([a, b, otherRoom]);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]!.type).toBe("room");
+    expect(conflicts[0]!.affectedPlacementIds).toEqual(
+      expect.arrayContaining(["plc_a", "plc_b"]),
+    );
+    expect(conflictedPlacementIds(conflicts).has("plc_a")).toBe(true);
+    expect(conflictedPlacementIds(conflicts).has("plc_c")).toBe(false);
+  });
+
+  it("apiConflictsToLocal and safeTrackColor", () => {
+    const local = apiConflictsToLocal([
+      {
+        type: "speaker",
+        message: "Speaker is already booked",
+        placementId: "plc_x",
+      },
+    ]);
+    expect(local[0]!.affectedPlacementIds).toEqual(["plc_x"]);
+    expect(safeTrackColor("#4f46e5")).toBe("#4f46e5");
+    expect(safeTrackColor("#abc")).toBe("#abc");
+    expect(safeTrackColor("red")).toBeNull();
+    expect(safeTrackColor(null)).toBeNull();
   });
 });
