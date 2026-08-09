@@ -524,6 +524,18 @@
       "journey": "Unschedule session to tray"
     },
     {
+      "testid": "schedule-conflict-dismiss",
+      "inv": "I07",
+      "surface": "admin",
+      "journey": "Dismiss schedule conflict API alerts (L2 summary · S-L2-SCHED)"
+    },
+    {
+      "testid": "schedule-conflict-item-*",
+      "inv": "I08",
+      "surface": "admin",
+      "journey": "Navigate conflict summary item to affected placement (L2 · S-L2-SCHED)"
+    },
+    {
       "testid": "comms-template-pick-*",
       "inv": "J01",
       "surface": "admin",

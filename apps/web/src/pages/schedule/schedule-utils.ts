@@ -348,6 +348,106 @@ export function formatConflictMessage(
   return conflicts.map((c) => c.message).join(" · ");
 }
 
+/**
+ * Half-open interval overlap: [aStart, aEnd) ∩ [bStart, bEnd) ≠ ∅.
+ * Used for client-side room conflict tiles + summary (section 11.5).
+ */
+export function intervalsOverlap(
+  aStart: string,
+  aEnd: string,
+  bStart: string,
+  bEnd: string,
+): boolean {
+  const as = Date.parse(aStart);
+  const ae = Date.parse(aEnd);
+  const bs = Date.parse(bStart);
+  const be = Date.parse(bEnd);
+  if (![as, ae, bs, be].every(Number.isFinite)) return false;
+  return as < be && bs < ae;
+}
+
+/** Local conflict row for navigable summary + tile markers (S-L2-SCHED). */
+export type LocalScheduleConflict = {
+  type: ScheduleConflictItem["type"];
+  message: string;
+  roomId?: string;
+  placementId?: string;
+  sessionId?: string;
+  /** All placement ids involved (for tile highlight). */
+  affectedPlacementIds: string[];
+};
+
+/**
+ * Detect hard room overlaps among already-loaded placements.
+ * Speaker conflicts require participation graphs (server-only); room overlaps
+ * are pure geometry and surface on tiles + summary without a failed mutation.
+ */
+export function detectLocalRoomConflicts(
+  placements: SchedulePlacementDto[],
+): LocalScheduleConflict[] {
+  const conflicts: LocalScheduleConflict[] = [];
+  for (let i = 0; i < placements.length; i++) {
+    const a = placements[i]!;
+    for (let j = i + 1; j < placements.length; j++) {
+      const b = placements[j]!;
+      if (a.roomId !== b.roomId) continue;
+      if (!intervalsOverlap(a.startsAt, a.endsAt, b.startsAt, b.endsAt)) {
+        continue;
+      }
+      const aLabel = a.title ?? a.sessionId;
+      const bLabel = b.title ?? b.sessionId;
+      conflicts.push({
+        type: "room",
+        message: `Room overlap: "${aLabel}" and "${bLabel}"`,
+        roomId: a.roomId,
+        placementId: a.id,
+        sessionId: a.sessionId,
+        affectedPlacementIds: [a.id, b.id],
+      });
+    }
+  }
+  return conflicts;
+}
+
+/** Map API conflict items into local rows (failed place/move). */
+export function apiConflictsToLocal(
+  conflicts: ScheduleConflictItem[],
+): LocalScheduleConflict[] {
+  return conflicts.map((c) => ({
+    type: c.type,
+    message: c.message,
+    roomId: c.roomId,
+    placementId: c.placementId,
+    sessionId: c.sessionId,
+    affectedPlacementIds: c.placementId ? [c.placementId] : [],
+  }));
+}
+
+/** Placement ids that should show conflict chrome on tiles. */
+export function conflictedPlacementIds(
+  conflicts: LocalScheduleConflict[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const c of conflicts) {
+    for (const id of c.affectedPlacementIds) ids.add(id);
+    if (c.placementId) ids.add(c.placementId);
+  }
+  return ids;
+}
+
+/**
+ * Accept only #RGB / #RRGGBB for track encoding strip (E6 — no freeform CSS hex).
+ * Invalid or missing → null (tile falls back to brand-soft).
+ */
+export function safeTrackColor(
+  color: string | null | undefined,
+): string | null {
+  if (!color) return null;
+  const trimmed = color.trim();
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(trimmed)) return trimmed;
+  return null;
+}
+
 /** Slot identity for drop targets and keyboard place. */
 export function slotKey(roomId: string, startsAt: string): string {
   return `${roomId}|${startsAt}`;

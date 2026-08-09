@@ -2489,12 +2489,51 @@
   }
 }
 
-/* Section 6.2 — Schedule Studio (Lumen tokens only; schedule tile + conflict toast) */
+/* Section 6.2 / 11.5 — Schedule Studio (Lumen tokens only; sticky board + conflict) */
 .schedule-studio {
   display: flex;
   flex-direction: column;
   gap: var(--lumen-space-4);
   max-width: 1200px;
+}
+
+/* Lumen 2 full-height working surface (S-L2-SCHED) */
+.schedule-studio--l2 {
+  max-width: none;
+  min-height: calc(100vh - 7rem);
+  gap: var(--lumen-space-3);
+}
+
+.schedule-studio--l2 .schedule-studio__layout {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.schedule-studio--l2 .schedule-studio__tray {
+  max-height: min(70vh, 40rem);
+  overflow-y: auto;
+  position: sticky;
+  top: var(--lumen-space-2);
+  align-self: start;
+}
+
+.schedule-studio--l2 .schedule-studio__main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--lumen-space-3);
+}
+
+.schedule-studio--l2 .schedule-studio__day,
+.schedule-studio--l2 .schedule-studio__track,
+.schedule-studio--l2 .schedule-studio__room {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  gap: var(--lumen-space-2);
 }
 
 .schedule-studio__toolbar {
@@ -2508,6 +2547,13 @@
 .schedule-studio__count {
   font-size: 13px;
   color: var(--lumen-text-secondary);
+}
+
+.schedule-studio__place-hint {
+  font-size: 12px;
+  color: var(--lumen-text-secondary);
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 
 .schedule-studio__btn-secondary {
@@ -2550,6 +2596,11 @@
   .schedule-studio__layout {
     grid-template-columns: 1fr;
   }
+
+  .schedule-studio--l2 .schedule-studio__tray {
+    position: static;
+    max-height: none;
+  }
 }
 
 .schedule-studio__subhead {
@@ -2559,6 +2610,68 @@
   color: var(--lumen-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Conflict summary — navigable list (design pack 8.6) */
+.schedule-studio__conflict-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+  padding: var(--lumen-space-3) var(--lumen-space-4);
+  border: 1px solid var(--lumen-danger);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-danger-soft);
+  box-shadow: var(--lumen-shadow-sm);
+}
+
+.schedule-studio__conflict-summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lumen-space-2);
+}
+
+.schedule-studio__conflict-summary-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lumen-danger);
+}
+
+.schedule-studio__conflict-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.schedule-studio__conflict-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface);
+  color: var(--lumen-text);
+  font-family: var(--lumen-font);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.schedule-studio__conflict-item:hover {
+  border-color: var(--lumen-danger);
+}
+
+.schedule-studio__conflict-msg {
+  flex: 1;
+  min-width: 0;
 }
 
 .schedule-tray-item {
@@ -2575,6 +2688,11 @@
   color: var(--lumen-text);
   font-family: var(--lumen-font);
   cursor: grab;
+  box-shadow: var(--lumen-shadow-sm);
+  transition:
+    border-color var(--lumen-motion) var(--lumen-ease),
+    box-shadow var(--lumen-motion) var(--lumen-ease),
+    background var(--lumen-motion) var(--lumen-ease);
 }
 
 .schedule-tray-item:hover {
@@ -2587,6 +2705,12 @@
   box-shadow: var(--lumen-focus-ring);
 }
 
+.schedule-tray-item--pending {
+  opacity: 0.72;
+  border-style: dashed;
+  cursor: wait;
+}
+
 .schedule-tray-item__title {
   font-weight: 600;
   font-size: 14px;
@@ -2597,13 +2721,14 @@
   color: var(--lumen-text-secondary);
 }
 
-/* Schedule tile (component checklist — Lumen lock) */
+/* Schedule tile — richer anatomy (track strip, conflict, pending) */
 .schedule-tile {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
   width: 100%;
-  padding: var(--lumen-space-2);
+  padding: 0;
   border-radius: var(--lumen-radius-sm);
   background: var(--lumen-brand-soft);
   border: 1px solid var(--lumen-border);
@@ -2611,6 +2736,28 @@
   font-family: var(--lumen-font);
   font-size: 13px;
   cursor: grab;
+  box-shadow: var(--lumen-shadow-sm);
+  overflow: hidden;
+  min-height: 3rem;
+}
+
+.schedule-tile__track {
+  flex-shrink: 0;
+  width: 4px;
+  background: var(--schedule-track-color, var(--lumen-brand));
+}
+
+.schedule-tile__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  padding: var(--lumen-space-2);
+}
+
+.schedule-tile--tracked {
+  background: var(--lumen-surface);
 }
 
 .schedule-tile--selected {
@@ -2618,17 +2765,48 @@
   border-color: var(--lumen-brand);
 }
 
+.schedule-tile--conflict {
+  border-color: var(--lumen-danger);
+  background: var(--lumen-danger-soft);
+  box-shadow: 0 0 0 1px var(--lumen-danger);
+}
+
+.schedule-tile--pending {
+  opacity: 0.75;
+  border-style: dashed;
+  cursor: wait;
+}
+
 .schedule-tile--compact {
   cursor: default;
+  min-height: 0;
+}
+
+.schedule-tile--compact .schedule-tile__body {
+  padding: var(--lumen-space-2) var(--lumen-space-3);
 }
 
 .schedule-tile__title {
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .schedule-tile__meta {
   font-size: 11px;
   color: var(--lumen-text-secondary);
+}
+
+.schedule-tile__track-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lumen-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.schedule-tile__badge {
+  margin-top: 2px;
+  align-self: flex-start;
 }
 
 .schedule-studio__slot {
@@ -2641,16 +2819,27 @@
   flex-direction: column;
   gap: var(--lumen-space-1);
   cursor: pointer;
+  transition:
+    border-color var(--lumen-motion) var(--lumen-ease),
+    background var(--lumen-motion) var(--lumen-ease),
+    box-shadow var(--lumen-motion) var(--lumen-ease);
 }
 
 .schedule-studio__slot--over {
   border-color: var(--lumen-brand);
+  border-style: solid;
   background: var(--lumen-brand-soft);
+  box-shadow: var(--lumen-focus-ring);
 }
 
 .schedule-studio__slot--filled {
   border-style: solid;
   background: var(--lumen-surface);
+}
+
+.schedule-studio__slot--conflict {
+  border-color: var(--lumen-danger);
+  background: var(--lumen-danger-soft);
 }
 
 .schedule-studio__slot-time {
@@ -2664,11 +2853,23 @@
   color: var(--lumen-text-secondary);
 }
 
+/* Scroll region — sticky room header + sticky time column (AC sticky) */
+.schedule-studio__board {
+  flex: 1;
+  min-height: 12rem;
+  max-height: min(70vh, 42rem);
+  overflow: auto;
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-bg);
+  position: relative;
+}
+
 .schedule-studio__grid {
   display: flex;
   flex-direction: column;
-  gap: var(--lumen-space-2);
-  overflow-x: auto;
+  gap: 0;
+  min-width: min-content;
 }
 
 .schedule-studio__grid-header,
@@ -2677,6 +2878,24 @@
   grid-template-columns: 64px repeat(auto-fit, minmax(120px, 1fr));
   gap: var(--lumen-space-2);
   align-items: stretch;
+  padding: 0 var(--lumen-space-2);
+}
+
+.schedule-studio__grid-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding-top: var(--lumen-space-2);
+  padding-bottom: var(--lumen-space-2);
+  background: var(--lumen-surface);
+  border-bottom: 1px solid var(--lumen-border);
+  box-shadow: var(--lumen-shadow-sticky);
+}
+
+.schedule-studio__grid-row {
+  padding-top: var(--lumen-space-2);
+  padding-bottom: var(--lumen-space-2);
+  border-bottom: 1px solid var(--lumen-border-subtle);
 }
 
 .schedule-studio__grid-corner,
@@ -2684,13 +2903,31 @@
   font-size: 12px;
   color: var(--lumen-text-secondary);
   font-weight: 600;
-  padding-top: var(--lumen-space-2);
+  padding: var(--lumen-space-2) var(--lumen-space-1);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--lumen-surface);
+  box-shadow: 1px 0 0 var(--lumen-border-subtle);
+}
+
+.schedule-studio__grid-corner {
+  z-index: 4;
+  background: var(--lumen-surface);
+}
+
+.schedule-studio__grid-time {
+  background: var(--lumen-bg);
+  align-self: start;
 }
 
 .schedule-studio__grid-room {
   font-size: 13px;
   font-weight: 600;
   color: var(--lumen-text);
+  padding: var(--lumen-space-2);
+  display: flex;
+  align-items: center;
 }
 
 .schedule-studio__week {
@@ -2754,6 +2991,7 @@
   color: var(--lumen-info);
   font-size: 13px;
   font-weight: 600;
+  box-shadow: var(--lumen-shadow-raised, var(--lumen-shadow-sm));
 }
 
 /* Section 6.3 — Readiness dashboard + speakers large list (Lumen tokens only) */
