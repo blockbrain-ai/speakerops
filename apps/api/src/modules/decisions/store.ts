@@ -889,15 +889,24 @@ export class D1DecisionsStore implements DecisionsStore {
   ): Promise<SessionSpeakerRow[]> {
     if (participationIds.length === 0) return [];
     const unique = [...new Set(participationIds)];
-    const rows = await this.db
-      .select()
-      .from(sessionSpeakers)
-      .where(inArray(sessionSpeakers.participationId, unique));
-    return rows.map((r) => ({
-      sessionId: r.sessionId,
-      participationId: r.participationId,
-      isPrimary: r.isPrimary === 1,
-    }));
+    // D1 bound-parameter limit is 100 per query — chunk IN lists (dogfood 150+).
+    const CHUNK = 90;
+    const out: SessionSpeakerRow[] = [];
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const slice = unique.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select()
+        .from(sessionSpeakers)
+        .where(inArray(sessionSpeakers.participationId, slice));
+      for (const r of rows) {
+        out.push({
+          sessionId: r.sessionId,
+          participationId: r.participationId,
+          isPrimary: r.isPrimary === 1,
+        });
+      }
+    }
+    return out;
   }
 
   async deleteSessionSpeakers(sessionId: string): Promise<void> {
@@ -1098,21 +1107,30 @@ export class D1DecisionsStore implements DecisionsStore {
   ): Promise<SpeakerTaskRow[]> {
     if (participationIds.length === 0) return [];
     const unique = [...new Set(participationIds)];
-    const rows = await this.db
-      .select()
-      .from(speakerTasks)
-      .where(inArray(speakerTasks.participationId, unique));
-    return rows.map((row) => ({
-      id: row.id,
-      templateId: row.templateId,
-      participationId: row.participationId,
-      status: row.status,
-      dueAt: row.dueAt,
-      completedAt: row.completedAt,
-      version: row.version,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    }));
+    // D1 bound-parameter limit is 100 per query — chunk IN lists (dogfood 150+).
+    const CHUNK = 90;
+    const out: SpeakerTaskRow[] = [];
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const slice = unique.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select()
+        .from(speakerTasks)
+        .where(inArray(speakerTasks.participationId, slice));
+      for (const row of rows) {
+        out.push({
+          id: row.id,
+          templateId: row.templateId,
+          participationId: row.participationId,
+          status: row.status,
+          dueAt: row.dueAt,
+          completedAt: row.completedAt,
+          version: row.version,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        });
+      }
+    }
+    return out;
   }
 
   async updateSpeakerTask(

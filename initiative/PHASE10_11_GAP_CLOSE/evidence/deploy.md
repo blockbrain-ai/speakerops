@@ -3,15 +3,15 @@
 | Field | Value |
 |-------|-------|
 | **Status** | DONE_WITH_EVIDENCE |
-| **Timestamp (UTC)** | 2026-08-09T16:07:53Z |
-| **Git SHA (short)** | `70b3d4b` |
-| **Git SHA (full)** | `70b3d4bfff2288c125a5da9998096b796cb9576a` |
-| **App version** | `0.1.0-demo+70b3d4b` |
+| **Timestamp (UTC)** | 2026-08-09T16:37:29Z |
+| **Git SHA (short)** | `6d70915` |
+| **Git SHA (full)** | `6d7091511f5f665b6c0af99305288943a18a4083` |
+| **App version** | `0.1.0-demo+6d70915` |
 | **Worker name** | `speakerops-demo` |
 | **Wrangler env** | `dogfood` |
 | **Binding URL** | https://www.speakerops.org |
 | **GET /health** | 200 |
-| **Health body** | {"ok":true,"version":"0.1.0-demo+70b3d4b"} |
+| **Health body** | {"ok":true,"version":"0.1.0-demo+6d70915"} |
 | **Smoke base (recorded)** | https://www.speakerops.org |
 
 ## Claim
@@ -31,9 +31,10 @@ SMOKE_BASE_URL=https://www.speakerops.org DOGFOOD_SKIP_DEPLOY=1 \
 ## Notes
 
 Live dogfood smoke succeeded. S-CF / S-DOGFOOD / BC10 / BC-16 health 200 recorded.
-Deploy revision: 70b3d4b · APP_VERSION: 0.1.0-demo+70b3d4b
+Deploy revision: 6d70915 · APP_VERSION: 0.1.0-demo+6d70915
 Binding URL: https://www.speakerops.org
-Next: scripts/with-secrets.sh pnpm test:e2e:phase11-keystone
+Keystone: `scripts/with-secrets.sh pnpm test:e2e:phase11-keystone` → **19 passed**
+(report hash in `phase11-keystone-run.SHA256`; includes S-L2-COMMS ≥150 + J05 delivery log).
 
 ## Related evidence
 
