@@ -1,5 +1,5 @@
 /**
- * Speaker portal UI — section 4.3 (S-PORTAL).
+ * Speaker portal UI — section 4.3 (S-PORTAL) + 11.6 (S-L2-PORTAL).
  *
  * Surfaces G01–G08:
  * - G01 next incomplete task home
@@ -11,9 +11,16 @@
  * - G07 own session status only
  * - G08 mobile bio + task
  *
+ * Lumen 2 (page-atlas /portal):
+ * - Branded welcome + participation state
+ * - Progress model (profile + tasks)
+ * - Dominant next-task card
+ * - Mobile-first; bottom nav on narrow viewports
+ *
  * APIs: Portal.GetHome · Participation.UpdateProfile · Task.Complete
  *       File.PresignUpload · File.Upload · File.CompleteUpload
  * Lumen tokens only (E6); speaker surface may use brand tokens.
+ * Status semantics never rethemed by event brand.
  */
 import {
   useCallback,
@@ -50,6 +57,10 @@ import {
   isAllowedHeadshotMime,
   isAllowedSlidesMime,
   resolveUploadMime,
+  profileProgressSteps,
+  taskProgress,
+  overallPortalProgress,
+  participationStateLabel,
   type TaskOptimisticSnapshot,
 } from "./portal-utils.js";
 
@@ -171,7 +182,17 @@ export function PortalHomePage() {
     [home],
   );
 
-  /** Brand token surface: Lumen brand CSS variables (may be event-brand later). */
+  const profileSteps = useMemo(
+    () => profileProgressSteps(participation),
+    [participation],
+  );
+  const tasksProg = useMemo(() => taskProgress(tasks), [tasks]);
+  const overallProg = useMemo(
+    () => overallPortalProgress(participation, tasks),
+    [participation, tasks],
+  );
+
+  /** Brand token surface: Lumen brand CSS variables (portal/public scope only). */
   const portalStyle = useMemo((): CSSProperties => {
     return {
       // Speaker surface may use brand tokens (E6 / Lumen lock blast radius)
@@ -515,9 +536,9 @@ export function PortalHomePage() {
   if (!eventId) {
     return (
       <div
-        className="portal-page"
+        className="portal-page portal-page--l2"
         data-testid="portal-home"
-        data-section="4.3"
+        data-section="11.6"
         style={portalStyle}
       >
         <div className="portal-card" data-testid="portal-missing-event">
@@ -540,9 +561,9 @@ export function PortalHomePage() {
   if (loadState === "unauthenticated") {
     return (
       <div
-        className="portal-page"
+        className="portal-page portal-page--l2"
         data-testid="portal-home"
-        data-section="4.3"
+        data-section="11.6"
         style={portalStyle}
       >
         <div className="portal-card" data-testid="portal-unauthenticated">
@@ -563,34 +584,40 @@ export function PortalHomePage() {
     );
   }
 
+  const speakerName = participation?.personName ?? "Speaker";
+  const stateLabel = participationStateLabel(participation?.status);
+
   return (
     <div
-      className="portal-page"
+      className="portal-page portal-page--l2"
       data-testid="portal-home"
-      data-section="4.3"
+      data-section="11.6"
       data-event-id={eventId}
+      data-layout="next-task-first"
       style={portalStyle}
     >
+      {/* Desktop / tablet compact top nav */}
       <header className="portal-header" data-testid="portal-header">
         <div>
           <p className="portal-overline">Speaker portal</p>
-          <h1 className="portal-title">Your programme tasks</h1>
+          <h1 className="portal-title">Your programme home</h1>
         </div>
-        <nav className="portal-nav" aria-label="Portal sections">
-          <a className="portal-nav__link lumen-focusable" href="#portal-next-task">
-            Next
-          </a>
-          <a className="portal-nav__link lumen-focusable" href="#portal-profile">
-            Profile
-          </a>
-          <a className="portal-nav__link lumen-focusable" href="#portal-files">
-            Files
+        <nav
+          className="portal-nav portal-nav--top"
+          aria-label="Portal sections"
+          data-testid="portal-nav-top"
+        >
+          <a className="portal-nav__link lumen-focusable" href="#portal-home-top">
+            Home
           </a>
           <a className="portal-nav__link lumen-focusable" href="#portal-tasks">
             Tasks
           </a>
+          <a className="portal-nav__link lumen-focusable" href="#portal-profile">
+            Profile
+          </a>
           <a className="portal-nav__link lumen-focusable" href="#portal-sessions">
-            Sessions
+            My sessions
           </a>
         </nav>
       </header>
@@ -618,17 +645,106 @@ export function PortalHomePage() {
       ) : null}
 
       {loadState === "ready" && home ? (
-        <>
-          {/* G01 — next incomplete task */}
+        <div className="portal-home-stack" id="portal-home-top">
+          {/* Branded welcome */}
           <section
-            className="portal-card portal-card--highlight"
+            className="portal-welcome"
+            data-testid="portal-welcome"
+            aria-label="Welcome"
+          >
+            <div className="portal-welcome__brand" aria-hidden="true" />
+            <p className="portal-welcome__eyebrow">Welcome back</p>
+            <h2 className="portal-welcome__name" data-testid="portal-welcome-name">
+              {speakerName}
+            </h2>
+            <p className="portal-welcome__state" data-testid="portal-participation-state">
+              {stateLabel}
+              {participation?.personEmail
+                ? ` · ${participation.personEmail}`
+                : ""}
+            </p>
+          </section>
+
+          {/* Progress model */}
+          <section
+            className="portal-card portal-progress"
+            data-testid="portal-progress"
+            aria-label="Your progress"
+          >
+            <div className="portal-progress__header">
+              <h2 className="portal-heading">Your progress</h2>
+              <span
+                className="portal-progress__percent"
+                data-testid="portal-progress-percent"
+                data-percent={overallProg.percent}
+              >
+                {overallProg.percent}%
+              </span>
+            </div>
+            <div
+              className="portal-progress__track"
+              role="progressbar"
+              aria-valuenow={overallProg.percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Overall readiness"
+              data-testid="portal-progress-bar"
+            >
+              <div
+                className="portal-progress__fill"
+                style={{ width: `${overallProg.percent}%` }}
+              />
+            </div>
+            <p className="portal-muted" data-testid="portal-progress-summary">
+              Profile {overallProg.profileDone} of {overallProg.profileTotal}
+              {tasksProg.total > 0
+                ? ` · Tasks ${tasksProg.completed} of ${tasksProg.completed + tasksProg.pending}`
+                : ""}
+            </p>
+            <ul
+              className="portal-progress__steps"
+              data-testid="portal-profile-steps"
+            >
+              {profileSteps.map((step) => (
+                <li
+                  key={step.id}
+                  className={
+                    step.done
+                      ? "portal-progress__step portal-progress__step--done"
+                      : "portal-progress__step"
+                  }
+                  data-testid={`portal-profile-step-${step.id}`}
+                  data-done={step.done ? "true" : "false"}
+                >
+                  <span className="portal-progress__step-label">{step.label}</span>
+                  <span className="portal-progress__step-why">{step.why}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* G01 — next incomplete task (dominant) */}
+          <section
+            className={
+              nextTask
+                ? "portal-card portal-card--highlight portal-card--next-dominant"
+                : "portal-card portal-card--highlight portal-card--celebrate"
+            }
             id="portal-next-task"
             data-testid="portal-next-task"
           >
-            <h2 className="portal-heading">Next up</h2>
+            <p className="portal-next-kicker" data-testid="portal-next-kicker">
+              {nextTask ? "Your next step" : "You are ready"}
+            </p>
+            <h2 className="portal-heading portal-heading--next">
+              {nextTask ? "Next up" : "All set"}
+            </h2>
             {nextTask ? (
               <div data-testid="portal-next-task-card">
-                <p className="portal-next-title" data-testid="portal-next-task-title">
+                <p
+                  className="portal-next-title"
+                  data-testid="portal-next-task-title"
+                >
                   {nextTask.title}
                 </p>
                 {nextTask.description ? (
@@ -636,23 +752,24 @@ export function PortalHomePage() {
                 ) : null}
                 <div className="portal-row">
                   <span
-                    className={statusBadgeClass(
-                      taskDisplayStatus(nextTask),
-                    )}
+                    className={statusBadgeClass(taskDisplayStatus(nextTask))}
                     data-testid="portal-next-task-status"
                     data-status={taskDisplayStatus(nextTask)}
                   >
                     {taskDisplayStatus(nextTask)}
                   </span>
                   {nextTask.dueAt ? (
-                    <span className="portal-muted" data-testid="portal-next-task-due">
+                    <span
+                      className="portal-muted"
+                      data-testid="portal-next-task-due"
+                    >
                       Due {new Date(nextTask.dueAt).toLocaleDateString()}
                     </span>
                   ) : null}
                 </div>
                 <button
                   type="button"
-                  className="portal-btn lumen-focusable"
+                  className="portal-btn portal-btn--dominant lumen-focusable"
                   data-testid="portal-next-task-complete"
                   disabled={completingIds.has(nextTask.id)}
                   onClick={() => void completeTask(nextTask)}
@@ -661,9 +778,17 @@ export function PortalHomePage() {
                 </button>
               </div>
             ) : (
-              <p className="portal-muted" data-testid="portal-next-task-empty">
-                All tasks complete. You are ready.
-              </p>
+              <div
+                className="portal-celebrate"
+                data-testid="portal-next-task-empty"
+              >
+                <p className="portal-celebrate__title">
+                  All tasks complete. You are ready.
+                </p>
+                <p className="portal-muted">
+                  Keep your profile current and check session details below.
+                </p>
+              </div>
             )}
           </section>
 
@@ -675,8 +800,10 @@ export function PortalHomePage() {
           >
             <h2 className="portal-heading">Profile</h2>
             <p className="portal-muted">
-              {participation?.personName ?? "Speaker"} ·{" "}
-              {participation?.personEmail ?? ""}
+              {speakerName}
+              {participation?.personEmail
+                ? ` · ${participation.personEmail}`
+                : ""}
             </p>
             <form
               className="portal-form"
@@ -686,6 +813,9 @@ export function PortalHomePage() {
               <label className="portal-label" htmlFor="portal-bio">
                 Bio
               </label>
+              <p className="portal-field-why">
+                Shown on the public programme when published. Plain text only.
+              </p>
               <textarea
                 id="portal-bio"
                 className="portal-textarea lumen-focusable"
@@ -704,6 +834,9 @@ export function PortalHomePage() {
               <label className="portal-label" htmlFor="portal-company">
                 Company
               </label>
+              <p className="portal-field-why">
+                Public affiliation for the speaker listing.
+              </p>
               <input
                 id="portal-company"
                 className="portal-input lumen-focusable"
@@ -716,6 +849,9 @@ export function PortalHomePage() {
               <label className="portal-label" htmlFor="portal-title">
                 Title
               </label>
+              <p className="portal-field-why">
+                Public role label next to your name.
+              </p>
               <input
                 id="portal-title"
                 className="portal-input lumen-focusable"
@@ -759,7 +895,9 @@ export function PortalHomePage() {
 
             <div className="portal-file-block" data-testid="portal-headshot">
               <h3 className="portal-subheading">Headshot</h3>
-              <p className="portal-muted">JPEG or PNG · max 10 MiB</p>
+              <p className="portal-muted">
+                JPEG or PNG · max 10 MiB · public portrait for the programme
+              </p>
               <input
                 type="file"
                 accept="image/jpeg,image/png"
@@ -793,7 +931,7 @@ export function PortalHomePage() {
 
             <div className="portal-file-block" data-testid="portal-slides">
               <h3 className="portal-subheading">Slides</h3>
-              <p className="portal-muted">PDF only · max 10 MiB</p>
+              <p className="portal-muted">PDF only · max 10 MiB · private to organisers</p>
               <input
                 type="file"
                 accept="application/pdf"
@@ -889,7 +1027,10 @@ export function PortalHomePage() {
                 No sessions linked yet.
               </p>
             ) : (
-              <ul className="portal-session-list" data-testid="portal-session-list">
+              <ul
+                className="portal-session-list"
+                data-testid="portal-session-list"
+              >
                 {sessions.map((s) => (
                   <li
                     key={s.id}
@@ -911,12 +1052,58 @@ export function PortalHomePage() {
                 ))}
               </ul>
             )}
-            <p className="portal-muted portal-sessions-note" data-testid="portal-sessions-privacy">
+            <p
+              className="portal-muted portal-sessions-note"
+              data-testid="portal-sessions-privacy"
+            >
               Only your own sessions are shown.
             </p>
           </section>
-        </>
+        </div>
       ) : null}
+
+      {/* Mobile bottom navigation (page-atlas) */}
+      <nav
+        className="portal-bottom-nav"
+        aria-label="Portal primary"
+        data-testid="portal-bottom-nav"
+      >
+        <a
+          className="portal-bottom-nav__link lumen-focusable"
+          href="#portal-home-top"
+          data-testid="portal-bottom-home"
+        >
+          Home
+        </a>
+        <a
+          className="portal-bottom-nav__link lumen-focusable"
+          href="#portal-next-task"
+          data-testid="portal-bottom-next"
+        >
+          Next
+        </a>
+        <a
+          className="portal-bottom-nav__link lumen-focusable"
+          href="#portal-tasks"
+          data-testid="portal-bottom-tasks"
+        >
+          Tasks
+        </a>
+        <a
+          className="portal-bottom-nav__link lumen-focusable"
+          href="#portal-profile"
+          data-testid="portal-bottom-profile"
+        >
+          Profile
+        </a>
+        <a
+          className="portal-bottom-nav__link lumen-focusable"
+          href="#portal-sessions"
+          data-testid="portal-bottom-sessions"
+        >
+          Sessions
+        </a>
+      </nav>
     </div>
   );
 }

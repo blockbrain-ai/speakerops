@@ -626,6 +626,18 @@
       "journey": "Open speaker detail"
     },
     {
+      "testid": "speakers-chip-*",
+      "inv": "N02",
+      "surface": "admin",
+      "journey": "Lifecycle view filter chip (11.6 S-L2-PORTAL)"
+    },
+    {
+      "testid": "speakers-view-all",
+      "inv": "N02",
+      "surface": "admin",
+      "journey": "Clear lifecycle view to all speakers (11.6)"
+    },
+    {
       "testid": "speakers-page-prev",
       "inv": "N01",
       "surface": "admin",

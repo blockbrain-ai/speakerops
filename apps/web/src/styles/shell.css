@@ -2489,6 +2489,252 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Speaker portal Lumen 2 (section 11.6 / S-L2-PORTAL)
+ * Branded welcome, progress, dominant next-task, mobile bottom nav.
+ * Brand tokens only on portal scope — status badges keep semantic tones.
+ * --------------------------------------------------------------------------- */
+
+.portal-page--l2 {
+  padding-bottom: calc(var(--lumen-space-6) + 72px);
+}
+
+.portal-home-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.portal-welcome {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: var(--lumen-space-4);
+  padding: var(--lumen-space-5) var(--lumen-space-4);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-brand-soft);
+  border: 1px solid var(--lumen-border);
+  box-shadow: var(--lumen-shadow-sm);
+}
+
+.portal-welcome__brand {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: var(--lumen-brand);
+  border-radius: var(--lumen-radius-md) 0 0 var(--lumen-radius-md);
+}
+
+.portal-welcome__eyebrow {
+  margin: 0 0 var(--lumen-space-1);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lumen-brand);
+}
+
+.portal-welcome__name {
+  margin: 0 0 var(--lumen-space-1);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--lumen-text);
+}
+
+.portal-welcome__state {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lumen-text-secondary);
+}
+
+.portal-progress__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lumen-space-3);
+  margin-bottom: var(--lumen-space-2);
+}
+
+.portal-progress__header .portal-heading {
+  margin-bottom: 0;
+}
+
+.portal-progress__percent {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--lumen-brand);
+  letter-spacing: -0.02em;
+}
+
+.portal-progress__track {
+  height: 10px;
+  border-radius: var(--lumen-radius-pill);
+  background: var(--lumen-surface-muted, var(--lumen-bg));
+  border: 1px solid var(--lumen-border);
+  overflow: hidden;
+  margin-bottom: var(--lumen-space-2);
+}
+
+.portal-progress__fill {
+  height: 100%;
+  min-width: 0;
+  background: var(--lumen-brand);
+  border-radius: var(--lumen-radius-pill);
+  transition: width var(--lumen-motion) var(--lumen-ease);
+}
+
+.portal-progress__steps {
+  list-style: none;
+  margin: var(--lumen-space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--lumen-space-2);
+}
+
+.portal-progress__step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border-radius: var(--lumen-radius-sm);
+  border: 1px solid var(--lumen-border);
+  background: var(--lumen-surface);
+}
+
+.portal-progress__step--done {
+  border-color: var(--lumen-success, var(--lumen-brand));
+  background: var(--lumen-brand-soft);
+}
+
+.portal-progress__step-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-text);
+}
+
+.portal-progress__step-why {
+  font-size: 12px;
+  color: var(--lumen-text-secondary);
+}
+
+.portal-card--next-dominant {
+  padding: var(--lumen-space-5) var(--lumen-space-4);
+  border-width: 2px;
+  box-shadow: var(--lumen-shadow-raised);
+}
+
+.portal-card--celebrate {
+  border-color: var(--lumen-success, var(--lumen-brand));
+  background: var(--lumen-brand-soft);
+}
+
+.portal-next-kicker {
+  margin: 0 0 var(--lumen-space-1);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lumen-brand);
+}
+
+.portal-heading--next {
+  font-size: 18px;
+  margin-bottom: var(--lumen-space-3);
+}
+
+.portal-next-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--lumen-space-2);
+  color: var(--lumen-text);
+}
+
+.portal-btn--dominant {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: var(--lumen-space-4);
+  font-size: 15px;
+  padding: var(--lumen-space-3) var(--lumen-space-4);
+}
+
+.portal-celebrate__title {
+  margin: 0 0 var(--lumen-space-2);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--lumen-text);
+}
+
+.portal-field-why {
+  margin: 0 0 var(--lumen-space-1);
+  font-size: 12px;
+  color: var(--lumen-text-secondary);
+}
+
+/* Bottom nav: mobile primary; hidden on wider layouts */
+.portal-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .portal-page--l2 {
+    padding-bottom: calc(var(--lumen-space-4) + 64px);
+  }
+
+  .portal-nav--top {
+    display: none;
+  }
+
+  .portal-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--lumen-z-dropdown);
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 0;
+    padding: var(--lumen-space-1) var(--lumen-space-2);
+    padding-bottom: max(var(--lumen-space-1), env(safe-area-inset-bottom, 0px));
+    background: var(--lumen-surface);
+    border-top: 1px solid var(--lumen-border);
+    box-shadow: var(--lumen-shadow-sm);
+  }
+
+  .portal-bottom-nav__link {
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: var(--lumen-space-2) var(--lumen-space-1);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lumen-text-secondary);
+    text-decoration: none;
+    border-radius: var(--lumen-radius-sm);
+  }
+
+  .portal-bottom-nav__link:hover,
+  .portal-bottom-nav__link:focus-visible {
+    color: var(--lumen-brand);
+    background: var(--lumen-brand-soft);
+  }
+
+  .portal-welcome__name {
+    font-size: 22px;
+  }
+}
+
+@media (min-width: 768px) {
+  .portal-bottom-nav {
+    display: none;
+  }
+}
+
 /* Section 6.2 / 11.5 — Schedule Studio (Lumen tokens only; sticky board + conflict) */
 .schedule-studio {
   display: flex;
@@ -3305,6 +3551,161 @@
   gap: var(--lumen-space-3);
   margin-top: var(--lumen-space-3);
   flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------------------
+ * Speakers admin Lumen 2 lifecycle table (section 11.6 / S-L2-PORTAL)
+ * --------------------------------------------------------------------------- */
+
+.speakers-page--l2 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-4);
+  max-width: 1200px;
+}
+
+.speakers-page__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--lumen-space-4);
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .speakers-page__layout {
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+  }
+
+  .speakers-page__detail-pane {
+    position: sticky;
+    top: var(--lumen-space-4);
+    max-height: calc(100vh - var(--lumen-space-8));
+    overflow-y: auto;
+  }
+}
+
+.speakers-page__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+  margin-bottom: var(--lumen-space-3);
+  padding: var(--lumen-space-4);
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  box-shadow: var(--lumen-shadow-sm);
+}
+
+.speakers-page__filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+}
+
+.speakers-page__search-label {
+  font-size: var(--lumen-text-meta, 12px);
+  font-weight: 600;
+  color: var(--lumen-text-secondary);
+}
+
+.speakers-page__search {
+  max-width: 28rem;
+}
+
+.speakers-page__loading {
+  display: grid;
+  gap: var(--lumen-space-2);
+  margin: var(--lumen-space-3) 0;
+}
+
+.speakers-page__readiness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.speakers-page__ready-dot {
+  display: inline-flex;
+  align-items: center;
+  max-width: 5.5rem;
+  padding: 2px 6px;
+  border-radius: var(--lumen-radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  border: 1px solid var(--lumen-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.speakers-page__ready-dot--ok {
+  background: var(--lumen-brand-soft);
+  border-color: var(--lumen-brand);
+  color: var(--lumen-brand);
+}
+
+.speakers-page__ready-dot--gap {
+  background: var(--lumen-surface);
+  color: var(--lumen-text-secondary);
+  opacity: 0.9;
+}
+
+.speakers-page__ready-dot-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.speakers-page__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+}
+
+.speakers-page__detail-header {
+  margin-bottom: var(--lumen-space-2);
+}
+
+.speakers-page__detail-title {
+  margin: 0 0 var(--lumen-space-2);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--lumen-text);
+}
+
+.speakers-page__detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+}
+
+.speakers-page__detail-card {
+  margin: 0;
+}
+
+.speakers-page__detail-section-title {
+  margin: 0 0 var(--lumen-space-2);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lumen-text);
+}
+
+.speakers-page__ready-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.speakers-page__detail-pane {
+  min-width: 0;
+}
+
+.speakers-page__list-pane {
+  min-width: 0;
 }
 
 /* Section 8.2 — empty / error / loading cross-cutting (L01–L03); Lumen tokens only */
