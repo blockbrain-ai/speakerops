@@ -206,4 +206,24 @@ describe("1.2 Worker API health", () => {
     } as WorkerBindings;
     expect(() => createAppFromBindings(env)).not.toThrow();
   });
+
+  it("createAppFromBindings DEMO_MODE accepts missing Turnstile keys with allowlist", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      DEMO_MODE: "1",
+      DEMO_ALLOWLIST_ENABLED: "1",
+      DEMO_ALLOWLIST_HOSTS: "www.speakerops.org,localhost",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).not.toThrow();
+  });
+
+  it("createAppFromBindings DEMO_MODE + allowlist enabled requires hosts", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      DEMO_MODE: "1",
+      DEMO_ALLOWLIST_ENABLED: "1",
+      // DEMO_ALLOWLIST_HOSTS omitted
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/DEMO_ALLOWLIST_HOSTS/);
+  });
 });

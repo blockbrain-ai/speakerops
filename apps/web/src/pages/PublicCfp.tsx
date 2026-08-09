@@ -348,9 +348,10 @@ export function PublicCfpPage() {
   };
 
   /**
-   * Local/e2e path: Cloudflare always-pass test site key.
+   * Local/e2e + DEMO_MODE path: Cloudflare always-pass test site key.
    * Interactive control only — never auto-submit a token without user action.
-   * Server accepts TURNSTILE_DEV_PASS_TOKEN only when TURNSTILE_SECRET_KEY is unset.
+   * Server accepts TURNSTILE_DEV_PASS_TOKEN only when demoMode is true and
+   * (if allowlist enabled) the request host/event is allowlisted (section 10.3).
    */
   const onTurnstileToggle = () => {
     if (turnstileChecked) {

@@ -65,8 +65,32 @@ export type WorkerBindings = {
    * Production (`createAppFromBindings`): required with TURNSTILE_SECRET_KEY;
    * rejects empty and the Cloudflare always-pass test site key.
    * Local/e2e may omit — public CFP falls back to Cloudflare always-pass test key.
+   * When DEMO_MODE=1, public CFP forces the always-pass test site key (section 10.3).
    */
   TURNSTILE_SITE_KEY?: string;
+  /**
+   * When "1", enable DEMO Turnstile path for public CFP (section 10.3 / S-CFP-SUBMIT).
+   * Env **name** only (E10). Accepts TURNSTILE_DEV_PASS_TOKEN only when allowlist
+   * rules pass (see DEMO_ALLOWLIST_*). Forces test site key on Form.GetPublic.
+   * Default off — never enable on public production without an explicit allowlist.
+   * Dogfood deploy documents this in docs/DEMO_HOST.md + OPERATIONS.md.
+   */
+  DEMO_MODE?: string;
+  /**
+   * When "1" with DEMO_MODE=1, DEV_PASS is accepted only for hosts listed in
+   * DEMO_ALLOWLIST_HOSTS (and optional DEMO_ALLOWLIST_EVENT_SLUGS). Env name only.
+   */
+  DEMO_ALLOWLIST_ENABLED?: string;
+  /**
+   * Comma-separated hostnames allowed for DEMO Turnstile pass token
+   * (e.g. "www.speakerops.org,localhost"). Env name only — not a secret.
+   */
+  DEMO_ALLOWLIST_HOSTS?: string;
+  /**
+   * Optional comma-separated event slugs allowed for DEMO pass token.
+   * Empty/unset = any event on an allowlisted host. Env name only.
+   */
+  DEMO_ALLOWLIST_EVENT_SLUGS?: string;
   /**
    * Email provider mode (section 5.2). Env **name** only (E10).
    * Default: sandbox (no live HTTP). Set to "resend" only with RESEND_API_KEY.

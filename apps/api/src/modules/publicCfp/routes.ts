@@ -35,6 +35,7 @@ import {
   clientKeyFromRequest,
   type CfpRateLimiter,
 } from "./rateLimit.js";
+import type { DemoTurnstileContext } from "./turnstile.js";
 
 export type PublicCfpRouteOptions = {
   store: AuthStore;
@@ -46,6 +47,8 @@ export type PublicCfpRouteOptions = {
   rateLimiter?: CfpRateLimiter;
   /** TURNSTILE_SECRET_KEY from Worker env (name only in docs). */
   turnstileSecret?: string;
+  /** DEMO_MODE + allowlist for Turnstile (section 10.3). */
+  demoTurnstile?: DemoTurnstileContext;
 };
 
 function commandError(
@@ -91,6 +94,7 @@ export function createPublicCfpRoutes(
     auth: options.store,
     design: options.design,
     turnstileSecret: options.turnstileSecret,
+    demoTurnstile: options.demoTurnstile,
   };
 
   /**
@@ -142,11 +146,15 @@ export function createPublicCfpRoutes(
       return res;
     }
 
+    // Host for DEMO allowlist (section 10.3) — prefer Host header over URL host.
+    const hostHeader = c.req.header("host") ?? undefined;
+
     const result = await createSubmission(submitDeps, {
       ...parsed.data,
       slug,
       correlationId: c.get("correlationId"),
       remoteIp: key.startsWith("corr:") ? undefined : key,
+      host: hostHeader,
     });
 
     if (!result.ok) {

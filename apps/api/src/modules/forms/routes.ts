@@ -308,6 +308,8 @@ export function createPublicFormsRoutes(
    * GET /cfp/:slug — Form.GetPublic (no auth).
    * Never returns draft fields/rules (S-CFP published surface only).
    * turnstileSiteKey comes from TURNSTILE_SITE_KEY env when set (production widget).
+   * DEMO_MODE=1 forces Cloudflare always-pass test site key (section 10.3) so the
+   * SPA shows the interactive test control and submits TURNSTILE_DEV_PASS_TOKEN.
    */
   app.get("/cfp/:slug", async (c) => {
     const slug = c.req.param("slug");
@@ -315,14 +317,21 @@ export function createPublicFormsRoutes(
     if (!result.ok) {
       return commandError(c, result);
     }
+    const demoMode =
+      typeof c.env?.DEMO_MODE === "string" && c.env.DEMO_MODE.trim() === "1";
     const envSiteKey =
+      !demoMode &&
       typeof c.env?.TURNSTILE_SITE_KEY === "string" &&
       c.env.TURNSTILE_SITE_KEY.trim().length > 0
         ? c.env.TURNSTILE_SITE_KEY.trim()
         : undefined;
     const payload = {
       ...result.value,
-      turnstileSiteKey: envSiteKey ?? result.value.turnstileSiteKey ?? TURNSTILE_TEST_SITE_KEY,
+      turnstileSiteKey: demoMode
+        ? TURNSTILE_TEST_SITE_KEY
+        : (envSiteKey ??
+          result.value.turnstileSiteKey ??
+          TURNSTILE_TEST_SITE_KEY),
     };
     const out = PublicCfpResponseSchema.safeParse(payload);
     if (!out.success) {

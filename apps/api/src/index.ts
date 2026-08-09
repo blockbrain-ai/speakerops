@@ -183,6 +183,20 @@ export type CreateAppOptions = {
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /**
+   * DEMO_MODE Turnstile path (section 10.3). When true, TURNSTILE_DEV_PASS_TOKEN
+   * may be accepted under allowlist rules. createAppWithAuth defaults true (e2e);
+   * createAppFromBindings sets from DEMO_MODE env (default false).
+   */
+  demoMode?: boolean;
+  /**
+   * When true with demoMode, DEV_PASS requires host (and optional event) allowlist.
+   */
+  demoAllowlistEnabled?: boolean;
+  /** Allowlisted hostnames for DEMO pass token. */
+  demoAllowlistHosts?: string[];
+  /** Optional allowlisted event slugs for DEMO pass token. */
+  demoAllowlistEventSlugs?: string[];
+  /**
    * Optional public CFP rate limiter inject (tests — deterministic 429).
    * Production uses process-local defaultCfpRateLimiter.
    */
@@ -254,6 +268,17 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Production: controlled. createAppWithAuth overrides to open for e2e.
   const bootstrapPolicy = options.bootstrapPolicy ?? "controlled";
   const turnstileSecret = options.turnstileSecret;
+  // Section 10.3 — DEMO Turnstile (default off for bare createApp; createAppWithAuth opts in).
+  const demoMode = options.demoMode === true;
+  const demoAllowlistEnabled = options.demoAllowlistEnabled === true;
+  const demoAllowlistHosts = options.demoAllowlistHosts ?? [];
+  const demoAllowlistEventSlugs = options.demoAllowlistEventSlugs ?? [];
+  const demoTurnstile = {
+    demoMode,
+    demoAllowlistEnabled,
+    demoAllowlistHosts,
+    demoAllowlistEventSlugs,
+  };
   // Production-ready cookie flags (HttpOnly Secure SameSite=Lax) — default secure.
   const cookieSecure = options.cookieSecure !== false;
 
@@ -392,6 +417,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
 
   // Section 3.3 — Submission.Create + public CFP file upload
   // Section 8.3 — rate limit inject for deterministic 429 proofs
+  // Section 10.3 — DEMO_MODE Turnstile allowlist
   app.route(
     "/api/public",
     createPublicCfpRoutes({
@@ -401,6 +427,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       design: designStore,
       submissions: submissionsStore,
       turnstileSecret,
+      demoTurnstile,
       rateLimiter: options.rateLimiter,
     }),
   );
@@ -565,6 +592,9 @@ export function createAppWithAuth(
     enableRoleSwitcher: options.enableRoleSwitcher ?? true,
     // Open bootstrap for e2e/unit tests only — never production.
     bootstrapPolicy: options.bootstrapPolicy ?? "open",
+    // Section 10.3 — local/e2e accept DEV_PASS without host allowlist (opt-out available).
+    demoMode: options.demoMode ?? true,
+    demoAllowlistEnabled: options.demoAllowlistEnabled ?? false,
   });
   return {
     app,
@@ -586,12 +616,14 @@ export function createAppWithAuth(
 /**
  * Build production app from Worker bindings (D1 SoR).
  * Throws if DB binding is missing — Memory stores are never used in production.
- * Throws if TURNSTILE_SECRET_KEY is missing/empty or is a known development/Cloudflare
- * test secret (literal "test", always-pass, always-fail) — production must not fall
- * open to the public TURNSTILE_DEV_PASS_TOKEN or always-pass siteverify modes.
- * Throws if TURNSTILE_SITE_KEY is missing/empty or is the always-pass test site key —
- * otherwise the public CFP SPA falls back to the test UI and submits
- * TURNSTILE_DEV_PASS_TOKEN, which disables or breaks effective bot protection.
+ *
+ * Turnstile (section 3.3 + 10.3):
+ * - Without DEMO_MODE: TURNSTILE_SECRET_KEY and TURNSTILE_SITE_KEY are required
+ *   and must not be development/Cloudflare test values — production must not fall
+ *   open to TURNSTILE_DEV_PASS_TOKEN or always-pass siteverify modes.
+ * - With DEMO_MODE=1 (dogfood): accepts test secret path, forces test site key on
+ *   Form.GetPublic, and accepts TURNSTILE_DEV_PASS_TOKEN only for allowlisted
+ *   hosts/events (DEMO_ALLOWLIST_*). See docs/DEMO_HOST.md.
  */
 export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
   if (!env.DB) {
@@ -599,46 +631,92 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
       "Worker binding DB is required for production SoR (E1). Memory stores are test-only.",
     );
   }
-  const turnstileSecret =
-    typeof env.TURNSTILE_SECRET_KEY === "string"
-      ? env.TURNSTILE_SECRET_KEY.trim()
-      : "";
-  if (!turnstileSecret) {
-    throw new Error(
-      "Worker binding TURNSTILE_SECRET_KEY is required for production CFP bot protection (E10). " +
-        "Omitting it would accept the public development pass token and disable effective protection.",
-    );
+
+  const demoMode =
+    typeof env.DEMO_MODE === "string" && env.DEMO_MODE.trim() === "1";
+  const demoAllowlistEnabled =
+    typeof env.DEMO_ALLOWLIST_ENABLED === "string" &&
+    env.DEMO_ALLOWLIST_ENABLED.trim() === "1";
+  // Inline parse (avoid circular import at module top for wrangler bundling)
+  const parseList = (raw: string | undefined): string[] => {
+    if (!raw || typeof raw !== "string") return [];
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  };
+  const demoAllowlistHosts = parseList(env.DEMO_ALLOWLIST_HOSTS);
+  const demoAllowlistEventSlugs = parseList(env.DEMO_ALLOWLIST_EVENT_SLUGS);
+
+  let turnstileSecret: string;
+
+  if (demoMode) {
+    // DEMO dogfood path: allow missing/test secret (local-style verify) or a real one.
+    // DEV_PASS is still gated by demoMode + allowlist in verifyTurnstile.
+    const raw =
+      typeof env.TURNSTILE_SECRET_KEY === "string"
+        ? env.TURNSTILE_SECRET_KEY.trim()
+        : "";
+    if (!raw || raw === TURNSTILE_TEST_SECRET_FAIL) {
+      turnstileSecret = "test";
+    } else {
+      turnstileSecret = raw;
+    }
+    // When allowlist is enabled, require at least one host so DEMO cannot fall open.
+    if (demoAllowlistEnabled && demoAllowlistHosts.length === 0) {
+      throw new Error(
+        "Worker binding DEMO_ALLOWLIST_HOSTS is required when DEMO_MODE=1 and " +
+          "DEMO_ALLOWLIST_ENABLED=1 (section 10.3). Empty allowlist would reject all " +
+          "DEMO tokens; set dogfood hostnames (see docs/DEMO_HOST.md).",
+      );
+    }
+  } else {
+    turnstileSecret =
+      typeof env.TURNSTILE_SECRET_KEY === "string"
+        ? env.TURNSTILE_SECRET_KEY.trim()
+        : "";
+    if (!turnstileSecret) {
+      throw new Error(
+        "Worker binding TURNSTILE_SECRET_KEY is required for production CFP bot protection (E10). " +
+          "Omitting it would accept the public development pass token and disable effective protection. " +
+          "For dogfood DEMO captcha, set DEMO_MODE=1 (docs/DEMO_HOST.md).",
+      );
+    }
+    // verifyTurnstile treats these as local/always-pass/always-fail modes; production
+    // must use a real Cloudflare siteverify secret only.
+    const isDevOrTestSecret =
+      turnstileSecret === "test" ||
+      turnstileSecret === TURNSTILE_TEST_SECRET_PASS ||
+      turnstileSecret === TURNSTILE_TEST_SECRET_FAIL;
+    if (isDevOrTestSecret) {
+      throw new Error(
+        "Worker binding TURNSTILE_SECRET_KEY must not be a development or Cloudflare test secret (E10). " +
+          "Known test values (literal \"test\", always-pass, always-fail) disable effective CFP bot " +
+          "protection by accepting public development tokens or always-pass siteverify modes. " +
+          "For dogfood DEMO captcha, set DEMO_MODE=1 (docs/DEMO_HOST.md).",
+      );
+    }
+    const turnstileSiteKey =
+      typeof env.TURNSTILE_SITE_KEY === "string"
+        ? env.TURNSTILE_SITE_KEY.trim()
+        : "";
+    if (!turnstileSiteKey) {
+      throw new Error(
+        "Worker binding TURNSTILE_SITE_KEY is required for production CFP bot protection (E10). " +
+          "Omitting it serves the Cloudflare always-pass test site key; the SPA then submits " +
+          "TURNSTILE_DEV_PASS_TOKEN, which a real TURNSTILE_SECRET_KEY rejects and blocks all CFP submissions. " +
+          "For dogfood DEMO captcha, set DEMO_MODE=1 (docs/DEMO_HOST.md).",
+      );
+    }
+    if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
+      throw new Error(
+        "Worker binding TURNSTILE_SITE_KEY must not be the Cloudflare always-pass test site key (E10). " +
+          "That key makes the SPA submit TURNSTILE_DEV_PASS_TOKEN and disables effective CFP bot protection. " +
+          "For dogfood DEMO captcha, set DEMO_MODE=1 (docs/DEMO_HOST.md).",
+      );
+    }
   }
-  // verifyTurnstile treats these as local/always-pass/always-fail modes; production
-  // must use a real Cloudflare siteverify secret only.
-  const isDevOrTestSecret =
-    turnstileSecret === "test" ||
-    turnstileSecret === TURNSTILE_TEST_SECRET_PASS ||
-    turnstileSecret === TURNSTILE_TEST_SECRET_FAIL;
-  if (isDevOrTestSecret) {
-    throw new Error(
-      "Worker binding TURNSTILE_SECRET_KEY must not be a development or Cloudflare test secret (E10). " +
-        "Known test values (literal \"test\", always-pass, always-fail) disable effective CFP bot " +
-        "protection by accepting public development tokens or always-pass siteverify modes.",
-    );
-  }
-  const turnstileSiteKey =
-    typeof env.TURNSTILE_SITE_KEY === "string"
-      ? env.TURNSTILE_SITE_KEY.trim()
-      : "";
-  if (!turnstileSiteKey) {
-    throw new Error(
-      "Worker binding TURNSTILE_SITE_KEY is required for production CFP bot protection (E10). " +
-        "Omitting it serves the Cloudflare always-pass test site key; the SPA then submits " +
-        "TURNSTILE_DEV_PASS_TOKEN, which a real TURNSTILE_SECRET_KEY rejects and blocks all CFP submissions.",
-    );
-  }
-  if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
-    throw new Error(
-      "Worker binding TURNSTILE_SITE_KEY must not be the Cloudflare always-pass test site key (E10). " +
-        "That key makes the SPA submit TURNSTILE_DEV_PASS_TOKEN and disables effective CFP bot protection.",
-    );
-  }
+
   const d1 = env.DB as D1DatabaseLike;
   // Section 8.4 — ROLE_SWITCHER_ENABLED=1 for private dogfood judges only (default off).
   const roleSwitcherEnabled =
@@ -657,6 +735,10 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     keysStore: new D1KeysStore(d1),
     airtableStore: new D1AirtableStore(d1),
     turnstileSecret,
+    demoMode,
+    demoAllowlistEnabled,
+    demoAllowlistHosts,
+    demoAllowlistEventSlugs,
     enableDevOutbox: false,
     enableRoleSwitcher: roleSwitcherEnabled,
     bootstrapPolicy: "controlled",

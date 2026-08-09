@@ -43,8 +43,12 @@ Custom domain production cutover is **out of scope** for dogfood claim unless ow
 | `DOGFOOD_EVIDENCE_PATH` | optional | Override BC10 evidence output path |
 | `DOGFOOD_WORKER_NAME` | optional | Default `speakerops-api` |
 | `WRANGLER_BIN` | optional | Path or command for wrangler |
-| `TURNSTILE_SECRET_KEY` | production Worker | Required by `createAppFromBindings` — set via `wrangler secret put` |
-| `TURNSTILE_SITE_KEY` | production Worker | Public site key — `[vars]` or secret; not a private credential |
+| `TURNSTILE_SECRET_KEY` | production Worker | Required by `createAppFromBindings` (unless `DEMO_MODE=1`) — set via `wrangler secret put` |
+| `TURNSTILE_SITE_KEY` | production Worker | Public site key — `[vars]` or secret; not a private credential (ignored for public CFP when `DEMO_MODE=1`) |
+| `DEMO_MODE` | dogfood Worker | `"1"` enables DEMO Turnstile path (test site key + DEV_PASS under allowlist). **Required on dogfood** for S-CFP-SUBMIT — see [`DEMO_HOST.md`](./DEMO_HOST.md) |
+| `DEMO_ALLOWLIST_ENABLED` | dogfood Worker | `"1"` with DEMO_MODE — host allowlist for DEV_PASS (fail-closed elsewhere) |
+| `DEMO_ALLOWLIST_HOSTS` | dogfood Worker | Comma-separated hostnames (e.g. `www.speakerops.org,localhost`) |
+| `DEMO_ALLOWLIST_EVENT_SLUGS` | optional | Comma-separated event slugs; empty = any event on allowlisted host |
 | `BOOTSTRAP_ADMIN_EMAIL` | first admin | Controlled bootstrap allowlist (email, not a token) |
 | `RESEND_API_KEY` | if live email | Only with `EMAIL_PROVIDER=resend` |
 | `AIRTABLE_API_KEY` / `AIRTABLE_BASE_ID` | optional | Projection drain only (paused when unset) |
@@ -133,6 +137,13 @@ wrangler secret put TURNSTILE_SECRET_KEY
 
 Non-secret public config may live under `[vars]` in `wrangler.toml`
 (e.g. `APP_VERSION`). Never put tokens in `[vars]` or commit `.dev.vars`.
+
+**Dogfood DEMO captcha (section 10.3 / S-CFP-SUBMIT):** `[env.dogfood]` sets
+`DEMO_MODE=1`, `DEMO_ALLOWLIST_ENABLED=1`, and `DEMO_ALLOWLIST_HOSTS` covering
+`www.speakerops.org` (and localhost for local smoke). Under DEMO_MODE the public
+CFP UI uses the Turnstile test control; the Worker accepts `XXXX.DUMMY.TOKEN`
+only for allowlisted hosts. Full runbook: [`DEMO_HOST.md`](./DEMO_HOST.md).
+Without DEMO_MODE, production construction still requires real Turnstile keys.
 
 ### 4.5 Deploy + health smoke (preferred one-shot)
 

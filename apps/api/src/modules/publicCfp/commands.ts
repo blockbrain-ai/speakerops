@@ -36,7 +36,10 @@ import {
   newSubmissionId,
   newAnswerId,
 } from "./store.js";
-import { verifyTurnstile } from "./turnstile.js";
+import {
+  verifyTurnstile,
+  type DemoTurnstileContext,
+} from "./turnstile.js";
 
 export type PublicCfpCommandDeps = {
   submissions: SubmissionsStore;
@@ -46,6 +49,8 @@ export type PublicCfpCommandDeps = {
   design: DesignStore;
   /** TURNSTILE_SECRET_KEY binding (env name only in docs). */
   turnstileSecret?: string;
+  /** DEMO_MODE / allowlist context for Turnstile (section 10.3). */
+  demoTurnstile?: DemoTurnstileContext;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -94,6 +99,8 @@ export type CreateSubmissionInput = SubmissionCreateBody & {
   correlationId: string;
   remoteIp?: string;
   turnstileFetch?: typeof fetch;
+  /** Request Host for DEMO allowlist (section 10.3). */
+  host?: string;
 };
 
 /**
@@ -127,12 +134,19 @@ export async function createSubmission(
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
-  // Turnstile first (cheap fail on spam)
+  // Turnstile first (cheap fail on spam). DEMO_MODE + allowlist gate DEV_PASS (10.3).
+  const demoCtx = deps.demoTurnstile ?? {};
   const captcha = await verifyTurnstile({
     token: input.turnstileToken,
     secret: deps.turnstileSecret,
     remoteIp: input.remoteIp,
     fetchImpl: input.turnstileFetch,
+    demoMode: demoCtx.demoMode,
+    demoAllowlistEnabled: demoCtx.demoAllowlistEnabled,
+    demoAllowlistHosts: demoCtx.demoAllowlistHosts,
+    demoAllowlistEventSlugs: demoCtx.demoAllowlistEventSlugs,
+    host: input.host ?? demoCtx.host,
+    eventSlug: input.slug,
   });
   if (!captcha.ok) {
     return {

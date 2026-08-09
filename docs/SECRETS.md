@@ -41,9 +41,13 @@
 - `VITE_ROLE_SWITCHER` — when `"1"`, SPA shows the RoleSwitcher chrome (also shown automatically in Vite `import.meta.env.DEV`). Build-time only; not a secret.
 - Demo emails are public constants (`admin@demo.speakerops.local`, etc.) — not credentials; switcher still issues real HttpOnly session cookies server-side.
 
-## Public CFP / Turnstile (section 3.3) — names only
-- `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. **Required** for production Worker construction (`createAppFromBindings` throws if missing/empty **or** set to a known development/Cloudflare test value: literal `test`, always-pass `1x0000…AA`, always-fail `2x0000…AA`) so deployments cannot fall open to the public development pass token or always-pass modes. Local/e2e (`createApp` / `createAppWithAuth`) may omit it: then only the explicit pass token (`XXXX.DUMMY.TOKEN`) is accepted; all other tokens fail closed.
-- `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). **Required** for production Worker construction together with the secret: omitting it or using the Cloudflare always-pass test site key makes the SPA fall back to the test UI and submit `XXXX.DUMMY.TOKEN` — blocking real protection or all CFP submissions. Local/e2e may omit it: the always-pass test site key is used for the interactive test control.
+## Public CFP / Turnstile (section 3.3 + 10.3 DEMO) — names only
+- `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile secret for `Submission.Create` server verify. **Required** for production Worker construction without DEMO_MODE (`createAppFromBindings` throws if missing/empty **or** set to a known development/Cloudflare test value: literal `test`, always-pass `1x0000…AA`, always-fail `2x0000…AA`) so deployments cannot fall open to the public development pass token or always-pass modes. Local/e2e (`createAppWithAuth`) may omit it: with `demoMode` true, only the explicit pass token (`XXXX.DUMMY.TOKEN`) is accepted; all other tokens fail closed. With `DEMO_MODE=1`, missing/test secret is allowed (dogfood DEMO path).
+- `TURNSTILE_SITE_KEY` — public site key for the SPA Turnstile widget (not a secret). **Required** for production without DEMO_MODE; omitting it or using the Cloudflare always-pass test site key is rejected at construction. Local/e2e may omit it. With `DEMO_MODE=1`, public CFP **forces** the always-pass test site key so the SPA uses the interactive test control.
+- `DEMO_MODE` — when `"1"`, enable DEMO Turnstile path (section 10.3 / S-CFP-SUBMIT): force test site key on `Form.GetPublic`; accept `XXXX.DUMMY.TOKEN` only when allowlist rules pass. **Default off.** Dogfood `[env.dogfood]` sets this; never enable on public multi-tenant production without an allowlist. See [`DEMO_HOST.md`](./DEMO_HOST.md).
+- `DEMO_ALLOWLIST_ENABLED` — when `"1"` with `DEMO_MODE=1`, DEV_PASS accepted only for hosts in `DEMO_ALLOWLIST_HOSTS` (and optional event slugs). Fail-closed for non-allowlisted hosts (AC-10.3-D).
+- `DEMO_ALLOWLIST_HOSTS` — comma-separated hostnames (e.g. `www.speakerops.org,localhost`). Not a secret.
+- `DEMO_ALLOWLIST_EVENT_SLUGS` — optional comma-separated event slugs; empty = any event on an allowlisted host.
 - Never commit Turnstile secrets or log full captcha tokens.
 
 ## Comms / email provider (section 5.2) — names only

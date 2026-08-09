@@ -63,6 +63,9 @@ const env = {
       ? process.env.APP_VERSION
       : "0.1.0",
   AUTH_DEV_OUTBOX: "1",
+  // Section 10.3 — DEMO_MODE forces test Turnstile site key on Form.GetPublic.
+  // createAppWithAuth also enables demoMode for Submission.Create DEV_PASS.
+  DEMO_MODE: "1",
 };
 
 const server = createServer(async (req, res) => {
