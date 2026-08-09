@@ -4,6 +4,48 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 
 **Exit claim:** `dogfood_ready` (see constitution).
 
+## 5-minute orientation
+
+New here? Pick a path, then skim the map. Full timed onboarding prose lands in Phase **9.2–9.4**; the **tree is locked** (section **9.1** / outline **0.5**).
+
+| You are… | Start | Then |
+|----------|--------|------|
+| **Human operator** | [`docs/ONBOARDING.md`](./docs/ONBOARDING.md) (**S-ONB-HUMAN**) | Env names → migrate → seed → gates → deploy notes |
+| **Coding agent** | [`docs/AGENT_SETUP.md`](./docs/AGENT_SETUP.md) + [`docs/CLI.md`](./docs/CLI.md) (**S-ONB-AGENT**) | Scoped key → OpenAPI → readiness / design publish |
+| **Reviewer / judge** | [`docs/COMPETITION.md`](./docs/COMPETITION.md) · this README | Non-goals + [constitution](./KMS-competition/initiative/00_CONSTITUTION.md) |
+| **Maintainer** | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · [`docs/OPERATIONS.md`](./docs/OPERATIONS.md) | Security · E2E · troubleshooting |
+
+```bash
+pnpm install
+pnpm db:migrate && pnpm seed    # local SoR + demo graph
+pnpm typecheck && pnpm test:ci  # non-watch gates (E5)
+# Optional: pnpm test:e2e · pnpm deploy:dogfood (secrets out-of-band)
+```
+
+**Never commit secret values** — env **names** only: [`docs/SECRETS.md`](./docs/SECRETS.md).
+
+### Docs map (S-DOCS)
+
+| Doc | Role |
+|-----|------|
+| [`docs/ONBOARDING.md`](./docs/ONBOARDING.md) | Human zero → running (stub → 9.2) |
+| [`docs/AGENT_SETUP.md`](./docs/AGENT_SETUP.md) | Agent zero → CLI ops (stub → 9.3) |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | D1 SoR, projection, auth, CLI model |
+| [`docs/SECURITY.md`](./docs/SECURITY.md) | CSP, cookies, roles, keys |
+| [`docs/CLI.md`](./docs/CLI.md) | `speakerops` command reference |
+| [`docs/OPERATIONS.md`](./docs/OPERATIONS.md) | Deploy, migrate, backup / D1 Time Travel |
+| [`docs/AIRTABLE.md`](./docs/AIRTABLE.md) | One-way projection setup & lag |
+| [`docs/E2E.md`](./docs/E2E.md) | Playwright inventory suite |
+| [`docs/COMPETITION.md`](./docs/COMPETITION.md) | Brief mapping + non-goals |
+| [`docs/TROUBLESHOOTING.md`](./docs/TROUBLESHOOTING.md) | Common failures / recovery |
+| [`docs/FIELD_FLOW.md`](./docs/FIELD_FLOW.md) | Forms → portal field flow (I16) |
+| [`docs/CONTRACTS.md`](./docs/CONTRACTS.md) | Binding contract index |
+| [`docs/SECRETS.md`](./docs/SECRETS.md) | Env **names** only (E10) |
+| [`docs/sections/9.1-docs-ia.md`](./docs/sections/9.1-docs-ia.md) | This IA section note |
+| [`reports/e2e-coverage.html`](./reports/e2e-coverage.html) | Offline E2E coverage (8.5); full portal **9.5** |
+
+Outline + build order: [`docs/governance/0.5-docs-onboarding-outline.md`](./docs/governance/0.5-docs-onboarding-outline.md).
+
 ## Programme contract (start here)
 
 | Doc | Why |

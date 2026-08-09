@@ -4,7 +4,8 @@ Machine-facing admin surface for **S-CLI**. The `speakerops` binary maps **1:1**
 
 **Inventory (proof IDs):** [`CLI_INVENTORY.md`](../KMS-competition/initiative/contracts/CLI_INVENTORY.md) CLI01–CLI12  
 **OpenAPI:** `GET /openapi.json`  
-**Package:** `@speakerops/cli` (`packages/cli`)
+**Package:** `@speakerops/cli` (`packages/cli`)  
+**Agent path:** [`AGENT_SETUP.md`](./AGENT_SETUP.md) (**S-ONB-AGENT**) · **Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md)
 
 ## Install / run
 

@@ -1,9 +1,10 @@
 # Browser E2E — Playwright inventory harness
 
 **Section:** 1.5 · **Law:** [0.3 inventory law](./governance/0.3-e2e-inventory-law.md) · **Souls:** S-E2E-INV, S-E2E-RUN  
-**Canonical inventory:** [`KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md)
+**Canonical inventory:** [`KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md)  
+**Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md) · [ONBOARDING](./ONBOARDING.md) · offline report [`reports/e2e-coverage.html`](../reports/e2e-coverage.html)
 
-This document is the workspace stub for Playwright usage until Phase 9 expands onboarding (`docs/ONBOARDING.md`).
+This document is the workspace runbook for Playwright + inventory law. Human onboarding prose expands in Phase 9 (`docs/ONBOARDING.md`).
 
 ---
 

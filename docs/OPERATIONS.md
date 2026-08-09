@@ -2,7 +2,8 @@
 
 > **Owner section:** **8.6** · **Soul:** **S-CF** · **Checklist:** **BC10**  
 > **Standards:** E5 gates · E7 side effects · **E10** secrets names-only  
-> **Depends:** Worker health **1.2**, D1 baseline **1.3**, demo seed **8.4**
+> **Depends:** Worker health **1.2**, D1 baseline **1.3**, demo seed **8.4**  
+> **Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md) · [ONBOARDING](./ONBOARDING.md) · [ARCHITECTURE](./ARCHITECTURE.md) · [AIRTABLE](./AIRTABLE.md)
 
 This runbook is the operator path from a clean workspace → private Cloudflare
 workers.dev dogfood URL with `GET /health` → **200**. Custom domain production

@@ -1,7 +1,8 @@
 # Security (SpeakerOps)
 
 > **Owners:** section **8.3** (hardening baseline) · Phase **9.4** expands onboarding copy  
-> **Standards:** E10 (HttpOnly cookies, CSP, env **names** only) · E2 · E4 · E8
+> **Standards:** E10 (HttpOnly cookies, CSP, env **names** only) · E2 · E4 · E8  
+> **Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md) · [ARCHITECTURE](./ARCHITECTURE.md) · [SECRETS](./SECRETS.md)
 
 This document is the workspace security baseline. It does **not** replace a full pen test.
 
