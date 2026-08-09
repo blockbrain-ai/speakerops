@@ -1540,3 +1540,53 @@ describe("3.5 Decision.Record", () => {
     expect(session).toBeNull();
   });
 });
+
+describe("3.5 decisions Bearer decisions:write (CLI contract)", () => {
+  it("decisions:write bearer can Session.CreateDirect without 401", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-bearer-admin@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Bearer Decision Event");
+    const keyRes = await admin.app.request(
+      "http://localhost/api/keys",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          name: "decisions-writer",
+          scopes: ["decisions:write", "submissions:read"],
+          eventId: event.id,
+        }),
+      },
+      env,
+    );
+    const keyRaw = await keyRes.json();
+    expect(keyRes.status, JSON.stringify(keyRaw)).toBe(201);
+    const secret = (keyRaw as { secret: string }).secret;
+
+    const direct = await admin.app.request(
+      `http://localhost/api/events/${event.id}/sessions/direct`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${secret}`,
+        },
+        body: JSON.stringify({
+          title: "Sponsor talk",
+          speakers: [
+            { name: "Ada", email: "ada-bearer@example.com", isPrimary: true },
+          ],
+        }),
+      },
+      env,
+    );
+    const directBody = await direct.json();
+    expect(direct.status, JSON.stringify(directBody)).not.toBe(401);
+    expect(direct.status, JSON.stringify(directBody)).toBe(201);
+  });
+});
