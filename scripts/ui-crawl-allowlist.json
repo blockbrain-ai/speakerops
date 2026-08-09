@@ -380,6 +380,48 @@
       "journey": "Submissions list next page (10.1 S-SUB-LIST)"
     },
     {
+      "testid": "submissions-chip-status-*",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "Status filter chip (11.4 S-L2-SUB)"
+    },
+    {
+      "testid": "submissions-active-filter-*",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "Clear active filter chip (11.4 S-L2-SUB)"
+    },
+    {
+      "testid": "submissions-clear-filters",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "Clear all submission filters (11.4 S-L2-SUB)"
+    },
+    {
+      "testid": "submissions-bulk-bar-accept",
+      "inv": "E08",
+      "surface": "admin",
+      "journey": "Sticky bulk bar accept preview (11.4)"
+    },
+    {
+      "testid": "submissions-bulk-bar-reject",
+      "inv": "E08",
+      "surface": "admin",
+      "journey": "Sticky bulk bar reject preview (11.4)"
+    },
+    {
+      "testid": "submissions-bulk-bar-waitlist",
+      "inv": "E08",
+      "surface": "admin",
+      "journey": "Sticky bulk bar waitlist preview (11.4)"
+    },
+    {
+      "testid": "submissions-bulk-clear",
+      "inv": "E08",
+      "surface": "admin",
+      "journey": "Clear bulk selection (11.4)"
+    },
+    {
       "testid": "eval-queue-item-*",
       "inv": "F01",
       "surface": "evaluator",
