@@ -50,6 +50,10 @@
       "reason": "Pager chrome container; next/prev leaf controls mapped"
     },
     {
+      "testid": "submissions-pager",
+      "reason": "Submissions list pager chrome container (10.1); next/prev leaf controls mapped to E01"
+    },
+    {
       "testid": "api-key-prefix-value",
       "reason": "Read-only prefix display (K03 proof surface), not a primary action button"
     },
@@ -97,6 +101,8 @@
     { "testid": "submissions-bulk-preview-waitlist", "inv": "E08", "surface": "admin", "journey": "Bulk waitlist preview" },
     { "testid": "submissions-empty-cta", "inv": "L01", "surface": "admin", "journey": "Empty submissions list CTA" },
     { "testid": "submissions-error-retry", "inv": "L02", "surface": "admin", "journey": "Retry after submissions load error" },
+    { "testid": "submissions-page-prev", "inv": "E01", "surface": "admin", "journey": "Submissions list previous page (10.1 S-SUB-LIST)" },
+    { "testid": "submissions-page-next", "inv": "E01", "surface": "admin", "journey": "Submissions list next page (10.1 S-SUB-LIST)" },
     { "testid": "eval-queue-item-*", "inv": "F01", "surface": "evaluator", "journey": "Open assigned eval item" },
     { "testid": "eval-score-save", "inv": "F02", "surface": "evaluator", "journey": "Save evaluation score" },
     { "testid": "readiness-refresh", "inv": "H01", "surface": "admin", "journey": "Refresh readiness dashboard" },
