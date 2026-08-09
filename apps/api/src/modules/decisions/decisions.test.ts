@@ -1589,4 +1589,129 @@ describe("3.5 decisions Bearer decisions:write (CLI contract)", () => {
     expect(direct.status, JSON.stringify(directBody)).not.toBe(401);
     expect(direct.status, JSON.stringify(directBody)).toBe(201);
   });
+
+  it("must-not: recordDecision and bulk preview reject draft submissions", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "dec-admin-draft-guard@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Draft Decision Guard");
+
+    // Publish form so we can create a public draft
+    const create = await admin.app.request(
+      `http://localhost/api/events/${event.id}/forms`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ name: "Draft Guard CFP" }),
+      },
+      env,
+    );
+    expect(create.status).toBe(201);
+    const form = FormCreateResponseSchema.parse(await create.json());
+    const draftFields = await admin.app.request(
+      `http://localhost/api/forms/${form.form.id}/draft`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          fields: [
+            {
+              fieldKey: "talk_title",
+              type: "text",
+              label: "Talk title",
+              required: true,
+              sortOrder: 0,
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(draftFields.status).toBe(200);
+    const publish = await admin.app.request(
+      `http://localhost/api/forms/${form.form.id}/publish`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    expect(publish.status).toBe(200);
+    const published = FormPublishResponseSchema.parse(await publish.json());
+
+    const draftSave = await admin.app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          formVersionId: published.formVersion.id,
+          title: "Incomplete Draft Talk",
+        }),
+      },
+      env,
+    );
+    expect(draftSave.status).toBe(201);
+    const draft = (await draftSave.json()) as {
+      submission: { id: string; status: string; version: number };
+    };
+    expect(draft.submission.status).toBe("draft");
+
+    // Accept draft → 400 (must not materialize session/tasks)
+    const accept = await admin.app.request(
+      `http://localhost/api/submissions/${draft.submission.id}/decision`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-accept-draft",
+        },
+        body: JSON.stringify({ decision: "accept", reason: "oops" }),
+      },
+      env,
+    );
+    expect(accept.status).toBe(400);
+    const acceptErr = ErrorEnvelopeSchema.parse(await accept.json());
+    expect(acceptErr.code).toBe(VALIDATION_ERROR);
+    expect(acceptErr.error.toLowerCase()).toMatch(/draft/);
+
+    // No session materialised
+    const sessions = await admin.decisions.listSessionsForEvent(event.id);
+    expect(
+      sessions.filter((s) => s.sourceSubmissionId === draft.submission.id),
+    ).toHaveLength(0);
+
+    // Bulk preview with draft → 400
+    const preview = await admin.app.request(
+      `http://localhost/api/events/${event.id}/submissions/bulk-preview`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          submissionIds: [draft.submission.id],
+          decision: "accept",
+        }),
+      },
+      env,
+    );
+    expect(preview.status).toBe(400);
+    const previewErr = ErrorEnvelopeSchema.parse(await preview.json());
+    expect(previewErr.code).toBe(VALIDATION_ERROR);
+    expect(previewErr.error.toLowerCase()).toMatch(/draft/);
+  });
 });

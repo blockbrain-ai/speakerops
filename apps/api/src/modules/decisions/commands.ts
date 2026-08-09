@@ -11,6 +11,7 @@ import {
   SUBMISSION_LIST_DEFAULT_LIMIT,
   SUBMISSION_LIST_MAX_LIMIT,
   SubmissionStatusSchema,
+  isSubmissionDecisionSource,
   type DecisionRecordBody,
   type DecisionValue,
   type DecisionDto,
@@ -526,6 +527,29 @@ export async function recordDecision(
       status: 404,
       error: "Submission not found",
       code: "NOT_FOUND",
+    };
+  }
+
+  // Incomplete public drafts must not be accepted / decided (10.5).
+  if (!isSubmissionDecisionSource(submission.status)) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        submission.status === "draft"
+          ? "Cannot record a decision on a draft submission"
+          : "Submission is not in a valid state for a decision",
+      code: "VALIDATION_ERROR",
+      details: {
+        status: submission.status,
+        eligible: [
+          "submitted",
+          "in_review",
+          "accepted",
+          "rejected",
+          "waitlist",
+        ],
+      },
     };
   }
 
@@ -1118,6 +1142,28 @@ export async function previewBulkDecision(
         error: "Submission not in event",
         code: "VALIDATION_ERROR",
         details: { submissionId: id },
+      };
+    }
+    if (!isSubmissionDecisionSource(sub.status)) {
+      return {
+        ok: false,
+        status: 400,
+        error:
+          sub.status === "draft"
+            ? "Cannot preview a decision on a draft submission"
+            : "Submission is not in a valid state for a decision",
+        code: "VALIDATION_ERROR",
+        details: {
+          submissionId: id,
+          status: sub.status,
+          eligible: [
+            "submitted",
+            "in_review",
+            "accepted",
+            "rejected",
+            "waitlist",
+          ],
+        },
       };
     }
     items.push({

@@ -13,6 +13,7 @@ import {
   coerceFiniteNumber,
   sortEvalSubmissionsByScore,
   evalRollupToCsv,
+  isSubmissionEvalEligible,
   type EvalUpsertRubricBody,
   type EvalScoreBody,
   type EvalRoundDto,
@@ -469,6 +470,23 @@ export async function assignEvaluators(
     };
   }
 
+  // Incomplete public drafts must not be assigned or scored (10.5 + S-EVAL).
+  if (!isSubmissionEvalEligible(submission.status)) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        submission.status === "draft"
+          ? "Cannot assign evaluators to a draft submission"
+          : "Submission is not eligible for evaluation assignment",
+      code: "VALIDATION_ERROR",
+      details: {
+        status: submission.status,
+        eligible: ["submitted", "in_review"],
+      },
+    };
+  }
+
   const round = await deps.eval.findActiveRoundForEvent(submission.eventId);
   if (!round) {
     return {
@@ -635,6 +653,9 @@ export async function getAdminEvalRollup(
     // Harden against corrupt SoR rows — skip rather than 500 the whole rollup.
     const submissionId = (sub.id ?? "").trim();
     if (!submissionId) continue;
+    // Incomplete public drafts are not evaluation candidates (10.5).
+    // Exclude from progress rollup and CSV export.
+    if (sub.status === "draft") continue;
     const title = (sub.title ?? "").trim() || "(untitled)";
     const status =
       typeof sub.status === "string" && sub.status.trim() !== ""

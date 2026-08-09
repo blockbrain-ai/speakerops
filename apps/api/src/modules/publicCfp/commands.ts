@@ -955,11 +955,10 @@ export async function saveDraft(
         code: "NOT_FOUND",
       };
     }
-    // Event-scoped wrong form pin: keep same formVersionId or allow latest
-    if (existing.formVersionId !== version.id) {
-      // Allow re-pin to current published version on re-save
-    }
-
+    // Re-pin formVersionId to the published version used for this snapshot
+    // rewrite so answers/fields stay on the same immutable form version
+    // (audit + row + response must agree). Stale client pins are upgraded
+    // atomically when resolvePublishedFormVersion accepts the request body.
     const nextVersion = existing.version + 1;
     const updated = await deps.submissions.updateDraftSubmission(
       existing.id,
@@ -967,6 +966,7 @@ export async function saveDraft(
         title,
         category,
         version: nextVersion,
+        formVersionId: version.id,
       },
       existing.version,
     );

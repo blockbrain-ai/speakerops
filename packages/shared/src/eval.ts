@@ -294,12 +294,26 @@ export function sortEvalSubmissionsByScore<T extends EvalSortableSubmission>(
   return copy;
 }
 
-/** Escape one CSV field (RFC 4180-ish: quote when needed). */
-export function csvEscapeField(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+/**
+ * Neutralize spreadsheet formula injection (CSV/formula injection).
+ * Cells beginning with =, +, -, @ (or tab/CR before those) are treated as
+ * formulas by Excel/LibreOffice when admins open eval exports.
+ * Prefix with a single quote so the value is forced to text.
+ */
+export function neutralizeCsvFormula(value: string): string {
+  if (/^[\t\r\n ]*[=+\-@]/.test(value)) {
+    return `'${value}`;
   }
   return value;
+}
+
+/** Escape one CSV field (RFC 4180-ish: quote when needed + formula-safe). */
+export function csvEscapeField(value: string): string {
+  const safe = neutralizeCsvFormula(value);
+  if (/[",\r\n]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
 }
 
 export type EvalCsvRow = {

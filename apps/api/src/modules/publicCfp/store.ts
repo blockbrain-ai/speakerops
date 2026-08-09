@@ -83,7 +83,8 @@ export type SubmissionsStore = {
     expectedVersion: number,
   ): Promise<SubmissionRow | null>;
   /**
-   * Update draft title/category with optimistic concurrency (section 10.5).
+   * Update draft title/category/formVersionId with optimistic concurrency (section 10.5).
+   * formVersionId re-pins to the published version used for the snapshot rewrite.
    * Returns null on missing row or version conflict.
    */
   updateDraftSubmission(
@@ -92,6 +93,7 @@ export type SubmissionsStore = {
       title: string;
       category: string | null;
       version: number;
+      formVersionId: string;
     },
     expectedVersion: number,
   ): Promise<SubmissionRow | null>;
@@ -255,6 +257,7 @@ export class MemorySubmissionsStore implements SubmissionsStore {
       title: string;
       category: string | null;
       version: number;
+      formVersionId: string;
     },
     expectedVersion: number,
   ): Promise<SubmissionRow | null> {
@@ -266,6 +269,7 @@ export class MemorySubmissionsStore implements SubmissionsStore {
       title: patch.title,
       category: patch.category,
       version: patch.version,
+      formVersionId: patch.formVersionId,
     };
     this.submissions.set(submissionId, next);
     return { ...next };
@@ -571,6 +575,7 @@ export class D1SubmissionsStore implements SubmissionsStore {
       title: string;
       category: string | null;
       version: number;
+      formVersionId: string;
     },
     expectedVersion: number,
   ): Promise<SubmissionRow | null> {
@@ -580,6 +585,7 @@ export class D1SubmissionsStore implements SubmissionsStore {
         title: patch.title,
         category: patch.category,
         version: patch.version,
+        formVersionId: patch.formVersionId,
       })
       .where(
         and(

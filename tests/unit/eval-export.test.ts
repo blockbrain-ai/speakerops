@@ -10,6 +10,7 @@ import {
   sortEvalSubmissionsByScore,
   evalRollupToCsv,
   csvEscapeField,
+  neutralizeCsvFormula,
   type EvalCsvRow,
 } from "../../packages/shared/src/eval.js";
 
@@ -84,6 +85,17 @@ describe("10.6 eval export/sort", () => {
     expect(csvEscapeField('say "hi", now')).toBe('"say ""hi"", now"');
   });
 
+  it("neutralizeCsvFormula prefixes formula-leading cells", () => {
+    expect(neutralizeCsvFormula("safe title")).toBe("safe title");
+    expect(neutralizeCsvFormula("=1+1")).toBe("'=1+1");
+    expect(neutralizeCsvFormula("+cmd|' /C calc'!A0")).toBe(
+      "'+cmd|' /C calc'!A0",
+    );
+    expect(neutralizeCsvFormula("-2+3")).toBe("'-2+3");
+    expect(neutralizeCsvFormula("@SUM(A1:A10)")).toBe("'@SUM(A1:A10)");
+    expect(neutralizeCsvFormula("\t=HYPERLINK")).toBe("'\t=HYPERLINK");
+  });
+
   it("evalRollupToCsv emits header + sorted score rows with status", () => {
     const csv = evalRollupToCsv(rows, { sort: "score_desc" });
     const lines = csv.trimEnd().split(/\r?\n/);
@@ -101,6 +113,39 @@ describe("10.6 eval export/sort", () => {
     // Scored count for mid: 1 of 2
     const midLine = lines.find((l) => l.startsWith("sub_mid,"));
     expect(midLine).toMatch(/,5,2,1$/);
+  });
+
+  it("evalRollupToCsv neutralizes malicious title/category formula injection", () => {
+    const malicious: EvalCsvRow[] = [
+      {
+        submissionId: "sub_evil",
+        title: "=cmd|' /C calc'!A0",
+        status: "submitted",
+        category: "+2+5+cmd|' /C calc'!A0",
+        aggregateScore: 1,
+        assignments: [{ status: "scored" }],
+      },
+      {
+        submissionId: "sub_at",
+        title: "@SUM(1+1)",
+        status: "in_review",
+        category: '-HYPERLINK("http://evil","x")',
+        aggregateScore: null,
+        assignments: [{ status: "pending" }],
+      },
+    ];
+    const csv = evalRollupToCsv(malicious, { sort: "title" });
+    // Formula-leading user fields must be text-forced (leading single quote)
+    expect(csvEscapeField("=cmd|' /C calc'!A0")).toMatch(/^'/);
+    expect(csvEscapeField("+2+5+cmd|' /C calc'!A0")).toMatch(/^'/);
+    expect(csvEscapeField("@SUM(1+1)")).toMatch(/^'/);
+    expect(csvEscapeField('-HYPERLINK("http://evil","x")')).toMatch(/^["']/);
+    expect(csv).toContain("'=cmd|' /C calc'!A0");
+    expect(csv).toContain("'+2+5+cmd|' /C calc'!A0");
+    expect(csv).toContain("'@SUM(1+1)");
+    expect(csv).toContain("'-HYPERLINK");
+    // Must not emit unneutralized formula starters as cell text
+    expect(csv).not.toMatch(/(?:^|,|=)(?:=cmd|\+2\+5|@SUM)/m);
   });
 
   it("does not mutate input array on sort", () => {
