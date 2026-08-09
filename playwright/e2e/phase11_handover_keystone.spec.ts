@@ -1040,8 +1040,9 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     test.setTimeout(60_000);
     // No session → admin redirects to login / recovery (not privileged data)
     await context.clearCookies();
+    // domcontentloaded — SPA /auth may keep long-lived requests; networkidle flakes on dogfood.
     await page.goto(url("/admin/submissions"), {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
       timeout: 30_000,
     });
     // Must not show privileged submissions table
