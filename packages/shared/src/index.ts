@@ -18,7 +18,9 @@ export {
 
 export {
   CONTENT_SECURITY_POLICY,
+  CONTENT_SECURITY_POLICY_DEV,
   SECURITY_HEADERS,
+  SECURITY_HEADERS_DEV,
   RATE_LIMITED,
   type SecurityHeaderName,
 } from "./security.js";

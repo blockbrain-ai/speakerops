@@ -62,7 +62,7 @@ pnpm seed                 # idempotent — second run keeps the same speaker cou
 
 - **Seed:** writes org/event, 150 accepted speakers (L05), outstanding tasks, missing headshots, and ≥1 intentional schedule room conflict into local SQLite (`SPEAKEROPS_DB_PATH` or `.data/speakerops.local.sqlite`).
 - **Demo accounts** (not secrets): `admin@demo.speakerops.local`, `evaluator@demo.speakerops.local`, `speaker@demo.speakerops.local`.
-- **Role switcher (dogfood/dev only):** SPA shows when `import.meta.env.DEV` or `VITE_ROLE_SWITCHER=1`. API route registers only when `ROLE_SWITCHER_ENABLED=1` (Worker) or local e2e (`createAppWithAuth`). Controlled/production dogfood requires an **existing session** before minting a demo role (workers.dev is not private). Default production path keeps the route **off**. See [`docs/sections/8.4-demo-seed.md`](./docs/sections/8.4-demo-seed.md).
+- **Role switcher (dogfood/dev only):** SPA shows when `import.meta.env.DEV` or `VITE_ROLE_SWITCHER=1`. API route registers only when `ROLE_SWITCHER_ENABLED=1` (Worker) or local e2e (`createAppWithAuth`). Controlled/production dogfood requires an **existing admin session** before minting a demo role (workers.dev is not private; non-admins cannot escalate). Default production path keeps the route **off**. See [`docs/sections/8.4-demo-seed.md`](./docs/sections/8.4-demo-seed.md).
 
 Monorepo layout (section **1.1**): `apps/{web,api}`, `packages/{shared,db,cli}`. Agent standards: [`AGENTS.md`](./AGENTS.md) → `speakerops-engineering-standards.md` (E1–E12).
 

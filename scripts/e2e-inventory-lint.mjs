@@ -61,6 +61,14 @@
  *   (same artifact written by `pnpm test:e2e` / playwright.config.ts).
  *   Override with E2E_PLAYWRIGHT_RUN_REPORT / E2E_PLAYWRIGHT_SUITE_REPORT.
  *
+ * Suite discovery vs execution report (must not conflate):
+ *   Tag reconciliation uses the **config-selected suite** (`playwright test
+ *   --list` or an *explicit* suite/list report). The default
+ *   `reports/playwright-run.json` is **not** used for discovery — partial
+ *   single-spec runs overwrite that file and would otherwise hide most
+ *   inventory IDs. Phase 8 outcome proof loads the default/explicit run
+ *   report separately after tags are reconciled against the full suite.
+ *
  * Static skip detection (defense in depth, all modes):
  *   `test.skip` / `test.fixme` / `test.fail` modifiers, and any `test(...)`
  *   nested under `test.describe.skip` / `test.describe.fixme`, are treated as
@@ -574,15 +582,18 @@ export function parsePlaywrightListText(text, root = "") {
 /**
  * Discover the Playwright config-selected suite (files + titles [+ outcomes]).
  *
- * Resolution order:
+ * Resolution order (discovery / tag reconciliation only):
  * 1. Injected `playwrightSuite` object (tests / programmatic)
- * 2. Run/suite report path (options / E2E_PLAYWRIGHT_RUN_REPORT /
+ * 2. **Explicit** run/suite/list report path only
+ *    (options.suiteReportPath / E2E_PLAYWRIGHT_RUN_REPORT /
  *    E2E_PLAYWRIGHT_SUITE_REPORT / E2E_PLAYWRIGHT_LIST_REPORT)
- * 3. Default artifact `reports/playwright-run.json` (same as `pnpm test:e2e`)
- *    when present — so `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory`
- *    does not require an undocumented extra env var after a full run
- * 4. Live `playwright test --list` when a config exists and CLI is available
+ * 3. Live `playwright test --list` when a config exists and CLI is available
  *    (collection only — no execution outcomes; insufficient for Phase 8)
+ *
+ * The default `reports/playwright-run.json` is **not** used here: partial
+ * single-spec E2E runs overwrite that artifact and must not replace full
+ * config-selected suite discovery. Phase 8 outcome proof loads the default
+ * (or explicit) run report via `resolvePlaywrightRunReport` separately.
  *
  * @param {object} [options]
  * @param {string} [options.root]
@@ -611,16 +622,16 @@ export function resolvePlaywrightSelectedSuite(options = {}) {
     return suite;
   }
 
+  // Explicit paths only — never auto-load default playwright-run.json for
+  // discovery (partial suite overwrite would hide most @inv owners).
   const explicitReportPath =
     options.suiteReportPath ||
     env.E2E_PLAYWRIGHT_RUN_REPORT ||
     env.E2E_PLAYWRIGHT_SUITE_REPORT ||
     env.E2E_PLAYWRIGHT_LIST_REPORT ||
     "";
-  const reportPath =
-    explicitReportPath || defaultPlaywrightRunReportPath(root);
-  if (reportPath) {
-    const fromReport = loadPlaywrightSuiteReport(reportPath, root);
+  if (explicitReportPath) {
+    const fromReport = loadPlaywrightSuiteReport(explicitReportPath, root);
     if (fromReport) return fromReport;
   }
 
@@ -694,6 +705,73 @@ export function resolvePlaywrightSelectedSuite(options = {}) {
       textSuite.source = "playwright-list-text";
       return textSuite;
     }
+  }
+
+  return null;
+}
+
+/**
+ * Resolve a Playwright **execution** run report for Phase 8 outcome proof.
+ *
+ * Unlike `resolvePlaywrightSelectedSuite` (discovery / tags), this prefers
+ * the default `reports/playwright-run.json` so `pnpm test:e2e` + phase8
+ * inventory does not need an extra env var — without letting that file
+ * replace full-suite discovery after a partial single-spec run.
+ *
+ * Resolution order:
+ * 1. Injected suite when it already has execution outcomes
+ * 2. Explicit report path (options / env)
+ * 3. Default `reports/playwright-run.json` when present and has outcomes
+ * 4. null (caller fails Phase 8 with a clear message)
+ *
+ * @param {object} [options]
+ * @param {string} [options.root]
+ * @param {unknown} [options.playwrightSuite]
+ * @param {string} [options.suiteReportPath]
+ * @param {NodeJS.ProcessEnv} [options.env]
+ * @param {{ files: string[], entries: PlaywrightSuiteEntry[], source: string, hasExecutionOutcomes: boolean } | null} [options.selectedSuite]
+ * @returns {{ files: string[], entries: PlaywrightSuiteEntry[], source: string, hasExecutionOutcomes: boolean } | null}
+ */
+export function resolvePlaywrightRunReport(options = {}) {
+  const root = options.root ?? defaultRoot;
+  const env = options.env ?? process.env;
+
+  if (
+    options.selectedSuite &&
+    suiteHasExecutionOutcomes(options.selectedSuite)
+  ) {
+    return options.selectedSuite;
+  }
+
+  if (options.playwrightSuite != null) {
+    const suite = normalizePlaywrightSuite(options.playwrightSuite, root);
+    if (suite && suiteHasExecutionOutcomes(suite)) {
+      suite.source =
+        typeof options.playwrightSuite === "object" &&
+        options.playwrightSuite &&
+        typeof /** @type {any} */ (options.playwrightSuite).source === "string"
+          ? /** @type {any} */ (options.playwrightSuite).source
+          : "injected";
+      return suite;
+    }
+  }
+
+  const explicitReportPath =
+    options.suiteReportPath ||
+    env.E2E_PLAYWRIGHT_RUN_REPORT ||
+    env.E2E_PLAYWRIGHT_SUITE_REPORT ||
+    "";
+  if (explicitReportPath) {
+    const fromReport = loadPlaywrightSuiteReport(explicitReportPath, root);
+    if (fromReport && suiteHasExecutionOutcomes(fromReport)) {
+      return fromReport;
+    }
+  }
+
+  const defaultReport = defaultPlaywrightRunReportPath(root);
+  const fromDefault = loadPlaywrightSuiteReport(defaultReport, root);
+  if (fromDefault && suiteHasExecutionOutcomes(fromDefault)) {
+    return fromDefault;
   }
 
   return null;
@@ -2380,11 +2458,17 @@ export function runInventoryLint(options = {}) {
       // Collection via `playwright test --list` or list-shaped reports omits
       // outcomes; describe.skip / runtime skip still appear as selected.
       // Require a real run report and passed, non-skipped results per ID.
+      // Discovery (selectedSuite) stays config-selected / --list; outcomes
+      // load from default/explicit playwright-run.json separately so a
+      // partial single-spec report cannot shrink tag reconciliation.
       if (fullGate) {
-        const runReport =
-          selectedSuite && suiteHasExecutionOutcomes(selectedSuite)
-            ? selectedSuite
-            : null;
+        const runReport = resolvePlaywrightRunReport({
+          root,
+          playwrightSuite: options.playwrightSuite,
+          suiteReportPath: options.suiteReportPath,
+          env,
+          selectedSuite,
+        });
         if (!runReport) {
           const defaultReport = defaultPlaywrightRunReportPath(root);
           fail(
@@ -2396,7 +2480,8 @@ export function runInventoryLint(options = {}) {
               "non-DEFER REQUIRED ID can be verified as passed and non-skipped. " +
               `Default report path: ${defaultReport}. ` +
               (selectedSuite
-                ? `Resolved suite source "${selectedSuite.source}" has no execution outcomes.`
+                ? `Discovery suite source "${selectedSuite.source}" has no execution outcomes ` +
+                  "and no default/explicit run report with outcomes was found."
                 : "No suite/run report was resolved."),
           );
         }

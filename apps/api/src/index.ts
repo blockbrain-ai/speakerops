@@ -204,8 +204,8 @@ export type CreateAppOptions = {
    * Default false. createAppWithAuth enables for e2e; production only when
    * ROLE_SWITCHER_ENABLED=1 (dogfood judges).
    *
-   * Production/controlled path requires an existing valid session cookie
-   * (workers.dev is not private — no open admin session mint).
+   * Production/controlled path requires an existing **admin** session cookie
+   * (workers.dev is not private — no open admin mint; non-admins cannot escalate).
    */
   enableRoleSwitcher?: boolean;
   /**

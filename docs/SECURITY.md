@@ -11,19 +11,23 @@ Canonical policy string: `@speakerops/shared` → `CONTENT_SECURITY_POLICY` / `S
 
 | Surface | Mechanism |
 |---------|-----------|
-| API Worker (all responses) | `apps/api/src/middleware/security.ts` |
-| SPA dev / preview HTML | Vite `server.headers` + `preview.headers` (`apps/web/vite.config.ts`) |
+| API Worker (all responses) | `apps/api/src/middleware/security.ts` (production CSP) |
+| SPA **preview** / production HTML | Vite `preview.headers` + build meta (`CONTENT_SECURITY_POLICY`) |
+| SPA **dev / Playwright** HTML | Vite `server.headers` + transformIndexHtml (`CONTENT_SECURITY_POLICY_DEV`) |
 | SPA document defense-in-depth | `<meta http-equiv="Content-Security-Policy">` in `apps/web/index.html` |
 
-Policy intent:
+Policy intent (production):
 
 - `default-src 'self'`
 - Turnstile only at `https://challenges.cloudflare.com` (`script-src` / `frame-src` / `connect-src`)
 - Google Fonts CSS/font hosts only
 - `frame-ancestors 'none'` + `X-Frame-Options: DENY` (clickjacking)
 - `object-src 'none'`; `upgrade-insecure-requests`
+- **No** `script-src 'unsafe-inline'` on Worker / production / preview
 
-**Do not** weaken CSP or cookie flags for demo convenience.
+Dev/E2E exception (`CONTENT_SECURITY_POLICY_DEV`): `@vitejs/plugin-react` injects an inline Fast Refresh preamble that production `script-src 'self'` blocks (empty `#root`, suite FAIL). Dev CSP allows `'unsafe-inline'` for scripts and `ws:`/`wss:` for HMR **only** on the Vite development server — never on the Worker or `vite preview`.
+
+**Do not** weaken production CSP or cookie flags for demo convenience.
 
 Companion headers on every Worker response: `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`.
 

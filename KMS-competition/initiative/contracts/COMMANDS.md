@@ -10,7 +10,7 @@ Auth: session cookie **or** API key with scopes.
 | `Auth.ExchangeMagicLink` | public | token | Set-Cookie session |
 | `Auth.Logout` | any authed | — | cleared cookie |
 | `Auth.CreateInvite` | admin | email, role, eventId | { inviteId } |
-| `Auth.DevRoleSwitch` | dogfood/dev only (`ROLE_SWITCHER_ENABLED=1` / local e2e) | role (admin\|evaluator\|speaker), eventId? | { ok, role, email, eventId, redirectTo } + Set-Cookie session for seeded demo user — **never** registered on public production default; controlled Worker requires existing session (401 if unauthenticated) |
+| `Auth.DevRoleSwitch` | dogfood/dev only (`ROLE_SWITCHER_ENABLED=1` / local e2e) | role (admin\|evaluator\|speaker), eventId? | { ok, role, email, eventId, redirectTo } + Set-Cookie session for seeded demo user — **never** registered on public production default; controlled Worker requires existing **admin** session (401 if unauthenticated, 403 if non-admin) |
 
 ## Events & settings
 | Command | Scope | Input | Output |

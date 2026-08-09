@@ -5,8 +5,9 @@
  * - Route absent when flag off → 404
  * - Success issues session + audit with correlationId
  * - Controlled (production dogfood): unauthenticated → 401 (no open admin mint)
- * - Controlled + valid session → 200
- * - Missing demo user without allowCreate → 404 (when session present)
+ * - Controlled + non-admin session → 403 (no privilege escalation)
+ * - Controlled + admin session → 200
+ * - Missing demo user without allowCreate → 404 (when admin session present)
  * - No plaintext token in audit afterJson
  */
 import { describe, it, expect } from "vitest";
@@ -20,6 +21,7 @@ import {
   DEMO_ROLE_EMAILS,
   VALIDATION_ERROR,
   UNAUTHORIZED,
+  FORBIDDEN,
   SESSION_COOKIE_NAME,
 } from "@speakerops/shared";
 
@@ -129,8 +131,8 @@ describe("8.4 Auth.DevRoleSwitch", () => {
     expect(setCookie).not.toMatch(new RegExp(`${SESSION_COOKIE_NAME}=[^;]+`));
   });
 
-  it("controlled mode allows role-switch when caller has a valid session", async () => {
-    // Seed demo users + establish a session via open-bootstrap harness app.
+  it("controlled mode rejects non-admin session (no privilege escalation)", async () => {
+    // Seed demo users + establish evaluator session via open-bootstrap harness.
     const { store } = createAppWithAuth({ enableRoleSwitcher: true });
     const seedApp = createApp({
       authStore: store,
@@ -138,8 +140,7 @@ describe("8.4 Auth.DevRoleSwitch", () => {
       bootstrapPolicy: "open",
       enableDevOutbox: true,
     });
-    // Seed admin + evaluator demo accounts (controlled path will not allowCreate)
-    for (const role of ["admin", "evaluator"] as const) {
+    for (const role of ["admin", "evaluator", "speaker"] as const) {
       const r = await seedApp.request(
         "http://localhost/api/auth/dev/role-switch",
         {
@@ -150,8 +151,7 @@ describe("8.4 Auth.DevRoleSwitch", () => {
       );
       expect(r.status).toBe(200);
     }
-    // Fresh evaluator session cookie for the gated call
-    const seedRes = await seedApp.request(
+    const evalRes = await seedApp.request(
       "http://localhost/api/auth/dev/role-switch",
       {
         method: "POST",
@@ -159,10 +159,9 @@ describe("8.4 Auth.DevRoleSwitch", () => {
         body: JSON.stringify({ role: "evaluator" }),
       },
     );
-    expect(seedRes.status).toBe(200);
-    const cookie = sessionCookieFromResponse(seedRes);
+    expect(evalRes.status).toBe(200);
+    const evalCookie = sessionCookieFromResponse(evalRes);
 
-    // Same store, controlled policy (production dogfood gate).
     const gatedApp = createApp({
       authStore: store,
       enableRoleSwitcher: true,
@@ -170,7 +169,7 @@ describe("8.4 Auth.DevRoleSwitch", () => {
       enableDevOutbox: false,
     });
 
-    const denied = await gatedApp.request(
+    const deniedUnauth = await gatedApp.request(
       "http://localhost/api/auth/dev/role-switch",
       {
         method: "POST",
@@ -178,27 +177,112 @@ describe("8.4 Auth.DevRoleSwitch", () => {
         body: JSON.stringify({ role: "admin" }),
       },
     );
-    expect(denied.status).toBe(401);
+    expect(deniedUnauth.status).toBe(401);
 
-    const allowed = await gatedApp.request(
+    // Evaluator (or speaker) must not escalate to admin.
+    const deniedEval = await gatedApp.request(
       "http://localhost/api/auth/dev/role-switch",
       {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          cookie,
+          cookie: evalCookie,
         },
         body: JSON.stringify({ role: "admin" }),
       },
     );
-    expect(allowed.status).toBe(200);
-    const body = DevRoleSwitchResponseSchema.parse(await allowed.json());
-    expect(body.role).toBe("admin");
-    expect(body.email).toBe(DEMO_ROLE_EMAILS.admin);
+    expect(deniedEval.status).toBe(403);
+    const body = ErrorEnvelopeSchema.parse(await deniedEval.json());
+    expect(body.code).toBe(FORBIDDEN);
+    expect(body.error).toMatch(/admin role required/i);
+    const setCookie = deniedEval.headers.get("set-cookie") ?? "";
+    expect(setCookie).not.toMatch(new RegExp(`${SESSION_COOKIE_NAME}=[^;]+`));
   });
 
-  it("missing demo user without create returns 404 when authenticated", async () => {
-    // Speaker-only seed (open) → controlled switch to admin without create → 404.
+  it("controlled mode allows role-switch when caller is event admin", async () => {
+    const { store } = createAppWithAuth({ enableRoleSwitcher: true });
+    const seedApp = createApp({
+      authStore: store,
+      enableRoleSwitcher: true,
+      bootstrapPolicy: "open",
+      enableDevOutbox: true,
+    });
+    for (const role of ["admin", "evaluator", "speaker"] as const) {
+      const r = await seedApp.request(
+        "http://localhost/api/auth/dev/role-switch",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ role }),
+        },
+      );
+      expect(r.status).toBe(200);
+    }
+    const adminRes = await seedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(adminRes.status).toBe(200);
+    const adminCookie = sessionCookieFromResponse(adminRes);
+
+    const gatedApp = createApp({
+      authStore: store,
+      enableRoleSwitcher: true,
+      bootstrapPolicy: "controlled",
+      enableDevOutbox: false,
+    });
+
+    // Admin (judge) may switch to evaluator for dogfood walkthrough.
+    const toEval = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: adminCookie,
+        },
+        body: JSON.stringify({ role: "evaluator" }),
+      },
+    );
+    expect(toEval.status).toBe(200);
+    const evalBody = DevRoleSwitchResponseSchema.parse(await toEval.json());
+    expect(evalBody.role).toBe("evaluator");
+    expect(evalBody.email).toBe(DEMO_ROLE_EMAILS.evaluator);
+
+    // Fresh admin session again, then switch to admin demo account.
+    const adminRes2 = await seedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    const adminCookie2 = sessionCookieFromResponse(adminRes2);
+    const toAdmin = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: adminCookie2,
+        },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(toAdmin.status).toBe(200);
+    const adminBody = DevRoleSwitchResponseSchema.parse(await toAdmin.json());
+    expect(adminBody.role).toBe("admin");
+    expect(adminBody.email).toBe(DEMO_ROLE_EMAILS.admin);
+  });
+
+  it("missing demo user without create returns 404 when admin authenticated", async () => {
+    // Seed admin only (open) so controlled path has a judge session, then
+    // request a role whose demo user was never created → 404.
     const { store } = createAppWithAuth({ enableRoleSwitcher: true });
     const openApp = createApp({
       authStore: store,
@@ -206,16 +290,16 @@ describe("8.4 Auth.DevRoleSwitch", () => {
       bootstrapPolicy: "open",
       enableDevOutbox: true,
     });
-    const onlySpeaker = await openApp.request(
+    const onlyAdmin = await openApp.request(
       "http://localhost/api/auth/dev/role-switch",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ role: "speaker" }),
+        body: JSON.stringify({ role: "admin" }),
       },
     );
-    expect(onlySpeaker.status).toBe(200);
-    const cookie = sessionCookieFromResponse(onlySpeaker);
+    expect(onlyAdmin.status).toBe(200);
+    const cookie = sessionCookieFromResponse(onlyAdmin);
 
     const controlled = createApp({
       authStore: store,
@@ -230,10 +314,10 @@ describe("8.4 Auth.DevRoleSwitch", () => {
           "content-type": "application/json",
           cookie,
         },
-        body: JSON.stringify({ role: "admin" }),
+        // Evaluator demo user was never seeded in this store.
+        body: JSON.stringify({ role: "evaluator" }),
       },
     );
-    // Speaker seed does not create admin user; controlled allowCreate=false → 404
     expect(res.status).toBe(404);
     const body = ErrorEnvelopeSchema.parse(await res.json());
     expect(body.code).toMatch(/NOT_FOUND|ROLE_SWITCH/);

@@ -37,7 +37,7 @@
 
 ## Demo seed / role switcher (section 8.4) — names only
 - `SPEAKEROPS_DB_PATH` — local SQLite path for `pnpm db:migrate` / `pnpm seed` (default `.data/speakerops.local.sqlite`). Not a secret.
-- `ROLE_SWITCHER_ENABLED` — when `"1"`, Worker registers `POST /api/auth/dev/role-switch` for private dogfood judges. **Default off.** Never enable on public production. When enabled on a controlled Worker, the route still requires an **existing valid session** (magic-link login first) — workers.dev alone is not an authorization boundary.
+- `ROLE_SWITCHER_ENABLED` — when `"1"`, Worker registers `POST /api/auth/dev/role-switch` for private dogfood judges. **Default off.** Never enable on public production. When enabled on a controlled Worker, the route requires an **existing valid session** and **event admin membership** (speakers/evaluators cannot escalate to admin) — workers.dev alone is not an authorization boundary.
 - `VITE_ROLE_SWITCHER` — when `"1"`, SPA shows the RoleSwitcher chrome (also shown automatically in Vite `import.meta.env.DEV`). Build-time only; not a secret.
 - Demo emails are public constants (`admin@demo.speakerops.local`, etc.) — not credentials; switcher still issues real HttpOnly session cookies server-side.
 

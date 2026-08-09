@@ -23,7 +23,15 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Database, SqlJsStatic } from "sql.js";
 
-const require = createRequire(import.meta.url);
+/**
+ * Lazy createRequire — top-level createRequire(import.meta.url) throws in the
+ * Cloudflare Workers runtime (unenv createRequire path is undefined), which
+ * breaks S-CF dogfood deploy when this module is pulled via @speakerops/db.
+ * Local `pnpm db:migrate` still resolves sql.js on first migrate() call.
+ */
+function nodeRequire(): NodeRequire {
+  return createRequire(import.meta.url);
+}
 
 /** Package root (packages/db) — migrations live next to schema.ts. */
 export function resolveDbPackageRoot(fromFile = import.meta.url): string {
@@ -72,6 +80,7 @@ let sqlJsPromise: Promise<SqlJsStatic> | null = null;
 async function loadSqlJs(): Promise<SqlJsStatic> {
   if (!sqlJsPromise) {
     sqlJsPromise = (async () => {
+      const require = nodeRequire();
       const initSqlJs = require("sql.js") as (
         config?: { locateFile?: (file: string) => string },
       ) => Promise<SqlJsStatic>;

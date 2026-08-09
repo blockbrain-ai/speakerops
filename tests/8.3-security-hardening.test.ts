@@ -56,8 +56,26 @@ describe("8.3 security hardening", () => {
 
   it("vite config applies SECURITY_HEADERS (CSP on HTML responses)", () => {
     const vite = readFileSync(join(root, "apps/web/vite.config.ts"), "utf8");
+    // Production/preview keep strict SECURITY_HEADERS; dev uses DEV variant
+    // so @vitejs/plugin-react preamble is not blocked under E2E.
     expect(vite).toMatch(/SECURITY_HEADERS/);
-    expect(vite).toMatch(/headers:\s*securityHeaders/);
+    expect(vite).toMatch(/SECURITY_HEADERS_DEV|CONTENT_SECURITY_POLICY_DEV/);
+    expect(vite).toMatch(/headers:\s*(devHeaders|productionHeaders|securityHeaders)/);
+  });
+
+  it("production CSP does not allow script unsafe-inline; dev CSP is separate", () => {
+    const shared = readFileSync(
+      join(root, "packages/shared/src/security.ts"),
+      "utf8",
+    );
+    // Production policy string must not embed script-src unsafe-inline.
+    expect(shared).toMatch(
+      /CONTENT_SECURITY_POLICY\s*=\s*\[[\s\S]*?script-src 'self' https:\/\/challenges\.cloudflare\.com/,
+    );
+    expect(shared).toMatch(/CONTENT_SECURITY_POLICY_DEV/);
+    expect(shared).toMatch(
+      /CONTENT_SECURITY_POLICY_DEV[\s\S]*?script-src 'self' 'unsafe-inline'/,
+    );
   });
 
   it("API composition root registers securityHeadersMiddleware", () => {

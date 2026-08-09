@@ -26,6 +26,7 @@ import {
   NOT_FOUND,
   INTERNAL_ERROR,
   SESSION_COOKIE_NAME,
+  DEFAULT_BOOTSTRAP_EVENT_ID,
 } from "@speakerops/shared";
 import type { ApiEnv } from "../../env.js";
 import {
@@ -244,9 +245,10 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
    * Dogfood/dev only — route absent when enableRoleSwitcher is false (404).
    *
    * Security (E10 / phase audit): workers.dev is not private by itself.
-   * Controlled/production dogfood requires an existing valid session cookie
-   * before minting a demo role session — unauthenticated callers cannot
-   * obtain event-admin access by discovering this endpoint.
+   * Controlled/production dogfood requires:
+   *   1) an existing valid session cookie (no anonymous mint), and
+   *   2) the actor holds **admin** membership on the target event
+   *      (judges only — speakers/evaluators cannot escalate to admin).
    * Local e2e (open bootstrap) may allow unauthenticated switch for harness.
    */
   if (options.enableRoleSwitcher) {
@@ -256,6 +258,9 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         options.roleSwitcherAllowUnauthenticated === true ||
         (options.roleSwitcherAllowUnauthenticated !== false &&
           bootstrap === "open");
+
+      /** Actor user id when session gate applies; null when open/unauthenticated. */
+      let actorUserId: string | null = null;
 
       if (!allowUnauthenticated) {
         const sessionToken = getSessionTokenFromCookieHeader(
@@ -292,6 +297,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
             401,
           );
         }
+        actorUserId = actor.id;
       }
 
       let raw: unknown;
@@ -311,6 +317,31 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
           }),
           400,
         );
+      }
+
+      // Controlled/production: only event admins (judges) may mint demo roles.
+      // Any authenticated speaker/evaluator must not escalate to admin.
+      if (actorUserId) {
+        const targetEventId =
+          parsed.data.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
+        const membership = await options.store.findMembership(
+          targetEventId,
+          actorUserId,
+        );
+        if (!membership || membership.role !== "admin") {
+          // Also accept admin on any event for the actor (multi-event judges).
+          const all = await options.store.listMembershipsForUser(actorUserId);
+          const isAdminAnywhere = all.some((m) => m.role === "admin");
+          if (!isAdminAnywhere) {
+            return c.json(
+              errorEnvelope(
+                "Admin role required for role switch",
+                FORBIDDEN,
+              ),
+              403,
+            );
+          }
+        }
       }
 
       const correlationId = c.get("correlationId");

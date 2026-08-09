@@ -31,7 +31,8 @@
     "sql.js": "^1.14.1",
     "tsx": "^4.23.11",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5"
+    "vitest": "^2.0.5",
+    "wrangler": "^3.112.0"
   },
   "engines": {
     "node": ">=20"
