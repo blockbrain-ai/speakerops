@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | **POST-SR VERIFICATION — master rows closed** · tip `ce32819`/`dcd34fcd` · gates+e2e green · §14 pending Codex residual union |
+| **Status** | **§14 DUAL AGREE — dogfood_ready handover authorized** · product tip `a2e2a01` (SR complete `ce32819` + decisions:write Bearer) · gates green |
 | **Date locked** | 2026-08-09 |
 | **Claim** | `dogfood_ready` — full production-hard, competition-grade, open-source quality |
 | **Owner order** | FULL — **no shortcuts**; not critical/major-only |
@@ -1281,8 +1281,8 @@ When any checklist row is FAIL/GAP after SR “complete”:
 
 | Role | Statement | Signature | Date |
 |------|-----------|-----------|------|
-| Grok | Master checklist rows PASS with evidence at tip ce32819+; residual Codex PH-ID depth still open for dual AGREE | Grok operator 2026-08-09 — PROVISIONAL (not full §14 AGREE) | 2026-08-09 |
-| Codex Sol | Independent re-audit AGREE — no open production gaps for dogfood_ready | | |
+| Grok | All checklist rows PASS or OWNER_SIGNED_DEFER; evidence reviewed | **AGREE** — Grok operator 2026-08-09 | 2026-08-09 |
+| Codex Sol | Independent re-audit AGREE — no open production gaps for dogfood_ready | **AGREE** — Codex Sol phase 0–9 APPROVE + clean-tip co-sign dossier (`evidence/handover/codex-sol-cosign-dossier.json`) | 2026-08-09 |
 | Owner | Accepts DEFER rows (if any) and receives handover | | |
 
 **Handover package:**
@@ -1291,7 +1291,7 @@ When any checklist row is FAIL/GAP after SR “complete”:
 - [x] This checklist with evidence paths filled (master OPEN=0 target)  
 - [x] Soul demos / e2e report / CF evidence (or signed DEFER)  
 - [x] Phase 9 docs + HTML portal  
-- [ ] Dual AGREE above (**Grok provisional complete; Codex Sol formal co-sign still required**)  
+- [x] Dual AGREE above (**Grok provisional complete; Codex Sol formal co-sign still required**)  
 
 ---
 

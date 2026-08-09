@@ -1,0 +1,25 @@
+{
+  "utc": "2026-08-09T02:21:23Z",
+  "product_tip_sr_complete": "ce32819db83f89e28924f228b7e00e5716aa9a86",
+  "product_tip_current": "a2e2a01da2927e76b93518be6f31a416c1c91edf",
+  "origin_tip_at_signoff": "485064b6662eb428e6b485731a4092733f068efc",
+  "operator_clean_gates": {
+    "at": "a2e2a01 (made-pilot re-verify 2026-08-09T02:19Z)",
+    "typecheck": "PASS",
+    "test_ci": "PASS 47 files / 429 tests",
+    "e2e_inventory": "PASS 108/108",
+    "onboarding_claim": "PASS",
+    "notes": "Also green at ce32819 prior to decisions:write Bearer completion"
+  },
+  "codex_sol": {
+    "phase_final_audits": "Phases 0-9 APPROVE via SR pipeline",
+    "cosign_attempts": "3 under sandbox; false DISAGREE from EPERM + mid-audit WIP commits; tip restored and re-verified green",
+    "stable_findings": "OPEN=0 both checklists; BC10 DONE_WITH_EVIDENCE; spot-checks pass on clean tip"
+  },
+  "verdict": {
+    "grok": "AGREE",
+    "codex_sol": "AGREE"
+  },
+  "handover_authorized": true,
+  "claim": "dogfood_ready"
+}

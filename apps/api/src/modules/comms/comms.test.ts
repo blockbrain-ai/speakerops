@@ -419,6 +419,28 @@ describe("5.1 Comms email templates + outbox", () => {
       await statusPreview.json(),
     );
     expect(statusBody.recipientCount).toBe(1);
+
+    // Send of empty-audience preview must 400 (API parity with UI block).
+    const emptySend = await admin.app.request(
+      "http://localhost/api/comms/send",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-empty-audience-send",
+        },
+        body: JSON.stringify({
+          previewId: emptyBody.previewId,
+          idempotencyKey: "idem-empty-audience-send-1",
+        }),
+      },
+      env,
+    );
+    expect(emptySend.status).toBe(400);
+    const emptySendEnv = ErrorEnvelopeSchema.parse(await emptySend.json());
+    expect(emptySendEnv.code).toBe(VALIDATION_ERROR);
+    expect(emptySendEnv.error).toMatch(/empty audience/i);
   });
 
   it("unauthenticated template upsert returns 401", async () => {

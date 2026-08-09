@@ -10,7 +10,8 @@
 | Commit SHA (control plane authoring baseline) | `f2f4d985b406350f40aa49d8b6f56c77d9dd4bb3` |
 | Worktree | **DIRTY** (153 entries) — box builds from `/data/speakerops-build`; dirty local is WIP/evidence not the box baseline unless synced |
 | Control plane packs | `/Users/qualitycontrol/Documents/nood-factory/plans/runs/speakerops/spo-10.*` + `spo-11.*` |
-| Pack snapshot hash-of-SHA256-file | `4b9b88930db60bcbd77ec16de7ed2cab1965a3ba7f8b97242d89d526d0f4959f` |
+| Pack snapshot hash-of-SHA256-file | `21c3cb863e4be508f4fcc3f51dfb4c246ba3617346ad7d2798bba3c3d0f831cd` |
+| Pack snapshot hash (pre-G4-fold, historical) | `4b9b88930db60bcbd77ec16de7ed2cab1965a3ba7f8b97242d89d526d0f4959f` |
 | Design snapshot hash-of-SHA256-file | `e70ee1d89ed7039a1f9eee035ca12b3f15ddd0ba6426e962b1fa23d5663ff933` |
 | Remote host | `made-pilot` |
 | RUNS_DIR | `/data/ClawdSpeakerOpsRuns` |

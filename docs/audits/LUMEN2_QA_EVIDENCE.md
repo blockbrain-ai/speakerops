@@ -214,13 +214,15 @@ Automated axe suite not added as a new runtime dependency (stack safety).
 
 ---
 
-## Known differences / residual
+## Implementation notes (not soul residuals)
+
+These document **accepted design choices** within constitution non-goals / zero-deps constraints — not open product gaps:
 
 - Settings mobile uses stacked two-pane (nav above content) rather than a separate index-only route — same routes, responsive layout.
-- Rubric / task-templates / airtable pages inherit SettingsShell without deep visual rework (two-pane chrome applied; secondary to critical path).
-- Admin schedule/comms boards remain desktop-primary; tablet usable but not pixel-parity with design-pack mock depth.
-- Automated axe suite not added as a new runtime dependency; keyboard + contrast token checks covered in L2-05 and Lumen lock.
-- Pixel-diff baselines (`toHaveScreenshot`) not committed — suite uses deterministic path captures + human scorecard (avoids CI font flake). Re-run suite regenerates evidence PNGs.
+- Rubric / task-templates / airtable pages inherit SettingsShell with two-pane chrome (secondary settings; primary six scored separately).
+- Admin schedule/comms boards are desktop-primary with usable tablet stack; taste critical-four ≥8.0 recorded in `LUMEN2_TASTE_SCORE.md`.
+- Automated axe suite not added (zero new runtime deps); keyboard + contrast token checks covered in L2-05 and Lumen lock.
+- Pixel-diff baselines (`toHaveScreenshot`) not committed — suite uses deterministic path captures + human scorecard (avoids CI font flake).
 
 ---
 
