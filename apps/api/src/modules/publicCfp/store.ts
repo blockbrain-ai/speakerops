@@ -55,6 +55,11 @@ export type SubmissionSpeakerRow = {
 export type SubmissionsStore = {
   findPersonByOrgEmail(orgId: string, email: string): Promise<PersonRow | null>;
   findPersonById(personId: string): Promise<PersonRow | null>;
+  /**
+   * Batch person lookup by id (admin speakers list at 150+ scale).
+   * Missing ids are omitted from the map.
+   */
+  listPersonsByIds(personIds: string[]): Promise<Map<string, PersonRow>>;
   insertPerson(row: PersonRow): Promise<PersonRow>;
   updatePersonName(personId: string, name: string, updatedAt: string): Promise<void>;
   insertSubmission(row: SubmissionRow): Promise<SubmissionRow>;
@@ -151,6 +156,15 @@ export class MemorySubmissionsStore implements SubmissionsStore {
   async findPersonById(personId: string): Promise<PersonRow | null> {
     const row = this.people.get(personId);
     return row ? { ...row } : null;
+  }
+
+  async listPersonsByIds(personIds: string[]): Promise<Map<string, PersonRow>> {
+    const out = new Map<string, PersonRow>();
+    for (const id of personIds) {
+      const row = this.people.get(id);
+      if (row) out.set(id, { ...row });
+    }
+    return out;
   }
 
   async insertPerson(row: PersonRow): Promise<PersonRow> {
@@ -361,6 +375,27 @@ export class D1SubmissionsStore implements SubmissionsStore {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
+  }
+
+  async listPersonsByIds(personIds: string[]): Promise<Map<string, PersonRow>> {
+    const out = new Map<string, PersonRow>();
+    if (personIds.length === 0) return out;
+    const unique = [...new Set(personIds)];
+    const rows = await this.db
+      .select()
+      .from(people)
+      .where(inArray(people.id, unique));
+    for (const row of rows) {
+      out.set(row.id, {
+        id: row.id,
+        orgId: row.orgId,
+        email: row.email,
+        name: row.name,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      });
+    }
+    return out;
   }
 
   async insertPerson(row: PersonRow): Promise<PersonRow> {

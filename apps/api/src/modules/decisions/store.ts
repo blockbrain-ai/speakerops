@@ -5,7 +5,7 @@
  * D1DecisionsStore wraps the Worker DB binding for production (E1 SoR).
  * Event-scoped queries take eventId (E2).
  */
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import {
   createDb,
@@ -138,6 +138,13 @@ export type DecisionsStore = {
   /** Reverse lookup: sessions linked to a participation (portal / admin detail). */
   listSessionSpeakersForParticipation(
     participationId: string,
+  ): Promise<SessionSpeakerRow[]>;
+  /**
+   * Batch reverse lookup for admin speakers list (dogfood 150+ scale).
+   * Empty input → empty array.
+   */
+  listSessionSpeakersForParticipations(
+    participationIds: string[],
   ): Promise<SessionSpeakerRow[]>;
   /** Remove all session_speakers rows for a session (accept rollback). */
   deleteSessionSpeakers(sessionId: string): Promise<void>;
@@ -396,6 +403,22 @@ export class MemoryDecisionsStore implements DecisionsStore {
     for (const list of this.sessionSpeakers.values()) {
       for (const row of list) {
         if (row.participationId === participationId) {
+          out.push({ ...row });
+        }
+      }
+    }
+    return out;
+  }
+
+  async listSessionSpeakersForParticipations(
+    participationIds: string[],
+  ): Promise<SessionSpeakerRow[]> {
+    if (participationIds.length === 0) return [];
+    const set = new Set(participationIds);
+    const out: SessionSpeakerRow[] = [];
+    for (const list of this.sessionSpeakers.values()) {
+      for (const row of list) {
+        if (set.has(row.participationId)) {
           out.push({ ...row });
         }
       }
@@ -861,6 +884,22 @@ export class D1DecisionsStore implements DecisionsStore {
     }));
   }
 
+  async listSessionSpeakersForParticipations(
+    participationIds: string[],
+  ): Promise<SessionSpeakerRow[]> {
+    if (participationIds.length === 0) return [];
+    const unique = [...new Set(participationIds)];
+    const rows = await this.db
+      .select()
+      .from(sessionSpeakers)
+      .where(inArray(sessionSpeakers.participationId, unique));
+    return rows.map((r) => ({
+      sessionId: r.sessionId,
+      participationId: r.participationId,
+      isPrimary: r.isPrimary === 1,
+    }));
+  }
+
   async deleteSessionSpeakers(sessionId: string): Promise<void> {
     await this.db
       .delete(sessionSpeakers)
@@ -1058,11 +1097,22 @@ export class D1DecisionsStore implements DecisionsStore {
     participationIds: string[],
   ): Promise<SpeakerTaskRow[]> {
     if (participationIds.length === 0) return [];
-    const out: SpeakerTaskRow[] = [];
-    for (const id of participationIds) {
-      out.push(...(await this.listSpeakerTasksForParticipation(id)));
-    }
-    return out;
+    const unique = [...new Set(participationIds)];
+    const rows = await this.db
+      .select()
+      .from(speakerTasks)
+      .where(inArray(speakerTasks.participationId, unique));
+    return rows.map((row) => ({
+      id: row.id,
+      templateId: row.templateId,
+      participationId: row.participationId,
+      status: row.status,
+      dueAt: row.dueAt,
+      completedAt: row.completedAt,
+      version: row.version,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
   }
 
   async updateSpeakerTask(
