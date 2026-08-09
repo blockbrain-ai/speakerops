@@ -1,6 +1,7 @@
 /**
- * Section 1.4 — AdminShell named assertion.
+ * Section 1.4 + 11.1 — AdminShell named assertions.
  * Spec: assert AdminShell renders nav label including 'CFP'
+ * Section 11.1: icon nav, account/help, mobile nav toggle.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -59,5 +60,48 @@ describe("1.4 AdminShell", () => {
       "Comms",
       "Settings",
     ]);
+  });
+});
+
+describe("11.1 AdminShell Lumen2 shell chrome", () => {
+  it("renders first-party icons on every nav item", () => {
+    const html = renderShell();
+    for (const item of ADMIN_NAV_ITEMS) {
+      expect(html).toContain(`data-icon="${item.icon}"`);
+      expect(html).toContain(`data-testid="${item.testId}"`);
+    }
+    expect(html).toContain('data-icon="home"');
+    expect(html).toContain('data-icon="settings"');
+  });
+
+  it("exposes account/help area and sign-out control", () => {
+    const html = renderShell();
+    expect(html).toMatch(/data-testid="admin-account"/);
+    expect(html).toMatch(/data-testid="admin-help"/);
+    expect(html).toMatch(/data-testid="admin-sign-out"/);
+    expect(html).toContain("Help");
+    expect(html).toContain("Sign out");
+  });
+
+  it("exposes mobile nav toggle for 390px strategy", () => {
+    const html = renderShell();
+    expect(html).toMatch(/data-testid="admin-nav-toggle"/);
+    expect(html).toMatch(/aria-controls="admin-sidebar"/);
+    expect(html).toMatch(/data-testid="admin-nav-backdrop"/);
+  });
+
+  it("preserves event-context and page title anchors", () => {
+    const html = renderShell("/admin/submissions");
+    expect(html).toMatch(/data-testid="event-context"/);
+    expect(html).toMatch(/data-testid="admin-page-title"/);
+    expect(html).toContain("Submissions");
+    expect(html).toMatch(/data-section="11.1"/);
+  });
+
+  it("every nav item carries a stable icon name", () => {
+    for (const item of ADMIN_NAV_ITEMS) {
+      expect(item.icon).toBeTruthy();
+      expect(typeof item.icon).toBe("string");
+    }
   });
 });
