@@ -1558,7 +1558,7 @@ export function extractInvTaggedTests(filePath, source) {
       underDescribeSkip;
     const focused = mod === "only";
     const invIds = [];
-    const invRe = /@inv:([A-Z]\d{2})\b/g;
+    const invRe = /@inv:([A-Z]\d{2}|L2-\d{2})\b/g;
     let idm;
     while ((idm = invRe.exec(title)) !== null) {
       invIds.push(idm[1]);
@@ -1780,7 +1780,7 @@ export function expandInventoryIdsFromItem(itemCell) {
     }
   }
   // Bare IDs not already covered by a range match span
-  const bareRe = /\b([A-Z]\d{2})\b/g;
+  const bareRe = /\b([A-Z]\d{2}|L2-\d{2})\b/g;
   while ((m = bareRe.exec(text)) !== null) {
     if (!consumed.has(m[1])) ids.push(m[1]);
   }
@@ -1956,7 +1956,7 @@ export function runInventoryLint(options = {}) {
     // Journey rows: | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
     // Parse ALL table-shaped journey rows first. Status validity is enforced after parse.
     const rowRe =
-      /^\| ([A-Z]\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \|([^|]*)\|/gm;
+      /^\| ([A-Z]\d{2}|L2-\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \|([^|]*)\|/gm;
     /** @type {{ id: string, journey: string, testId: string, required: boolean, status: string, statusRaw: string }[]} */
     const journeys = [];
     let m;

@@ -115,7 +115,7 @@ process.exit(0);
       assert.ok(c.testid && c.reason, "chrome needs testid+reason");
     }
     for (const m of raw.controlMap) {
-      assert.match(m.inv, /^[A-Z]\d{2}$/);
+      assert.match(m.inv, /^(?:[A-Z]\d{2}|L2-\d{2})$/);
     }
   });
 
