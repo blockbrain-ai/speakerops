@@ -216,7 +216,7 @@ h4 {
   background: var(--lumen-brand-soft);
   color: var(--lumen-brand);
 }
-.badge.accent { background: #ccfbf1; color: var(--lumen-accent); border-color: transparent; }
+.badge.accent { background: var(--lumen-info-soft); color: var(--lumen-accent); border-color: transparent; }
 .badge.success { background: var(--lumen-success-soft); color: var(--lumen-success); border-color: transparent; }
 .report-grid {
   display: grid;
@@ -231,14 +231,14 @@ h4 {
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-lg);
   box-shadow: var(--lumen-shadow-sm);
-  padding: var(--lumen-space-5, 20px) var(--lumen-space-4);
+  padding: var(--lumen-space-6) var(--lumen-space-4);
   text-decoration: none;
   color: inherit;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .report-card:hover {
   border-color: var(--lumen-brand);
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.08);
+  box-shadow: var(--lumen-shadow-sm);
   text-decoration: none;
 }
 .report-card h2 {
@@ -282,7 +282,7 @@ h4 {
 .prose pre {
   margin: 0 0 var(--lumen-space-4);
   padding: var(--lumen-space-3) var(--lumen-space-4);
-  background: #f0f0f3;
+  background: var(--lumen-bg);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-md);
   overflow-x: auto;
@@ -594,10 +594,21 @@ function renderInline(text: string, sourceRel: string): string {
     return `\u0000C${i}\u0000`;
   });
 
+  // Protect generated links/images from later emphasis passes (underscores in
+  // hrefs like FIELD_FLOW.md / CLI_INVENTORY.md / BROWSER_E2E_INVENTORY.md).
+  const protectedHtml: string[] = [];
+  const protect = (html: string): string => {
+    const i = protectedHtml.length;
+    protectedHtml.push(html);
+    return `\u0000P${i}\u0000`;
+  };
+
   // Images ![alt](src)
   s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt: string, src: string) => {
     const href = rewriteMdHref(src.trim().replace(/\s+".*"$/, ""), sourceRel);
-    return `<img src="${escapeHtml(href)}" alt="${escapeHtml(alt)}" />`;
+    return protect(
+      `<img src="${escapeHtml(href)}" alt="${escapeHtml(alt)}" />`,
+    );
   });
 
   // Links [text](href)
@@ -605,24 +616,26 @@ function renderInline(text: string, sourceRel: string): string {
     let href = hrefRaw.trim();
     href = href.replace(/\s+".*"$/, "").replace(/\s+'.*'$/, "");
     const rewritten = rewriteMdHref(href, sourceRel);
-    return `<a href="${escapeHtml(rewritten)}">${escapeHtml(label)}</a>`;
+    return protect(
+      `<a href="${escapeHtml(rewritten)}">${escapeHtml(label)}</a>`,
+    );
   });
 
-  // Bold / italic (order: bold first)
+  // Bold / italic (order: bold first). Placeholders use \u0000 so _ and *
+  // inside protected hrefs cannot match.
   s = s.replace(/\*\*([^*]+)\*\*/g, (_, t: string) => `<strong>${escapeHtml(t)}</strong>`);
   s = s.replace(/__([^_]+)__/g, (_, t: string) => `<strong>${escapeHtml(t)}</strong>`);
   s = s.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, (_, t: string) => `<em>${escapeHtml(t)}</em>`);
   s = s.replace(/(?<!_)_([^_]+)_(?!_)/g, (_, t: string) => `<em>${escapeHtml(t)}</em>`);
 
-  // Escape remaining plain segments carefully: process non-tag runs
-  // After replacements we may still have raw text with < > — escape everything
-  // that isn't our placeholders or already-built tags by re-splitting.
-  // Simpler: escape first, then re-apply was wrong. Instead escape leftover text nodes.
-  const parts = s.split(/(\u0000C\d+\u0000|<[^>]+>)/);
+  // Restore protected HTML + code; escape remaining plain text.
+  const parts = s.split(/(\u0000C\d+\u0000|\u0000P\d+\u0000|<[^>]+>)/);
   s = parts
     .map((part) => {
-      const m = /^\u0000C(\d+)\u0000$/.exec(part);
-      if (m) return codes[Number(m[1])] ?? "";
+      const codeM = /^\u0000C(\d+)\u0000$/.exec(part);
+      if (codeM) return codes[Number(codeM[1])] ?? "";
+      const protM = /^\u0000P(\d+)\u0000$/.exec(part);
+      if (protM) return protectedHtml[Number(protM[1])] ?? "";
       if (part.startsWith("<") && part.endsWith(">")) return part;
       return escapeHtml(part);
     })

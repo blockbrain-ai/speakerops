@@ -167,7 +167,7 @@ h4 {
   background: var(--lumen-brand-soft);
   color: var(--lumen-brand);
 }
-.badge.accent { background: #ccfbf1; color: var(--lumen-accent); border-color: transparent; }
+.badge.accent { background: var(--lumen-info-soft); color: var(--lumen-accent); border-color: transparent; }
 .badge.success { background: var(--lumen-success-soft); color: var(--lumen-success); border-color: transparent; }
 .report-grid {
   display: grid;
@@ -182,14 +182,14 @@ h4 {
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-lg);
   box-shadow: var(--lumen-shadow-sm);
-  padding: var(--lumen-space-5, 20px) var(--lumen-space-4);
+  padding: var(--lumen-space-6) var(--lumen-space-4);
   text-decoration: none;
   color: inherit;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .report-card:hover {
   border-color: var(--lumen-brand);
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.08);
+  box-shadow: var(--lumen-shadow-sm);
   text-decoration: none;
 }
 .report-card h2 {
@@ -233,7 +233,7 @@ h4 {
 .prose pre {
   margin: 0 0 var(--lumen-space-4);
   padding: var(--lumen-space-3) var(--lumen-space-4);
-  background: #f0f0f3;
+  background: var(--lumen-bg);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-md);
   overflow-x: auto;
@@ -357,8 +357,8 @@ footer.report-footer code {
     
     <article class="prose card">
 <h1>SpeakerOps CLI</h1>
-<p>Machine-facing admin surface for <strong>S-CLI</strong>. The <code>speakerops</code> binary maps <strong>1:1</strong> to domain commands in <a href="../KMS-competition/initiative/contracts/COMMANDS.md"><code>COMMANDS.md</code></a>. Scopes are enforced <strong>server-side</strong> on the Worker — the CLI never elevates itself (E8).</p>
-<p><strong>Inventory (proof IDs):</strong> <a href="../KMS-competition/initiative/contracts/CLI_INVENTORY.md"><code>CLI_INVENTORY.md</code></a> CLI01–CLI12   <strong>OpenAPI:</strong> <code>GET /openapi.json</code> (local: <code>http://127.0.0.1:8787/openapi.json</code>)   <strong>Package:</strong> <code>@speakerops/cli</code> (<code>packages/cli</code>)   <strong>Agent path:</strong> <a href="agent-setup.html"><code>AGENT_SETUP.md</code></a> (<strong>S-ONB-AGENT</strong>) · Section note: <a href="../docs/sections/9.3-agent-setup.md">9.3</a> · <strong>Docs map:</strong> <a href="../README.md">README</a> · <a href="../docs/sections/9.1-docs-ia.md">9.1 IA</a></p>
+<p>Machine-facing admin surface for <strong>S-CLI</strong>. The <code>speakerops</code> binary maps <strong>1:1</strong> to domain commands in <a href="../KMS-competition/initiative/contracts/COMMANDS.md"> C1 </a>. Scopes are enforced <strong>server-side</strong> on the Worker — the CLI never elevates itself (E8).</p>
+<p><strong>Inventory (proof IDs):</strong> <a href="../KMS-competition/initiative/contracts/CLI_INVENTORY.md"> C0 </a> CLI01–CLI12   <strong>OpenAPI:</strong> <code>GET /openapi.json</code> (local: <code>http://127.0.0.1:8787/openapi.json</code>)   <strong>Package:</strong> <code>@speakerops/cli</code> (<code>packages/cli</code>)   <strong>Agent path:</strong> <a href="agent-setup.html"> C5 </a> (<strong>S-ONB-AGENT</strong>) · Section note: <a href="../docs/sections/9.3-agent-setup.md">9.3</a> · <strong>Docs map:</strong> <a href="../README.md">README</a> · <a href="../docs/sections/9.1-docs-ia.md">9.1 IA</a></p>
 <blockquote><p><strong>Section 9.3:</strong> This runbook is the human + agent CLI reference. Agent-first copy-paste prompt, readiness/design walkthrough, and deny-scope narrative live in <a href="agent-setup.html">AGENT_SETUP.md</a>.</p></blockquote>
 <h2>Install / run</h2>
 <pre><code># From monorepo root (after pnpm install + build)
@@ -481,16 +481,16 @@ speakerops schedule place --event E --session S --room R --start … --end … -
 </ol>
 <h2>Related docs</h2>
 <ul>
-<li><a href="../docs/SECRETS.md"><code>docs/SECRETS.md</code></a> — env <strong>names</strong> only</li>
-<li><a href="../docs/governance/0.4-domain-map.md"><code>docs/governance/0.4-domain-map.md</code></a> — domain map + CLI parity</li>
-<li><a href="../docs/sections/7.1-api-keys.md"><code>docs/sections/7.1-api-keys.md</code></a> — key mint/revoke</li>
-<li><a href="../docs/sections/7.2-cli.md"><code>docs/sections/7.2-cli.md</code></a> — this section delivery notes</li>
+<li><a href="../docs/SECRETS.md"> C0 </a> — env <strong>names</strong> only</li>
+<li><a href="../docs/governance/0.4-domain-map.md"> C0 </a> — domain map + CLI parity</li>
+<li><a href="../docs/sections/7.1-api-keys.md"> C0 </a> — key mint/revoke</li>
+<li><a href="../docs/sections/7.2-cli.md"> C0 </a> — this section delivery notes</li>
 </ul>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-09T01:20:12.340Z" data-git-sha="2a7719c">
-  <div><strong>Generated:</strong> <time datetime="2026-08-09T01:20:12.340Z">2026-08-09T01:20:12.340Z</time></div>
-  <div><strong>Git SHA:</strong> <code>2a7719c</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-09T01:31:31.939Z" data-git-sha="e3dfffc">
+  <div><strong>Generated:</strong> <time datetime="2026-08-09T01:31:31.939Z">2026-08-09T01:31:31.939Z</time></div>
+  <div><strong>Git SHA:</strong> <code>e3dfffc</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/CLI.md · no secrets in report</div>
 </footer>
   </div>

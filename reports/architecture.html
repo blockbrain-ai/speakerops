@@ -167,7 +167,7 @@ h4 {
   background: var(--lumen-brand-soft);
   color: var(--lumen-brand);
 }
-.badge.accent { background: #ccfbf1; color: var(--lumen-accent); border-color: transparent; }
+.badge.accent { background: var(--lumen-info-soft); color: var(--lumen-accent); border-color: transparent; }
 .badge.success { background: var(--lumen-success-soft); color: var(--lumen-success); border-color: transparent; }
 .report-grid {
   display: grid;
@@ -182,14 +182,14 @@ h4 {
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-lg);
   box-shadow: var(--lumen-shadow-sm);
-  padding: var(--lumen-space-5, 20px) var(--lumen-space-4);
+  padding: var(--lumen-space-6) var(--lumen-space-4);
   text-decoration: none;
   color: inherit;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .report-card:hover {
   border-color: var(--lumen-brand);
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.08);
+  box-shadow: var(--lumen-shadow-sm);
   text-decoration: none;
 }
 .report-card h2 {
@@ -233,7 +233,7 @@ h4 {
 .prose pre {
   margin: 0 0 var(--lumen-space-4);
   padding: var(--lumen-space-3) var(--lumen-space-4);
-  background: #f0f0f3;
+  background: var(--lumen-bg);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-md);
   overflow-x: auto;
@@ -388,7 +388,7 @@ footer.report-footer code {
 <p><strong>Locked rule:</strong> there is <strong>no second SoR</strong>. Postgres dual-stack, Airtable-as-database, DO-as-DB, and client-only authz are forbidden.</p>
 <hr />
 <h2>2. Locked stack (do not invent)</h2>
-<table><thead><tr><th>Layer</th><th>Choice</th><th>Contract / note</th></tr></thead><tbody><tr><td>UI</td><td>React + Vite + TypeScript + <strong>Lumen</strong></td><td><a href="design-lumen.html">0.2 lock</a> — no Next/RSC default, no freeform CSS</td></tr><tr><td>API</td><td>Hono on Cloudflare Workers</td><td>Domain commands only (<a href="../KMS-competition/initiative/contracts/COMMANDS.md">COMMANDS.md</a>)</td></tr><tr><td>SoR</td><td><strong>D1</strong> + Drizzle</td><td><code>packages/db</code> — <strong>D1 only</strong></td></tr><tr><td>Files</td><td>R2</td><td>Private objects; metadata in D1 <code>file_assets</code></td></tr><tr><td>Jobs</td><td>Queues + transactional <strong>outbox</strong></td><td>Email, Airtable projection off request path (E7)</td></tr><tr><td>Live</td><td>Durable Object <strong>invalidation only</strong></td><td>Not a second database</td></tr><tr><td>Airtable</td><td><strong>One-way</strong> projection</td><td><a href="../docs/AIRTABLE.md">AIRTABLE.md</a> · never dual-write</td></tr><tr><td>Auth (humans)</td><td>HttpOnly Secure SameSite cookies</td><td><a href="../docs/SECURITY.md">SECURITY.md</a></td></tr><tr><td>Auth (agents)</td><td>Scoped API keys + CLI</td><td><a href="cli-reference.html">CLI.md</a> · <a href="../KMS-competition/initiative/contracts/SCOPES.md">SCOPES.md</a></td></tr><tr><td>E2E</td><td>Playwright inventory-driven</td><td><a href="../docs/E2E.md">E2E.md</a> · <a href="../KMS-competition/initiative/BROWSER<em>E2E</em>INVENTORY.md&quot;&gt;BROWSER<em>E2E</em>INVENTORY.md</a></td></tr></tbody></table>
+<table><thead><tr><th>Layer</th><th>Choice</th><th>Contract / note</th></tr></thead><tbody><tr><td>UI</td><td>React + Vite + TypeScript + <strong>Lumen</strong></td><td><a href="design-lumen.html">0.2 lock</a> — no Next/RSC default, no freeform CSS</td></tr><tr><td>API</td><td>Hono on Cloudflare Workers</td><td>Domain commands only (<a href="../KMS-competition/initiative/contracts/COMMANDS.md">COMMANDS.md</a>)</td></tr><tr><td>SoR</td><td><strong>D1</strong> + Drizzle</td><td><code>packages/db</code> — <strong>D1 only</strong></td></tr><tr><td>Files</td><td>R2</td><td>Private objects; metadata in D1 <code>file_assets</code></td></tr><tr><td>Jobs</td><td>Queues + transactional <strong>outbox</strong></td><td>Email, Airtable projection off request path (E7)</td></tr><tr><td>Live</td><td>Durable Object <strong>invalidation only</strong></td><td>Not a second database</td></tr><tr><td>Airtable</td><td><strong>One-way</strong> projection</td><td><a href="../docs/AIRTABLE.md">AIRTABLE.md</a> · never dual-write</td></tr><tr><td>Auth (humans)</td><td>HttpOnly Secure SameSite cookies</td><td><a href="../docs/SECURITY.md">SECURITY.md</a></td></tr><tr><td>Auth (agents)</td><td>Scoped API keys + CLI</td><td><a href="cli-reference.html">CLI.md</a> · <a href="../KMS-competition/initiative/contracts/SCOPES.md">SCOPES.md</a></td></tr><tr><td>E2E</td><td>Playwright inventory-driven</td><td><a href="../docs/E2E.md">E2E.md</a> · <a href="../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md">BROWSER_E2E_INVENTORY.md</a></td></tr></tbody></table>
 <hr />
 <h2>3. Composition roots</h2>
 <table><thead><tr><th>Surface</th><th>Path</th><th>Role</th></tr></thead><tbody><tr><td>API</td><td><code>apps/api/src/index.ts</code></td><td>Worker entry; middleware; route modules</td></tr><tr><td>Web</td><td><code>apps/web/src/main.tsx</code></td><td>SPA entry; Lumen shell; role routes</td></tr><tr><td>CLI</td><td><code>packages/cli/src/main.ts</code></td><td><code>speakerops</code> binary; maps to HTTP commands</td></tr><tr><td>DB</td><td><code>packages/db</code></td><td>Drizzle schema + linear migrations</td></tr><tr><td>Shared DTOs</td><td><code>packages/shared/src/</code></td><td>Zod schemas + E4 envelopes — single source; no duplicate types in web/api</td></tr></tbody></table>
@@ -477,7 +477,7 @@ KMS-competition/  Constitution, contracts, inventory, evidence</code></pre>
 </ul>
 <hr />
 <h2>12. Related docs</h2>
-<table><thead><tr><th>Doc</th><th>Role</th></tr></thead><tbody><tr><td><a href="../docs/SECURITY.md">SECURITY.md</a></td><td>CSP, cookies, scopes, E10</td></tr><tr><td><a href="../docs/OPERATIONS.md">OPERATIONS.md</a></td><td>Deploy, migrate, Time Travel</td></tr><tr><td><a href="../docs/AIRTABLE.md">AIRTABLE.md</a></td><td>One-way projection runbook</td></tr><tr><td><a href="../docs/FIELD<em>FLOW.md&amp;quot;&amp;gt;FIELD</em>FLOW.md</a></td><td>Forms → portal I16 highlights</td></tr><tr><td><a href="../docs/E2E.md">E2E.md</a></td><td>Inventory suite runbook</td></tr><tr><td><a href="cli-reference.html">CLI.md</a> · <a href="agent-setup.html">AGENT_SETUP.md</a></td><td>Agent surface</td></tr><tr><td><a href="onboarding.html">ONBOARDING.md</a></td><td>Human zero → running</td></tr><tr><td><a href="../docs/CONTRACTS.md">CONTRACTS.md</a></td><td>Binding index</td></tr><tr><td><a href="../docs/TROUBLESHOOTING.md">TROUBLESHOOTING.md</a></td><td>Failure recovery</td></tr><tr><td>Section note</td><td><a href="../docs/sections/9.4-deep-docs.md">9.4-deep-docs.md</a></td></tr></tbody></table>
+<table><thead><tr><th>Doc</th><th>Role</th></tr></thead><tbody><tr><td><a href="../docs/SECURITY.md">SECURITY.md</a></td><td>CSP, cookies, scopes, E10</td></tr><tr><td><a href="../docs/OPERATIONS.md">OPERATIONS.md</a></td><td>Deploy, migrate, Time Travel</td></tr><tr><td><a href="../docs/AIRTABLE.md">AIRTABLE.md</a></td><td>One-way projection runbook</td></tr><tr><td><a href="../docs/FIELD_FLOW.md">FIELD_FLOW.md</a></td><td>Forms → portal I16 highlights</td></tr><tr><td><a href="../docs/E2E.md">E2E.md</a></td><td>Inventory suite runbook</td></tr><tr><td><a href="cli-reference.html">CLI.md</a> · <a href="agent-setup.html">AGENT_SETUP.md</a></td><td>Agent surface</td></tr><tr><td><a href="onboarding.html">ONBOARDING.md</a></td><td>Human zero → running</td></tr><tr><td><a href="../docs/CONTRACTS.md">CONTRACTS.md</a></td><td>Binding index</td></tr><tr><td><a href="../docs/TROUBLESHOOTING.md">TROUBLESHOOTING.md</a></td><td>Failure recovery</td></tr><tr><td>Section note</td><td><a href="../docs/sections/9.4-deep-docs.md">9.4-deep-docs.md</a></td></tr></tbody></table>
 <h2>Gates (do not hang)</h2>
 <pre><code>pnpm typecheck
 pnpm test:ci
@@ -485,9 +485,9 @@ pnpm test:e2e            # Phase 8 full REQUIRED
 pnpm test:e2e:inventory  # inventory law</code></pre>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-09T01:20:12.340Z" data-git-sha="2a7719c">
-  <div><strong>Generated:</strong> <time datetime="2026-08-09T01:20:12.340Z">2026-08-09T01:20:12.340Z</time></div>
-  <div><strong>Git SHA:</strong> <code>2a7719c</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-09T01:31:31.939Z" data-git-sha="e3dfffc">
+  <div><strong>Generated:</strong> <time datetime="2026-08-09T01:31:31.939Z">2026-08-09T01:31:31.939Z</time></div>
+  <div><strong>Git SHA:</strong> <code>e3dfffc</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/ARCHITECTURE.md · no secrets in report</div>
 </footer>
   </div>

@@ -18,6 +18,7 @@ import {
   rewriteMdHref,
   REPORT_PAGES,
   renderIndexHtml,
+  LUMEN_REPORTS_CSS,
 } from "../scripts/build-docs-reports.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -78,18 +79,14 @@ describe("9.5 Beautiful HTML reports", () => {
       const p = join(root, "reports", file);
       expect(existsSync(p), file).toBe(true);
       const html = readFileSync(p, "utf8");
+      expect(html).toMatch(/site-header|SpeakerOps/);
+      expect(html).toMatch(/report-footer/);
+      expect(html).toMatch(/data-generated-at="[^"]+"/);
+      expect(html).toMatch(/data-git-sha="[^"]+"/);
+      expect(html).toMatch(/--lumen-brand:\s*#4f46e5/);
       if (file !== "e2e-coverage.html") {
-        expect(html).toMatch(/site-header|SpeakerOps/);
-        expect(html).toMatch(/report-footer/);
-        expect(html).toMatch(/data-generated-at="[^"]+"/);
-        expect(html).toMatch(/data-git-sha="[^"]+"/);
         expect(html).toMatch(/color-scheme:\s*light/);
-        expect(html).toMatch(/--lumen-brand:\s*#4f46e5/);
         expect(html).not.toMatch(/prefers-color-scheme:\s*dark/);
-      } else {
-        // 8.5 keystone keeps its own shell; still Lumen + footer
-        expect(html).toMatch(/--lumen-brand:\s*#4f46e5/);
-        expect(html).toMatch(/report-footer|data-git-sha/);
       }
     }
   });
@@ -103,6 +100,17 @@ describe("9.5 Beautiful HTML reports", () => {
     expect(onboarding).toMatch(/href="agent-setup\.html"/);
     expect(onboarding).toMatch(/href="e2e-coverage\.html"/);
     expect(onboarding).toMatch(/aria-current="page"/);
+
+    // E2E coverage is part of the report set — must link the full portal set (two-way nav)
+    const e2e = readFileSync(join(root, "reports", "e2e-coverage.html"), "utf8");
+    expect(e2e).toMatch(/href="index\.html"/);
+    expect(e2e).toMatch(/href="onboarding\.html"/);
+    expect(e2e).toMatch(/href="agent-setup\.html"/);
+    expect(e2e).toMatch(/href="architecture\.html"/);
+    expect(e2e).toMatch(/href="cli-reference\.html"/);
+    expect(e2e).toMatch(/href="design-lumen\.html"/);
+    expect(e2e).toMatch(/href="e2e-coverage\.html"/);
+    expect(e2e).toMatch(/aria-current="page"/);
   });
 
   it("pnpm docs:reports wires build-docs-reports.ts", () => {
@@ -135,6 +143,47 @@ describe("9.5 Beautiful HTML reports", () => {
     expect(html).toMatch(/<table>/);
     expect(html).toMatch(/<strong>bold<\/strong>/);
     expect(html).toMatch(/&lt;tag&gt;/);
+  });
+
+  it("protects underscore-containing hrefs from emphasis rewrites", () => {
+    const md = [
+      "See [FIELD_FLOW.md](./FIELD_FLOW.md),",
+      "[CLI_INVENTORY.md](../KMS-competition/initiative/contracts/CLI_INVENTORY.md),",
+      "and [BROWSER_E2E_INVENTORY.md](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md).",
+      "",
+      "Also _italic_ text beside links.",
+    ].join(" ");
+    const html = markdownToHtml(md, "docs/ARCHITECTURE.md");
+    expect(html).toMatch(/href="[^"]*FIELD_FLOW\.md"/);
+    expect(html).toMatch(/href="[^"]*CLI_INVENTORY\.md"/);
+    expect(html).toMatch(/href="[^"]*BROWSER_E2E_INVENTORY\.md"/);
+    // Must not inject <em> inside href attributes
+    expect(html).not.toMatch(/href="[^"]*<em>/);
+    expect(html).not.toMatch(/FIELD<em>/);
+    expect(html).not.toMatch(/CLI<em>/);
+    expect(html).not.toMatch(/BROWSER<em>/);
+    expect(html).toMatch(/<em>italic<\/em>/);
+  });
+
+  it("report CSS uses Lumen tokens only (no freeform palette outside :root)", () => {
+    expect(LUMEN_REPORTS_CSS).toMatch(/--lumen-brand:\s*#4f46e5/);
+    // Split :root block from rule bodies — freeform hex/rgba only allowed as token values
+    const withoutRoot = LUMEN_REPORTS_CSS.replace(
+      /:root\s*\{[\s\S]*?\}/,
+      "",
+    );
+    expect(withoutRoot).not.toMatch(/#ccfbf1/i);
+    expect(withoutRoot).not.toMatch(/#f0f0f3/i);
+    // No raw hex palette in rule bodies (must use var(--lumen-*))
+    expect(withoutRoot).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    // No custom brand rgba hover shadows outside tokens
+    expect(withoutRoot).not.toMatch(
+      /box-shadow:\s*0\s+4px\s+16px\s+rgba\(79,\s*70,\s*229/i,
+    );
+    // Canonical token usage in rule bodies
+    expect(withoutRoot).toMatch(/var\(--lumen-bg\)/);
+    expect(withoutRoot).toMatch(/var\(--lumen-shadow-sm\)/);
+    expect(withoutRoot).toMatch(/var\(--lumen-info-soft\)|var\(--lumen-brand-soft\)/);
   });
 
   it("rewriteMdHref maps known report sources", () => {

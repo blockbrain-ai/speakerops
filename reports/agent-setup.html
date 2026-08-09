@@ -167,7 +167,7 @@ h4 {
   background: var(--lumen-brand-soft);
   color: var(--lumen-brand);
 }
-.badge.accent { background: #ccfbf1; color: var(--lumen-accent); border-color: transparent; }
+.badge.accent { background: var(--lumen-info-soft); color: var(--lumen-accent); border-color: transparent; }
 .badge.success { background: var(--lumen-success-soft); color: var(--lumen-success); border-color: transparent; }
 .report-grid {
   display: grid;
@@ -182,14 +182,14 @@ h4 {
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-lg);
   box-shadow: var(--lumen-shadow-sm);
-  padding: var(--lumen-space-5, 20px) var(--lumen-space-4);
+  padding: var(--lumen-space-6) var(--lumen-space-4);
   text-decoration: none;
   color: inherit;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .report-card:hover {
   border-color: var(--lumen-brand);
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.08);
+  box-shadow: var(--lumen-shadow-sm);
   text-decoration: none;
 }
 .report-card h2 {
@@ -233,7 +233,7 @@ h4 {
 .prose pre {
   margin: 0 0 var(--lumen-space-4);
   padding: var(--lumen-space-3) var(--lumen-space-4);
-  background: #f0f0f3;
+  background: var(--lumen-bg);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-md);
   overflow-x: auto;
@@ -363,10 +363,10 @@ footer.report-footer code {
 <p>Do <strong>not</strong> collapse this path into <a href="onboarding.html">ONBOARDING.md</a> (human). Both are first-class constitution souls.</p>
 <hr />
 <h2>Success criteria</h2>
-<table><thead><tr><th>Criterion</th><th>How to prove</th></tr></thead><tbody><tr><td>Install / run <code>speakerops</code> CLI against Worker</td><td><code>speakerops --help</code> · exit 0</td></tr><tr><td>Mint or use scoped API key (least privilege)</td><td>Admin UI or <code>keys create</code> (needs <code>keys:admin</code>)</td></tr><tr><td>Readiness JSON without admin SPA</td><td><code>speakerops reports readiness --event &lt;id&gt; --json</code></td></tr><tr><td>Design publish without admin SPA</td><td><code>speakerops design publish --event &lt;id&gt;</code></td></tr><tr><td>Deny-scope proof</td><td>Missing scope → HTTP <strong>403</strong> <code>FORBIDDEN</code> → CLI <strong>exit 2</strong></td></tr><tr><td>Machine contracts</td><td>OpenAPI <code>GET /openapi.json</code> + CLI <code>--help</code> + <a href="../KMS-competition/initiative/contracts/CLI<em>INVENTORY.md&amp;quot;&amp;gt;CLI</em>INVENTORY.md</a></td></tr></tbody></table>
+<table><thead><tr><th>Criterion</th><th>How to prove</th></tr></thead><tbody><tr><td>Install / run <code>speakerops</code> CLI against Worker</td><td><code>speakerops --help</code> · exit 0</td></tr><tr><td>Mint or use scoped API key (least privilege)</td><td>Admin UI or <code>keys create</code> (needs <code>keys:admin</code>)</td></tr><tr><td>Readiness JSON without admin SPA</td><td><code>speakerops reports readiness --event &lt;id&gt; --json</code></td></tr><tr><td>Design publish without admin SPA</td><td><code>speakerops design publish --event &lt;id&gt;</code></td></tr><tr><td>Deny-scope proof</td><td>Missing scope → HTTP <strong>403</strong> <code>FORBIDDEN</code> → CLI <strong>exit 2</strong></td></tr><tr><td>Machine contracts</td><td>OpenAPI <code>GET /openapi.json</code> + CLI <code>--help</code> + <a href="../KMS-competition/initiative/contracts/CLI_INVENTORY.md">CLI_INVENTORY.md</a></td></tr></tbody></table>
 <hr />
 <h2>Orientation (agent)</h2>
-<table><thead><tr><th>Concern</th><th>Where</th></tr></thead><tbody><tr><td>Standards / gates</td><td><a href="../AGENTS.md">AGENTS.md</a> · E1–E12</td></tr><tr><td>Domain commands</td><td><a href="../KMS-competition/initiative/contracts/COMMANDS.md">COMMANDS.md</a> · <a href="../docs/governance/0.4-domain-map.md">0.4 domain map</a></td></tr><tr><td>Scopes (default-deny)</td><td><a href="../KMS-competition/initiative/contracts/SCOPES.md">SCOPES.md</a> · high-risk: <code>comms:send</code>, <code>decisions:write</code>, <code>keys:admin</code></td></tr><tr><td>CLI surface</td><td><a href="cli-reference.html">CLI.md</a> · <a href="../KMS-competition/initiative/contracts/CLI<em>INVENTORY.md&amp;quot;&amp;gt;CLI</em>INVENTORY.md</a> (CLI01–CLI12)</td></tr><tr><td>Env <strong>names</strong></td><td><a href="../docs/SECRETS.md">SECRETS.md</a> — never log secret values</td></tr><tr><td>Schema / SoR</td><td><a href="architecture.html">ARCHITECTURE.md</a> · <a href="../KMS-competition/initiative/contracts/SCHEMA.md">SCHEMA.md</a></td></tr><tr><td>Human path (do not collapse)</td><td><a href="onboarding.html">ONBOARDING.md</a></td></tr></tbody></table>
+<table><thead><tr><th>Concern</th><th>Where</th></tr></thead><tbody><tr><td>Standards / gates</td><td><a href="../AGENTS.md">AGENTS.md</a> · E1–E12</td></tr><tr><td>Domain commands</td><td><a href="../KMS-competition/initiative/contracts/COMMANDS.md">COMMANDS.md</a> · <a href="../docs/governance/0.4-domain-map.md">0.4 domain map</a></td></tr><tr><td>Scopes (default-deny)</td><td><a href="../KMS-competition/initiative/contracts/SCOPES.md">SCOPES.md</a> · high-risk: <code>comms:send</code>, <code>decisions:write</code>, <code>keys:admin</code></td></tr><tr><td>CLI surface</td><td><a href="cli-reference.html">CLI.md</a> · <a href="../KMS-competition/initiative/contracts/CLI_INVENTORY.md">CLI_INVENTORY.md</a> (CLI01–CLI12)</td></tr><tr><td>Env <strong>names</strong></td><td><a href="../docs/SECRETS.md">SECRETS.md</a> — never log secret values</td></tr><tr><td>Schema / SoR</td><td><a href="architecture.html">ARCHITECTURE.md</a> · <a href="../KMS-competition/initiative/contracts/SCHEMA.md">SCHEMA.md</a></td></tr><tr><td>Human path (do not collapse)</td><td><a href="onboarding.html">ONBOARDING.md</a></td></tr></tbody></table>
 <hr />
 <h2>Secret rule (E10)</h2>
 <p>Secrets are injected by the <strong>host environment</strong> (see <a href="../docs/SECRETS.md">SECRETS.md</a>). Docs list <strong>variable names only</strong>. Agents must never echo full API keys, JWTs, or magic-link tokens into logs, evidence files, or commits.</p>
@@ -504,7 +504,7 @@ speakerops keys create --name &quot;x&quot; --scopes events:read --json
 <hr />
 <h2>7. Exit codes (summary)</h2>
 <table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td><strong>0</strong></td><td>Success</td></tr><tr><td><strong>1</strong></td><td>Validation / not found / client config (missing key)</td></tr><tr><td><strong>2</strong></td><td>Authz (401/403 — wrong/missing scope)</td></tr><tr><td><strong>3</strong></td><td>Conflict (409 CONFLICT/VERSION)</td></tr><tr><td><strong>4</strong></td><td>Network / 5xx</td></tr></tbody></table>
-<p>Full command table: <a href="cli-reference.html">CLI.md</a>. Inventory IDs CLI01–CLI12: <a href="../KMS-competition/initiative/contracts/CLI<em>INVENTORY.md&amp;quot;&amp;gt;CLI</em>INVENTORY.md</a>.</p>
+<p>Full command table: <a href="cli-reference.html">CLI.md</a>. Inventory IDs CLI01–CLI12: <a href="../KMS-competition/initiative/contracts/CLI_INVENTORY.md">CLI_INVENTORY.md</a>.</p>
 <hr />
 <h2>8. Upload path (optional agent ops)</h2>
 <pre><code># CLI08 — scope files:write
@@ -540,7 +540,7 @@ speakerops design publish --event &quot;$EVENT_ID&quot; --json || test $? -eq 1<
 <h2>Related docs</h2>
 <ul>
 <li><a href="cli-reference.html">CLI.md</a> — full command reference  </li>
-<li><a href="../KMS-competition/initiative/contracts/CLI<em>INVENTORY.md&amp;quot;&amp;gt;CLI</em>INVENTORY.md</a> — CLI01–CLI12  </li>
+<li><a href="../KMS-competition/initiative/contracts/CLI_INVENTORY.md">CLI_INVENTORY.md</a> — CLI01–CLI12  </li>
 <li><a href="../docs/SECRETS.md">SECRETS.md</a> — env <strong>names</strong> only  </li>
 <li><a href="onboarding.html">ONBOARDING.md</a> — human path (S-ONB-HUMAN)  </li>
 <li><a href="../docs/sections/7.1-api-keys.md">sections/7.1-api-keys.md</a> · <a href="../docs/sections/7.2-cli.md">sections/7.2-cli.md</a>  </li>
@@ -550,9 +550,9 @@ speakerops design publish --event &quot;$EVENT_ID&quot; --json || test $? -eq 1<
 <p><em>— Section 9.3 · S-ONB-AGENT agent setup and CLI runbook</em></p>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-09T01:20:12.340Z" data-git-sha="2a7719c">
-  <div><strong>Generated:</strong> <time datetime="2026-08-09T01:20:12.340Z">2026-08-09T01:20:12.340Z</time></div>
-  <div><strong>Git SHA:</strong> <code>2a7719c</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-09T01:31:31.939Z" data-git-sha="e3dfffc">
+  <div><strong>Generated:</strong> <time datetime="2026-08-09T01:31:31.939Z">2026-08-09T01:31:31.939Z</time></div>
+  <div><strong>Git SHA:</strong> <code>e3dfffc</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/AGENT_SETUP.md · no secrets in report</div>
 </footer>
   </div>

@@ -466,6 +466,55 @@ tr:target { outline: 2px solid var(--lumen-brand); outline-offset: -2px; }
 .status-pill.UNKNOWN,
 .status-pill.SKIPPED { background: var(--lumen-info-soft); color: var(--lumen-info); }
 .muted { color: var(--lumen-text-secondary); font-size: 12px; }
+.site-header {
+  background: var(--lumen-surface);
+  border-bottom: 1px solid var(--lumen-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.site-header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--lumen-space-3) var(--lumen-space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lumen-space-3);
+}
+.brand {
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--lumen-text);
+  text-decoration: none;
+  margin-right: var(--lumen-space-2);
+}
+.brand:hover { color: var(--lumen-brand); text-decoration: none; }
+.brand span { color: var(--lumen-brand); }
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+}
+.nav a {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  color: var(--lumen-text-secondary);
+  border: 1px solid transparent;
+}
+.nav a:hover {
+  color: var(--lumen-brand);
+  background: var(--lumen-brand-soft);
+  text-decoration: none;
+}
+.nav a[aria-current="page"] {
+  color: var(--lumen-brand);
+  background: var(--lumen-brand-soft);
+  border-color: transparent;
+  font-weight: 600;
+}
 footer.report-footer {
   margin-top: var(--lumen-space-6);
   padding: var(--lumen-space-4) var(--lumen-space-6);
@@ -480,6 +529,32 @@ footer.report-footer code {
   color: var(--lumen-text);
 }
 `.trim();
+
+/** Sibling report set for portal nav (matches section 9.5 REPORT_PAGES). */
+const REPORT_NAV: { file: string; title: string; current?: boolean }[] = [
+  { file: "index.html", title: "Reports portal" },
+  { file: "onboarding.html", title: "Human onboarding" },
+  { file: "agent-setup.html", title: "Agent setup" },
+  { file: "architecture.html", title: "Architecture" },
+  { file: "cli-reference.html", title: "CLI reference" },
+  { file: "design-lumen.html", title: "Lumen design kit" },
+  { file: "e2e-coverage.html", title: "E2E coverage", current: true },
+];
+
+function reportNavHtml(): string {
+  const links = REPORT_NAV.map((p) => {
+    const currentAttr = p.current ? ' aria-current="page"' : "";
+    return `<a href="${escapeHtml(p.file)}"${currentAttr}>${escapeHtml(p.title)}</a>`;
+  }).join("\n      ");
+  return `<header class="site-header">
+  <div class="site-header-inner">
+    <a class="brand" href="index.html">SpeakerOps <span>Reports</span></a>
+    <nav class="nav" aria-label="Reports">
+      ${links}
+    </nav>
+  </div>
+</header>`;
+}
 
 function statusClass(status: string): string {
   const s = String(status).toUpperCase();
@@ -558,6 +633,7 @@ ${LUMEN_CSS}
   </style>
 </head>
 <body>
+${reportNavHtml()}
   <div class="wrap">
     <header class="card">
       <h1>SpeakerOps E2E coverage</h1>

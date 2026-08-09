@@ -96,6 +96,8 @@ describe("9.6 Onboarding proof keystone", () => {
 import {
   evaluateCfClaimGate,
   checkOnboardingProof,
+  hasCfDeferRow,
+  evaluateBuildChecklistEndCheck,
 } from "./scripts/check-onboarding-proof.ts";
 const rejected = evaluateCfClaimGate({
   claim: true,
@@ -109,6 +111,9 @@ const deferred = evaluateCfClaimGate({
   checklistOrStatusBody: "| BC10 | S-CF | DEFER | waiver |",
 });
 if (!deferred.ok) { console.error("expected defer ok"); process.exit(1); }
+// Fenced DEFER examples must not waive CF
+const fenced = ["\`\`\`text", "BC10 status: DEFER", "S-CF status: DEFER", "\`\`\`"].join("\\n");
+if (hasCfDeferRow(fenced)) { console.error("fenced defer should be inactive"); process.exit(1); }
 const bad = checkOnboardingProof({
   claim: true,
   cfEvidenceBodyOverride: null,
@@ -117,12 +122,18 @@ const bad = checkOnboardingProof({
   skipBundleFileExistence: true,
   skipArtifactExistence: true,
   skipLinkcheck: true,
+  skipBuildChecklistEndCheck: true,
   writeLinkcheck: false,
 });
 if (bad.exitCode !== 2) {
   console.error("expected exit 2", bad);
   process.exit(1);
 }
+// OPEN BC fails end-check
+const openEnd = evaluateBuildChecklistEndCheck({
+  buildChecklistBody: "| BC01 | S-THEME | x | y | OPEN | | |\\n**End-check before CLAIM_PROVEN**",
+});
+if (openEnd.ok) { console.error("expected open end-check fail"); process.exit(1); }
 console.log("cf-gate-ok");
 `,
       ],

@@ -14,11 +14,14 @@ import { spawnSync } from "node:child_process";
 import {
   checkOnboardingProof,
   evaluateCfClaimGate,
+  evaluateBuildChecklistEndCheck,
   parseBcPathsSchema,
+  parseBuildChecklistBcStatus,
   EVIDENCE_DIR_REL,
   CHECKLIST_FILE,
   REQUIRED_BUNDLE_FILES,
   BC_ROWS,
+  BUILD_CHECKLIST_BC_IDS,
   hasCfDeferRow,
   isCfEvidenceDone,
 } from "../scripts/check-onboarding-proof.ts";
@@ -104,6 +107,36 @@ describe("9.6 Onboarding proof keystone", () => {
     expect(deferred.ok).toBe(true);
     expect(hasCfDeferRow("| BC10 | S-CF | DEFER | owner waiver |")).toBe(true);
 
+    // Inactive fenced DEFER examples must not count as a waiver
+    const fencedExamples = [
+      "# DEFER schema (inactive — documentation only)",
+      "",
+      "Current status is **not** DEFER.",
+      "",
+      "```text",
+      "BC10 status: DEFER",
+      "S-CF status: DEFER",
+      "```",
+      "",
+      "Do not treat prose mentions of the word DEFER as an active waiver.",
+    ].join("\n");
+    expect(hasCfDeferRow(fencedExamples)).toBe(false);
+    expect(
+      evaluateCfClaimGate({
+        claim: true,
+        cfEvidenceBody: null,
+        checklistOrStatusBody: fencedExamples,
+      }).ok,
+    ).toBe(false);
+
+    // Committed cf-status.txt alone (examples only) must not green-wash missing CF
+    const liveCfStatus = readFileSync(
+      join(evidenceDir, "cf-status.txt"),
+      "utf8",
+    );
+    // When live evidence exists, status file may still contain inactive fences
+    expect(hasCfDeferRow(liveCfStatus)).toBe(false);
+
     // DONE_WITH_EVIDENCE CF file accepts
     const done = evaluateCfClaimGate({
       claim: true,
@@ -128,12 +161,80 @@ describe("9.6 Onboarding proof keystone", () => {
       skipBundleFileExistence: true,
       skipArtifactExistence: true,
       skipLinkcheck: true,
+      skipBuildChecklistEndCheck: true,
       writeLinkcheck: false,
     });
     expect(result.ok).toBe(false);
     expect(result.exitCode).toBe(2);
     expect(
       result.errors.some((e) => e.code === "CF_CLAIM_GATE"),
+    ).toBe(true);
+
+    // Committed cf-status fenced examples + missing CF → claim gate fail (not defer waiver)
+    const withFencedStatus = checkOnboardingProof({
+      root,
+      claim: true,
+      cfEvidenceBodyOverride: null,
+      cfStatusBodyOverride: liveCfStatus,
+      checklistBodyOverride: readFileSync(checklistPath, "utf8"),
+      skipBundleFileExistence: true,
+      skipArtifactExistence: true,
+      skipLinkcheck: true,
+      skipBuildChecklistEndCheck: true,
+      writeLinkcheck: false,
+    });
+    expect(withFencedStatus.exitCode).toBe(2);
+    expect(
+      withFencedStatus.errors.some((e) => e.code === "CF_CLAIM_GATE"),
+    ).toBe(true);
+  });
+
+  it("BUILD_CHECKLIST end-check requires BC01–BC15 DONE_WITH_EVIDENCE or OWNER_AMEND", () => {
+    const openBody = [
+      "# BUILD_CHECKLIST",
+      "",
+      "**End-check before CLAIM_PROVEN:** all rows DONE_WITH_EVIDENCE or OWNER_AMEND.",
+      "",
+      "| id | soul_ref | done_when | evidence_expected | status | evidence_path | notes |",
+      "|----|----------|-----------|-------------------|--------|---------------|-------|",
+      ...BUILD_CHECKLIST_BC_IDS.map(
+        (id) =>
+          `| ${id} | S-X | x | y | ${id === "BC01" ? "OPEN" : "DONE_WITH_EVIDENCE"} | | |`,
+      ),
+    ].join("\n");
+    const open = evaluateBuildChecklistEndCheck({
+      buildChecklistBody: openBody,
+    });
+    expect(open.ok).toBe(false);
+    expect(open.errors.some((e) => /BC01/.test(e))).toBe(true);
+    expect(parseBuildChecklistBcStatus(openBody, "BC01")).toBe("OPEN");
+
+    const allDone = evaluateBuildChecklistEndCheck({
+      buildChecklistBody: openBody.replace(
+        "| BC01 | S-X | x | y | OPEN | | |",
+        "| BC01 | S-X | x | y | DONE_WITH_EVIDENCE | | |",
+      ),
+    });
+    expect(allDone.ok).toBe(true);
+
+    // Checker surfaces OPEN rows (not claim-safe)
+    const result = checkOnboardingProof({
+      root,
+      claim: true,
+      cfEvidenceBodyOverride:
+        "Status: DONE_WITH_EVIDENCE\nGET /health → 200\nredaction\n",
+      cfStatusBodyOverride: "CF done",
+      checklistBodyOverride: readFileSync(checklistPath, "utf8"),
+      buildChecklistBodyOverride: openBody,
+      skipBundleFileExistence: true,
+      skipArtifactExistence: true,
+      skipLinkcheck: true,
+      writeLinkcheck: false,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(
+      result.errors.some((e) => e.code === "BUILD_CHECKLIST_END_CHECK"),
     ).toBe(true);
   });
 
@@ -185,6 +286,15 @@ describe("9.6 Onboarding proof keystone", () => {
     expect(md).toMatch(/S-DOCS/);
     expect(md).toMatch(/onboarding-proof/);
     expect(md).toMatch(/DONE_WITH_EVIDENCE/);
+    // End-check: every BC01–BC15 closed for claim-safe
+    const end = evaluateBuildChecklistEndCheck({ buildChecklistBody: md });
+    expect(
+      end.ok,
+      end.errors.join("; ") || "BUILD_CHECKLIST end-check",
+    ).toBe(true);
+    for (const id of BUILD_CHECKLIST_BC_IDS) {
+      expect(end.statuses[id]).toMatch(/DONE_WITH_EVIDENCE|OWNER_AMEND/);
+    }
   });
 
   it("section doc maps named assertions and N/A handlers", () => {

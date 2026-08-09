@@ -91,6 +91,35 @@ export const REPORT_FILES = [
 export const CF_EVIDENCE_REL =
   "KMS-competition/initiative/evidence/cf-dogfood.txt";
 
+/** Canonical BUILD_CHECKLIST path (programme end-check before CLAIM_PROVEN). */
+export const BUILD_CHECKLIST_REL =
+  "KMS-competition/initiative/BUILD_CHECKLIST.md";
+
+/** All programme BUILD_CHECKLIST row ids (BC01–BC15). */
+export const BUILD_CHECKLIST_BC_IDS = [
+  "BC01",
+  "BC02",
+  "BC03",
+  "BC04",
+  "BC05",
+  "BC06",
+  "BC07",
+  "BC08",
+  "BC09",
+  "BC10",
+  "BC11",
+  "BC12",
+  "BC13",
+  "BC14",
+  "BC15",
+] as const;
+
+/** Statuses allowed by the BUILD_CHECKLIST end-check before CLAIM_PROVEN. */
+export const BUILD_CHECKLIST_CLAIM_STATUSES = [
+  "DONE_WITH_EVIDENCE",
+  "OWNER_AMEND",
+] as const;
+
 export type CheckIssue = {
   code: string;
   message: string;
@@ -122,12 +151,16 @@ export type CheckOptions = {
   cfEvidenceBodyOverride?: string | null;
   /** Inject cf-status body; null = missing file. */
   cfStatusBodyOverride?: string | null;
+  /** Inject BUILD_CHECKLIST body; null = missing file; undefined = read disk. */
+  buildChecklistBodyOverride?: string | null;
   /** Skip filesystem existence for bundle siblings (fixture mode). */
   skipBundleFileExistence?: boolean;
   /** Skip reports / source path existence (unit schema tests). */
   skipArtifactExistence?: boolean;
   /** Skip live linkcheck walk (unit tests). */
   skipLinkcheck?: boolean;
+  /** Skip BUILD_CHECKLIST end-check (unit schema / CF-only fixtures). */
+  skipBuildChecklistEndCheck?: boolean;
 };
 
 function walkMarkdown(dir: string, acc: string[] = []): string[] {
@@ -187,11 +220,22 @@ export function findBrokenInternalLinks(
 }
 
 /**
+ * Strip fenced code blocks (``` / ~~~) so documentation examples cannot
+ * masquerade as active DEFER / status rows.
+ */
+export function stripFencedCodeBlocks(text: string): string {
+  return String(text).replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1\s*$/gm, "\n");
+}
+
+/**
  * True when checklist/status text includes an **active** S-CF / BC10 DEFER row.
  * Documentation that merely mentions the word DEFER (or "not DEFER") does not count.
+ * Fenced example blocks (e.g. inactive DEFER schema in cf-status.txt) are ignored.
  */
 export function hasCfDeferRow(text: string): boolean {
-  const body = String(text);
+  // Ignore inactive documentation examples inside fenced code blocks
+  const body = stripFencedCodeBlocks(text);
+
   // Active markdown table status cell: | BC10 | S-CF | DEFER |
   if (
     /\|\s*\*?\*?BC10\*?\*?\s*\|\s*[^\n|]*\|\s*\*?\*?(DEFER|OWNER_AMEND)\*?\*?\s*\|/i.test(
@@ -200,7 +244,7 @@ export function hasCfDeferRow(text: string): boolean {
   ) {
     return true;
   }
-  // Explicit assignment lines
+  // Explicit assignment lines (not inside fences — already stripped)
   if (
     /\bBC10\b[^\n]{0,100}\bstatus\s*[:=]\s*(DEFER|OWNER_AMEND)\b/i.test(body)
   ) {
@@ -211,7 +255,7 @@ export function hasCfDeferRow(text: string): boolean {
   ) {
     return true;
   }
-  // Selected YES row for DEFER option
+  // Selected YES row for DEFER option (gate-choice table: DEFER | YES)
   if (
     /\bDEFER\b[^\n]{0,80}\bS-CF\b|\bS-CF\b[^\n]{0,80}\bDEFER\b/i.test(body) &&
     /\|\s*\*?\*?DEFER[^\n|]*\|\s*\*?\*?YES\*?\*?\s*\|/i.test(body)
@@ -256,6 +300,84 @@ export function evaluateCfClaimGate(input: {
     reason:
       "rejects claim without CF evidence or DEFER row: missing DONE_WITH_EVIDENCE in cf-dogfood.txt and no DEFER/OWNER_AMEND for S-CF/BC10",
   };
+}
+
+/**
+ * Parse BUILD_CHECKLIST table status for a BC id.
+ * Expects a markdown table row containing the BC id and a status token.
+ */
+export function parseBuildChecklistBcStatus(
+  checklistBody: string,
+  bcId: string,
+): string | undefined {
+  // Prefer table rows only (ignore prose / end-check prose mentions)
+  const lines = checklistBody.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line.includes("|")) continue;
+    // First data cell should be the BC id (allow bold)
+    const cells = line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((c) => c.trim().replace(/^\*+|\*+$/g, ""));
+    if (cells.length < 2) continue;
+    if (cells[0] !== bcId) continue;
+    const statusMatch = line.match(
+      /\b(DONE_WITH_EVIDENCE|OWNER_AMEND|OPEN|DEFER|IN_PROGRESS|NEED_[A-Z_]+)\b/,
+    );
+    if (statusMatch) return statusMatch[1];
+  }
+  return undefined;
+}
+
+/**
+ * Canonical BUILD_CHECKLIST end-check before CLAIM_PROVEN:
+ * all BC01–BC15 must be DONE_WITH_EVIDENCE or OWNER_AMEND (no OPEN/IN_PROGRESS/NEED_*).
+ */
+export function evaluateBuildChecklistEndCheck(input: {
+  buildChecklistBody: string | null;
+}): {
+  ok: boolean;
+  errors: string[];
+  statuses: Record<string, string | undefined>;
+} {
+  const errors: string[] = [];
+  const statuses: Record<string, string | undefined> = {};
+
+  if (input.buildChecklistBody == null || input.buildChecklistBody === "") {
+    return {
+      ok: false,
+      errors: [
+        `BUILD_CHECKLIST end-check failed: missing ${BUILD_CHECKLIST_REL}`,
+      ],
+      statuses,
+    };
+  }
+
+  const body = input.buildChecklistBody;
+  if (!/End-check before CLAIM_PROVEN/i.test(body)) {
+    errors.push(
+      "BUILD_CHECKLIST missing end-check before CLAIM_PROVEN requirement text",
+    );
+  }
+
+  for (const id of BUILD_CHECKLIST_BC_IDS) {
+    const status = parseBuildChecklistBcStatus(body, id);
+    statuses[id] = status;
+    if (!status) {
+      errors.push(`BUILD_CHECKLIST missing ${id} row or status`);
+      continue;
+    }
+    if (
+      !(BUILD_CHECKLIST_CLAIM_STATUSES as readonly string[]).includes(status)
+    ) {
+      errors.push(
+        `${id} status must be DONE_WITH_EVIDENCE or OWNER_AMEND before CLAIM_PROVEN (found: ${status})`,
+      );
+    }
+  }
+
+  return { ok: errors.length === 0, errors, statuses };
 }
 
 /**
@@ -468,6 +590,27 @@ export function checkOnboardingProof(options: CheckOptions = {}): CheckResult {
     });
   }
 
+  // --- BUILD_CHECKLIST end-check (BC01–BC15 claim-safe) ---
+  // Always enforced: exit 0 means claim-safe (CLAIM_PROVEN end-check).
+  if (!options.skipBuildChecklistEndCheck) {
+    let buildChecklistBody: string | null;
+    if (options.buildChecklistBodyOverride !== undefined) {
+      buildChecklistBody = options.buildChecklistBodyOverride;
+    } else {
+      const bcPath = join(root, BUILD_CHECKLIST_REL);
+      buildChecklistBody = existsSync(bcPath)
+        ? readFileSync(bcPath, "utf8")
+        : null;
+    }
+    const endCheck = evaluateBuildChecklistEndCheck({ buildChecklistBody });
+    for (const msg of endCheck.errors) {
+      errors.push({
+        code: "BUILD_CHECKLIST_END_CHECK",
+        message: `BUILD_CHECKLIST end-check: ${msg}`,
+      });
+    }
+  }
+
   // --- linkcheck 0 ---
   if (!options.skipLinkcheck) {
     const files = walkMarkdown(join(root, "docs"));
@@ -563,7 +706,7 @@ function printResult(result: CheckResult): void {
   const tag = "[check:onboarding-proof]";
   if (result.ok) {
     console.log(
-      `${tag} OK: evidence bundle complete; BC13–15 schema; linkcheck ${result.linkcheckBroken}; CF gate pass`,
+      `${tag} OK: evidence bundle complete; BC13–15 schema; BUILD_CHECKLIST BC01–15 end-check; linkcheck ${result.linkcheckBroken}; CF gate pass`,
     );
     for (const w of result.warnings) {
       console.log(`${tag} warn: ${w}`);
@@ -597,9 +740,9 @@ function main(): void {
 
 Validates KMS-competition/initiative/evidence/onboarding-proof/ for section 9.6.
 
-  --claim   Treat as programme-exit claim (same CF gate; exit 2 if CF missing)
+  --claim   Treat as programme-exit claim (same CF + BUILD_CHECKLIST gates; exit 2 if CF missing)
 
-Exit: 0 ok · 1 incomplete/schema/linkcheck · 2 claim without CF evidence or DEFER
+Exit: 0 claim-safe (BC13–15 + CF + BUILD_CHECKLIST BC01–15) · 1 incomplete/schema/linkcheck/end-check · 2 claim without CF evidence or DEFER
 `);
     process.exit(0);
   }

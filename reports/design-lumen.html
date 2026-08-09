@@ -167,7 +167,7 @@ h4 {
   background: var(--lumen-brand-soft);
   color: var(--lumen-brand);
 }
-.badge.accent { background: #ccfbf1; color: var(--lumen-accent); border-color: transparent; }
+.badge.accent { background: var(--lumen-info-soft); color: var(--lumen-accent); border-color: transparent; }
 .badge.success { background: var(--lumen-success-soft); color: var(--lumen-success); border-color: transparent; }
 .report-grid {
   display: grid;
@@ -182,14 +182,14 @@ h4 {
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-lg);
   box-shadow: var(--lumen-shadow-sm);
-  padding: var(--lumen-space-5, 20px) var(--lumen-space-4);
+  padding: var(--lumen-space-6) var(--lumen-space-4);
   text-decoration: none;
   color: inherit;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .report-card:hover {
   border-color: var(--lumen-brand);
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.08);
+  box-shadow: var(--lumen-shadow-sm);
   text-decoration: none;
 }
 .report-card h2 {
@@ -233,7 +233,7 @@ h4 {
 .prose pre {
   margin: 0 0 var(--lumen-space-4);
   padding: var(--lumen-space-3) var(--lumen-space-4);
-  background: #f0f0f3;
+  background: var(--lumen-bg);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-md);
   overflow-x: auto;
@@ -371,9 +371,9 @@ footer.report-footer code {
 </section>
     <article class="prose card">
 <h1>0.2 — Lumen design system lock</h1>
-<p><strong>Status:</strong> RATIFIED (section 0.2)   <strong>Date:</strong> 2026-08-08   <strong>Type:</strong> Governance / design freeze — no product CSS or app code   <strong>Authority:</strong> Freezes essentials from <a href="design-lumen.html"><code>01_DESIGN_SYSTEM_LUMEN.md</code></a> for all UI sections   <strong>Constitution soul:</strong> <strong>S-THEME</strong> (Design Kit brand → public CFP without code deploy)   <strong>Standards:</strong> Engineering standards <strong>E6</strong> (Frontend — Lumen + E9)</p>
+<p><strong>Status:</strong> RATIFIED (section 0.2)   <strong>Date:</strong> 2026-08-08   <strong>Type:</strong> Governance / design freeze — no product CSS or app code   <strong>Authority:</strong> Freezes essentials from <a href="design-lumen.html"> C0 </a> for all UI sections   <strong>Constitution soul:</strong> <strong>S-THEME</strong> (Design Kit brand → public CFP without code deploy)   <strong>Standards:</strong> Engineering standards <strong>E6</strong> (Frontend — Lumen + E9)</p>
 <blockquote><p>This document is the <strong>workspace Lumen lock</strong>. Later sections (shell 1.4, Design Kit 2.4, schedule, public CFP) implement tokens and components against this freeze. Do not invent freeform CSS, dark mode, or retheme admin chrome.</p></blockquote>
-<p><strong>Source of truth (initiative):</strong> <a href="design-lumen.html"><code>KMS-competition/initiative/01_DESIGN_SYSTEM_LUMEN.md</code></a>   <strong>Implementation target (Phase 1.4):</strong> <code>apps/web/src/styles/lumen.css</code> (CSS variables only — not implemented in 0.2)</p>
+<p><strong>Source of truth (initiative):</strong> <a href="design-lumen.html"> C0 </a>   <strong>Implementation target (Phase 1.4):</strong> <code>apps/web/src/styles/lumen.css</code> (CSS variables only — not implemented in 0.2)</p>
 <hr />
 <h2>1. Verdict (MF folds)</h2>
 <p><strong>Adopt name: Lumen</strong> — light, clarity, program ops (not enterprise sludge).</p>
@@ -428,7 +428,7 @@ footer.report-footer code {
 <h3>2.2 Token invariants</h3>
 <table><thead><tr><th>Invariant</th><th>Rule</th></tr></thead><tbody><tr><td>Status vs brand</td><td><code>success</code> / <code>warn</code> / <code>danger</code> / <code>info</code> <strong>do not</strong> retheme with brand — Accepted stays green under any event brand</td></tr><tr><td>Status never color-only</td><td>Every badge has a text label (optional icon). Soft-bg + strong-fg pairs required</td></tr><tr><td>Theme via tokens only</td><td>No freeform CSS/HTML/JS in Design Kit (XSS)</td></tr><tr><td>Type</td><td>Inter / system UI. Display tight tracking (−0.03em). Body 16/1.5. Overlines 12 caps for section labels</td></tr></tbody></table>
 <h3>2.3 Schema shape (<code>design_tokens</code>)</h3>
-<p>From <a href="../KMS-competition/initiative/contracts/SCHEMA.md"><code>SCHEMA.md</code></a>:</p>
+<p>From <a href="../KMS-competition/initiative/contracts/SCHEMA.md"> C0 </a>:</p>
 <pre><code>{
   &quot;brand&quot;: &quot;#4f46e5&quot;,
   &quot;brandSoft&quot;: &quot;#eef2ff&quot;,
@@ -477,7 +477,7 @@ Public: CFP form only</code></pre>
 </ol>
 <hr />
 <h2>7. Linkage — E6 and contracts</h2>
-<table><thead><tr><th>Document</th><th>Relationship</th></tr></thead><tbody><tr><td>Engineering standards <strong>E6</strong></td><td>Frontend stack + Lumen tokens; this file is the workspace freeze for E6 token/component rules</td></tr><tr><td><a href="design-lumen.html"><code>01_DESIGN_SYSTEM_LUMEN.md</code></a></td><td>Initiative synthesis; 0.2 copies essentials without amending souls</td></tr><tr><td><a href="../docs/CONTRACTS.md"><code>docs/CONTRACTS.md</code></a></td><td>Indexes this lock under Lumen / E6</td></tr><tr><td>Constitution <strong>S-THEME</strong></td><td>Brand publish → public CFP; souls not restated here</td></tr><tr><td>SCHEMA <code>design_tokens</code></td><td>Draft/published JSON shape</td></tr><tr><td>Section 1.4</td><td>Implements <code>lumen.css</code> from §2</td></tr><tr><td>Section 2.4</td><td>Design Kit UI + contrast/SVG gates</td></tr></tbody></table>
+<table><thead><tr><th>Document</th><th>Relationship</th></tr></thead><tbody><tr><td>Engineering standards <strong>E6</strong></td><td>Frontend stack + Lumen tokens; this file is the workspace freeze for E6 token/component rules</td></tr><tr><td><a href="design-lumen.html"> C0 </a></td><td>Initiative synthesis; 0.2 copies essentials without amending souls</td></tr><tr><td><a href="../docs/CONTRACTS.md"> C0 </a></td><td>Indexes this lock under Lumen / E6</td></tr><tr><td>Constitution <strong>S-THEME</strong></td><td>Brand publish → public CFP; souls not restated here</td></tr><tr><td>SCHEMA <code>design_tokens</code></td><td>Draft/published JSON shape</td></tr><tr><td>Section 1.4</td><td>Implements <code>lumen.css</code> from §2</td></tr><tr><td>Section 2.4</td><td>Design Kit UI + contrast/SVG gates</td></tr></tbody></table>
 <p>Builders reading E6 (“Lumen tokens in CSS variables”) must implement against <strong>this lock</strong> and the initiative Lumen doc — not freeform palettes.</p>
 <hr />
 <h2>8. Section 0.2 scope declaration</h2>
@@ -514,9 +514,9 @@ Public: CFP form only</code></pre>
 <p><em>— Ratified Lumen design system lock for SpeakerOps section 0.2</em></p>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-09T01:20:12.340Z" data-git-sha="2a7719c">
-  <div><strong>Generated:</strong> <time datetime="2026-08-09T01:20:12.340Z">2026-08-09T01:20:12.340Z</time></div>
-  <div><strong>Git SHA:</strong> <code>2a7719c</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-09T01:31:31.939Z" data-git-sha="e3dfffc">
+  <div><strong>Generated:</strong> <time datetime="2026-08-09T01:31:31.939Z">2026-08-09T01:31:31.939Z</time></div>
+  <div><strong>Git SHA:</strong> <code>e3dfffc</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/governance/0.2-lumen-lock.md · no secrets in report</div>
 </footer>
   </div>

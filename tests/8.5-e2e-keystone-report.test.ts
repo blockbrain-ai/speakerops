@@ -136,6 +136,19 @@ describe("8.5 E2E keystone HTML report", () => {
     expect(html).not.toMatch(/prefers-color-scheme:\s*dark/);
   });
 
+  it("e2e coverage report navigates to portal siblings (9.5 nav set)", () => {
+    const html = readFileSync(coveragePath, "utf8");
+    expect(html).toMatch(/site-header/);
+    expect(html).toMatch(/href="index\.html"/);
+    expect(html).toMatch(/href="onboarding\.html"/);
+    expect(html).toMatch(/href="agent-setup\.html"/);
+    expect(html).toMatch(/href="architecture\.html"/);
+    expect(html).toMatch(/href="cli-reference\.html"/);
+    expect(html).toMatch(/href="design-lumen\.html"/);
+    expect(html).toMatch(/href="e2e-coverage\.html"/);
+    expect(html).toMatch(/aria-current="page"/);
+  });
+
   it("pnpm docs:e2e-report script wired to build-e2e-report.ts", () => {
     const pkg = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
       scripts?: Record<string, string>;
