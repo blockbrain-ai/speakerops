@@ -6,11 +6,11 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 
 ## 5-minute orientation
 
-New here? Pick a path, then skim the map. Full timed onboarding prose lands in Phase **9.2–9.4**; the **tree is locked** (section **9.1** / outline **0.5**).
+New here? Pick a path, then skim the map. Human timed checklist is live (**9.2** / **S-ONB-HUMAN**); agent + deep docs land in **9.3–9.4**. The **tree is locked** (section **9.1** / outline **0.5**).
 
 | You are… | Start | Then |
 |----------|--------|------|
-| **Human operator** | [`docs/ONBOARDING.md`](./docs/ONBOARDING.md) (**S-ONB-HUMAN**) | Env names → migrate → seed → gates → deploy notes |
+| **Human operator** | [`docs/ONBOARDING.md`](./docs/ONBOARDING.md) (**S-ONB-HUMAN**) | Env names → migrate → seed → first admin → demo path (CFP→schedule) → gates · **&lt;90m** |
 | **Coding agent** | [`docs/AGENT_SETUP.md`](./docs/AGENT_SETUP.md) + [`docs/CLI.md`](./docs/CLI.md) (**S-ONB-AGENT**) | Scoped key → OpenAPI → readiness / design publish |
 | **Reviewer / judge** | [`docs/COMPETITION.md`](./docs/COMPETITION.md) · this README | Non-goals + [constitution](./KMS-competition/initiative/00_CONSTITUTION.md) |
 | **Maintainer** | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · [`docs/OPERATIONS.md`](./docs/OPERATIONS.md) | Security · E2E · troubleshooting |
@@ -28,7 +28,8 @@ pnpm typecheck && pnpm test:ci  # non-watch gates (E5)
 
 | Doc | Role |
 |-----|------|
-| [`docs/ONBOARDING.md`](./docs/ONBOARDING.md) | Human zero → running (stub → 9.2) |
+| [`docs/ONBOARDING.md`](./docs/ONBOARDING.md) | Human zero → dogfood (timed **9.2** / S-ONB-HUMAN) |
+| [`docs/sections/9.2-human-onboarding.md`](./docs/sections/9.2-human-onboarding.md) | Section note · AC → proof for human path |
 | [`docs/AGENT_SETUP.md`](./docs/AGENT_SETUP.md) | Agent zero → CLI ops (stub → 9.3) |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | D1 SoR, projection, auth, CLI model |
 | [`docs/SECURITY.md`](./docs/SECURITY.md) | CSP, cookies, roles, keys |
