@@ -54,6 +54,7 @@
     "F02",
     "F03",
     "F04",
+    "F05",
     "G01",
     "G02",
     "G03",
@@ -313,6 +314,10 @@
     "F04": {
       "test_id": "e2e/eval/a11y-keyboard",
       "journey": "Keyboard-only complete score"
+    },
+    "F05": {
+      "test_id": "e2e/eval/export",
+      "journey": "Sort by aggregate score; export CSV of scores/status"
     },
     "G01": {
       "test_id": "e2e/portal/home",

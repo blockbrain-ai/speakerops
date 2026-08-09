@@ -1,13 +1,17 @@
 /**
- * Admin evaluations rollup (section 3.4 / 10.2 S-EVAL-UI).
+ * Admin evaluations rollup (section 3.4 / 10.2 S-EVAL-UI / 10.6 S-EVAL-EXPORT).
  * Aggregate scores via GET /api/events/:eventId/eval/rollup.
+ * Sort + CSV export via Eval.ExportScores (GET .../eval/export).
  * Contract: EvalAdminRollupResponseSchema — never surface "Response validation failed".
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   EvalAdminRollupResponseSchema,
   ErrorEnvelopeSchema,
+  EvalScoreSortSchema,
+  sortEvalSubmissionsByScore,
   type EvalAdminSubmissionRollup,
+  type EvalScoreSort,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
 
@@ -20,6 +24,9 @@ export function AdminEvaluationsPage() {
   const [loading, setLoading] = useState(false);
   const [hasRound, setHasRound] = useState(false);
   const [criteriaCount, setCriteriaCount] = useState(0);
+  const [sort, setSort] = useState<EvalScoreSort>("score_desc");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async (eventId: string) => {
     setLoading(true);
@@ -110,6 +117,66 @@ export function AdminEvaluationsPage() {
     }
   }, [activeEventId, load]);
 
+  const sortedRows = useMemo(
+    () => sortEvalSubmissionsByScore(rows, sort),
+    [rows, sort],
+  );
+
+  const onSortChange = useCallback((value: string) => {
+    const parsed = EvalScoreSortSchema.safeParse(value);
+    if (parsed.success) setSort(parsed.data);
+  }, []);
+
+  const onExport = useCallback(async () => {
+    if (!activeEventId) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const params = new URLSearchParams({ sort });
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}/eval/export?${params}`,
+        {
+          credentials: "include",
+          headers: { accept: "text/csv" },
+        },
+      );
+      if (res.status === 401) {
+        setExportError("Sign in required");
+        return;
+      }
+      if (res.status === 403) {
+        setExportError("Admin role required to export scores");
+        return;
+      }
+      if (!res.ok) {
+        const raw: unknown = await res.json().catch(() => null);
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setExportError(
+          env.success ? env.data.error : `Export failed (${res.status})`,
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? `eval-scores-${activeEventId}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      a.setAttribute("data-testid", "eval-export-download-anchor");
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError("Network error exporting scores");
+    } finally {
+      setExporting(false);
+    }
+  }, [activeEventId, sort]);
+
   return (
     <div
       className="event-settings"
@@ -168,45 +235,86 @@ export function AdminEvaluationsPage() {
             </p>
           ) : null}
           {rows.length > 0 ? (
-            <table
-              className="eval-queue__table"
-              data-testid="eval-rollup-table"
-            >
-              <thead>
-                <tr>
-                  <th scope="col">Submission</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Assignments</th>
-                  <th scope="col">Aggregate score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr
-                    key={row.submissionId}
-                    data-testid={`eval-rollup-row-${row.submissionId}`}
-                    data-aggregate-score={
-                      row.aggregateScore != null
-                        ? String(row.aggregateScore)
-                        : ""
-                    }
-                  >
-                    <td data-testid={`eval-rollup-title-${row.submissionId}`}>
-                      {row.title}
-                    </td>
-                    <td>{row.status}</td>
-                    <td>{row.assignments.length}</td>
-                    <td
-                      data-testid={`eval-aggregate-score-${row.submissionId}`}
-                    >
-                      {row.aggregateScore != null
-                        ? row.aggregateScore.toFixed(2)
-                        : "—"}
-                    </td>
+            <>
+              <div
+                className="submissions-page__toolbar"
+                data-testid="eval-rollup-toolbar"
+              >
+                <label className="event-settings__label" htmlFor="eval-sort">
+                  Sort by
+                </label>
+                <select
+                  id="eval-sort"
+                  className="event-settings__input lumen-focusable"
+                  data-testid="eval-sort-select"
+                  value={sort}
+                  onChange={(e) => onSortChange(e.target.value)}
+                >
+                  <option value="score_desc">Score (high → low)</option>
+                  <option value="score_asc">Score (low → high)</option>
+                  <option value="title">Title</option>
+                </select>
+                <button
+                  type="button"
+                  className="event-settings__submit lumen-focusable"
+                  data-testid="eval-export-csv"
+                  data-inv="F05"
+                  disabled={exporting}
+                  onClick={() => void onExport()}
+                >
+                  {exporting ? "Exporting…" : "Export CSV"}
+                </button>
+              </div>
+              {exportError ? (
+                <p
+                  className="event-settings__status event-settings__status--error"
+                  data-testid="eval-export-error"
+                  role="alert"
+                >
+                  {exportError}
+                </p>
+              ) : null}
+              <table
+                className="eval-queue__table"
+                data-testid="eval-rollup-table"
+                data-sort={sort}
+              >
+                <thead>
+                  <tr>
+                    <th scope="col">Submission</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Assignments</th>
+                    <th scope="col">Aggregate score</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sortedRows.map((row) => (
+                    <tr
+                      key={row.submissionId}
+                      data-testid={`eval-rollup-row-${row.submissionId}`}
+                      data-aggregate-score={
+                        row.aggregateScore != null
+                          ? String(row.aggregateScore)
+                          : ""
+                      }
+                    >
+                      <td data-testid={`eval-rollup-title-${row.submissionId}`}>
+                        {row.title}
+                      </td>
+                      <td>{row.status}</td>
+                      <td>{row.assignments.length}</td>
+                      <td
+                        data-testid={`eval-aggregate-score-${row.submissionId}`}
+                      >
+                        {row.aggregateScore != null
+                          ? row.aggregateScore.toFixed(2)
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           ) : null}
         </section>
       ) : null}

@@ -645,7 +645,8 @@ export const EVAL_OPENAPI_PATHS = {
     get: {
       operationId: "Eval.AdminRollup",
       summary: "Eval.AdminRollup",
-      description: "Admin aggregate scores per submission for active round",
+      description:
+        "Admin aggregate scores per submission for active round. Optional sort: score_desc|score_asc|title (section 10.6).",
       tags: ["Eval"],
       parameters: [
         {
@@ -654,9 +655,60 @@ export const EVAL_OPENAPI_PATHS = {
           required: true,
           schema: { type: "string" },
         },
+        {
+          name: "sort",
+          in: "query",
+          required: false,
+          schema: {
+            type: "string",
+            enum: ["score_desc", "score_asc", "title"],
+          },
+        },
       ],
       responses: {
         "200": { description: "Submission rollups with aggregateScore" },
+        "400": { description: "Invalid sort" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+  "/api/events/{eventId}/eval/export": {
+    get: {
+      operationId: "Eval.ExportScores",
+      summary: "Eval.ExportScores",
+      description:
+        "Admin CSV export of single-round scores/status (section 10.6 / S-EVAL-EXPORT). Default sort score_desc.",
+      tags: ["Eval"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "sort",
+          in: "query",
+          required: false,
+          schema: {
+            type: "string",
+            enum: ["score_desc", "score_asc", "title"],
+            default: "score_desc",
+          },
+        },
+      ],
+      responses: {
+        "200": {
+          description: "text/csv attachment",
+          content: {
+            "text/csv": {
+              schema: { type: "string", format: "binary" },
+            },
+          },
+        },
+        "400": { description: "Invalid sort" },
         "401": { description: "Unauthenticated" },
         "403": { description: "Forbidden role" },
         "404": { description: "Event not found / no membership" },

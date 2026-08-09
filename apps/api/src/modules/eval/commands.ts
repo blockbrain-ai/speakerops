@@ -11,6 +11,8 @@ import {
   uuidv7,
   computeWeightedAggregate,
   coerceFiniteNumber,
+  sortEvalSubmissionsByScore,
+  evalRollupToCsv,
   type EvalUpsertRubricBody,
   type EvalScoreBody,
   type EvalRoundDto,
@@ -21,6 +23,7 @@ import {
   type EvalAdminSubmissionRollup,
   type EvalAssignmentStatus,
   type EvalRoundStatus,
+  type EvalScoreSort,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
@@ -683,4 +686,29 @@ export async function getAdminEvalRollup(
       submissions: rollups,
     },
   };
+}
+
+/**
+ * Eval.ExportScores — CSV of submission scores/status for the active round.
+ * Section 10.6 / S-EVAL-EXPORT (ABS-13-class single-round export).
+ * Sort defaults to score_desc (null aggregates last).
+ */
+export async function exportAdminEvalCsv(
+  deps: EvalCommandDeps,
+  eventId: string,
+  sort: EvalScoreSort = "score_desc",
+): Promise<
+  CommandOk<{ csv: string; filename: string }> | CommandErr
+> {
+  const rollup = await getAdminEvalRollup(deps, eventId);
+  if (!rollup.ok) return rollup;
+
+  const ordered = sortEvalSubmissionsByScore(
+    rollup.value.submissions,
+    sort,
+  );
+  const csv = evalRollupToCsv(ordered, { sort });
+  const safeEvent = eventId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+  const filename = `eval-scores-${safeEvent}.csv`;
+  return { ok: true, value: { csv, filename } };
 }

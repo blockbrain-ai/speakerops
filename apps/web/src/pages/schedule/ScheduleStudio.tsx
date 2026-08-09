@@ -125,6 +125,7 @@ export function ScheduleStudioPage() {
   const eventStartsAt = activeEvent?.startsAt ?? null;
   const eventEndsAt = activeEvent?.endsAt ?? null;
 
+  // Week/day chrome: only event-range days (never pad to Mon–Sun). S-SCHED-CHROME.
   const dayKeys = useMemo(
     () => buildDayKeys(eventStartsAt, eventEndsAt, 7, timezone),
     [eventStartsAt, eventEndsAt, timezone],
@@ -871,12 +872,18 @@ export function ScheduleStudioPage() {
   );
 
   const weekView = (
-    <div className="schedule-studio__week" data-testid="schedule-week-view">
+    <div
+      className="schedule-studio__week"
+      data-testid="schedule-week-view"
+      data-event-days={dayKeys.join(",")}
+      data-day-count={String(dayKeys.length)}
+    >
       {dayKeys.map((dk) => (
         <section
           key={dk}
           className="schedule-studio__week-day"
           data-testid={`schedule-week-day-${dk}`}
+          data-day-key={dk}
         >
           <h4 className="schedule-studio__subhead">{dk}</h4>
           <ul className="schedule-studio__week-list">

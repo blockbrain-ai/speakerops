@@ -163,8 +163,46 @@ export function buildTimeSlots(
 }
 
 /**
+ * True when calendar dayKey (YYYY-MM-DD in timeZone) intersects the half-open
+ * event interval [startsAt, endsAt). Used so week/day chrome never invents
+ * pre-event or post-event empty days (section 10.6 / S-SCHED-CHROME).
+ *
+ * Semantics: day D is in range when
+ *   [local midnight D, local midnight D+1) ∩ [startsAt, endsAt) is non-empty.
+ * If endsAt falls exactly on midnight of day D, day D is excluded (half-open).
+ */
+export function isDayWithinEventRange(
+  dayKey: string,
+  startsAt: string | null | undefined,
+  endsAt: string | null | undefined,
+  timeZone: string = "UTC",
+): boolean {
+  if (!startsAt || !endsAt) return false;
+  const s = Date.parse(startsAt);
+  const e = Date.parse(endsAt);
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return false;
+  const dayStartMs = Date.parse(zonedWallToUtcIso(dayKey, 0, 0, timeZone));
+  if (!Number.isFinite(dayStartMs)) return false;
+  // Next local midnight: advance one calendar day via noon snap then re-zero.
+  const noon = zonedWallToUtcIso(dayKey, 12, 0, timeZone);
+  const nextMsApprox = Date.parse(noon) + 24 * 60 * 60 * 1000;
+  const nextKey = zonedDayKey(new Date(nextMsApprox).toISOString(), timeZone);
+  let dayEndMs = Date.parse(zonedWallToUtcIso(nextKey, 0, 0, timeZone));
+  if (!Number.isFinite(dayEndMs) || dayEndMs <= dayStartMs) {
+    // Pathological TZ / same key: fall back to +24h from local midnight.
+    dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
+  }
+  // Intervals [dayStart, dayEnd) and [s, e) overlap?
+  return dayStartMs < e && dayEndMs > s;
+}
+
+/**
  * Calendar day keys (YYYY-MM-DD in event timezone) spanning event starts→ends.
  * Caps at maxDays for week view.
+ *
+ * **Does not pad to a calendar week** — if the event starts mid-week, earlier
+ * weekdays are omitted (S-SCHED-CHROME: no pre-event empty day chrome).
+ * Days are included only when they intersect half-open [startsAt, endsAt).
  */
 export function buildDayKeys(
   startsAt: string | null | undefined,
@@ -174,35 +212,64 @@ export function buildDayKeys(
 ): string[] {
   const fallbackStart = "2026-09-01T09:00:00.000Z";
   const fallbackEnd = "2026-09-01T17:00:00.000Z";
-  const s = Date.parse(startsAt || fallbackStart);
-  const e = Date.parse(endsAt || fallbackEnd);
-  if (!Number.isFinite(s) || !Number.isFinite(e)) {
+  const effectiveStart = startsAt || fallbackStart;
+  const effectiveEnd = endsAt || fallbackEnd;
+  const s = Date.parse(effectiveStart);
+  const e = Date.parse(effectiveEnd);
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) {
     return [zonedDayKey(fallbackStart, timeZone)];
   }
   const startKey = zonedDayKey(new Date(s).toISOString(), timeZone);
-  const endKey = zonedDayKey(new Date(e).toISOString(), timeZone);
+  // Inclusive last day is the last calendar day that still intersects [s,e).
+  // If endsAt is exactly midnight of a day, that day is excluded (half-open).
+  const endInstantKey = zonedDayKey(new Date(e).toISOString(), timeZone);
+  const endOnMidnight =
+    Date.parse(zonedWallToUtcIso(endInstantKey, 0, 0, timeZone)) === e;
+  let lastKey = endInstantKey;
+  if (endOnMidnight) {
+    // Step back one calendar day from endInstantKey.
+    const noon = zonedWallToUtcIso(endInstantKey, 12, 0, timeZone);
+    const prevMs = Date.parse(noon) - 24 * 60 * 60 * 1000;
+    lastKey = zonedDayKey(new Date(prevMs).toISOString(), timeZone);
+  }
   const keys: string[] = [];
-  // Walk day-by-day via noon UTC-ish of each local day to avoid DST edge skips.
+  // Walk day-by-day via local noon to avoid DST edge skips.
   let cursor = zonedWallToUtcIso(startKey, 12, 0, timeZone);
-  const endNoon = zonedWallToUtcIso(endKey, 12, 0, timeZone);
+  const endNoon = zonedWallToUtcIso(lastKey, 12, 0, timeZone);
   let guard = 0;
-  while (Date.parse(cursor) <= Date.parse(endNoon) && keys.length < maxDays && guard < 366) {
+  while (
+    Date.parse(cursor) <= Date.parse(endNoon) &&
+    keys.length < maxDays &&
+    guard < 366
+  ) {
     const key = zonedDayKey(cursor, timeZone);
-    if (!keys.includes(key)) keys.push(key);
+    if (
+      !keys.includes(key) &&
+      isDayWithinEventRange(key, effectiveStart, effectiveEnd, timeZone)
+    ) {
+      keys.push(key);
+    }
     // Advance ~24h then re-snap to local noon of next calendar day.
     const nextMs = Date.parse(cursor) + 24 * 60 * 60 * 1000;
     const nextKey = zonedDayKey(new Date(nextMs).toISOString(), timeZone);
     cursor = zonedWallToUtcIso(nextKey, 12, 0, timeZone);
     // If nextKey didn't advance (pathological TZ), force key step via string.
     if (nextKey === key) {
-      const [ys, ms, ds] = key.split("-").map(Number) as [number, number, number];
+      const [ys, ms, ds] = key.split("-").map(Number) as [
+        number,
+        number,
+        number,
+      ];
       const nd = new Date(Date.UTC(ys, ms - 1, ds + 1, 12, 0, 0));
       cursor = zonedWallToUtcIso(nd.toISOString().slice(0, 10), 12, 0, timeZone);
     }
     guard += 1;
   }
   if (keys.length === 0) {
-    keys.push(startKey);
+    // At least show the start day when the interval is non-empty (degenerate).
+    if (isDayWithinEventRange(startKey, effectiveStart, effectiveEnd, timeZone)) {
+      keys.push(startKey);
+    }
   }
   return keys;
 }

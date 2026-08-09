@@ -816,4 +816,218 @@ describe("3.4 evaluation scoring", () => {
     expect(res.status).toBe(403);
     expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(FORBIDDEN);
   });
+
+  it("10.6: admin CSV export sorts by score and includes status columns", async () => {
+    const shared = createAppWithAuth({ cookieSecure: true });
+    const admin = await magicLinkSession(
+      "admin",
+      "eval-admin-export@example.com",
+      undefined,
+      shared,
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Export Event");
+    const evaluator = await magicLinkSession(
+      "evaluator",
+      "eval-evaluator-export@example.com",
+      event.id,
+      shared,
+    );
+
+    const rubricRes = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rubric`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          criteria: [{ name: "Quality", maxScore: 10, weight: 1 }],
+        }),
+      },
+      env,
+    );
+    const rubric = EvalRubricResponseSchema.parse(await rubricRes.json());
+    const criterionId = rubric.criteria[0]!.id;
+
+    // Publish CFP once, then submit two proposals on the same form version.
+    const formCreate = await admin.app.request(
+      `http://localhost/api/events/${event.id}/forms`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ name: "Export CFP" }),
+      },
+      env,
+    );
+    const form = FormCreateResponseSchema.parse(await formCreate.json());
+    await admin.app.request(
+      `http://localhost/api/forms/${form.form.id}/draft`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          fields: [
+            {
+              fieldKey: "talk_title",
+              type: "text",
+              label: "Talk title",
+              required: true,
+              sortOrder: 0,
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    const publish = await admin.app.request(
+      `http://localhost/api/forms/${form.form.id}/publish`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    const published = FormPublishResponseSchema.parse(await publish.json());
+    const formVersionId = published.formVersion.id;
+
+    async function submitTalk(title: string, email: string): Promise<string> {
+      const res = await admin.app.request(
+        `http://localhost/api/public/cfp/${event.slug}/submissions`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            formVersionId,
+            title,
+            answers: [{ fieldKey: "talk_title", value: title }],
+            speakers: [{ name: "Speaker", email, isPrimary: true }],
+            turnstileToken: TURNSTILE_DEV_PASS_TOKEN,
+          }),
+        },
+        env,
+      );
+      expect(res.status).toBe(201);
+      return SubmissionCreateResponseSchema.parse(await res.json()).submission
+        .id;
+    }
+
+    const lowId = await submitTalk("Low Score Talk", "low-export@example.com");
+    const highId = await submitTalk(
+      "High Score Talk",
+      "high-export@example.com",
+    );
+
+    for (const [submissionId, value] of [
+      [lowId, 3],
+      [highId, 9],
+    ] as const) {
+      const assign = await admin.app.request(
+        `http://localhost/api/submissions/${submissionId}/assign`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: admin.cookie,
+          },
+          body: JSON.stringify({ userIds: [evaluator.userId] }),
+        },
+        env,
+      );
+      const { assignments } = SubmissionAssignResponseSchema.parse(
+        await assign.json(),
+      );
+      await admin.app.request(
+        `http://localhost/api/assignments/${assignments[0]!.id}/scores`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: evaluator.cookie,
+          },
+          body: JSON.stringify({
+            scores: [{ criterionId, value }],
+          }),
+        },
+        env,
+      );
+    }
+
+    const exportRes = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/export?sort=score_desc`,
+      { method: "GET", headers: { cookie: admin.cookie, accept: "text/csv" } },
+      env,
+    );
+    expect(exportRes.status).toBe(200);
+    expect(exportRes.headers.get("content-type") ?? "").toMatch(/text\/csv/);
+    expect(exportRes.headers.get("content-disposition") ?? "").toMatch(
+      /attachment/,
+    );
+    const csv = await exportRes.text();
+    const lines = csv.trim().split(/\r?\n/);
+    expect(lines[0]).toContain("aggregateScore");
+    expect(lines[0]).toContain("status");
+    // High score row before low score row
+    const highIdx = lines.findIndex((l) => l.includes(highId));
+    const lowIdx = lines.findIndex((l) => l.includes(lowId));
+    expect(highIdx).toBeGreaterThan(0);
+    expect(lowIdx).toBeGreaterThan(0);
+    expect(highIdx).toBeLessThan(lowIdx);
+
+    const rollupSorted = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rollup?sort=score_desc`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(rollupSorted.status).toBe(200);
+    const rollup = EvalAdminRollupResponseSchema.parse(
+      await rollupSorted.json(),
+    );
+    expect(rollup.submissions[0]!.submissionId).toBe(highId);
+    expect(rollup.submissions[1]!.submissionId).toBe(lowId);
+  });
+
+  it("10.6: unauthenticated export returns 401; evaluator 403", async () => {
+    const shared = createAppWithAuth({ cookieSecure: true });
+    const admin = await magicLinkSession(
+      "admin",
+      "eval-admin-export-authz@example.com",
+      undefined,
+      shared,
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Export Authz");
+    const evaluator = await magicLinkSession(
+      "evaluator",
+      "eval-evaluator-export-authz@example.com",
+      event.id,
+      shared,
+    );
+
+    const anon = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/export`,
+      { method: "GET" },
+      env,
+    );
+    expect(anon.status).toBe(401);
+
+    const evalRes = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/export`,
+      { headers: { cookie: evaluator.cookie } },
+      env,
+    );
+    expect(evalRes.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(await evalRes.json()).code).toBe(
+      FORBIDDEN,
+    );
+  });
 });

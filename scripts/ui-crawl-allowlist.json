@@ -105,6 +105,8 @@
     { "testid": "submissions-page-next", "inv": "E01", "surface": "admin", "journey": "Submissions list next page (10.1 S-SUB-LIST)" },
     { "testid": "eval-queue-item-*", "inv": "F01", "surface": "evaluator", "journey": "Open assigned eval item" },
     { "testid": "eval-score-save", "inv": "F02", "surface": "evaluator", "journey": "Save evaluation score" },
+    { "testid": "eval-export-csv", "inv": "F05", "surface": "admin", "journey": "Export evaluation scores CSV" },
+    { "testid": "eval-sort-select", "inv": "F05", "surface": "admin", "journey": "Sort evaluation rollup by score" },
     { "testid": "readiness-refresh", "inv": "H01", "surface": "admin", "journey": "Refresh readiness dashboard" },
     { "testid": "schedule-view-list", "inv": "I01", "surface": "admin", "journey": "Schedule list view tab" },
     { "testid": "schedule-view-day", "inv": "I02", "surface": "admin", "journey": "Schedule day view tab" },

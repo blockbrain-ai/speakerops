@@ -13,6 +13,7 @@ import {
   formatConflictMessage,
   groupByRoom,
   groupByTrack,
+  isDayWithinEventRange,
   isScheduleView,
   placementInSlot,
   placementsOnDay,
@@ -92,6 +93,52 @@ describe("schedule-utils", () => {
     expect(zonedDayKey("2026-09-02T01:00:00.000Z", "America/New_York")).toBe(
       "2026-09-01",
     );
+  });
+
+  it("10.6 AC-10.6-A: mid-week event omits pre-event weekdays (no Mon/Tue chrome)", () => {
+    // Wed 2026-09-02 → Fri 2026-09-04 UTC — must not invent Mon 08-31 or Tue 09-01.
+    const keys = buildDayKeys(
+      "2026-09-02T09:00:00.000Z",
+      "2026-09-04T17:00:00.000Z",
+      7,
+      "UTC",
+    );
+    expect(keys).toEqual(["2026-09-02", "2026-09-03", "2026-09-04"]);
+    expect(keys).not.toContain("2026-08-31");
+    expect(keys).not.toContain("2026-09-01");
+    expect(keys).not.toContain("2026-09-05");
+    expect(keys).not.toContain("2026-09-06");
+  });
+
+  it("10.6: half-open end excludes calendar day when endsAt is midnight", () => {
+    // Ends exactly at Fri 00:00 UTC → last included day is Thu.
+    const keys = buildDayKeys(
+      "2026-09-02T09:00:00.000Z",
+      "2026-09-05T00:00:00.000Z",
+      7,
+      "UTC",
+    );
+    expect(keys).toEqual(["2026-09-02", "2026-09-03", "2026-09-04"]);
+    expect(keys).not.toContain("2026-09-05");
+  });
+
+  it("10.6: isDayWithinEventRange rejects days outside event", () => {
+    expect(
+      isDayWithinEventRange(
+        "2026-09-01",
+        "2026-09-02T09:00:00.000Z",
+        "2026-09-04T17:00:00.000Z",
+        "UTC",
+      ),
+    ).toBe(false);
+    expect(
+      isDayWithinEventRange(
+        "2026-09-03",
+        "2026-09-02T09:00:00.000Z",
+        "2026-09-04T17:00:00.000Z",
+        "UTC",
+      ),
+    ).toBe(true);
   });
 
   it("dayWindowUtc and dayWindowForEvent clamp multi-day in event TZ", () => {
