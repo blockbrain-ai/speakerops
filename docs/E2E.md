@@ -92,6 +92,15 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `playwright/e2e/phase7_keystone.spec.ts` | Section **7.4** I12 keystone (K* → CLI07 deny → airtable pause) |
 | `playwright/e2e/states_cross_cutting.spec.ts` | Section **8.2** L01–L04 empty/error/loading/console-clean |
 | `playwright/e2e/phase8_full_suite_keystone.spec.ts` | Section **8.2** full-suite soul path keystone |
+| `playwright/e2e/phase10_product_keystone.spec.ts` | Section **10.7** Phase 10 product reliability I12 keystone (eight souls F) |
+| `playwright/e2e/submissions_list_reliability.spec.ts` | Section **10.1** S-SUB-LIST AC-10.1-A |
+| `playwright/e2e/evaluations_progress.spec.ts` | Section **10.2** S-EVAL-UI AC-10.2-A |
+| `playwright/e2e/public_cfp_submit_demo.spec.ts` | Section **10.3** S-CFP-SUBMIT / S-CFP-CLOSED |
+| `playwright/e2e/auth_roles_dogfood.spec.ts` | Section **10.4** S-AUTH-ROLES AC-10.4-* |
+| `playwright/e2e/cfp_draft.spec.ts` | Section **10.5** S-CFP-DRAFT `@inv:A17` |
+| `playwright/e2e/schedule_day_chrome.spec.ts` | Section **10.6** S-SCHED-CHROME AC-10.6-A |
+| `playwright/e2e/eval_export_sort.spec.ts` | Section **10.6** S-EVAL-EXPORT `@inv:F05` |
+| `initiative/PHASE10_11_GAP_CLOSE/evidence/phase10-keystone.md` | Section **10.7** F keystone evidence |
 | `scripts/e2e-api-server.mjs` | Local Hono `/health` for e2e (no wrangler) |
 | `scripts/inventory-lint.ts` | Inventory lint CLI (1.5) + admin discovery crawl (8.1) |
 | `scripts/ui-crawl-allowlist.json` | Crawl chrome allowlist + primary controlMap (8.1) |
