@@ -14,7 +14,13 @@
  * + Dogfood role switcher (section 8.4 — dev / VITE_ROLE_SWITCHER only).
  * Composition root mounts this from main.tsx.
  */
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 import { AdminShell } from "./layout/AdminShell.js";
 import { RequireRole } from "./auth/RequireRole.js";
 import { EventProvider } from "./events/EventContext.js";
@@ -41,6 +47,22 @@ import {
   NotFoundPage,
 } from "./routes/placeholders.js";
 import type { ReactNode } from "react";
+
+/**
+ * Dogfood/dev role switcher — only on authenticated product surfaces.
+ * Never mount on public CFP / login: the fixed panel covers mobile submit (A09)
+ * and other primary controls. Placement CSS keeps it off schedule unschedule.
+ */
+function RoleSwitcherMount() {
+  const { pathname } = useLocation();
+  if (!isRoleSwitcherEnabled()) return null;
+  const onDogfoodSurface =
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/portal") ||
+    pathname.startsWith("/eval");
+  if (!onDogfoodSurface) return null;
+  return <RoleSwitcher />;
+}
 
 /** Wrap admin chrome with server-backed admin role guard (B04/B05) + event context. */
 function AdminGuard({ children }: { children: ReactNode }) {
@@ -218,8 +240,8 @@ export function App() {
   return (
     <BrowserRouter>
       <div id="speakerops-root" data-section="4.3" data-testid="app-root">
-        {/* Section 8.4 — floating dogfood/dev role switcher (hidden when flag off). */}
-        {isRoleSwitcherEnabled() ? <RoleSwitcher /> : null}
+        {/* Section 8.4 — dogfood surfaces only (not public CFP / login). */}
+        <RoleSwitcherMount />
         <AppRoutes />
       </div>
     </BrowserRouter>

@@ -711,6 +711,30 @@ export function resolvePlaywrightSelectedSuite(options = {}) {
 }
 
 /**
+ * Whether a suite source is Playwright **list/collection** discovery only.
+ * `playwright test --list --reporter=json` marks every test `status: "skipped"`
+ * with empty results — that must never count as Phase 8 execution proof.
+ *
+ * @param {string | undefined | null} source
+ */
+export function isPlaywrightListDiscoverySource(source) {
+  if (typeof source !== "string" || !source.trim()) return false;
+  const s = source.trim().toLowerCase();
+  return s.startsWith("playwright-list");
+}
+
+/**
+ * Suite is usable as Phase 8 **execution** evidence (not list collection).
+ *
+ * @param {{ entries?: PlaywrightSuiteEntry[], source?: string, hasExecutionOutcomes?: boolean } | null | undefined} suite
+ */
+export function suiteIsExecutionRunReport(suite) {
+  if (!suite || !suiteHasExecutionOutcomes(suite)) return false;
+  if (isPlaywrightListDiscoverySource(suite.source)) return false;
+  return true;
+}
+
+/**
  * Resolve a Playwright **execution** run report for Phase 8 outcome proof.
  *
  * Unlike `resolvePlaywrightSelectedSuite` (discovery / tags), this prefers
@@ -718,11 +742,17 @@ export function resolvePlaywrightSelectedSuite(options = {}) {
  * inventory does not need an extra env var — without letting that file
  * replace full-suite discovery after a partial single-spec run.
  *
+ * **Never** treat `playwright-list-*` (CLI `--list`) as execution evidence:
+ * list JSON assigns `status: "skipped"` to every test, which would mark all
+ * inventory IDs skipped even when `reports/playwright-run.json` has real
+ * passed outcomes.
+ *
  * Resolution order:
- * 1. Injected suite when it already has execution outcomes
+ * 1. Injected suite when it has real execution outcomes (not list discovery)
  * 2. Explicit report path (options / env)
  * 3. Default `reports/playwright-run.json` when present and has outcomes
- * 4. null (caller fails Phase 8 with a clear message)
+ * 4. selectedSuite only when it already carries real run outcomes (not list)
+ * 5. null (caller fails Phase 8 with a clear message)
  *
  * @param {object} [options]
  * @param {string} [options.root]
@@ -736,26 +766,23 @@ export function resolvePlaywrightRunReport(options = {}) {
   const root = options.root ?? defaultRoot;
   const env = options.env ?? process.env;
 
-  if (
-    options.selectedSuite &&
-    suiteHasExecutionOutcomes(options.selectedSuite)
-  ) {
-    return options.selectedSuite;
-  }
-
+  // Injected programmatic suite (unit probes / harness) — reject list sources.
   if (options.playwrightSuite != null) {
     const suite = normalizePlaywrightSuite(options.playwrightSuite, root);
-    if (suite && suiteHasExecutionOutcomes(suite)) {
+    if (suite) {
       suite.source =
         typeof options.playwrightSuite === "object" &&
         options.playwrightSuite &&
         typeof /** @type {any} */ (options.playwrightSuite).source === "string"
           ? /** @type {any} */ (options.playwrightSuite).source
           : "injected";
-      return suite;
+      if (suiteIsExecutionRunReport(suite)) {
+        return suite;
+      }
     }
   }
 
+  // Explicit path first (operator override / CI artifact).
   const explicitReportPath =
     options.suiteReportPath ||
     env.E2E_PLAYWRIGHT_RUN_REPORT ||
@@ -763,15 +790,21 @@ export function resolvePlaywrightRunReport(options = {}) {
     "";
   if (explicitReportPath) {
     const fromReport = loadPlaywrightSuiteReport(explicitReportPath, root);
-    if (fromReport && suiteHasExecutionOutcomes(fromReport)) {
+    if (fromReport && suiteIsExecutionRunReport(fromReport)) {
       return fromReport;
     }
   }
 
+  // Default artifact written by `pnpm test:e2e` — prefer over list discovery.
   const defaultReport = defaultPlaywrightRunReportPath(root);
   const fromDefault = loadPlaywrightSuiteReport(defaultReport, root);
-  if (fromDefault && suiteHasExecutionOutcomes(fromDefault)) {
+  if (fromDefault && suiteIsExecutionRunReport(fromDefault)) {
     return fromDefault;
+  }
+
+  // selectedSuite last — only if it is a real run report, never playwright-list-*.
+  if (suiteIsExecutionRunReport(options.selectedSuite)) {
+    return options.selectedSuite;
   }
 
   return null;

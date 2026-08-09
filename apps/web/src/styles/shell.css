@@ -135,23 +135,32 @@
   font-size: 13px;
 }
 
-/* Section 8.4 — dogfood/dev role switcher (Lumen tokens only) */
+/* Section 8.4 — dogfood/dev role switcher (Lumen tokens only).
+ * Top-right (not bottom toast): bottom placement covered public CFP submit
+ * and Schedule Studio unschedule controls during the full suite. */
 .role-switcher {
   position: fixed;
   z-index: var(--lumen-z-toast);
-  right: var(--lumen-space-4);
-  bottom: var(--lumen-space-4);
+  top: var(--lumen-space-3);
+  right: var(--lumen-space-3);
+  bottom: auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lumen-space-2);
-  max-width: min(420px, calc(100vw - var(--lumen-space-6) * 2));
-  padding: var(--lumen-space-3) var(--lumen-space-4);
+  max-width: min(360px, calc(100vw - var(--lumen-space-6) * 2));
+  padding: var(--lumen-space-2) var(--lumen-space-3);
   background: var(--lumen-surface);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-md);
   box-shadow: var(--lumen-shadow-sm);
   font-family: var(--lumen-font);
+  /* Do not intercept clicks outside the compact panel chrome */
+  pointer-events: none;
+}
+
+.role-switcher > * {
+  pointer-events: auto;
 }
 
 .role-switcher__label {

@@ -26,8 +26,11 @@ import {
   extractInvTaggedTests,
   normalizePlaywrightSuite,
   suiteHasExecutionOutcomes,
+  suiteIsExecutionRunReport,
+  isPlaywrightListDiscoverySource,
   isPassedNonSkippedResult,
   isSkippedExecutionResult,
+  resolvePlaywrightRunReport,
 } from "../../scripts/e2e-inventory-lint.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -418,6 +421,9 @@ describe("0.3 Browser E2E inventory law", () => {
       }
 
       const result = runInventoryLint({
+        // Isolate default report path (reports/playwright-run.json) to the probe
+        // so monorepo run artifacts cannot green-wash or shadow list-only fixtures.
+        root: probe,
         inventoryPath: invPath,
         baselinePath: baselinePathOverride || baselinePath,
         e2eRoots,
@@ -1876,6 +1882,70 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.ok(suite);
     assert.equal(suiteHasExecutionOutcomes(suite), false);
     assert.equal(isPassedNonSkippedResult(suite.entries[0]), false);
+  });
+
+  it("resolvePlaywrightRunReport rejects playwright-list-* and prefers real run report", () => {
+    // Playwright --list --reporter=json marks every test status:skipped.
+    // That must not shadow reports/playwright-run.json with real outcomes.
+    assert.equal(isPlaywrightListDiscoverySource("playwright-list-json"), true);
+    assert.equal(isPlaywrightListDiscoverySource("playwright-list-text"), true);
+    assert.equal(isPlaywrightListDiscoverySource("reports/playwright-run.json"), false);
+
+    const listSuite = {
+      source: "playwright-list-json",
+      files: ["e2e/a.spec.ts"],
+      entries: [
+        {
+          file: "e2e/a.spec.ts",
+          title: "@inv:A01 journey",
+          status: "skipped",
+        },
+      ],
+      hasExecutionOutcomes: true,
+    };
+    assert.equal(suiteHasExecutionOutcomes(listSuite), true);
+    assert.equal(suiteIsExecutionRunReport(listSuite), false);
+
+    const probe = mkdtempSync(join(tmpdir(), "speakerops-list-vs-run-"));
+    try {
+      const reportsDir = join(probe, "reports");
+      mkdirSync(reportsDir, { recursive: true });
+      const runPath = join(reportsDir, "playwright-run.json");
+      writeFileSync(
+        runPath,
+        JSON.stringify({
+          source: "test-real-run",
+          entries: [
+            {
+              file: "e2e/a.spec.ts",
+              title: "@inv:A01 journey",
+              status: "expected",
+              outcome: "passed",
+            },
+          ],
+        }),
+        "utf8",
+      );
+
+      const resolved = resolvePlaywrightRunReport({
+        root: probe,
+        env: {},
+        selectedSuite: listSuite,
+      });
+      assert.ok(resolved, "must resolve default run report");
+      assert.equal(isPlaywrightListDiscoverySource(resolved.source), false);
+      assert.ok(
+        resolved.entries.some((e) => isPassedNonSkippedResult(e)),
+        "run report must retain passed outcomes",
+      );
+      assert.equal(
+        resolved.entries.every((e) => e.status === "skipped"),
+        false,
+        "must not return list-all-skipped suite",
+      );
+    } finally {
+      rmSync(probe, { recursive: true, force: true });
+    }
   });
 
   it("law doc requires Phase 8 run report execution proof", () => {

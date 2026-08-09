@@ -247,8 +247,9 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
    * Security (E10 / phase audit): workers.dev is not private by itself.
    * Controlled/production dogfood requires:
    *   1) an existing valid session cookie (no anonymous mint), and
-   *   2) the actor holds **admin** membership on the target event
-   *      (judges only — speakers/evaluators cannot escalate to admin).
+   *   2) the actor holds **admin** membership on the **exact** target event
+   *      (E2 multi-event isolation — admin on A cannot mint sessions for B;
+   *      speakers/evaluators cannot escalate to admin).
    * Local e2e (open bootstrap) may allow unauthenticated switch for harness.
    */
   if (options.enableRoleSwitcher) {
@@ -320,7 +321,9 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
       }
 
       // Controlled/production: only event admins (judges) may mint demo roles.
-      // Any authenticated speaker/evaluator must not escalate to admin.
+      // Authorization is **event-scoped** (E2): admin membership is required
+      // on the exact target event — admin on event A must not mint sessions
+      // for event B. Speakers/evaluators must not escalate to admin.
       if (actorUserId) {
         const targetEventId =
           parsed.data.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
@@ -329,18 +332,13 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
           actorUserId,
         );
         if (!membership || membership.role !== "admin") {
-          // Also accept admin on any event for the actor (multi-event judges).
-          const all = await options.store.listMembershipsForUser(actorUserId);
-          const isAdminAnywhere = all.some((m) => m.role === "admin");
-          if (!isAdminAnywhere) {
-            return c.json(
-              errorEnvelope(
-                "Admin role required for role switch",
-                FORBIDDEN,
-              ),
-              403,
-            );
-          }
+          return c.json(
+            errorEnvelope(
+              "Admin role required for role switch on target event",
+              FORBIDDEN,
+            ),
+            403,
+          );
         }
       }
 

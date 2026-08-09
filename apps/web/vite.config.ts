@@ -21,7 +21,22 @@ const productionHeaders: Record<string, string> = { ...SECURITY_HEADERS };
 const devHeaders: Record<string, string> = { ...SECURITY_HEADERS_DEV };
 
 /**
- * Align index.html meta CSP with the response header for the current mode.
+ * Meta CSP must not include header-only directives. Chromium logs a console.error
+ * for `frame-ancestors` inside a `<meta http-equiv="Content-Security-Policy">`
+ * element (directive is ignored); that breaks console-clean L04 / keystones.
+ * Keep `frame-ancestors` on response headers (SECURITY_HEADERS / DEV).
+ */
+function cspPolicyForMeta(policy: string): string {
+  return policy
+    .split(";")
+    .map((d) => d.trim())
+    .filter((d) => d.length > 0 && !/^frame-ancestors\b/i.test(d))
+    .join("; ");
+}
+
+/**
+ * Align index.html meta CSP with the response header for the current mode,
+ * minus header-only directives (frame-ancestors).
  * Production meta stays strict; serve mode rewrites to CONTENT_SECURITY_POLICY_DEV
  * so the browser does not block the @vitejs/plugin-react preamble.
  */
@@ -31,10 +46,11 @@ function cspMetaAlignPlugin(): Plugin {
     transformIndexHtml: {
       order: "pre",
       handler(html, ctx) {
-        const policy =
+        const headerPolicy =
           ctx.server != null
             ? CONTENT_SECURITY_POLICY_DEV
             : CONTENT_SECURITY_POLICY;
+        const policy = cspPolicyForMeta(headerPolicy);
         return html.replace(
           /(<meta\s+http-equiv=["']Content-Security-Policy["']\s+content=")([^"]*)(")/i,
           `$1${policy}$3`,

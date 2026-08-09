@@ -199,6 +199,65 @@ describe("8.4 Auth.DevRoleSwitch", () => {
     expect(setCookie).not.toMatch(new RegExp(`${SESSION_COOKIE_NAME}=[^;]+`));
   });
 
+  it("controlled mode rejects admin of event A switching into event B (E2 isolation)", async () => {
+    // Admin membership on one event must not authorize demo sessions on another.
+    const { store } = createAppWithAuth({ enableRoleSwitcher: true });
+    const openApp = createApp({
+      authStore: store,
+      enableRoleSwitcher: true,
+      bootstrapPolicy: "open",
+      enableDevOutbox: true,
+    });
+    // Seed demo admin on default bootstrap event only.
+    const seed = await openApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(seed.status).toBe(200);
+    const adminCookie = sessionCookieFromResponse(seed);
+
+    // Create a second event the actor does not administer.
+    const otherEventId = "evt_other_isolation";
+    // Ensure actor is only admin on the bootstrap event (default), not otherEventId.
+    const memberships = await store.listMembershipsForUser(
+      // Resolve actor user from demo admin email after seed
+      (await store.findUserByEmail(DEMO_ROLE_EMAILS.admin))!.id,
+    );
+    expect(memberships.some((m) => m.role === "admin")).toBe(true);
+    expect(
+      memberships.every((m) => m.eventId !== otherEventId),
+    ).toBe(true);
+
+    const gatedApp = createApp({
+      authStore: store,
+      enableRoleSwitcher: true,
+      bootstrapPolicy: "controlled",
+      enableDevOutbox: false,
+    });
+
+    const denied = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: adminCookie,
+        },
+        body: JSON.stringify({ role: "evaluator", eventId: otherEventId }),
+      },
+    );
+    expect(denied.status).toBe(403);
+    const body = ErrorEnvelopeSchema.parse(await denied.json());
+    expect(body.code).toBe(FORBIDDEN);
+    expect(body.error).toMatch(/admin role required|target event/i);
+    const setCookie = denied.headers.get("set-cookie") ?? "";
+    expect(setCookie).not.toMatch(new RegExp(`${SESSION_COOKIE_NAME}=[^;]+`));
+  });
+
   it("controlled mode allows role-switch when caller is event admin", async () => {
     const { store } = createAppWithAuth({ enableRoleSwitcher: true });
     const seedApp = createApp({
