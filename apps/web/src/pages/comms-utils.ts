@@ -1,10 +1,25 @@
 /**
- * Comms admin UI helpers — trust-before-send gating (section 5.3 / S-COMMS).
+ * Comms admin UI helpers — trust-before-send gating (section 5.3 / S-COMMS)
+ * + campaign audience scale (section 11.2 / S-L2-COMMS).
  *
  * Named assertions:
  * - assert send button disabled until preview
  * - assert audience edit invalidates preview
+ * - unit audience filter (AC-11.2-SEL / AC-11.2-SCALE)
  */
+
+/** Max audience rows rendered at once (page or virtual window). */
+export const AUDIENCE_PAGE_SIZE = 25;
+
+/** Four-step campaign flow (page-atlas /admin/comms · AC-11.2-UI). */
+export const CAMPAIGN_STEPS = [
+  { id: "audience", label: "Audience", index: 1 },
+  { id: "message", label: "Message", index: 2 },
+  { id: "review", label: "Review", index: 3 },
+  { id: "send", label: "Send", index: 4 },
+] as const;
+
+export type CampaignStepId = (typeof CAMPAIGN_STEPS)[number]["id"];
 
 /** Whether the Send control may be enabled (J08 / J03 trust-before-send). */
 export function isSendEnabled(input: {
@@ -64,4 +79,95 @@ export function newIdempotencyKey(prefix = "ui"): string {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `${prefix}-${rand}`;
+}
+
+/** Lightweight speaker row used by audience filter/pagination (no React deps). */
+export type AudienceSpeakerRow = {
+  participationId: string;
+  name: string;
+  email: string | null;
+  status: string;
+};
+
+/**
+ * Filter audience for search + status segment (AC-11.2-SEL).
+ * Status `"all"` keeps every row (still searchable).
+ */
+export function filterAudienceSpeakers(
+  speakers: readonly AudienceSpeakerRow[],
+  opts: { status: string; query: string },
+): AudienceSpeakerRow[] {
+  const q = opts.query.trim().toLowerCase();
+  const status = opts.status.trim().toLowerCase();
+  return speakers.filter((s) => {
+    if (status && status !== "all" && s.status.toLowerCase() !== status) {
+      return false;
+    }
+    if (!q) return true;
+    const name = s.name.toLowerCase();
+    const email = (s.email ?? "").toLowerCase();
+    const id = s.participationId.toLowerCase();
+    return name.includes(q) || email.includes(q) || id.includes(q);
+  });
+}
+
+export type AudiencePage<T> = {
+  pageItems: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+/**
+ * Paginate audience so at most `pageSize` (default 25) rows are primary-visible
+ * (AC-11.2-SCALE). Clamps page into [1, totalPages].
+ */
+export function paginateAudience<T>(
+  items: readonly T[],
+  page: number,
+  pageSize: number = AUDIENCE_PAGE_SIZE,
+): AudiencePage<T> {
+  const size = Math.max(1, Math.floor(pageSize));
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / size));
+  const safePage = Math.min(Math.max(1, Math.floor(page) || 1), totalPages);
+  const start = (safePage - 1) * size;
+  return {
+    pageItems: items.slice(start, start + size),
+    page: safePage,
+    pageSize: size,
+    total,
+    totalPages,
+  };
+}
+
+/**
+ * Audience count for the sticky summary rail.
+ * Explicit selection wins; otherwise count filtered status segment.
+ */
+export function audienceCount(input: {
+  selectedParticipationIds: readonly string[];
+  filteredTotal: number;
+}): number {
+  if (input.selectedParticipationIds.length > 0) {
+    return input.selectedParticipationIds.length;
+  }
+  return input.filteredTotal;
+}
+
+/**
+ * Selection remains stable across filter/page when the id set is unchanged
+ * (order-independent). Used by unit tests for AC-11.2-SEL.
+ */
+export function selectionKey(ids: readonly string[]): string {
+  return [...ids].sort().join(",");
+}
+
+/** Whether selection survived a filter/page change (same multiset of ids). */
+export function isSelectionStable(
+  before: readonly string[],
+  after: readonly string[],
+): boolean {
+  return selectionKey(before) === selectionKey(after);
 }

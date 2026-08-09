@@ -1,7 +1,9 @@
 /**
- * Admin Comms — trust-before-send UI (section 5.3 / S-COMMS).
+ * Admin Comms — campaign workflow (section 11.2 / S-L2-COMMS) on top of
+ * trust-before-send (section 5.3 / S-COMMS).
  *
- * Templates · Segment builder · Preview · Gated send · Delivery log · ICS attach
+ * Steps: Audience → Message → Review → Send
+ * Audience: search, status segment, pagination ≤25 (no 150-checkbox wall).
  *
  * Inventory J01–J10. APIs:
  *   PUT  /api/events/:eventId/templates/:key
@@ -39,11 +41,21 @@ import {
   type AdminSpeakerListItem,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
+import { Button } from "../components/ui/Button.js";
+import { Badge } from "../components/ui/Badge.js";
+import { PageHeader } from "../components/ui/PageHeader.js";
 import {
   isSendEnabled,
   segmentFingerprint,
   sendDisabledReason,
   newIdempotencyKey,
+  AUDIENCE_PAGE_SIZE,
+  CAMPAIGN_STEPS,
+  filterAudienceSpeakers,
+  paginateAudience,
+  audienceCount,
+  type CampaignStepId,
+  type AudienceSpeakerRow,
 } from "./comms-utils.js";
 
 export function CommsPage() {
@@ -57,6 +69,9 @@ export function CommsPage() {
   const loadGenRef = useRef(0);
   const activeEventIdRef = useRef(activeEventId);
   activeEventIdRef.current = activeEventId;
+
+  // —— Campaign step chrome (AC-11.2-UI) ——
+  const [activeStep, setActiveStep] = useState<CampaignStepId>("audience");
 
   // —— Template editor (J01) ——
   const [key, setKey] = useState("accept-reminder");
@@ -75,13 +90,15 @@ export function CommsPage() {
   const [saving, setSaving] = useState(false);
   const [templates, setTemplates] = useState<EmailTemplateDto[]>([]);
 
-  // —— Segment (J02) ——
+  // —— Segment / audience (J02) + scale (AC-11.2-SCALE) ——
   const [segmentStatus, setSegmentStatus] = useState("accepted");
   const [selectedParticipationIds, setSelectedParticipationIds] = useState<
     string[]
   >([]);
   const [speakers, setSpeakers] = useState<AdminSpeakerListItem[]>([]);
   const [speakersError, setSpeakersError] = useState<string | null>(null);
+  const [audienceQuery, setAudienceQuery] = useState("");
+  const [audiencePage, setAudiencePage] = useState(1);
 
   // —— Preview (J03) / invalidation (J09) ——
   const [preview, setPreview] = useState<CommsPreviewResponse | null>(null);
@@ -124,6 +141,46 @@ export function CommsPage() {
 
   const mergeFields = extractMergeFields(subject, body);
 
+  const audienceRows: AudienceSpeakerRow[] = useMemo(
+    () =>
+      speakers.map((s) => ({
+        participationId: s.participation.id,
+        name:
+          s.participation.personName ??
+          s.participation.personEmail ??
+          s.participation.id,
+        email: s.participation.personEmail ?? null,
+        status: s.participation.status,
+      })),
+    [speakers],
+  );
+
+  const filteredAudience = useMemo(
+    () =>
+      filterAudienceSpeakers(audienceRows, {
+        status: segmentStatus,
+        query: audienceQuery,
+      }),
+    [audienceRows, segmentStatus, audienceQuery],
+  );
+
+  const audiencePageData = useMemo(
+    () => paginateAudience(filteredAudience, audiencePage, AUDIENCE_PAGE_SIZE),
+    [filteredAudience, audiencePage],
+  );
+
+  // Clamp page when filter shrinks the result set.
+  useEffect(() => {
+    if (audiencePage !== audiencePageData.page) {
+      setAudiencePage(audiencePageData.page);
+    }
+  }, [audiencePage, audiencePageData.page]);
+
+  const segmentCount = audienceCount({
+    selectedParticipationIds,
+    filteredTotal: filteredAudience.length,
+  });
+
   const currentFingerprint = useMemo(
     () =>
       segmentFingerprint({
@@ -153,12 +210,6 @@ export function CommsPage() {
     recipientCount: preview?.recipientCount ?? 0,
     sending,
   });
-
-  const segmentCount =
-    selectedParticipationIds.length > 0
-      ? selectedParticipationIds.length
-      : speakers.filter((s) => s.participation.status === segmentStatus)
-          .length;
 
   const invalidatePreview = useCallback(() => {
     setPreview(null);
@@ -322,6 +373,9 @@ export function CommsPage() {
     setJobs([]);
     setInvites([]);
     setTemplates([]);
+    setAudienceQuery("");
+    setAudiencePage(1);
+    setActiveStep("audience");
 
     if (!activeEventId) {
       return;
@@ -490,7 +544,7 @@ export function CommsPage() {
   ]);
 
   const onSend = useCallback(async () => {
-    if (!previewValid || !preview) return;
+    if (!previewValid || !preview || sending) return;
     setSending(true);
     setSendStatus(null);
     const idempotencyKey = lastIdempotencyKey ?? newIdempotencyKey("send");
@@ -543,6 +597,7 @@ export function CommsPage() {
     lastIdempotencyKey,
     activeEventId,
     loadJobs,
+    sending,
   ]);
 
   const openJobDetail = useCallback(
@@ -647,15 +702,49 @@ export function CommsPage() {
     invalidatePreview();
   }
 
+  function selectVisiblePage() {
+    const pageIds = audiencePageData.pageItems.map((r) => r.participationId);
+    setSelectedParticipationIds((prev) => {
+      const set = new Set(prev);
+      for (const id of pageIds) set.add(id);
+      return [...set];
+    });
+    invalidatePreview();
+  }
+
+  function selectAllMatching() {
+    setSelectedParticipationIds(
+      filteredAudience.map((r) => r.participationId),
+    );
+    invalidatePreview();
+  }
+
+  function goToStep(step: CampaignStepId) {
+    setActiveStep(step);
+    const el = document.getElementById(`comms-step-${step}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  const previewStateLabel = !preview
+    ? "No preview"
+    : previewValid
+      ? "Preview ready"
+      : "Preview stale";
+
   return (
-    <div className="event-settings" data-testid="page-comms" data-section="5.3">
-      <p className="page-stub__overline">Comms</p>
-      <h2 className="page-stub__title">Email &amp; calendar</h2>
-      <p className="page-stub__body">
-        Trust-before-send: edit templates, build a segment, preview every
-        recipient body, then send once (idempotent). ICS attaches for scheduled
-        sessions keep a stable UID and bump SEQUENCE on reschedule.
-      </p>
+    <div
+      className="comms-campaign"
+      data-testid="page-comms"
+      data-section="11.2"
+    >
+      <PageHeader
+        eyebrow="Comms"
+        title="Campaign"
+        description="Audience → Message → Review → Send. Trust-before-send: preview every recipient, then send once (idempotent). Audience lists stay at most 25 rows visible."
+        data-testid="comms-page-header"
+      />
 
       {!activeEventId ? (
         <p className="eval-queue__muted" data-testid="comms-no-event">
@@ -665,15 +754,321 @@ export function CommsPage() {
 
       {activeEventId ? (
         <>
-          {/* —— J01 Template editor —— */}
-          <section
-            className="event-settings__card"
-            data-testid="comms-template-editor"
-            aria-labelledby="comms-template-heading"
+          {/* Sticky campaign summary — count always visible (AC-11.2-SCALE) */}
+          <div
+            className="comms-campaign__summary"
+            data-testid="comms-campaign-summary"
+            role="status"
           >
-            <h3 id="comms-template-heading" className="event-settings__heading">
-              Template editor
-            </h3>
+            <div className="comms-campaign__summary-main">
+              <span
+                className="comms-campaign__summary-count"
+                data-testid="comms-summary-count"
+                data-count={String(segmentCount)}
+              >
+                <strong>{segmentCount}</strong> recipient
+                {segmentCount === 1 ? "" : "s"}
+              </span>
+              <Badge
+                tone={
+                  previewValid ? "success" : preview ? "warn" : "neutral"
+                }
+                data-testid="comms-summary-preview-badge"
+              >
+                {previewStateLabel}
+              </Badge>
+              {selectedParticipationIds.length > 0 ? (
+                <Badge tone="brand" data-testid="comms-summary-selection-mode">
+                  Explicit selection
+                </Badge>
+              ) : (
+                <Badge tone="info" data-testid="comms-summary-status-mode">
+                  Status = {segmentStatus}
+                </Badge>
+              )}
+            </div>
+            <nav
+              className="comms-campaign__steps"
+              aria-label="Campaign steps"
+              data-testid="comms-campaign-steps"
+            >
+              {CAMPAIGN_STEPS.map((step) => (
+                <button
+                  key={step.id}
+                  type="button"
+                  className={
+                    activeStep === step.id
+                      ? "comms-campaign__step is-active lumen-focusable"
+                      : "comms-campaign__step lumen-focusable"
+                  }
+                  data-testid={`comms-step-nav-${step.id}`}
+                  data-step={step.id}
+                  aria-current={activeStep === step.id ? "step" : undefined}
+                  onClick={() => goToStep(step.id)}
+                >
+                  <span className="comms-campaign__step-index" aria-hidden="true">
+                    {step.index}
+                  </span>
+                  <span className="comms-campaign__step-label">{step.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          {/* —— Step 1: Audience (J02 + scale) —— */}
+          <section
+            id="comms-step-audience"
+            className="event-settings__card comms-campaign__panel"
+            data-testid="comms-segment-builder"
+            data-step="audience"
+            aria-labelledby="comms-segment-heading"
+            onFocusCapture={() => setActiveStep("audience")}
+          >
+            <div className="comms-campaign__panel-header">
+              <Badge tone="brand">1 · Audience</Badge>
+              <h3 id="comms-segment-heading" className="event-settings__heading">
+                Segment audience
+              </h3>
+            </div>
+            <p className="page-stub__body">
+              Filter by participation status and search. Lists show at most{" "}
+              {AUDIENCE_PAGE_SIZE} rows — use pagination or select-all matching.
+              Summary count stays visible above.
+            </p>
+            {speakersError ? (
+              <p
+                className="event-settings__status event-settings__status--error"
+                role="alert"
+              >
+                {speakersError}
+              </p>
+            ) : null}
+
+            <div className="comms-campaign__audience-controls">
+              <label
+                className="event-settings__label"
+                htmlFor="comms-segment-status"
+              >
+                Status filter
+              </label>
+              <select
+                id="comms-segment-status"
+                className="event-settings__input lumen-focusable"
+                data-testid="comms-segment-status"
+                value={segmentStatus}
+                onChange={(e) => {
+                  setSegmentStatus(e.target.value);
+                  setAudiencePage(1);
+                  invalidatePreview();
+                }}
+                disabled={selectedParticipationIds.length > 0}
+              >
+                <option value="accepted">accepted</option>
+                <option value="waitlisted">waitlisted</option>
+                <option value="rejected">rejected</option>
+                <option value="invited">invited</option>
+              </select>
+
+              <label
+                className="event-settings__label"
+                htmlFor="comms-audience-search"
+              >
+                Search
+              </label>
+              <input
+                id="comms-audience-search"
+                className="event-settings__input lumen-focusable"
+                data-testid="comms-audience-search"
+                type="search"
+                placeholder="Name, email, or id"
+                value={audienceQuery}
+                onChange={(e) => {
+                  setAudienceQuery(e.target.value);
+                  setAudiencePage(1);
+                }}
+                autoComplete="off"
+              />
+            </div>
+
+            <p
+              className="event-settings__meta"
+              data-testid="comms-segment-count"
+              data-count={String(segmentCount)}
+            >
+              Audience count: <strong>{segmentCount}</strong>
+              {selectedParticipationIds.length > 0
+                ? " (explicit selection)"
+                : ` (status=${segmentStatus})`}
+              {audienceQuery.trim()
+                ? ` · filtered ${filteredAudience.length} of ${audienceRows.length}`
+                : ""}
+            </p>
+
+            <div
+              className="comms-campaign__audience-actions"
+              data-testid="comms-audience-actions"
+            >
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="comms-audience-select-page"
+                onClick={() => selectVisiblePage()}
+                disabled={audiencePageData.pageItems.length === 0}
+              >
+                Select page
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="comms-audience-select-all"
+                onClick={() => selectAllMatching()}
+                disabled={filteredAudience.length === 0}
+              >
+                Select all matching
+              </Button>
+              {selectedParticipationIds.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="quiet"
+                  size="sm"
+                  data-testid="comms-segment-clear"
+                  onClick={() => {
+                    setSelectedParticipationIds([]);
+                    invalidatePreview();
+                  }}
+                >
+                  Clear selection (use status filter)
+                </Button>
+              ) : null}
+            </div>
+
+            <ul
+              className="event-settings__list comms-campaign__audience-list"
+              data-testid="comms-segment-speakers"
+              data-page={String(audiencePageData.page)}
+              data-page-size={String(audiencePageData.pageSize)}
+              data-visible-count={String(audiencePageData.pageItems.length)}
+              data-total={String(audiencePageData.total)}
+            >
+              {speakers.length === 0 ? (
+                <li
+                  className="event-settings__list-empty"
+                  data-testid="comms-segment-empty"
+                >
+                  No speakers yet — accept a submission or create a direct
+                  session.
+                </li>
+              ) : audiencePageData.pageItems.length === 0 ? (
+                <li
+                  className="event-settings__list-empty"
+                  data-testid="comms-audience-empty-filter"
+                >
+                  No speakers match this filter or search.
+                </li>
+              ) : (
+                audiencePageData.pageItems.map((row) => {
+                  const id = row.participationId;
+                  const checked = selectedParticipationIds.includes(id);
+                  return (
+                    <li key={id} data-testid={`comms-audience-row-${id}`}>
+                      <label className="eval-queue__row comms-campaign__audience-row">
+                        <input
+                          type="checkbox"
+                          className="lumen-focusable"
+                          data-testid={`comms-segment-pick-${id}`}
+                          checked={checked}
+                          onChange={() => toggleParticipation(id)}
+                        />{" "}
+                        <span className="comms-campaign__audience-label">
+                          {row.name}
+                        </span>{" "}
+                        <span className="eval-queue__muted">
+                          ({row.status}
+                          {row.email ? ` · ${row.email}` : ""})
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+
+            {audiencePageData.total > 0 ? (
+              <div
+                className="comms-campaign__pager"
+                data-testid="comms-audience-pager"
+              >
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  data-testid="comms-audience-prev"
+                  disabled={audiencePageData.page <= 1}
+                  onClick={() =>
+                    setAudiencePage((p) => Math.max(1, p - 1))
+                  }
+                >
+                  Previous
+                </Button>
+                <span
+                  className="comms-campaign__pager-meta"
+                  data-testid="comms-audience-page-meta"
+                  data-page={String(audiencePageData.page)}
+                  data-total-pages={String(audiencePageData.totalPages)}
+                >
+                  Page {audiencePageData.page} of {audiencePageData.totalPages}
+                  {" · "}
+                  showing {audiencePageData.pageItems.length} of{" "}
+                  {audiencePageData.total}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  data-testid="comms-audience-next"
+                  disabled={
+                    audiencePageData.page >= audiencePageData.totalPages
+                  }
+                  onClick={() =>
+                    setAudiencePage((p) =>
+                      Math.min(audiencePageData.totalPages, p + 1),
+                    )
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+            ) : null}
+
+            <div className="comms-campaign__step-footer">
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="comms-step-next-message"
+                onClick={() => goToStep("message")}
+              >
+                Continue to message
+              </Button>
+            </div>
+          </section>
+
+          {/* —— Step 2: Message / template (J01) —— */}
+          <section
+            id="comms-step-message"
+            className="event-settings__card comms-campaign__panel"
+            data-testid="comms-template-editor"
+            data-step="message"
+            aria-labelledby="comms-template-heading"
+            onFocusCapture={() => setActiveStep("message")}
+          >
+            <div className="comms-campaign__panel-header">
+              <Badge tone="brand">2 · Message</Badge>
+              <h3 id="comms-template-heading" className="event-settings__heading">
+                Template editor
+              </h3>
+            </div>
             {templates.length > 0 ? (
               <div
                 className="event-settings__list"
@@ -766,14 +1161,15 @@ export function CommsPage() {
                   : mergeFields.map((f) => `{{${f}}}`).join(", ")}
               </p>
 
-              <button
+              <Button
                 type="submit"
-                className="event-settings__submit lumen-focusable"
+                variant="primary"
                 data-testid="comms-template-save"
+                pending={saving}
                 disabled={saving}
               >
                 {saving ? "Saving…" : "Save template"}
-              </button>
+              </Button>
             </form>
 
             {templateStatus ? (
@@ -807,157 +1203,58 @@ export function CommsPage() {
                 Template id: {templateId}
               </p>
             ) : null}
-          </section>
 
-          {/* —— J02 Segment builder —— */}
-          <section
-            className="event-settings__card"
-            data-testid="comms-segment-builder"
-            aria-labelledby="comms-segment-heading"
-          >
-            <h3 id="comms-segment-heading" className="event-settings__heading">
-              Segment audience
-            </h3>
-            <p className="page-stub__body">
-              Filter by participation status, or pick specific speakers. Count
-              updates as you change the audience.
-            </p>
-            {speakersError ? (
-              <p
-                className="event-settings__status event-settings__status--error"
-                role="alert"
-              >
-                {speakersError}
-              </p>
-            ) : null}
-            <label
-              className="event-settings__label"
-              htmlFor="comms-segment-status"
-            >
-              Status filter
-            </label>
-            <select
-              id="comms-segment-status"
-              className="event-settings__input lumen-focusable"
-              data-testid="comms-segment-status"
-              value={segmentStatus}
-              onChange={(e) => {
-                setSegmentStatus(e.target.value);
-                invalidatePreview();
-              }}
-              disabled={selectedParticipationIds.length > 0}
-            >
-              <option value="accepted">accepted</option>
-              <option value="waitlisted">waitlisted</option>
-              <option value="rejected">rejected</option>
-              <option value="invited">invited</option>
-            </select>
-
-            <p
-              className="event-settings__meta"
-              data-testid="comms-segment-count"
-              data-count={String(segmentCount)}
-            >
-              Audience count: <strong>{segmentCount}</strong>
-              {selectedParticipationIds.length > 0
-                ? " (explicit selection)"
-                : ` (status=${segmentStatus})`}
-            </p>
-
-            <ul
-              className="event-settings__list"
-              data-testid="comms-segment-speakers"
-            >
-              {speakers.length === 0 ? (
-                <li
-                  className="event-settings__list-empty"
-                  data-testid="comms-segment-empty"
-                >
-                  No speakers yet — accept a submission or create a direct
-                  session.
-                </li>
-              ) : (
-                speakers.map((s) => {
-                  const id = s.participation.id;
-                  const checked = selectedParticipationIds.includes(id);
-                  const label =
-                    s.participation.personName ??
-                    s.participation.personEmail ??
-                    id;
-                  return (
-                    <li key={id}>
-                      <label className="eval-queue__row">
-                        <input
-                          type="checkbox"
-                          className="lumen-focusable"
-                          data-testid={`comms-segment-pick-${id}`}
-                          checked={checked}
-                          onChange={() => toggleParticipation(id)}
-                        />{" "}
-                        {label}{" "}
-                        <span className="eval-queue__muted">
-                          ({s.participation.status})
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })
-              )}
-            </ul>
-            {selectedParticipationIds.length > 0 ? (
-              <button
+            <div className="comms-campaign__step-footer">
+              <Button
                 type="button"
-                className="eval-queue__link lumen-focusable"
-                data-testid="comms-segment-clear"
-                onClick={() => {
-                  setSelectedParticipationIds([]);
-                  invalidatePreview();
-                }}
+                variant="secondary"
+                data-testid="comms-step-back-audience"
+                onClick={() => goToStep("audience")}
               >
-                Clear selection (use status filter)
-              </button>
-            ) : null}
+                Back
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="comms-step-next-review"
+                onClick={() => goToStep("review")}
+              >
+                Continue to review
+              </Button>
+            </div>
           </section>
 
-          {/* —— J03 Preview + J08 gated send —— */}
+          {/* —— Step 3: Review (J03 / J08 preview gate) —— */}
           <section
-            className="event-settings__card"
+            id="comms-step-review"
+            className="event-settings__card comms-campaign__panel"
             data-testid="comms-preview-panel"
+            data-step="review"
             aria-labelledby="comms-preview-heading"
+            onFocusCapture={() => setActiveStep("review")}
           >
-            <h3 id="comms-preview-heading" className="event-settings__heading">
-              Preview &amp; send
-            </h3>
+            <div className="comms-campaign__panel-header">
+              <Badge tone="brand">3 · Review</Badge>
+              <h3 id="comms-preview-heading" className="event-settings__heading">
+                Preview recipients
+              </h3>
+            </div>
+            <p className="page-stub__body">
+              Run a full preview before send. Editing audience or message
+              invalidates this preview.
+            </p>
             <div className="eval-queue__row">
-              <button
+              <Button
                 type="button"
-                className="event-settings__submit lumen-focusable"
+                variant="secondary"
                 data-testid="comms-preview-run"
+                pending={previewing}
                 disabled={previewing || !templateId}
                 onClick={() => void onPreview()}
               >
                 {previewing ? "Previewing…" : "Run preview"}
-              </button>
-              <button
-                type="button"
-                className="event-settings__submit lumen-focusable"
-                data-testid="comms-send-button"
-                disabled={!sendEnabled}
-                aria-disabled={!sendEnabled}
-                title={sendReason ?? "Send once (idempotent)"}
-                onClick={() => void onSend()}
-              >
-                {sending ? "Sending…" : "Send"}
-              </button>
+              </Button>
             </div>
-            {!sendEnabled && sendReason ? (
-              <p
-                className="eval-queue__muted"
-                data-testid="comms-send-blocked-reason"
-              >
-                {sendReason}
-              </p>
-            ) : null}
             {previewStatus ? (
               <p
                 className={
@@ -969,21 +1266,6 @@ export function CommsPage() {
                 role={previewStatus.kind === "error" ? "alert" : "status"}
               >
                 {previewStatus.text}
-              </p>
-            ) : null}
-            {sendStatus ? (
-              <p
-                className={
-                  sendStatus.kind === "error"
-                    ? "event-settings__status event-settings__status--error"
-                    : "event-settings__status"
-                }
-                data-testid="comms-send-status"
-                role={sendStatus.kind === "error" ? "alert" : "status"}
-                data-job-id={lastJobId ?? ""}
-                data-idempotency-key={lastIdempotencyKey ?? ""}
-              >
-                {sendStatus.text}
               </p>
             ) : null}
 
@@ -1023,6 +1305,95 @@ export function CommsPage() {
                 </div>
               </div>
             ) : null}
+
+            <div className="comms-campaign__step-footer">
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="comms-step-back-message"
+                onClick={() => goToStep("message")}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="comms-step-next-send"
+                onClick={() => goToStep("send")}
+              >
+                Continue to send
+              </Button>
+            </div>
+          </section>
+
+          {/* —— Step 4: Send (J04 / J08 gated) —— */}
+          <section
+            id="comms-step-send"
+            className="event-settings__card comms-campaign__panel"
+            data-testid="comms-send-panel"
+            data-step="send"
+            aria-labelledby="comms-send-heading"
+            onFocusCapture={() => setActiveStep("send")}
+          >
+            <div className="comms-campaign__panel-header">
+              <Badge tone="brand">4 · Send</Badge>
+              <h3 id="comms-send-heading" className="event-settings__heading">
+                Confirm &amp; send
+              </h3>
+            </div>
+            <p className="page-stub__body">
+              Send is disabled until a valid preview matches the current
+              audience and message. Double-submit is guarded; retries reuse the
+              same idempotency key.
+            </p>
+            <div className="eval-queue__row">
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="comms-send-button"
+                pending={sending}
+                disabled={!sendEnabled}
+                aria-disabled={!sendEnabled}
+                title={sendReason ?? "Send once (idempotent)"}
+                onClick={() => void onSend()}
+              >
+                {sending ? "Sending…" : "Send"}
+              </Button>
+            </div>
+            {!sendEnabled && sendReason ? (
+              <p
+                className="eval-queue__muted"
+                data-testid="comms-send-blocked-reason"
+              >
+                {sendReason}
+              </p>
+            ) : null}
+            {sendStatus ? (
+              <p
+                className={
+                  sendStatus.kind === "error"
+                    ? "event-settings__status event-settings__status--error"
+                    : "event-settings__status"
+                }
+                data-testid="comms-send-status"
+                role={sendStatus.kind === "error" ? "alert" : "status"}
+                data-job-id={lastJobId ?? ""}
+                data-idempotency-key={lastIdempotencyKey ?? ""}
+              >
+                {sendStatus.text}
+              </p>
+            ) : null}
+
+            <div className="comms-campaign__step-footer">
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="comms-step-back-review"
+                onClick={() => goToStep("review")}
+              >
+                Back to review
+              </Button>
+            </div>
           </section>
 
           {/* —— J05 Delivery log —— */}
@@ -1034,16 +1405,17 @@ export function CommsPage() {
             <h3 id="comms-log-heading" className="event-settings__heading">
               Delivery log
             </h3>
-            <button
+            <Button
               type="button"
-              className="eval-queue__link lumen-focusable"
+              variant="quiet"
+              size="sm"
               data-testid="comms-log-refresh"
               onClick={() => {
                 if (activeEventId) void loadJobs(activeEventId);
               }}
             >
               Refresh
-            </button>
+            </Button>
             {logError ? (
               <p
                 className="event-settings__status event-settings__status--error"
@@ -1222,23 +1594,24 @@ export function CommsPage() {
                 onChange={(e) => setIcsLocation(e.target.value)}
               />
               <div className="eval-queue__row">
-                <button
+                <Button
                   type="submit"
-                  className="event-settings__submit lumen-focusable"
+                  variant="primary"
                   data-testid="comms-ics-generate"
+                  pending={icsBusy}
                   disabled={icsBusy}
                 >
                   {icsBusy ? "Saving…" : "Generate / update ICS"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="event-settings__submit lumen-focusable"
+                  variant="secondary"
                   data-testid="comms-ics-cancel"
                   disabled={icsBusy}
                   onClick={(e) => void onIcsSubmit(e, { cancel: true })}
                 >
                   Cancel invite
-                </button>
+                </Button>
               </div>
             </form>
             {icsStatus ? (
