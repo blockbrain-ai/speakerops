@@ -125,6 +125,115 @@ export function primaryParticipation(
   return list[0] ?? null;
 }
 
+/** Profile completion steps for portal progress (11.6 Lumen 2). */
+export type PortalProfileStepId =
+  | "bio"
+  | "company"
+  | "title"
+  | "headshot";
+
+export type PortalProfileStep = {
+  id: PortalProfileStepId;
+  label: string;
+  done: boolean;
+  /** Why we ask — public vs private (design pack). */
+  why: string;
+};
+
+/**
+ * Discrete profile progress steps — never expose raw task types.
+ */
+export function profileProgressSteps(
+  part: ParticipationProfileDto | null,
+): PortalProfileStep[] {
+  const has = (v: string | null | undefined) =>
+    typeof v === "string" && v.trim().length > 0;
+  return [
+    {
+      id: "bio",
+      label: "Bio",
+      done: has(part?.bio),
+      why: "Shown on the public programme when published.",
+    },
+    {
+      id: "company",
+      label: "Company",
+      done: has(part?.company),
+      why: "Public affiliation for the speaker listing.",
+    },
+    {
+      id: "title",
+      label: "Title",
+      done: has(part?.title),
+      why: "Public role label next to your name.",
+    },
+    {
+      id: "headshot",
+      label: "Headshot",
+      done: Boolean(part?.headshotFileId),
+      why: "Public portrait for the programme page.",
+    },
+  ];
+}
+
+export type PortalTaskProgress = {
+  total: number;
+  completed: number;
+  pending: number;
+  percent: number;
+};
+
+/** Task completion progress for the branded progress rail. */
+export function taskProgress(
+  tasks: readonly Pick<PortalTaskDto, "status">[],
+): PortalTaskProgress {
+  const total = tasks.length;
+  let completed = 0;
+  let pending = 0;
+  for (const t of tasks) {
+    const s = (t.status ?? "").toLowerCase();
+    if (s === "completed") completed += 1;
+    else if (s === "cancelled") {
+      /* exclude from pending */
+    } else pending += 1;
+  }
+  const denom = completed + pending;
+  const percent =
+    denom === 0 ? 100 : Math.round((completed / denom) * 100);
+  return { total, completed, pending, percent };
+}
+
+/** Overall portal readiness percent: average of profile + tasks. */
+export function overallPortalProgress(
+  part: ParticipationProfileDto | null,
+  tasks: readonly Pick<PortalTaskDto, "status">[],
+): { percent: number; profileDone: number; profileTotal: number } {
+  const steps = profileProgressSteps(part);
+  const profileDone = steps.filter((s) => s.done).length;
+  const profileTotal = steps.length;
+  const profilePct =
+    profileTotal === 0 ? 100 : Math.round((profileDone / profileTotal) * 100);
+  const tasksPct = taskProgress(tasks).percent;
+  // Weight tasks slightly higher when they exist
+  const percent =
+    tasks.length === 0
+      ? profilePct
+      : Math.round(profilePct * 0.4 + tasksPct * 0.6);
+  return { percent, profileDone, profileTotal };
+}
+
+/** Human participation state label — no admin-only vocabulary. */
+export function participationStateLabel(status: string | null | undefined): string {
+  const s = (status ?? "").toLowerCase();
+  if (s === "accepted" || s === "confirmed" || s === "active") {
+    return "Accepted speaker";
+  }
+  if (s === "withdrawn") return "Withdrawn";
+  if (s === "declined") return "Declined";
+  if (!s) return "Participant";
+  return "Speaker";
+}
+
 /** Hex SHA-256 of file bytes for File.CompleteUpload. */
 export async function sha256Hex(file: Blob): Promise<string> {
   const buf = await file.arrayBuffer();

@@ -16,9 +16,13 @@ import {
   pickNextIncomplete,
   isAllowedHeadshotMime,
   isAllowedSlidesMime,
+  profileProgressSteps,
+  taskProgress,
+  overallPortalProgress,
+  participationStateLabel,
   type TaskOptimisticSnapshot,
 } from "./portal-utils.js";
-import type { PortalTaskDto } from "@speakerops/shared";
+import type { PortalTaskDto, ParticipationProfileDto } from "@speakerops/shared";
 
 function task(
   partial: Partial<PortalTaskDto> & Pick<PortalTaskDto, "id" | "status">,
@@ -105,5 +109,48 @@ describe("4.3 portal-utils", () => {
     expect(isAllowedHeadshotMime("application/x-msdownload")).toBe(false);
     expect(isAllowedSlidesMime("application/pdf")).toBe(true);
     expect(isAllowedSlidesMime("image/jpeg")).toBe(false);
+  });
+
+  it("profile + task progress for branded portal (11.6)", () => {
+    const part: ParticipationProfileDto = {
+      id: "p1",
+      eventId: "e1",
+      personId: "per1",
+      userId: "u1",
+      roleLabel: "speaker",
+      status: "accepted",
+      version: 1,
+      bio: "Hello",
+      company: null,
+      title: "Engineer",
+      headshotFileId: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const steps = profileProgressSteps(part);
+    expect(steps.find((s) => s.id === "bio")!.done).toBe(true);
+    expect(steps.find((s) => s.id === "company")!.done).toBe(false);
+    expect(steps.find((s) => s.id === "title")!.done).toBe(true);
+    expect(steps.find((s) => s.id === "headshot")!.done).toBe(false);
+
+    const tp = taskProgress([
+      task({ id: "t1", status: "completed" }),
+      task({ id: "t2", status: "pending" }),
+      task({ id: "t3", status: "cancelled" }),
+    ]);
+    expect(tp.completed).toBe(1);
+    expect(tp.pending).toBe(1);
+    expect(tp.percent).toBe(50);
+
+    const overall = overallPortalProgress(part, [
+      task({ id: "t1", status: "completed" }),
+      task({ id: "t2", status: "pending" }),
+    ]);
+    expect(overall.profileDone).toBe(2);
+    expect(overall.profileTotal).toBe(4);
+    expect(overall.percent).toBeGreaterThan(0);
+    expect(overall.percent).toBeLessThan(100);
+
+    expect(participationStateLabel("accepted")).toBe("Accepted speaker");
   });
 });
