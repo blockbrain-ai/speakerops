@@ -208,14 +208,27 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
 
   /**
    * POST /api/auth/logout → 204 + clear session (+ judge origin) cookies
+   *
+   * Revokes both the active product session and any distinct judge-origin
+   * session in the store (not only browser cookies). Otherwise admin→evaluator
+   * logout would leave the preserved admin token valid for role-switch replay.
    */
   auth.post("/logout", async (c) => {
     const correlationId = c.get("correlationId");
+    const cookieHeader = c.req.header("cookie");
     const sessionToken = getSessionTokenFromCookieHeader(
-      c.req.header("cookie"),
+      cookieHeader,
       SESSION_COOKIE_NAME,
     );
-    await logoutSession(deps, { sessionToken, correlationId });
+    const judgeSessionToken = getSessionTokenFromCookieHeader(
+      cookieHeader,
+      JUDGE_SESSION_COOKIE_NAME,
+    );
+    await logoutSession(deps, {
+      sessionToken,
+      judgeSessionToken,
+      correlationId,
+    });
     c.header(
       "Set-Cookie",
       buildClearSessionCookie({ secure: cookieSecure }),

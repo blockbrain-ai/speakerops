@@ -70,6 +70,12 @@ export type ExchangeMagicLinkInput = {
 
 export type LogoutInput = {
   sessionToken: string | null;
+  /**
+   * Preserved judge-origin session from Auth.DevRoleSwitch (section 8.4).
+   * Distinct from the active product session when admin→evaluator/speaker;
+   * both must be revoked so a stolen/replayed judge cookie cannot mint sessions.
+   */
+  judgeSessionToken?: string | null;
   correlationId: string;
 };
 
@@ -301,34 +307,46 @@ export async function exchangeMagicLink(
 }
 
 /**
- * Auth.Logout — revoke session if present; always succeed for cookie clear.
+ * Auth.Logout — revoke active session and any distinct judge-origin session;
+ * always succeed for cookie clear. Tokens are never logged (E10).
  */
 export async function logoutSession(
   deps: AuthCommandDeps,
   input: LogoutInput,
 ): Promise<{ cleared: boolean }> {
-  if (!input.sessionToken) {
+  // Distinct plaintext tokens only — admin without impersonation may send the
+  // same value twice if both cookies were set to one session.
+  const tokens = new Set<string>();
+  if (input.sessionToken) tokens.add(input.sessionToken);
+  if (input.judgeSessionToken) tokens.add(input.judgeSessionToken);
+
+  if (tokens.size === 0) {
     return { cleared: false };
   }
-  const tokenHash = await hashToken(input.sessionToken);
-  const session = await deps.store.findSessionByTokenHash(tokenHash);
-  const deleted = await deps.store.deleteSessionByTokenHash(tokenHash);
 
-  if (session || deleted) {
-    await deps.store.insertAudit({
-      id: uuidv7(),
-      eventId: null,
-      actorType: session ? "user" : "system",
-      actorId: session?.userId ?? "anonymous",
-      action: "Auth.Logout",
-      entityType: "auth_session",
-      entityId: session?.id ?? "unknown",
-      correlationId: input.correlationId,
-      createdAt: new Date().toISOString(),
-    });
+  let anyCleared = false;
+  for (const token of tokens) {
+    const tokenHash = await hashToken(token);
+    const session = await deps.store.findSessionByTokenHash(tokenHash);
+    const deleted = await deps.store.deleteSessionByTokenHash(tokenHash);
+    if (deleted) anyCleared = true;
+
+    if (session || deleted) {
+      await deps.store.insertAudit({
+        id: uuidv7(),
+        eventId: null,
+        actorType: session ? "user" : "system",
+        actorId: session?.userId ?? "anonymous",
+        action: "Auth.Logout",
+        entityType: "auth_session",
+        entityId: session?.id ?? "unknown",
+        correlationId: input.correlationId,
+        createdAt: new Date().toISOString(),
+      });
+    }
   }
 
-  return { cleared: deleted };
+  return { cleared: anyCleared };
 }
 
 /**

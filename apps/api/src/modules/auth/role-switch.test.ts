@@ -8,6 +8,7 @@
  * - Controlled + non-admin session → 403 (no privilege escalation)
  * - Controlled + admin session → 200
  * - Controlled chained admin→evaluator→admin (judge-origin cookie preserves auth)
+ * - Logout revokes judge-origin session (replay cannot mint admin)
  * - Missing demo user without allowCreate → 404 (when admin session present)
  * - No plaintext token in audit afterJson
  */
@@ -564,5 +565,116 @@ describe("8.4 Auth.DevRoleSwitch", () => {
     expect(res.status).toBe(404);
     const body = ErrorEnvelopeSchema.parse(await res.json());
     expect(body.code).toMatch(/NOT_FOUND|ROLE_SWITCH/);
+  });
+
+  it("logout revokes judge-origin session so replayed cookie cannot role-switch", async () => {
+    // Phase-audit: logout must revoke both the active impersonated session and
+    // the preserved admin token in speakerops_judge_session. Clearing only the
+    // browser cookies left the judge token valid in the store — replaying it
+    // against /api/auth/dev/role-switch minted a fresh admin session.
+    const { store } = createAppWithAuth({ enableRoleSwitcher: true });
+    const seedApp = createApp({
+      authStore: store,
+      enableRoleSwitcher: true,
+      bootstrapPolicy: "open",
+      enableDevOutbox: true,
+    });
+    for (const role of ["admin", "evaluator"] as const) {
+      const r = await seedApp.request(
+        "http://localhost/api/auth/dev/role-switch",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ role }),
+        },
+      );
+      expect(r.status).toBe(200);
+    }
+    const adminRes = await seedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(adminRes.status).toBe(200);
+
+    const gatedApp = createApp({
+      authStore: store,
+      enableRoleSwitcher: true,
+      bootstrapPolicy: "controlled",
+      enableDevOutbox: false,
+    });
+
+    const toEval = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: sessionCookieFromResponse(adminRes),
+          "x-correlation-id": "corr_logout_revoke_judge_switch",
+        },
+        body: JSON.stringify({ role: "evaluator" }),
+      },
+    );
+    expect(toEval.status).toBe(200);
+    const chained = allAuthCookiesFromResponse(toEval);
+    expect(chained).toContain(JUDGE_SESSION_COOKIE_NAME);
+
+    // Capture the judge token value for post-logout replay (attacker who
+    // retained the cookie after Set-Cookie Max-Age=0, or shared storage).
+    const judgeToken = cookieValueFromSetCookies(
+      setCookieValues(toEval),
+      JUDGE_SESSION_COOKIE_NAME,
+    );
+    expect(judgeToken).toBeTruthy();
+
+    const logout = await gatedApp.request(
+      "http://localhost/api/auth/logout",
+      {
+        method: "POST",
+        headers: {
+          cookie: chained,
+          "x-correlation-id": "corr_logout_revoke_both",
+        },
+      },
+    );
+    expect(logout.status).toBe(204);
+
+    // Replay only the preserved judge cookie (classic residual-token attack).
+    const replayJudgeOnly = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: `${JUDGE_SESSION_COOKIE_NAME}=${judgeToken}`,
+          "x-correlation-id": "corr_replay_judge_after_logout",
+        },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(replayJudgeOnly.status).not.toBe(200);
+    expect([401, 403]).toContain(replayJudgeOnly.status);
+    const errJudge = ErrorEnvelopeSchema.parse(await replayJudgeOnly.json());
+    expect([UNAUTHORIZED, FORBIDDEN]).toContain(errJudge.code);
+
+    // Replay both pre-logout cookies (full browser jar snapshot).
+    const replayBoth = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: chained,
+          "x-correlation-id": "corr_replay_both_after_logout",
+        },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(replayBoth.status).not.toBe(200);
+    expect([401, 403]).toContain(replayBoth.status);
   });
 });
