@@ -203,8 +203,16 @@ export type CreateAppOptions = {
    * Register POST /api/auth/dev/role-switch (section 8.4).
    * Default false. createAppWithAuth enables for e2e; production only when
    * ROLE_SWITCHER_ENABLED=1 (dogfood judges).
+   *
+   * Production/controlled path requires an existing valid session cookie
+   * (workers.dev is not private — no open admin session mint).
    */
   enableRoleSwitcher?: boolean;
+  /**
+   * When true, allow unauthenticated Auth.DevRoleSwitch (local e2e only).
+   * Default: true when bootstrapPolicy is "open"; false under controlled/production.
+   */
+  roleSwitcherAllowUnauthenticated?: boolean;
   /**
    * Auth bootstrap policy. Production Worker: "controlled".
    * createAppWithAuth (e2e/tests): "open".
@@ -284,6 +292,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       enableDevOutbox,
       enableRoleSwitcher,
       roleSwitcherAllowCreate: bootstrapPolicy === "open",
+      roleSwitcherAllowUnauthenticated:
+        options.roleSwitcherAllowUnauthenticated,
       bootstrapPolicy,
     }),
   );

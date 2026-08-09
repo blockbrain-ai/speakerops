@@ -101,6 +101,33 @@ describe("8.5 E2E keystone HTML report", () => {
     expect(result.summary.required).toBeGreaterThanOrEqual(100);
   });
 
+  it("does not green-wash REQUIRED PASS from inventory when suite is missing", () => {
+    const result = buildE2eReport({
+      root,
+      suiteReportPath: null,
+      dryRun: true,
+      gitSha: "nogrn01",
+      generatedAt: "2026-08-08T16:00:00.000Z",
+    });
+    // Inventory may claim PASS, but without Playwright execution evidence
+    // REQUIRED non-DEFER rows must not surface as PASS in the keystone report.
+    const requiredPassFromInv = result.requiredRows.filter(
+      (r) =>
+        r.statusSource === "inventory" &&
+        String(r.status).toUpperCase() === "PASS" &&
+        r.inventoryStatus === "PASS",
+    );
+    expect(requiredPassFromInv).toEqual([]);
+    expect(result.summary.fromPlaywright).toBe(0);
+    // At least one REQUIRED row should be FAIL/UNKNOWN when suite is absent
+    const failedOrUnknown = result.requiredRows.filter((r) => {
+      const s = String(r.status).toUpperCase();
+      return s === "FAIL" || s === "UNKNOWN";
+    });
+    expect(failedOrUnknown.length).toBeGreaterThan(0);
+    expect(result.summary.pass).toBe(0);
+  });
+
   it("Lumen tokens present; no freeform dark default", () => {
     const html = readFileSync(coveragePath, "utf8");
     expect(html).toMatch(/--lumen-brand:\s*#4f46e5/);

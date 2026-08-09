@@ -57,6 +57,9 @@
  *   report** (JSON with per-test status/outcome) and verifies every non-DEFER
  *   REQUIRED ID has a **passed, non-skipped** execution result. Collection
  *   alone cannot green-wash dogfood_ready.
+ *   Default report path (no env required): `reports/playwright-run.json`
+ *   (same artifact written by `pnpm test:e2e` / playwright.config.ts).
+ *   Override with E2E_PLAYWRIGHT_RUN_REPORT / E2E_PLAYWRIGHT_SUITE_REPORT.
  *
  * Static skip detection (defense in depth, all modes):
  *   `test.skip` / `test.fixme` / `test.fail` modifiers, and any `test(...)`
@@ -492,21 +495,48 @@ export function normalizePlaywrightSuite(input, root = "") {
 }
 
 /**
+ * Default Playwright JSON run report path (aligned with playwright.config.ts
+ * and scripts/e2e-run.mjs). Phase 8 gate uses this when no env override is set.
+ * @param {string} [root]
+ */
+export function defaultPlaywrightRunReportPath(root = defaultRoot) {
+  return join(root, "reports", "playwright-run.json");
+}
+
+/**
+ * Resolve a suite/report path: absolute as-is; relative against root then cwd.
+ * @param {string} reportPath
+ * @param {string} [root]
+ */
+export function resolveSuiteReportPath(reportPath, root = "") {
+  if (!reportPath || typeof reportPath !== "string") return "";
+  const trimmed = reportPath.trim();
+  if (!trimmed) return "";
+  if (isAbsolute(trimmed)) return resolve(trimmed);
+  const base = root || defaultRoot;
+  const fromRoot = resolve(base, trimmed);
+  if (existsSync(fromRoot)) return fromRoot;
+  return resolve(process.cwd(), trimmed);
+}
+
+/**
  * Load a suite report JSON from disk (Playwright list/report or project form).
  * @param {string} reportPath
  * @param {string} [root]
  */
 export function loadPlaywrightSuiteReport(reportPath, root = "") {
-  if (!reportPath || !existsSync(reportPath)) return null;
-  const raw = readFileSync(reportPath, "utf8");
+  if (!reportPath) return null;
+  const resolved = resolveSuiteReportPath(reportPath, root);
+  if (!resolved || !existsSync(resolved)) return null;
+  const raw = readFileSync(resolved, "utf8");
   let data;
   try {
     data = JSON.parse(raw);
   } catch {
     return null;
   }
-  const suite = normalizePlaywrightSuite(data, root || dirname(reportPath));
-  if (suite) suite.source = suite.source === "normalized" ? reportPath : suite.source;
+  const suite = normalizePlaywrightSuite(data, root || dirname(resolved));
+  if (suite) suite.source = suite.source === "normalized" ? resolved : suite.source;
   return suite;
 }
 
@@ -548,7 +578,10 @@ export function parsePlaywrightListText(text, root = "") {
  * 1. Injected `playwrightSuite` object (tests / programmatic)
  * 2. Run/suite report path (options / E2E_PLAYWRIGHT_RUN_REPORT /
  *    E2E_PLAYWRIGHT_SUITE_REPORT / E2E_PLAYWRIGHT_LIST_REPORT)
- * 3. Live `playwright test --list` when a config exists and CLI is available
+ * 3. Default artifact `reports/playwright-run.json` (same as `pnpm test:e2e`)
+ *    when present — so `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory`
+ *    does not require an undocumented extra env var after a full run
+ * 4. Live `playwright test --list` when a config exists and CLI is available
  *    (collection only — no execution outcomes; insufficient for Phase 8)
  *
  * @param {object} [options]
@@ -578,12 +611,14 @@ export function resolvePlaywrightSelectedSuite(options = {}) {
     return suite;
   }
 
-  const reportPath =
+  const explicitReportPath =
     options.suiteReportPath ||
     env.E2E_PLAYWRIGHT_RUN_REPORT ||
     env.E2E_PLAYWRIGHT_SUITE_REPORT ||
     env.E2E_PLAYWRIGHT_LIST_REPORT ||
     "";
+  const reportPath =
+    explicitReportPath || defaultPlaywrightRunReportPath(root);
   if (reportPath) {
     const fromReport = loadPlaywrightSuiteReport(reportPath, root);
     if (fromReport) return fromReport;
@@ -2351,12 +2386,15 @@ export function runInventoryLint(options = {}) {
             ? selectedSuite
             : null;
         if (!runReport) {
+          const defaultReport = defaultPlaywrightRunReportPath(root);
           fail(
             "Phase 8 full gate: require an actual Playwright run report with per-test " +
               "execution outcomes (status/outcome), not `playwright test --list` collection " +
-              "alone. Provide E2E_PLAYWRIGHT_RUN_REPORT or E2E_PLAYWRIGHT_SUITE_REPORT JSON " +
-              "from a full run (or inject playwrightSuite entries with status/outcome) so " +
-              "every non-DEFER REQUIRED ID can be verified as passed and non-skipped. " +
+              "alone. Run `pnpm test:e2e` first (writes reports/playwright-run.json by default), " +
+              "or set E2E_PLAYWRIGHT_RUN_REPORT / E2E_PLAYWRIGHT_SUITE_REPORT to a JSON run " +
+              "report with status/outcome (or inject playwrightSuite entries) so every " +
+              "non-DEFER REQUIRED ID can be verified as passed and non-skipped. " +
+              `Default report path: ${defaultReport}. ` +
               (selectedSuite
                 ? `Resolved suite source "${selectedSuite.source}" has no execution outcomes.`
                 : "No suite/run report was resolved."),

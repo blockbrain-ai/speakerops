@@ -158,7 +158,7 @@ Env **names** only (E10) — never commit secret values:
 - Cross-cutting: `playwright/e2e/states_cross_cutting.spec.ts` · keystone `phase8_full_suite_keystone.spec.ts`
 - Evidence: `KMS-competition/initiative/evidence/e2e-full.txt`
 - Section notes: [`docs/sections/8.2-full-playwright-suite.md`](./sections/8.2-full-playwright-suite.md)
-- Phase 8 gate: `E2E_INVENTORY_GATE=phase8 E2E_PLAYWRIGHT_RUN_REPORT=reports/playwright-run.json pnpm test:e2e:inventory`
+- Phase 8 gate: `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory` (defaults to `reports/playwright-run.json` from `pnpm test:e2e`; override via `E2E_PLAYWRIGHT_RUN_REPORT` if needed)
 
 ### 8.5 — E2E keystone HTML report (landed)
 

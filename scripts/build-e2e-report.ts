@@ -53,7 +53,10 @@ export type CoverageRow = {
   /**
    * Evidence status shown for S-E2E-RUN:
    * - PASS/FAIL from Playwright run when present
-   * - else inventory status normalized (PASS/FAIL/DEFER/OPEN/…)
+   * - SKIPPED/UNKNOWN run → FAIL for REQUIRED (not inventory PASS)
+   * - missing run evidence → FAIL for REQUIRED non-DEFER claiming PASS
+   *   (anti-greenwash; inventory Status alone is not execution proof)
+   * - else inventory status for optional / DEFER / OPEN rows
    */
   status: CoverageRowStatus | string;
   /** Where `status` came from. */
@@ -193,6 +196,11 @@ export function normalizeInventoryStatus(raw: string): string {
 
 /**
  * Build coverage rows: one per inventory journey; REQUIRED get PASS/FAIL evidence.
+ *
+ * S-E2E-RUN anti-greenwash: REQUIRED non-DEFER rows without a passed/failed
+ * Playwright execution result must not inherit inventory Status=PASS.
+ * Missing/invalid/empty run reports surface as FAIL (or UNKNOWN) so the
+ * keystone HTML cannot claim PASS 108 with playwright 0 after a failed suite.
  */
 export function buildCoverageRows(
   journeys: InventoryJourneyRow[],
@@ -200,7 +208,16 @@ export function buildCoverageRows(
     string,
     { status: "PASS" | "FAIL" | "SKIPPED" | "UNKNOWN"; title: string; file: string }
   >,
+  options: {
+    /**
+     * When true (default), REQUIRED rows without Playwright PASS/FAIL evidence
+     * cannot claim PASS from inventory alone.
+     */
+    requirePlaywrightForRequiredPass?: boolean;
+  } = {},
 ): CoverageRow[] {
+  const requirePw = options.requirePlaywrightForRequiredPass !== false;
+
   return journeys.map((j) => {
     const run = suiteByInv.get(j.id);
     const invStatus = normalizeInventoryStatus(j.status);
@@ -229,12 +246,47 @@ export function buildCoverageRows(
         testId: j.testId,
         required: j.required,
         inventoryStatus: invStatus,
-        status: invStatus === "PASS" ? "FAIL" : invStatus || "FAIL",
+        status: invStatus === "DEFER" ? "DEFER" : "FAIL",
         statusSource: "playwright" as const,
         runTitle: run.title,
         runFile: run.file,
       };
     }
+    // UNKNOWN suite entry (had title match but no clear outcome)
+    if (run && run.status === "UNKNOWN") {
+      return {
+        id: j.id,
+        role: j.role,
+        surface: j.surface,
+        journey: j.journey,
+        testId: j.testId,
+        required: j.required,
+        inventoryStatus: invStatus,
+        status:
+          invStatus === "DEFER"
+            ? "DEFER"
+            : j.required && requirePw
+              ? "FAIL"
+              : invStatus || "UNKNOWN",
+        statusSource: "playwright" as const,
+        runTitle: run.title,
+        runFile: run.file,
+      };
+    }
+
+    // No Playwright match: inventory-only fallback
+    // REQUIRED non-DEFER cannot green-wash PASS without execution evidence.
+    let status: string = invStatus;
+    if (
+      requirePw &&
+      j.required &&
+      invStatus !== "DEFER" &&
+      (invStatus === "PASS" || invStatus === "IMPLEMENTED" || !invStatus)
+    ) {
+      // Fail closed for dogfood proof rows missing run evidence
+      status = invStatus === "PASS" || invStatus === "IMPLEMENTED" ? "FAIL" : "UNKNOWN";
+    }
+
     return {
       id: j.id,
       role: j.role,
@@ -243,7 +295,7 @@ export function buildCoverageRows(
       testId: j.testId,
       required: j.required,
       inventoryStatus: invStatus,
-      status: invStatus,
+      status,
       statusSource: "inventory" as const,
     };
   });

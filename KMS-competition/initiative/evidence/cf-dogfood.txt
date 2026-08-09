@@ -4,13 +4,18 @@ Section: 8.6 Cloudflare dogfood deploy
 Workspace: speakerops-build
 Date (UTC): 2026-08-08
 Git SHA: (see latest deploy script rewrite)
-Status: PATH_READY — script + runbook + redaction + local health 200; live workers.dev row via operator `scripts/with-secrets.sh bash scripts/deploy-dogfood.sh`
+Status: PATH_READY — script + runbook + redaction + local health 200; **not** DONE_WITH_EVIDENCE until live workers.dev smoke
 
 ## Claim
 
 S-CF ownership: private Cloudflare dogfood deploy is scripted with names-only
 secrets; GET /health → 200 is the smoke criterion; evidence uses URL redaction
 rules. BUILD_CHECKLIST **BC10** evidence path is this file.
+
+**BC10 status (honest):** `NEED_LIVE_SMOKE` — path is ready; live redacted
+workers.dev URL and actual GET /health HTTP 200 are **not yet recorded**.
+Do not treat this file as DONE_WITH_EVIDENCE until the Smoke result table below
+has a redacted Base URL and HTTP status **200** from a live deploy.
 
 Souls: **S-CF** (constitution Article II) · **BC10**
 
@@ -36,15 +41,16 @@ Section notes: docs/sections/8.6-cloudflare-dogfood-deploy.md
 
 | Field | Value |
 |-------|-------|
-| Base URL (redacted) | (fill via live deploy — example shape `https://speakerops-api.***.workers.dev`) |
-| GET /health HTTP status | **200** required for live DONE_WITH_EVIDENCE rewrite |
+| Base URL (redacted) | *(unset — run live deploy)* |
+| GET /health HTTP status | *(not yet recorded — **200** required for DONE_WITH_EVIDENCE)* |
 | Health body shape | `{"ok":true,"version":"<semver>"}` |
 | Worker name | `speakerops-api` |
 | Local health proof | `apps/api/src/health.test.ts` (section 1.2) — ok:true 200 |
 
 Deploy script dry-run (creds present, no network) exits 0 and rewrites this file
 with Status `DRY_RUN`. Full live smoke rewrites with Status `DONE_WITH_EVIDENCE`
-and redacted URL + HTTP 200.
+and redacted URL + HTTP 200; operator must then set BUILD_CHECKLIST BC10 to
+`DONE_WITH_EVIDENCE`.
 
 ## Gate local proof (no CF network in test:ci)
 

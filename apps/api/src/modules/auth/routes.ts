@@ -41,6 +41,7 @@ import {
   buildClearSessionCookie,
   getSessionTokenFromCookieHeader,
 } from "./cookies.js";
+import { hashToken, isExpired } from "./crypto.js";
 
 export type AuthRouteOptions = {
   store: AuthStore;
@@ -60,6 +61,13 @@ export type AuthRouteOptions = {
    * Dogfood with seed: false. Tests: true when bootstrap open.
    */
   roleSwitcherAllowCreate?: boolean;
+  /**
+   * When true, allow unauthenticated role-switch (local e2e/open bootstrap only).
+   * Production/controlled dogfood always requires an existing valid session so a
+   * public workers.dev host cannot mint event-admin cookies without prior auth.
+   * Default: true only when bootstrapPolicy is "open".
+   */
+  roleSwitcherAllowUnauthenticated?: boolean;
   /** Production: "controlled". Tests/e2e: "open". */
   bootstrapPolicy?: BootstrapPolicy;
 };
@@ -234,9 +242,58 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
   /**
    * POST /api/auth/dev/role-switch → Auth.DevRoleSwitch (section 8.4)
    * Dogfood/dev only — route absent when enableRoleSwitcher is false (404).
+   *
+   * Security (E10 / phase audit): workers.dev is not private by itself.
+   * Controlled/production dogfood requires an existing valid session cookie
+   * before minting a demo role session — unauthenticated callers cannot
+   * obtain event-admin access by discovering this endpoint.
+   * Local e2e (open bootstrap) may allow unauthenticated switch for harness.
    */
   if (options.enableRoleSwitcher) {
     auth.post("/dev/role-switch", async (c) => {
+      const bootstrap = options.bootstrapPolicy ?? "controlled";
+      const allowUnauthenticated =
+        options.roleSwitcherAllowUnauthenticated === true ||
+        (options.roleSwitcherAllowUnauthenticated !== false &&
+          bootstrap === "open");
+
+      if (!allowUnauthenticated) {
+        const sessionToken = getSessionTokenFromCookieHeader(
+          c.req.header("cookie"),
+          SESSION_COOKIE_NAME,
+        );
+        if (!sessionToken) {
+          return c.json(
+            errorEnvelope(
+              "Authentication required for role switch",
+              UNAUTHORIZED,
+            ),
+            401,
+          );
+        }
+        const tokenHash = await hashToken(sessionToken);
+        const session = await options.store.findSessionByTokenHash(tokenHash);
+        if (!session || isExpired(session.expiresAt)) {
+          return c.json(
+            errorEnvelope(
+              "Authentication required for role switch",
+              UNAUTHORIZED,
+            ),
+            401,
+          );
+        }
+        const actor = await options.store.findUserById(session.userId);
+        if (!actor) {
+          return c.json(
+            errorEnvelope(
+              "Authentication required for role switch",
+              UNAUTHORIZED,
+            ),
+            401,
+          );
+        }
+      }
+
       let raw: unknown;
       try {
         raw = await c.req.json();
@@ -258,8 +315,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
 
       const correlationId = c.get("correlationId");
       const allowCreate =
-        options.roleSwitcherAllowCreate === true ||
-        (options.bootstrapPolicy ?? "controlled") === "open";
+        options.roleSwitcherAllowCreate === true || bootstrap === "open";
 
       const result = await devRoleSwitch(deps, {
         role: parsed.data.role,

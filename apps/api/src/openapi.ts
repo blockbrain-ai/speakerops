@@ -19,6 +19,9 @@ export const AUTH_OPENAPI_PATHS = {
       description:
         "Dogfood/dev only: issue session for seeded demo role user (admin|evaluator|speaker). " +
         "Requires ROLE_SWITCHER_ENABLED=1 on Worker or local e2e createAppWithAuth. " +
+        "Production/controlled dogfood requires an existing valid session cookie " +
+        "(workers.dev is not private — unauthenticated callers cannot mint event-admin). " +
+        "Local e2e open bootstrap may allow unauthenticated switch. " +
         "Never registered on public production default.",
       tags: ["Auth"],
       requestBody: {
@@ -44,6 +47,10 @@ export const AUTH_OPENAPI_PATHS = {
           description: "{ ok, role, email, eventId, redirectTo } + Set-Cookie session",
         },
         "400": { description: "Validation error (E4)" },
+        "401": {
+          description:
+            "Authentication required (controlled/production dogfood — no open admin mint)",
+        },
         "403": { description: "Demo user lacks role on event" },
         "404": { description: "Route disabled or demo user not seeded" },
       },
