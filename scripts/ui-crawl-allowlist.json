@@ -112,6 +112,30 @@
     {
       "testid": "comms-audience-pager",
       "reason": "Audience pager chrome container (11.2); next/prev mapped to J02"
+    },
+    {
+      "testid": "builder-view-build",
+      "reason": "Form builder view switcher chrome (11.3); domain actions remain D01–D10"
+    },
+    {
+      "testid": "builder-view-preview",
+      "reason": "Form builder public preview view chrome (11.3); D07 preview surface"
+    },
+    {
+      "testid": "builder-view-publish",
+      "reason": "Form builder publish summary view chrome (11.3); D08 publish action"
+    },
+    {
+      "testid": "outline-item-*",
+      "reason": "Form builder outline selection chrome (11.3); same selection as field-select-* (D02)"
+    },
+    {
+      "testid": "field-advanced-toggle",
+      "reason": "Progressive disclosure chrome for field conditionals (11.3); D03 condition controls remain"
+    },
+    {
+      "testid": "form-advanced-toggle",
+      "reason": "Progressive disclosure chrome for routing/copy/limits (11.3); D04/D06/D09 controls remain"
     }
   ],
   "controlMap": [

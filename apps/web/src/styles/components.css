@@ -610,6 +610,7 @@ textarea.l2-field__control {
 
 .l2-table__bulk {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--lumen-space-3);
   padding: var(--lumen-space-2) var(--lumen-space-4);
@@ -620,8 +621,117 @@ textarea.l2-field__control {
   font-weight: var(--lumen-font-weight-medium);
 }
 
+.l2-table__bulk--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.l2-table tbody tr.is-active {
+  background: var(--lumen-brand-soft);
+  box-shadow: inset 3px 0 0 var(--lumen-brand);
+}
+
+.l2-table__link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--lumen-brand);
+  font-family: var(--lumen-font);
+  font-size: inherit;
+  font-weight: var(--lumen-font-weight-semibold);
+  cursor: pointer;
+  text-align: left;
+}
+
+.l2-table__link:hover {
+  text-decoration: underline;
+}
+
 .l2-table__check {
   width: 40px;
+}
+
+/* Filter chips (section 11.4) */
+.l2-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lumen-space-1);
+  margin: 0;
+  padding: var(--lumen-space-1) var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-pill);
+  background: var(--lumen-surface);
+  color: var(--lumen-text-secondary);
+  font-family: var(--lumen-font);
+  font-size: var(--lumen-text-meta);
+  font-weight: var(--lumen-font-weight-medium);
+  line-height: var(--lumen-text-meta-lh, 1.3);
+  cursor: pointer;
+  transition:
+    background var(--lumen-motion-fast) var(--lumen-ease),
+    border-color var(--lumen-motion-fast) var(--lumen-ease),
+    color var(--lumen-motion-fast) var(--lumen-ease);
+}
+
+.l2-chip:hover {
+  border-color: var(--lumen-brand);
+  color: var(--lumen-text);
+}
+
+.l2-chip--active {
+  background: var(--lumen-brand-soft);
+  border-color: var(--lumen-brand);
+  color: var(--lumen-brand);
+  font-weight: var(--lumen-font-weight-semibold);
+}
+
+.l2-chip--removable {
+  background: var(--lumen-surface-muted);
+}
+
+/* Coverage progress (evaluations 11.4) */
+.eval-coverage__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+  min-width: 7rem;
+}
+
+.eval-coverage__label {
+  font-size: var(--lumen-text-meta);
+  color: var(--lumen-text-secondary);
+}
+
+.eval-coverage__track,
+.eval-coverage__summary-track {
+  height: 8px;
+  border-radius: var(--lumen-radius-pill);
+  background: var(--lumen-surface-muted);
+  overflow: hidden;
+  border: 1px solid var(--lumen-border-subtle);
+}
+
+.eval-coverage__summary-track {
+  height: 10px;
+  margin-top: var(--lumen-space-2);
+}
+
+.eval-coverage__fill {
+  height: 100%;
+  background: var(--lumen-brand);
+  border-radius: var(--lumen-radius-pill);
+  transition: width var(--lumen-motion-fast) var(--lumen-ease);
+  min-width: 0;
+}
+
+.eval-coverage__summary-label {
+  margin: var(--lumen-space-2) 0 0;
+  font-size: var(--lumen-text-meta);
+  color: var(--lumen-text-secondary);
+  font-weight: var(--lumen-font-weight-medium);
 }
 
 /* =========================================================================

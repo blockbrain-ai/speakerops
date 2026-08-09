@@ -1,8 +1,11 @@
 /**
- * Form builder admin UI — section 3.2 (S-CFP).
+ * Form builder admin UI — section 3.2 (S-CFP) + 11.3 Lumen 2 (S-L2-CFP).
  *
  * Inventory D01–D10: create/add fields, reorder, conditionals, category routing,
  * required flags, welcome/thank-you, side-by-side preview, publish, limits, copy link.
+ *
+ * Lumen 2 composition: outline + canvas + inspector; progressive advanced controls;
+ * Build / Public preview / Publish summary views.
  *
  * Wired to Form.Create / Form.UpdateDraftFields / Form.Publish only (COMMANDS.md).
  */
@@ -40,8 +43,14 @@ import {
   type BuilderField,
   type BuilderRule,
 } from "../components/forms/form-builder-utils.js";
+import { PageHeader } from "../components/ui/PageHeader.js";
+import { Button } from "../components/ui/Button.js";
+import { Badge } from "../components/ui/Badge.js";
+import { Alert } from "../components/ui/Alert.js";
 
 type StatusMsg = { kind: "ok" | "error" | "warn"; text: string } | null;
+
+type BuilderView = "build" | "preview" | "publish";
 
 function reasonMessage(reasons: ReturnType<typeof publishBlockReasons>): string {
   if (reasons.includes("no_form")) return "Create a form first";
@@ -83,6 +92,13 @@ export function FormBuilderPage() {
   const [busy, setBusy] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
+  /** Lumen 2 view mode (page-atlas: Build / Public preview / Version summary). */
+  const [builderView, setBuilderView] = useState<BuilderView>("build");
+  /** Progressive disclosure: form-level advanced (routing, copy, limits). */
+  const [formAdvancedOpen, setFormAdvancedOpen] = useState(true);
+  /** Progressive disclosure: field conditionals in inspector. */
+  const [fieldAdvancedOpen, setFieldAdvancedOpen] = useState(true);
+
   const selected = useMemo(
     () => fields.find((f) => f.clientId === selectedClientId) ?? null,
     [fields, selectedClientId],
@@ -112,6 +128,9 @@ export function FormBuilderPage() {
     setLinkStatus(null);
     setBusy(false);
     setDragIndex(null);
+    setBuilderView("build");
+    setFormAdvancedOpen(true);
+    setFieldAdvancedOpen(true);
   }, [activeEventId]);
 
   const blockReasons = useMemo(
@@ -161,6 +180,7 @@ export function FormBuilderPage() {
       return [...prev, next];
     });
     setSaveStatus(null);
+    setBuilderView("build");
   }
 
   function removeField(clientId: string) {
@@ -234,6 +254,7 @@ export function FormBuilderPage() {
       });
       setPublishStatus(null);
       setSaveStatus(null);
+      setBuilderView("build");
     } catch {
       setCreateStatus({ kind: "error", text: "Network error" });
     } finally {
@@ -344,6 +365,8 @@ export function FormBuilderPage() {
         kind: "ok",
         text: `Published version ${parsed.data.formVersion.versionNum} (immutable snapshot)`,
       });
+      // Stay on current view so palette/canvas remain available for further edits
+      // (D08: publish then add fields and re-publish). User can open Publish summary tab.
     } catch {
       setPublishStatus({ kind: "error", text: "Network error" });
     } finally {
@@ -364,7 +387,6 @@ export function FormBuilderPage() {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
       } else {
-        // Fallback for environments without clipboard API
         const ta = document.createElement("textarea");
         ta.value = url;
         ta.setAttribute("readonly", "");
@@ -408,6 +430,7 @@ export function FormBuilderPage() {
         routeToCategory: "",
       },
     ]);
+    setFormAdvancedOpen(true);
   }
 
   function updateRule(clientId: string, patch: Partial<BuilderRule>) {
@@ -424,20 +447,70 @@ export function FormBuilderPage() {
     .filter((f) => f.clientId !== selected?.clientId)
     .map((f) => f.fieldKey);
 
+  const sortedFields = useMemo(
+    () => [...fields].sort((a, b) => a.sortOrder - b.sortOrder),
+    [fields],
+  );
+
   return (
     <div
       className="form-builder"
       data-testid="page-cfp"
-      data-section="3.2"
+      data-section="11.3"
       data-form-id={form?.id ?? ""}
       data-form-status={form?.status ?? "none"}
+      data-builder-view={builderView}
+      data-layout="outline-canvas-inspector"
     >
-      <p className="page-stub__overline">CFP / Forms</p>
-      <h2 className="page-stub__title">Form builder</h2>
-      <p className="page-stub__body">
-        Build conditional CFP forms with live preview. Fields sync via{" "}
-        <code>Form.UpdateDraftFields</code>; publish freezes an immutable version.
-      </p>
+      <PageHeader
+        eyebrow="Call for proposals"
+        title="Form builder"
+        description="Outline, canvas, and inspector — progressive advanced controls. Publish freezes an immutable version."
+        data-testid="form-builder-page-header"
+        actions={
+          form ? (
+            <div className="form-builder__header-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="form-save-draft"
+                onClick={() => void onSaveDraft()}
+                disabled={busy || !form}
+                pending={busy && saveStatus === null}
+              >
+                Save draft
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                data-testid="form-publish"
+                onClick={() => void onPublish()}
+                disabled={busy || !publishEnabled}
+                aria-disabled={!publishEnabled}
+                title={
+                  publishEnabled
+                    ? "Publish immutable version"
+                    : reasonMessage(blockReasons)
+                }
+              >
+                Publish
+              </Button>
+              <Button
+                type="button"
+                variant="quiet"
+                size="sm"
+                data-testid="form-copy-link"
+                onClick={() => void onCopyLink()}
+                disabled={!eventSlug}
+              >
+                Copy public link
+              </Button>
+            </div>
+          ) : null
+        }
+      />
 
       {!activeEventId ? (
         <p className="form-builder__empty" data-testid="form-builder-no-event">
@@ -491,7 +564,12 @@ export function FormBuilderPage() {
         {form ? (
           <p className="form-builder__meta" data-testid="form-shell-meta">
             Form <code data-testid="form-id">{form.id}</code> · status{" "}
-            <span data-testid="form-status">{form.status}</span>
+            <Badge
+              tone={form.status === "published" ? "success" : "neutral"}
+              data-testid="form-status-badge"
+            >
+              <span data-testid="form-status">{form.status}</span>
+            </Badge>
             {publishedVersion ? (
               <>
                 {" "}
@@ -506,601 +584,816 @@ export function FormBuilderPage() {
       </section>
 
       {form ? (
-        <div className="form-builder__workspace" data-testid="form-builder-workspace">
-          <div className="form-builder__editor-col">
-            {/* D01 — field palette */}
-            <section
-              className="form-builder__card"
-              data-testid="field-palette"
-              aria-labelledby="palette-heading"
-            >
-              <h3 id="palette-heading" className="form-builder__heading">
-                Field palette
-              </h3>
-              <div className="form-builder__palette-grid">
-                {FIELD_PALETTE.map((p) => (
-                  <button
-                    key={p.testId}
-                    type="button"
-                    className="form-builder__btn form-builder__btn--secondary lumen-focusable"
-                    data-testid={p.testId}
-                    data-field-type={p.type}
-                    onClick={() =>
-                      addField(p.type, p.keyPrefix, p.defaultLabel)
-                    }
-                    disabled={busy}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </section>
+        <>
+          {/* View mode switcher — Build / Public preview / Publish summary */}
+          <nav
+            className="form-builder__view-tabs"
+            data-testid="form-builder-view-tabs"
+            aria-label="Builder views"
+          >
+            {(
+              [
+                { id: "build" as const, label: "Build", testId: "builder-view-build" },
+                {
+                  id: "preview" as const,
+                  label: "Public preview",
+                  testId: "builder-view-preview",
+                },
+                {
+                  id: "publish" as const,
+                  label: "Publish summary",
+                  testId: "builder-view-publish",
+                },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={
+                  builderView === tab.id
+                    ? "form-builder__view-tab is-active lumen-focusable"
+                    : "form-builder__view-tab lumen-focusable"
+                }
+                data-testid={tab.testId}
+                aria-current={builderView === tab.id ? "page" : undefined}
+                onClick={() => setBuilderView(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
 
-            {/* D02 — field list + reorder */}
-            <section
-              className="form-builder__card"
-              data-testid="field-list-section"
-              aria-labelledby="field-list-heading"
+          {builderView === "build" ? (
+            <div
+              className="form-builder__workspace form-builder__workspace--l2"
+              data-testid="form-builder-workspace"
+              data-regions="outline-canvas-inspector"
             >
-              <h3 id="field-list-heading" className="form-builder__heading">
-                Fields
-              </h3>
-              {fields.length === 0 ? (
-                <p
-                  className="form-builder__empty"
-                  data-testid="field-list-empty"
+              {/* —— Outline (left) —— */}
+              <aside
+                className="form-builder__outline form-builder__card"
+                data-testid="builder-outline"
+                aria-labelledby="builder-outline-heading"
+              >
+                <h3 id="builder-outline-heading" className="form-builder__heading">
+                  Outline
+                </h3>
+
+                <section
+                  data-testid="field-palette"
+                  aria-labelledby="palette-heading"
                 >
-                  No fields yet. Use the palette to add text, select, file URL,
-                  or speaker fields.
-                </p>
-              ) : (
-                <ul
-                  className="form-builder__field-list"
-                  data-testid="field-list"
-                  aria-label="Form fields"
-                >
-                  {fields.map((f, index) => (
-                    <li
-                      key={f.clientId}
-                      className={
-                        f.clientId === selectedClientId
-                          ? "form-builder__field-item form-builder__field-item--selected"
-                          : "form-builder__field-item"
-                      }
-                      data-testid={`field-item-${f.fieldKey}`}
-                      data-field-key={f.fieldKey}
-                      data-sort-order={f.sortOrder}
-                      draggable
-                      onDragStart={() => setDragIndex(index)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => {
-                        if (dragIndex == null) return;
-                        setFields((prev) =>
-                          reorderFields(prev, dragIndex, index),
-                        );
-                        setDragIndex(null);
-                      }}
-                      onDragEnd={() => setDragIndex(null)}
-                      onKeyDown={(e) => onFieldListKeyDown(e, index)}
-                    >
+                  <h4 id="palette-heading" className="form-builder__subheading">
+                    Field palette
+                  </h4>
+                  <div className="form-builder__palette-grid">
+                    {FIELD_PALETTE.map((p) => (
                       <button
+                        key={p.testId}
                         type="button"
-                        className="form-builder__field-select lumen-focusable"
-                        data-testid={`field-select-${f.fieldKey}`}
-                        onClick={() => setSelectedClientId(f.clientId)}
-                        aria-pressed={f.clientId === selectedClientId}
+                        className="form-builder__btn form-builder__btn--secondary lumen-focusable"
+                        data-testid={p.testId}
+                        data-field-type={p.type}
+                        onClick={() =>
+                          addField(p.type, p.keyPrefix, p.defaultLabel)
+                        }
+                        disabled={busy}
                       >
-                        <span
-                          className="form-builder__field-label"
-                          data-testid={`field-label-${f.fieldKey}`}
-                        >
-                          {f.label}
-                        </span>
-                        <span className="form-builder__muted">
-                          {" "}
-                          ({f.type}
-                          {f.required ? ", required" : ""})
-                        </span>
+                        {p.label}
                       </button>
-                      <div className="form-builder__field-actions">
+                    ))}
+                  </div>
+                </section>
+
+                <section
+                  className="form-builder__outline-list-wrap"
+                  aria-labelledby="outline-list-heading"
+                >
+                  <h4 id="outline-list-heading" className="form-builder__subheading">
+                    Sections
+                  </h4>
+                  {sortedFields.length === 0 ? (
+                    <p className="form-builder__muted" data-testid="outline-empty">
+                      No fields yet
+                    </p>
+                  ) : (
+                    <ol
+                      className="form-builder__outline-list"
+                      data-testid="builder-outline-list"
+                    >
+                      {sortedFields.map((f, index) => (
+                        <li key={f.clientId}>
+                          <button
+                            type="button"
+                            className={
+                              f.clientId === selectedClientId
+                                ? "form-builder__outline-item is-selected lumen-focusable"
+                                : "form-builder__outline-item lumen-focusable"
+                            }
+                            data-testid={`outline-item-${f.fieldKey}`}
+                            aria-current={
+                              f.clientId === selectedClientId
+                                ? "true"
+                                : undefined
+                            }
+                            onClick={() => setSelectedClientId(f.clientId)}
+                          >
+                            <span className="form-builder__outline-index">
+                              {index + 1}
+                            </span>
+                            <span className="form-builder__outline-label">
+                              {f.label}
+                            </span>
+                            {f.required ? (
+                              <span className="form-builder__outline-req">*</span>
+                            ) : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
+              </aside>
+
+              {/* —— Canvas (centre) —— */}
+              <div
+                className="form-builder__canvas"
+                data-testid="builder-canvas"
+                aria-labelledby="builder-canvas-heading"
+              >
+                <section
+                  className="form-builder__card"
+                  data-testid="field-list-section"
+                  aria-labelledby="field-list-heading"
+                >
+                  <h3
+                    id="field-list-heading"
+                    className="form-builder__heading"
+                  >
+                    <span id="builder-canvas-heading">Form canvas</span>
+                  </h3>
+                  {fields.length === 0 ? (
+                    <p
+                      className="form-builder__empty"
+                      data-testid="field-list-empty"
+                    >
+                      No fields yet. Use the palette to add text, select, file URL,
+                      or speaker fields.
+                    </p>
+                  ) : (
+                    <ul
+                      className="form-builder__field-list"
+                      data-testid="field-list"
+                      aria-label="Form fields"
+                    >
+                      {fields.map((f, index) => (
+                        <li
+                          key={f.clientId}
+                          className={
+                            f.clientId === selectedClientId
+                              ? "form-builder__field-item form-builder__field-item--selected"
+                              : "form-builder__field-item"
+                          }
+                          data-testid={`field-item-${f.fieldKey}`}
+                          data-field-key={f.fieldKey}
+                          data-sort-order={f.sortOrder}
+                          draggable
+                          onDragStart={() => setDragIndex(index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => {
+                            if (dragIndex == null) return;
+                            setFields((prev) =>
+                              reorderFields(prev, dragIndex, index),
+                            );
+                            setDragIndex(null);
+                          }}
+                          onDragEnd={() => setDragIndex(null)}
+                          onKeyDown={(e) => onFieldListKeyDown(e, index)}
+                        >
+                          <button
+                            type="button"
+                            className="form-builder__field-select lumen-focusable"
+                            data-testid={`field-select-${f.fieldKey}`}
+                            onClick={() => setSelectedClientId(f.clientId)}
+                            aria-pressed={f.clientId === selectedClientId}
+                          >
+                            <span
+                              className="form-builder__field-label"
+                              data-testid={`field-label-${f.fieldKey}`}
+                            >
+                              {f.label}
+                            </span>
+                            <span className="form-builder__muted">
+                              {" "}
+                              ({f.type}
+                              {f.required ? ", required" : ""})
+                            </span>
+                          </button>
+                          <div className="form-builder__field-actions">
+                            <button
+                              type="button"
+                              className="form-builder__btn form-builder__btn--ghost lumen-focusable"
+                              data-testid={`field-move-up-${f.fieldKey}`}
+                              aria-label={`Move ${f.label} up`}
+                              disabled={index === 0 || busy}
+                              onClick={() => moveField(index, -1)}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              className="form-builder__btn form-builder__btn--ghost lumen-focusable"
+                              data-testid={`field-move-down-${f.fieldKey}`}
+                              aria-label={`Move ${f.label} down`}
+                              disabled={index === fields.length - 1 || busy}
+                              onClick={() => moveField(index, 1)}
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              className="form-builder__btn form-builder__btn--ghost lumen-focusable"
+                              data-testid={`field-remove-${f.fieldKey}`}
+                              aria-label={`Remove ${f.label}`}
+                              disabled={busy}
+                              onClick={() => removeField(f.clientId)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                {/* D07 — side-by-side live preview stays in workspace */}
+                <aside
+                  className="form-builder__preview-col form-builder__card"
+                  aria-labelledby="form-preview-heading"
+                >
+                  <FormPreview
+                    fields={fields}
+                    welcomeMd={welcomeMd}
+                    thankYouMd={thankYouMd}
+                  />
+                </aside>
+              </div>
+
+              {/* —— Inspector (right) —— */}
+              <aside
+                className="form-builder__inspector form-builder__card"
+                data-testid="builder-inspector"
+                aria-labelledby="field-editor-heading"
+              >
+                <section data-testid="field-editor-section">
+                  <h3 id="field-editor-heading" className="form-builder__heading">
+                    Inspector
+                  </h3>
+                  {!selected ? (
+                    <p
+                      className="form-builder__muted"
+                      data-testid="field-editor-empty"
+                    >
+                      Select a field on the canvas or outline to edit label,
+                      required flag, options, and conditionals.
+                    </p>
+                  ) : (
+                    <div
+                      className="form-builder__field-editor"
+                      data-testid="field-editor"
+                      data-editing-key={selected.fieldKey}
+                    >
+                      <label
+                        className="form-builder__label"
+                        htmlFor="field-edit-label"
+                      >
+                        Label
+                      </label>
+                      <input
+                        id="field-edit-label"
+                        className="form-builder__input lumen-focusable"
+                        value={selected.label}
+                        onChange={(e) =>
+                          updateField(selected.clientId, {
+                            label: e.target.value,
+                          })
+                        }
+                        data-testid="field-edit-label"
+                      />
+
+                      <label
+                        className="form-builder__label"
+                        htmlFor="field-edit-key"
+                      >
+                        Field key
+                      </label>
+                      <input
+                        id="field-edit-key"
+                        className="form-builder__input lumen-focusable"
+                        value={selected.fieldKey}
+                        onChange={(e) =>
+                          updateField(selected.clientId, {
+                            fieldKey: e.target.value
+                              .toLowerCase()
+                              .replace(/[^a-z0-9_]/g, "")
+                              .slice(0, 64),
+                          })
+                        }
+                        data-testid="field-edit-key"
+                        pattern="[a-z][a-z0-9_]*"
+                      />
+
+                      <label className="form-builder__check-row">
+                        <input
+                          type="checkbox"
+                          className="lumen-focusable"
+                          checked={selected.required}
+                          onChange={(e) =>
+                            updateField(selected.clientId, {
+                              required: e.target.checked,
+                            })
+                          }
+                          data-testid="field-edit-required"
+                        />
+                        <span>Required</span>
+                      </label>
+
+                      {(selected.type === "select" ||
+                        selected.type === "multiselect") && (
+                        <>
+                          <label
+                            className="form-builder__label"
+                            htmlFor="field-edit-options"
+                          >
+                            Options (value|label per line)
+                          </label>
+                          <textarea
+                            id="field-edit-options"
+                            className="form-builder__input lumen-focusable"
+                            rows={4}
+                            value={(selected.options ?? [])
+                              .map((o) => `${o.value}|${o.label}`)
+                              .join("\n")}
+                            onChange={(e) => {
+                              const options = e.target.value
+                                .split("\n")
+                                .map((line) => line.trim())
+                                .filter(Boolean)
+                                .map((line) => {
+                                  const [value, ...rest] = line.split("|");
+                                  const label = rest.join("|") || value || "";
+                                  return {
+                                    value: (value || label).trim(),
+                                    label: label.trim(),
+                                  };
+                                })
+                                .filter((o) => o.value.length > 0);
+                              updateField(selected.clientId, {
+                                options: options.length > 0 ? options : null,
+                              });
+                            }}
+                            data-testid="field-edit-options"
+                          />
+                        </>
+                      )}
+
+                      {/* Progressive: advanced conditionals */}
+                      <div
+                        className="form-builder__disclosure"
+                        data-testid="field-advanced-disclosure"
+                      >
                         <button
                           type="button"
-                          className="form-builder__btn form-builder__btn--ghost lumen-focusable"
-                          data-testid={`field-move-up-${f.fieldKey}`}
-                          aria-label={`Move ${f.label} up`}
-                          disabled={index === 0 || busy}
-                          onClick={() => moveField(index, -1)}
+                          className="form-builder__disclosure-toggle lumen-focusable"
+                          data-testid="field-advanced-toggle"
+                          aria-expanded={fieldAdvancedOpen}
+                          onClick={() => setFieldAdvancedOpen((v) => !v)}
                         >
-                          ↑
+                          {fieldAdvancedOpen ? "Hide" : "Show"} advanced
+                          (conditionals)
                         </button>
-                        <button
-                          type="button"
-                          className="form-builder__btn form-builder__btn--ghost lumen-focusable"
-                          data-testid={`field-move-down-${f.fieldKey}`}
-                          aria-label={`Move ${f.label} down`}
-                          disabled={index === fields.length - 1 || busy}
-                          onClick={() => moveField(index, 1)}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          className="form-builder__btn form-builder__btn--ghost lumen-focusable"
-                          data-testid={`field-remove-${f.fieldKey}`}
-                          aria-label={`Remove ${f.label}`}
-                          disabled={busy}
-                          onClick={() => removeField(f.clientId)}
-                        >
-                          Remove
-                        </button>
+                        {fieldAdvancedOpen ? (
+                          <fieldset
+                            className="form-builder__fieldset"
+                            data-testid="field-condition-editor"
+                          >
+                            <legend className="form-builder__label">
+                              Conditional (show when)
+                            </legend>
+                            <label className="form-builder__check-row">
+                              <input
+                                type="checkbox"
+                                className="lumen-focusable"
+                                checked={Boolean(selected.conditions?.showWhen)}
+                                onChange={(e) => {
+                                  if (!e.target.checked) {
+                                    setCondition(selected.clientId, null);
+                                    return;
+                                  }
+                                  const dep = otherFieldKeys[0] ?? "";
+                                  setCondition(selected.clientId, {
+                                    showWhen: {
+                                      fieldKey: dep || "category",
+                                      op: "eq",
+                                      value: "",
+                                    },
+                                  });
+                                }}
+                                data-testid="field-condition-enabled"
+                                disabled={otherFieldKeys.length === 0}
+                              />
+                              <span>Show only when another field matches</span>
+                            </label>
+                            {selected.conditions?.showWhen ? (
+                              <div className="form-builder__condition-row">
+                                <label
+                                  className="form-builder__label"
+                                  htmlFor="cond-field"
+                                >
+                                  Field
+                                </label>
+                                <select
+                                  id="cond-field"
+                                  className="form-builder__input lumen-focusable"
+                                  value={selected.conditions.showWhen.fieldKey}
+                                  onChange={(e) =>
+                                    setCondition(selected.clientId, {
+                                      showWhen: {
+                                        ...selected.conditions!.showWhen!,
+                                        fieldKey: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  data-testid="field-condition-field"
+                                >
+                                  {otherFieldKeys.map((k) => (
+                                    <option key={k} value={k}>
+                                      {k}
+                                    </option>
+                                  ))}
+                                </select>
+                                <label
+                                  className="form-builder__label"
+                                  htmlFor="cond-value"
+                                >
+                                  Equals
+                                </label>
+                                <input
+                                  id="cond-value"
+                                  className="form-builder__input lumen-focusable"
+                                  value={String(
+                                    selected.conditions.showWhen.value,
+                                  )}
+                                  onChange={(e) =>
+                                    setCondition(selected.clientId, {
+                                      showWhen: {
+                                        ...selected.conditions!.showWhen!,
+                                        value: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  data-testid="field-condition-value"
+                                />
+                              </div>
+                            ) : null}
+                            {circular ? (
+                              <p
+                                className="form-builder__status form-builder__status--error"
+                                data-testid="field-condition-cycle-error"
+                                role="alert"
+                              >
+                                Circular condition field_key dependency — blocked
+                              </p>
+                            ) : null}
+                          </fieldset>
+                        ) : null}
                       </div>
+                    </div>
+                  )}
+                </section>
+              </aside>
+            </div>
+          ) : null}
+
+          {builderView === "preview" ? (
+            <div
+              className="form-builder__workspace form-builder__workspace--preview"
+              data-testid="form-builder-workspace"
+              data-regions="preview"
+            >
+              <div className="form-builder__card form-builder__preview-full">
+                <FormPreview
+                  fields={fields}
+                  welcomeMd={welcomeMd}
+                  thankYouMd={thankYouMd}
+                />
+              </div>
+              {/* Keep palette reachable for D07-style checks when switched back */}
+              <p className="form-builder__muted">
+                Public preview uses the draft renderer. Switch to Build to edit
+                fields.
+              </p>
+            </div>
+          ) : null}
+
+          {builderView === "publish" ? (
+            <div
+              className="form-builder__workspace form-builder__workspace--publish"
+              data-testid="form-builder-workspace"
+              data-regions="publish"
+            >
+              <section
+                className="form-builder__card"
+                data-testid="form-publish-summary"
+                aria-labelledby="publish-summary-heading"
+              >
+                <h3
+                  id="publish-summary-heading"
+                  className="form-builder__heading"
+                >
+                  Publish summary
+                </h3>
+                <p className="form-builder__meta">
+                  Fields ready: <strong>{fields.length}</strong>
+                  {rules.length > 0 ? ` · ${rules.length} routing rule(s)` : ""}
+                  {publishedVersion
+                    ? ` · last published v${publishedVersion.versionNum}`
+                    : " · never published"}
+                </p>
+                {!publishEnabled ? (
+                  <Alert
+                    tone="warn"
+                    title="Publish blocked"
+                    data-testid="form-publish-blocked-alert"
+                  >
+                    {reasonMessage(blockReasons)}
+                  </Alert>
+                ) : (
+                  <Alert tone="info" title="Ready to publish">
+                    Publishing freezes an immutable form version. New submissions
+                    pin to that version.
+                  </Alert>
+                )}
+                <ul className="form-builder__publish-field-list" data-testid="publish-field-list">
+                  {sortedFields.map((f) => (
+                    <li key={f.clientId}>
+                      {f.label}{" "}
+                      <span className="form-builder__muted">
+                        ({f.fieldKey}
+                        {f.required ? ", required" : ""})
+                      </span>
                     </li>
                   ))}
                 </ul>
-              )}
-            </section>
+              </section>
+            </div>
+          ) : null}
 
-            {/* D03 / D05 — field editor: required + conditional */}
-            <section
-              className="form-builder__card"
-              data-testid="field-editor-section"
-              aria-labelledby="field-editor-heading"
+          {/* Progressive: form-level advanced (routing, copy, limits) — open by default for inventory */}
+          <div
+            className="form-builder__disclosure form-builder__card"
+            data-testid="form-advanced-disclosure"
+          >
+            <button
+              type="button"
+              className="form-builder__disclosure-toggle lumen-focusable"
+              data-testid="form-advanced-toggle"
+              aria-expanded={formAdvancedOpen}
+              onClick={() => setFormAdvancedOpen((v) => !v)}
             >
-              <h3 id="field-editor-heading" className="form-builder__heading">
-                Field editor
-              </h3>
-              {!selected ? (
-                <p className="form-builder__muted" data-testid="field-editor-empty">
-                  Select a field to edit label, required flag, options, and
-                  conditionals.
-                </p>
-              ) : (
-                <div
-                  className="form-builder__field-editor"
-                  data-testid="field-editor"
-                  data-editing-key={selected.fieldKey}
+              {formAdvancedOpen ? "Hide" : "Show"} advanced form settings
+              (routing, copy, limits)
+            </button>
+
+            {formAdvancedOpen ? (
+              <div
+                className="form-builder__advanced-body"
+                data-testid="form-advanced-body"
+              >
+                {/* D04 — category routing */}
+                <section
+                  data-testid="rules-editor-section"
+                  aria-labelledby="rules-heading"
                 >
-                  <label className="form-builder__label" htmlFor="field-edit-label">
-                    Label
-                  </label>
-                  <input
-                    id="field-edit-label"
-                    className="form-builder__input lumen-focusable"
-                    value={selected.label}
-                    onChange={(e) =>
-                      updateField(selected.clientId, { label: e.target.value })
-                    }
-                    data-testid="field-edit-label"
-                  />
-
-                  <label className="form-builder__label" htmlFor="field-edit-key">
-                    Field key
-                  </label>
-                  <input
-                    id="field-edit-key"
-                    className="form-builder__input lumen-focusable"
-                    value={selected.fieldKey}
-                    onChange={(e) =>
-                      updateField(selected.clientId, {
-                        fieldKey: e.target.value
-                          .toLowerCase()
-                          .replace(/[^a-z0-9_]/g, "")
-                          .slice(0, 64),
-                      })
-                    }
-                    data-testid="field-edit-key"
-                    pattern="[a-z][a-z0-9_]*"
-                  />
-
-                  <label className="form-builder__check-row">
-                    <input
-                      type="checkbox"
-                      className="lumen-focusable"
-                      checked={selected.required}
-                      onChange={(e) =>
-                        updateField(selected.clientId, {
-                          required: e.target.checked,
-                        })
-                      }
-                      data-testid="field-edit-required"
-                    />
-                    <span>Required</span>
-                  </label>
-
-                  {(selected.type === "select" ||
-                    selected.type === "multiselect") && (
-                    <>
-                      <label
-                        className="form-builder__label"
-                        htmlFor="field-edit-options"
+                  <h3 id="rules-heading" className="form-builder__heading">
+                    Category routing
+                  </h3>
+                  <p className="form-builder__muted">
+                    Route submissions to a category when a field matches.
+                  </p>
+                  <ul className="form-builder__rules" data-testid="rules-list">
+                    {rules.map((r, i) => (
+                      <li
+                        key={r.clientId}
+                        className="form-builder__rule"
+                        data-testid={`rule-item-${i}`}
                       >
-                        Options (value|label per line)
-                      </label>
-                      <textarea
-                        id="field-edit-options"
-                        className="form-builder__input lumen-focusable"
-                        rows={4}
-                        value={(selected.options ?? [])
-                          .map((o) => `${o.value}|${o.label}`)
-                          .join("\n")}
-                        onChange={(e) => {
-                          const options = e.target.value
-                            .split("\n")
-                            .map((line) => line.trim())
-                            .filter(Boolean)
-                            .map((line) => {
-                              const [value, ...rest] = line.split("|");
-                              const label = rest.join("|") || value || "";
-                              return {
-                                value: (value || label).trim(),
-                                label: label.trim(),
-                              };
-                            })
-                            .filter((o) => o.value.length > 0);
-                          updateField(selected.clientId, {
-                            options: options.length > 0 ? options : null,
-                          });
-                        }}
-                        data-testid="field-edit-options"
-                      />
-                    </>
-                  )}
-
-                  <fieldset
-                    className="form-builder__fieldset"
-                    data-testid="field-condition-editor"
-                  >
-                    <legend className="form-builder__label">
-                      Conditional (show when)
-                    </legend>
-                    <label className="form-builder__check-row">
-                      <input
-                        type="checkbox"
-                        className="lumen-focusable"
-                        checked={Boolean(selected.conditions?.showWhen)}
-                        onChange={(e) => {
-                          if (!e.target.checked) {
-                            setCondition(selected.clientId, null);
-                            return;
-                          }
-                          const dep = otherFieldKeys[0] ?? "";
-                          setCondition(selected.clientId, {
-                            showWhen: {
-                              fieldKey: dep || "category",
-                              op: "eq",
-                              value: "",
-                            },
-                          });
-                        }}
-                        data-testid="field-condition-enabled"
-                        disabled={otherFieldKeys.length === 0}
-                      />
-                      <span>Show only when another field matches</span>
-                    </label>
-                    {selected.conditions?.showWhen ? (
-                      <div className="form-builder__condition-row">
-                        <label className="form-builder__label" htmlFor="cond-field">
-                          Field
-                        </label>
+                        <label className="form-builder__label">When field</label>
                         <select
-                          id="cond-field"
                           className="form-builder__input lumen-focusable"
-                          value={selected.conditions.showWhen.fieldKey}
+                          value={r.when.fieldKey}
                           onChange={(e) =>
-                            setCondition(selected.clientId, {
-                              showWhen: {
-                                ...selected.conditions!.showWhen!,
-                                fieldKey: e.target.value,
-                              },
+                            updateRule(r.clientId, {
+                              when: { ...r.when, fieldKey: e.target.value },
                             })
                           }
-                          data-testid="field-condition-field"
+                          data-testid={`rule-field-${i}`}
                         >
-                          {otherFieldKeys.map((k) => (
-                            <option key={k} value={k}>
-                              {k}
+                          {fields.map((f) => (
+                            <option key={f.fieldKey} value={f.fieldKey}>
+                              {f.fieldKey}
                             </option>
                           ))}
                         </select>
-                        <label className="form-builder__label" htmlFor="cond-value">
-                          Equals
-                        </label>
+                        <label className="form-builder__label">Equals</label>
                         <input
-                          id="cond-value"
                           className="form-builder__input lumen-focusable"
-                          value={String(selected.conditions.showWhen.value)}
+                          value={String(r.when.value)}
                           onChange={(e) =>
-                            setCondition(selected.clientId, {
-                              showWhen: {
-                                ...selected.conditions!.showWhen!,
-                                value: e.target.value,
-                              },
+                            updateRule(r.clientId, {
+                              when: { ...r.when, value: e.target.value },
                             })
                           }
-                          data-testid="field-condition-value"
+                          data-testid={`rule-value-${i}`}
                         />
-                      </div>
-                    ) : null}
-                    {circular ? (
-                      <p
-                        className="form-builder__status form-builder__status--error"
-                        data-testid="field-condition-cycle-error"
-                        role="alert"
-                      >
-                        Circular condition field_key dependency — blocked
-                      </p>
-                    ) : null}
-                  </fieldset>
-                </div>
-              )}
-            </section>
-
-            {/* D04 — category routing */}
-            <section
-              className="form-builder__card"
-              data-testid="rules-editor-section"
-              aria-labelledby="rules-heading"
-            >
-              <h3 id="rules-heading" className="form-builder__heading">
-                Category routing
-              </h3>
-              <p className="form-builder__muted">
-                Route submissions to a category when a field matches.
-              </p>
-              <ul className="form-builder__rules" data-testid="rules-list">
-                {rules.map((r, i) => (
-                  <li
-                    key={r.clientId}
-                    className="form-builder__rule"
-                    data-testid={`rule-item-${i}`}
+                        <label className="form-builder__label">
+                          Route to category
+                        </label>
+                        <input
+                          className="form-builder__input lumen-focusable"
+                          value={r.routeToCategory}
+                          onChange={(e) =>
+                            updateRule(r.clientId, {
+                              routeToCategory: e.target.value,
+                            })
+                          }
+                          data-testid={`rule-category-${i}`}
+                        />
+                        <button
+                          type="button"
+                          className="form-builder__btn form-builder__btn--ghost lumen-focusable"
+                          data-testid={`rule-remove-${i}`}
+                          onClick={() => removeRule(r.clientId)}
+                        >
+                          Remove rule
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    className="form-builder__btn form-builder__btn--secondary lumen-focusable"
+                    data-testid="rule-add"
+                    onClick={addRule}
+                    disabled={fields.length === 0 || busy}
                   >
-                    <label className="form-builder__label">When field</label>
-                    <select
-                      className="form-builder__input lumen-focusable"
-                      value={r.when.fieldKey}
-                      onChange={(e) =>
-                        updateRule(r.clientId, {
-                          when: { ...r.when, fieldKey: e.target.value },
-                        })
-                      }
-                      data-testid={`rule-field-${i}`}
-                    >
-                      {fields.map((f) => (
-                        <option key={f.fieldKey} value={f.fieldKey}>
-                          {f.fieldKey}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="form-builder__label">Equals</label>
-                    <input
-                      className="form-builder__input lumen-focusable"
-                      value={String(r.when.value)}
-                      onChange={(e) =>
-                        updateRule(r.clientId, {
-                          when: { ...r.when, value: e.target.value },
-                        })
-                      }
-                      data-testid={`rule-value-${i}`}
-                    />
-                    <label className="form-builder__label">Route to category</label>
-                    <input
-                      className="form-builder__input lumen-focusable"
-                      value={r.routeToCategory}
-                      onChange={(e) =>
-                        updateRule(r.clientId, {
-                          routeToCategory: e.target.value,
-                        })
-                      }
-                      data-testid={`rule-category-${i}`}
-                    />
-                    <button
-                      type="button"
-                      className="form-builder__btn form-builder__btn--ghost lumen-focusable"
-                      data-testid={`rule-remove-${i}`}
-                      onClick={() => removeRule(r.clientId)}
-                    >
-                      Remove rule
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                className="form-builder__btn form-builder__btn--secondary lumen-focusable"
-                data-testid="rule-add"
-                onClick={addRule}
-                disabled={fields.length === 0 || busy}
-              >
-                Add routing rule
-              </button>
-            </section>
+                    Add routing rule
+                  </button>
+                </section>
 
-            {/* D06 — welcome / thank you */}
-            <section
-              className="form-builder__card"
-              data-testid="copy-editor-section"
-              aria-labelledby="copy-heading"
-            >
-              <h3 id="copy-heading" className="form-builder__heading">
-                Welcome & thank-you
-              </h3>
-              <label className="form-builder__label" htmlFor="welcome-md">
-                Welcome (markdown)
-              </label>
-              <textarea
-                id="welcome-md"
-                className="form-builder__input lumen-focusable"
-                rows={3}
-                value={welcomeMd}
-                onChange={(e) => setWelcomeMd(e.target.value)}
-                data-testid="form-welcome-md"
-              />
-              <label className="form-builder__label" htmlFor="thankyou-md">
-                Thank you (markdown)
-              </label>
-              <textarea
-                id="thankyou-md"
-                className="form-builder__input lumen-focusable"
-                rows={3}
-                value={thankYouMd}
-                onChange={(e) => setThankYouMd(e.target.value)}
-                data-testid="form-thankyou-md"
-              />
-            </section>
+                {/* D06 — welcome / thank you */}
+                <section
+                  data-testid="copy-editor-section"
+                  aria-labelledby="copy-heading"
+                >
+                  <h3 id="copy-heading" className="form-builder__heading">
+                    Welcome & thank-you
+                  </h3>
+                  <label className="form-builder__label" htmlFor="welcome-md">
+                    Welcome (markdown)
+                  </label>
+                  <textarea
+                    id="welcome-md"
+                    className="form-builder__input lumen-focusable"
+                    rows={3}
+                    value={welcomeMd}
+                    onChange={(e) => setWelcomeMd(e.target.value)}
+                    data-testid="form-welcome-md"
+                  />
+                  <label className="form-builder__label" htmlFor="thankyou-md">
+                    Thank you (markdown)
+                  </label>
+                  <textarea
+                    id="thankyou-md"
+                    className="form-builder__input lumen-focusable"
+                    rows={3}
+                    value={thankYouMd}
+                    onChange={(e) => setThankYouMd(e.target.value)}
+                    data-testid="form-thankyou-md"
+                  />
+                </section>
 
-            {/* D09 — open/close + limit */}
-            <section
-              className="form-builder__card"
-              data-testid="limits-editor-section"
-              aria-labelledby="limits-heading"
-            >
-              <h3 id="limits-heading" className="form-builder__heading">
-                Open / close & submission limit
-              </h3>
-              <label className="form-builder__label" htmlFor="opens-at">
-                Opens at (ISO-8601)
-              </label>
-              <input
-                id="opens-at"
-                className="form-builder__input lumen-focusable"
-                value={opensAt}
-                onChange={(e) => setOpensAt(e.target.value)}
-                placeholder="2026-01-01T00:00:00.000Z"
-                data-testid="form-opens-at"
-              />
-              <label className="form-builder__label" htmlFor="closes-at">
-                Closes at (ISO-8601)
-              </label>
-              <input
-                id="closes-at"
-                className="form-builder__input lumen-focusable"
-                value={closesAt}
-                onChange={(e) => setClosesAt(e.target.value)}
-                placeholder="2026-12-31T23:59:59.000Z"
-                data-testid="form-closes-at"
-              />
-              <label className="form-builder__label" htmlFor="submission-limit">
-                Submission limit
-              </label>
-              <input
-                id="submission-limit"
-                type="number"
-                min={1}
-                className="form-builder__input lumen-focusable"
-                value={submissionLimit}
-                onChange={(e) => setSubmissionLimit(e.target.value)}
-                data-testid="form-submission-limit"
-              />
-            </section>
-
-            {/* Actions: save draft, publish, copy link */}
-            <section
-              className="form-builder__card form-builder__actions"
-              data-testid="form-actions"
-            >
-              <button
-                type="button"
-                className="form-builder__btn form-builder__btn--secondary lumen-focusable"
-                data-testid="form-save-draft"
-                onClick={() => void onSaveDraft()}
-                disabled={busy || !form}
-              >
-                Save draft
-              </button>
-              <button
-                type="button"
-                className="form-builder__btn form-builder__btn--primary lumen-focusable"
-                data-testid="form-publish"
-                onClick={() => void onPublish()}
-                disabled={busy || !publishEnabled}
-                aria-disabled={!publishEnabled}
-                title={
-                  publishEnabled
-                    ? "Publish immutable version"
-                    : reasonMessage(blockReasons)
-                }
-              >
-                Publish
-              </button>
-              <button
-                type="button"
-                className="form-builder__btn form-builder__btn--secondary lumen-focusable"
-                data-testid="form-copy-link"
-                onClick={() => void onCopyLink()}
-                disabled={!eventSlug}
-              >
-                Copy public link
-              </button>
-              {!publishEnabled ? (
-                <p
-                  className="form-builder__status form-builder__status--warn"
-                  data-testid="form-publish-blocked"
-                  role="status"
+                {/* D09 — open/close + limit */}
+                <section
+                  data-testid="limits-editor-section"
+                  aria-labelledby="limits-heading"
                 >
-                  {reasonMessage(blockReasons)}
-                </p>
-              ) : null}
-              {saveStatus ? (
-                <p
-                  className={`form-builder__status form-builder__status--${saveStatus.kind}`}
-                  data-testid="form-save-status"
-                  role="status"
-                >
-                  {saveStatus.text}
-                </p>
-              ) : null}
-              {publishStatus ? (
-                <p
-                  className={`form-builder__status form-builder__status--${publishStatus.kind}`}
-                  data-testid="form-publish-status"
-                  role="status"
-                >
-                  {publishStatus.text}
-                </p>
-              ) : null}
-              {linkStatus ? (
-                <p
-                  className={`form-builder__status form-builder__status--${linkStatus.kind}`}
-                  data-testid="form-link-status"
-                  role="status"
-                >
-                  {linkStatus.text}
-                </p>
-              ) : null}
-              {eventSlug ? (
-                <p className="form-builder__meta" data-testid="form-public-path">
-                  Public path:{" "}
-                  <code data-testid="form-public-href">
-                    /cfp/{eventSlug}
-                  </code>
-                </p>
-              ) : null}
-              {draftMeta ? (
-                <p className="form-builder__meta" data-testid="form-draft-meta">
-                  Draft version id <code>{draftMeta.id}</code>
-                  {draftMeta.fields.length > 0
-                    ? ` · ${draftMeta.fields.length} server fields`
-                    : ""}
-                </p>
-              ) : null}
-            </section>
+                  <h3 id="limits-heading" className="form-builder__heading">
+                    Open / close & submission limit
+                  </h3>
+                  <label className="form-builder__label" htmlFor="opens-at">
+                    Opens at (ISO-8601)
+                  </label>
+                  <input
+                    id="opens-at"
+                    className="form-builder__input lumen-focusable"
+                    value={opensAt}
+                    onChange={(e) => setOpensAt(e.target.value)}
+                    placeholder="2026-01-01T00:00:00.000Z"
+                    data-testid="form-opens-at"
+                  />
+                  <label className="form-builder__label" htmlFor="closes-at">
+                    Closes at (ISO-8601)
+                  </label>
+                  <input
+                    id="closes-at"
+                    className="form-builder__input lumen-focusable"
+                    value={closesAt}
+                    onChange={(e) => setClosesAt(e.target.value)}
+                    placeholder="2026-12-31T23:59:59.000Z"
+                    data-testid="form-closes-at"
+                  />
+                  <label
+                    className="form-builder__label"
+                    htmlFor="submission-limit"
+                  >
+                    Submission limit
+                  </label>
+                  <input
+                    id="submission-limit"
+                    type="number"
+                    min={1}
+                    className="form-builder__input lumen-focusable"
+                    value={submissionLimit}
+                    onChange={(e) => setSubmissionLimit(e.target.value)}
+                    data-testid="form-submission-limit"
+                  />
+                </section>
+              </div>
+            ) : null}
           </div>
 
-          {/* D07 — side-by-side preview */}
-          <aside
-            className="form-builder__preview-col form-builder__card"
-            aria-labelledby="form-preview-heading"
+          {/* Status strip — primary actions live in PageHeader (same inventory testids) */}
+          <section
+            className="form-builder__card form-builder__actions"
+            data-testid="form-actions"
           >
-            <FormPreview
-              fields={fields}
-              welcomeMd={welcomeMd}
-              thankYouMd={thankYouMd}
-            />
-          </aside>
-        </div>
+            {!publishEnabled ? (
+              <p
+                className="form-builder__status form-builder__status--warn"
+                data-testid="form-publish-blocked"
+                role="status"
+              >
+                {reasonMessage(blockReasons)}
+              </p>
+            ) : null}
+            {saveStatus ? (
+              <p
+                className={`form-builder__status form-builder__status--${saveStatus.kind}`}
+                data-testid="form-save-status"
+                role="status"
+              >
+                {saveStatus.text}
+              </p>
+            ) : null}
+            {publishStatus ? (
+              <p
+                className={`form-builder__status form-builder__status--${publishStatus.kind}`}
+                data-testid="form-publish-status"
+                role="status"
+              >
+                {publishStatus.text}
+              </p>
+            ) : null}
+            {linkStatus ? (
+              <p
+                className={`form-builder__status form-builder__status--${linkStatus.kind}`}
+                data-testid="form-link-status"
+                role="status"
+              >
+                {linkStatus.text}
+              </p>
+            ) : null}
+            {eventSlug ? (
+              <p className="form-builder__meta" data-testid="form-public-path">
+                Public path:{" "}
+                <code data-testid="form-public-href">/cfp/{eventSlug}</code>
+              </p>
+            ) : null}
+            {draftMeta ? (
+              <p className="form-builder__meta" data-testid="form-draft-meta">
+                Draft version id <code>{draftMeta.id}</code>
+                {draftMeta.fields.length > 0
+                  ? ` · ${draftMeta.fields.length} server fields`
+                  : ""}
+              </p>
+            ) : null}
+          </section>
+        </>
       ) : (
         <p className="form-builder__empty" data-testid="form-builder-empty">
-          Create a form to open the builder (palette, fields, preview, publish).
+          Create a form to open the builder (outline, canvas, inspector, publish).
         </p>
       )}
     </div>
