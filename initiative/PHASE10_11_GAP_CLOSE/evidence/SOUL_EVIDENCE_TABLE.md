@@ -17,7 +17,7 @@
 |-------|-------|
 | Binding URL | https://www.speakerops.org |
 | Worker | `speakerops-demo` (`wrangler.toml` `[env.dogfood]`) |
-| GET /health | **200** `{"ok":true,"version":"0.1.0-demo+2ab9f55"}` |
+| GET /health | **200** `{"ok":true,"version":"0.1.0-demo+3421b4f"}` |
 | Deploy evidence | `initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md` |
 | BC10 evidence | `KMS-competition/initiative/evidence/cf-dogfood.txt` |
 | Keystone result | **19 passed** (all D rows + must-not + meta; S-L2-COMMS ≥150 + J05 job row) |
@@ -29,7 +29,7 @@ Every row: named test title · inventory family (ownership stays on implementati
 
 | Soul | Named test title | @inv family (documented) | Deploy rev | Report hash path | Result |
 |------|------------------|--------------------------|------------|------------------|--------|
-| **S-SUB-LIST** | `D: S-SUB-LIST submissions list on dogfood ≤5s` | E01, L05 | `0.1.0-demo+2ab9f55` | `evidence/phase11-keystone-run.SHA256` | **PASS** |
+| **S-SUB-LIST** | `D: S-SUB-LIST submissions list on dogfood ≤5s` | E01, L05 | `0.1.0-demo+3421b4f` | `evidence/phase11-keystone-run.SHA256` | **PASS** |
 | **S-EVAL-UI** | `D: S-EVAL-UI evaluations progress on dogfood` | F01 | same | same | **PASS** |
 | **S-CFP-SUBMIT** | `D: S-CFP-SUBMIT public CFP DEMO submit on dogfood` | A06 | same | same | **PASS** |
 | **S-CFP-CLOSED** | `D: S-CFP-CLOSED closed window on dogfood` | A07 | same | same | **PASS** |
