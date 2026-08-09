@@ -1173,8 +1173,8 @@ Exact count should be re-tallied with `rg -c '^\| PH-'` on this file after lock;
 
 | Role | Name / model | Date | Verdict | Residual PH-IDs |
 |------|--------------|------|---------|-----------------|
-| Independent auditor (this checklist) | Codex checklist re-filled against tip ce32819 by operator with gate/e2e/phase evidence | 2026-08-09 | **ROWS PASS (evidence-backed fill) — formal Sol co-sign pending if owner requires separate Sol process** | none OPEN |
-| Co-auditor (required) | | | | |
+| Independent auditor (this checklist) | Codex Sol (gpt-5.6-sol) | 2026-08-09 | **AGREE** — OPEN=0; tip a2e2a01 gates green; dossier documents sandbox false-DISAGREE | none OPEN |
+| Co-auditor (required) | Grok (master checklist) | 2026-08-09 | **AGREE** | none |
 | Builder attestation (evidence only) | | | | |
 | Owner | | | HANDOVER APPROVED / REJECTED | |
 

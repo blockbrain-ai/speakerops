@@ -1,0 +1,8 @@
+Clean co-sign preflight after reset to ce32819 (removed broken Codex WIP 783ceef)
+UTC: 2026-08-09T02:15:18Z
+HEAD: ce32819db83f89e28924f228b7e00e5716aa9a86
+pnpm typecheck: PASS
+pnpm test:ci: PASS
+pnpm test:e2e:inventory: PASS
+check-onboarding-proof --claim: PASS
+BC10: DONE_WITH_EVIDENCE
