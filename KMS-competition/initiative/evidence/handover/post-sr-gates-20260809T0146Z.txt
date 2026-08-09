@@ -1,0 +1,21 @@
+SpeakerOps post-SR finish gates
+UTC: 2026-08-09T01:47:08Z
+HEAD: ce32819db83f89e28924f228b7e00e5716aa9a86
+Branch: section-runner/speakerops
+
+pnpm typecheck: PASS (exit 0)
+pnpm test:ci: PASS (vitest 428 + governance via gate; exit 0)
+pnpm test:e2e:inventory: PASS (108/108 REQUIRED @inv; crawl OK)
+pnpm check:onboarding-proof -- --claim: PASS
+pnpm docs:reports: PASS (7 pages, sha ce32819)
+Phase 0-9 final audit: all APPROVE (Codex Sol)
+SR: 50/50 sections completed; pipeline run complete 2026-08-09T01:42:18Z
+GitHub private: git@github.com:blockbrain-ai/speakerops.git section-runner/speakerops @ ce32819db83f89e28924f228b7e00e5716aa9a86
+
+BUILD_CHECKLIST BC01-15: all DONE_WITH_EVIDENCE (see BUILD_CHECKLIST.md)
+CF evidence: initiative/evidence/cf-dogfood.txt
+E2E full log: initiative/evidence/e2e-full.txt
+
+pnpm test:e2e: PASS (119 passed, 1 skipped optional CF smoke, exit 0)
+reports/e2e-coverage.html: REQUIRED 108 · PASS 108 · FAIL 0 · DEFER 0 · sha ce32819
+playwright-run.json present; playwright-report/ present

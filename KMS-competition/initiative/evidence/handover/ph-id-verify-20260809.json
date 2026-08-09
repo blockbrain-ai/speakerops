@@ -1,0 +1,2138 @@
+{
+  "DES-01": {
+    "evidence": "Lumen lock + C* e2e + design-lumen.html",
+    "status": "PASS"
+  },
+  "DES-02": {
+    "evidence": "Lumen lock + C* e2e + design-lumen.html",
+    "status": "PASS"
+  },
+  "DES-03": {
+    "evidence": "Lumen lock + C* e2e + design-lumen.html",
+    "status": "PASS"
+  },
+  "DES-04": {
+    "evidence": "Lumen lock + C* e2e + design-lumen.html",
+    "status": "PASS"
+  },
+  "DES-05": {
+    "evidence": "Lumen lock + C* e2e + design-lumen.html",
+    "status": "PASS"
+  },
+  "DES-06": {
+    "evidence": "Lumen lock + C* e2e + design-lumen.html",
+    "status": "PASS"
+  },
+  "DES-07": {
+    "evidence": "Lumen lock + C* e2e + design-lumen.html",
+    "status": "PASS"
+  },
+  "DES-08": {
+    "evidence": "Lumen lock + C* e2e + design-lumen.html",
+    "status": "PASS"
+  },
+  "DOC-01": {
+    "evidence": "README.md",
+    "status": "PASS"
+  },
+  "DOC-02": {
+    "evidence": "docs/ONBOARDING.md",
+    "status": "PASS"
+  },
+  "DOC-03": {
+    "evidence": "AGENT_SETUP+CLI",
+    "status": "PASS"
+  },
+  "DOC-04": {
+    "evidence": "deep docs",
+    "status": "PASS"
+  },
+  "DOC-05": {
+    "evidence": "reports/index.html",
+    "status": "PASS"
+  },
+  "DOC-06": {
+    "evidence": "docs/COMPETITION.md",
+    "status": "PASS"
+  },
+  "DOC-07": {
+    "evidence": "onboarding-proof dry-runs",
+    "status": "PASS"
+  },
+  "E2E-ALL-01": {
+    "evidence": "108/108 coverage + 119 playwright PASS",
+    "status": "PASS"
+  },
+  "E2E-ALL-02": {
+    "evidence": "inventory lint 108 @inv",
+    "status": "PASS"
+  },
+  "E2E-ALL-03": {
+    "evidence": "discovery crawl OK",
+    "status": "PASS"
+  },
+  "E2E-ALL-04": {
+    "evidence": "L04 console-clean PASS",
+    "status": "PASS"
+  },
+  "E2E-ALL-05": {
+    "evidence": "e2e-coverage.html 108 PASS 0 FAIL",
+    "status": "PASS"
+  },
+  "E2E-ALL-06": {
+    "evidence": "inventory fingerprints baseline",
+    "status": "PASS"
+  },
+  "E2E-ALL-07": {
+    "evidence": "authz/validation negatives PASS",
+    "status": "PASS"
+  },
+  "E2E-ALL-08": {
+    "evidence": "only optional CF smoke skipped",
+    "status": "PASS"
+  },
+  "FEBE-01": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-02": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-03": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-04": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-05": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-06": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-07": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-08": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-09": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-10": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-11": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "FEBE-12": {
+    "evidence": "COMMANDS/OpenAPI/shared Zod + 108 e2e soul coverage initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-0.1-01": {
+    "evidence": "docs/governance/0.1-programme-contract.md",
+    "status": "PASS"
+  },
+  "PH-0.1-02": {
+    "evidence": "stack lock in 0.1",
+    "status": "PASS"
+  },
+  "PH-0.1-03": {
+    "evidence": "non-goals struck items",
+    "status": "PASS"
+  },
+  "PH-0.1-04": {
+    "evidence": "human review checklist",
+    "status": "PASS"
+  },
+  "PH-0.1-05": {
+    "evidence": "governance doc section; product app not introduced in 0.1",
+    "status": "PASS"
+  },
+  "PH-0.1-CONTRACT": {
+    "evidence": "docs-only section; contracts present",
+    "status": "PASS"
+  },
+  "PH-0.1-SCOPE": {
+    "evidence": "Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819; non-goals in 0.1-programme-contract.md",
+    "status": "PASS"
+  },
+  "PH-0.2-01": {
+    "evidence": "docs/governance/0.2-lumen-lock.md",
+    "status": "PASS"
+  },
+  "PH-0.2-02": {
+    "evidence": "contrast+SVG",
+    "status": "PASS"
+  },
+  "PH-0.2-03": {
+    "evidence": "component list",
+    "status": "PASS"
+  },
+  "PH-0.2-04": {
+    "evidence": "E6 via lumen lock + governance tests",
+    "status": "PASS"
+  },
+  "PH-0.2-CONTRACT": {
+    "evidence": "docs-only lumen lock",
+    "status": "PASS"
+  },
+  "PH-0.2-SCOPE": {
+    "evidence": "Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-0.3-01": {
+    "evidence": "docs/governance/0.3-e2e-inventory-law.md",
+    "status": "PASS"
+  },
+  "PH-0.3-02": {
+    "evidence": "docs/governance/0.3-e2e-inventory-law.md",
+    "status": "PASS"
+  },
+  "PH-0.3-03": {
+    "evidence": "docs/governance/0.3-e2e-inventory-law.md",
+    "status": "PASS"
+  },
+  "PH-0.3-04": {
+    "evidence": "@inv + no-shrinkage + inventory lint 108",
+    "status": "PASS"
+  },
+  "PH-0.3-CONTRACT": {
+    "evidence": "docs-only",
+    "status": "PASS"
+  },
+  "PH-0.3-SCOPE": {
+    "evidence": "Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-0.4-01": {
+    "evidence": "domain-map + initiative/contracts/{COMMANDS,SCHEMA,SCOPES}.md",
+    "status": "PASS"
+  },
+  "PH-0.4-02": {
+    "evidence": "Person\u2260Speaker stated",
+    "status": "PASS"
+  },
+  "PH-0.4-03": {
+    "evidence": "SCOPES.md default-deny high-risk",
+    "status": "PASS"
+  },
+  "PH-0.4-04": {
+    "evidence": "gitleaks clean on tip dcd34fcd/ce32819",
+    "status": "PASS"
+  },
+  "PH-0.4-CONTRACT": {
+    "evidence": "docs/governance/0.4-domain-map.md",
+    "status": "PASS"
+  },
+  "PH-0.4-SCOPE": {
+    "evidence": "Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-0.5-01": {
+    "evidence": "0.5 outline",
+    "status": "PASS"
+  },
+  "PH-0.5-02": {
+    "evidence": "soul map",
+    "status": "PASS"
+  },
+  "PH-0.5-03": {
+    "evidence": "reports portal listed",
+    "status": "PASS"
+  },
+  "PH-0.5-04": {
+    "evidence": "gitleaks clean",
+    "status": "PASS"
+  },
+  "PH-0.5-CONTRACT": {
+    "evidence": "outline docs",
+    "status": "PASS"
+  },
+  "PH-0.5-SCOPE": {
+    "evidence": "Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-1.1-01": {
+    "evidence": "docs/sections/1.1-monorepo-gates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.1-02": {
+    "evidence": "docs/sections/1.1-monorepo-gates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.1-03": {
+    "evidence": "docs/sections/1.1-monorepo-gates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.1-04": {
+    "evidence": "docs/sections/1.1-monorepo-gates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.1-05": {
+    "evidence": "docs/sections/1.1-monorepo-gates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.1-06": {
+    "evidence": "docs/sections/1.1-monorepo-gates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.1-07": {
+    "evidence": "docs/sections/1.1-monorepo-gates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.1-08": {
+    "evidence": "docs/sections/1.1-monorepo-gates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.1-CONTRACT": {
+    "evidence": "section 1.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-1.1-SCOPE": {
+    "evidence": "1.1-monorepo-gates.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-1.2-01": {
+    "evidence": "docs/sections/1.2-worker-health.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.2-02": {
+    "evidence": "docs/sections/1.2-worker-health.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.2-03": {
+    "evidence": "docs/sections/1.2-worker-health.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.2-04": {
+    "evidence": "docs/sections/1.2-worker-health.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.2-05": {
+    "evidence": "docs/sections/1.2-worker-health.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.2-06": {
+    "evidence": "docs/sections/1.2-worker-health.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.2-07": {
+    "evidence": "docs/sections/1.2-worker-health.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.2-08": {
+    "evidence": "docs/sections/1.2-worker-health.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.2-CONTRACT": {
+    "evidence": "section 1.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-1.2-SCOPE": {
+    "evidence": "1.2-worker-health.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-1.3-01": {
+    "evidence": "docs/sections/1.3-d1-baseline.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.3-02": {
+    "evidence": "docs/sections/1.3-d1-baseline.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.3-03": {
+    "evidence": "docs/sections/1.3-d1-baseline.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.3-04": {
+    "evidence": "docs/sections/1.3-d1-baseline.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.3-05": {
+    "evidence": "docs/sections/1.3-d1-baseline.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.3-06": {
+    "evidence": "docs/sections/1.3-d1-baseline.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.3-07": {
+    "evidence": "docs/sections/1.3-d1-baseline.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.3-08": {
+    "evidence": "docs/sections/1.3-d1-baseline.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.3-CONTRACT": {
+    "evidence": "section 1.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-1.3-SCOPE": {
+    "evidence": "1.3-d1-baseline.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-1.4-01": {
+    "evidence": "docs/sections/1.4-lumen-shell.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.4-02": {
+    "evidence": "docs/sections/1.4-lumen-shell.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.4-03": {
+    "evidence": "docs/sections/1.4-lumen-shell.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.4-04": {
+    "evidence": "docs/sections/1.4-lumen-shell.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.4-05": {
+    "evidence": "docs/sections/1.4-lumen-shell.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.4-06": {
+    "evidence": "docs/sections/1.4-lumen-shell.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.4-07": {
+    "evidence": "docs/sections/1.4-lumen-shell.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.4-08": {
+    "evidence": "docs/sections/1.4-lumen-shell.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.4-CONTRACT": {
+    "evidence": "section 1.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-1.4-SCOPE": {
+    "evidence": "1.4-lumen-shell.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-1.5-01": {
+    "evidence": "docs/sections/1.5-playwright-inventory-harness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.5-02": {
+    "evidence": "docs/sections/1.5-playwright-inventory-harness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.5-03": {
+    "evidence": "docs/sections/1.5-playwright-inventory-harness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.5-04": {
+    "evidence": "docs/sections/1.5-playwright-inventory-harness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.5-05": {
+    "evidence": "docs/sections/1.5-playwright-inventory-harness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.5-06": {
+    "evidence": "docs/sections/1.5-playwright-inventory-harness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.5-07": {
+    "evidence": "docs/sections/1.5-playwright-inventory-harness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.5-08": {
+    "evidence": "docs/sections/1.5-playwright-inventory-harness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.5-CONTRACT": {
+    "evidence": "section 1.5; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-1.5-SCOPE": {
+    "evidence": "1.5-playwright-inventory-harness.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-1.6-01": {
+    "evidence": "docs/sections/1.6-foundation-e2e-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.6-02": {
+    "evidence": "docs/sections/1.6-foundation-e2e-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.6-03": {
+    "evidence": "docs/sections/1.6-foundation-e2e-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.6-04": {
+    "evidence": "docs/sections/1.6-foundation-e2e-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.6-05": {
+    "evidence": "docs/sections/1.6-foundation-e2e-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.6-06": {
+    "evidence": "docs/sections/1.6-foundation-e2e-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.6-07": {
+    "evidence": "docs/sections/1.6-foundation-e2e-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.6-08": {
+    "evidence": "docs/sections/1.6-foundation-e2e-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-1.6-CONTRACT": {
+    "evidence": "section 1.6; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-1.6-SCOPE": {
+    "evidence": "1.6-foundation-e2e-proof.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-2.1-01": {
+    "evidence": "docs/sections/2.1-session-auth.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.1-02": {
+    "evidence": "docs/sections/2.1-session-auth.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.1-03": {
+    "evidence": "docs/sections/2.1-session-auth.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.1-04": {
+    "evidence": "docs/sections/2.1-session-auth.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.1-05": {
+    "evidence": "docs/sections/2.1-session-auth.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.1-06": {
+    "evidence": "docs/sections/2.1-session-auth.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.1-07": {
+    "evidence": "docs/sections/2.1-session-auth.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.1-08": {
+    "evidence": "docs/sections/2.1-session-auth.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.1-CONTRACT": {
+    "evidence": "section 2.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-2.1-SCOPE": {
+    "evidence": "2.1-session-auth.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-2.2-01": {
+    "evidence": "docs/sections/2.2-roles-guards.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.2-02": {
+    "evidence": "docs/sections/2.2-roles-guards.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.2-03": {
+    "evidence": "docs/sections/2.2-roles-guards.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.2-04": {
+    "evidence": "docs/sections/2.2-roles-guards.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.2-05": {
+    "evidence": "docs/sections/2.2-roles-guards.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.2-06": {
+    "evidence": "docs/sections/2.2-roles-guards.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.2-07": {
+    "evidence": "docs/sections/2.2-roles-guards.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.2-08": {
+    "evidence": "docs/sections/2.2-roles-guards.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.2-CONTRACT": {
+    "evidence": "section 2.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-2.2-SCOPE": {
+    "evidence": "2.2-roles-guards.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-2.3-01": {
+    "evidence": "docs/sections/2.3-event-settings.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.3-02": {
+    "evidence": "docs/sections/2.3-event-settings.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.3-03": {
+    "evidence": "docs/sections/2.3-event-settings.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.3-04": {
+    "evidence": "docs/sections/2.3-event-settings.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.3-05": {
+    "evidence": "docs/sections/2.3-event-settings.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.3-06": {
+    "evidence": "docs/sections/2.3-event-settings.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.3-07": {
+    "evidence": "docs/sections/2.3-event-settings.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.3-08": {
+    "evidence": "docs/sections/2.3-event-settings.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.3-CONTRACT": {
+    "evidence": "section 2.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-2.3-SCOPE": {
+    "evidence": "2.3-event-settings.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-2.4-01": {
+    "evidence": "docs/sections/2.4-design-kit.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.4-02": {
+    "evidence": "docs/sections/2.4-design-kit.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.4-03": {
+    "evidence": "docs/sections/2.4-design-kit.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.4-04": {
+    "evidence": "docs/sections/2.4-design-kit.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.4-05": {
+    "evidence": "docs/sections/2.4-design-kit.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.4-06": {
+    "evidence": "docs/sections/2.4-design-kit.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.4-07": {
+    "evidence": "docs/sections/2.4-design-kit.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.4-08": {
+    "evidence": "docs/sections/2.4-design-kit.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.4-CONTRACT": {
+    "evidence": "section 2.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-2.4-SCOPE": {
+    "evidence": "2.4-design-kit.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-2.5-01": {
+    "evidence": "docs/sections/2.5-auth-settings-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.5-02": {
+    "evidence": "docs/sections/2.5-auth-settings-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.5-03": {
+    "evidence": "docs/sections/2.5-auth-settings-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.5-04": {
+    "evidence": "docs/sections/2.5-auth-settings-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.5-05": {
+    "evidence": "docs/sections/2.5-auth-settings-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.5-06": {
+    "evidence": "docs/sections/2.5-auth-settings-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.5-07": {
+    "evidence": "docs/sections/2.5-auth-settings-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.5-08": {
+    "evidence": "docs/sections/2.5-auth-settings-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-2.5-CONTRACT": {
+    "evidence": "section 2.5; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-2.5-SCOPE": {
+    "evidence": "2.5-auth-settings-e2e.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-3.1-01": {
+    "evidence": "docs/sections/3.1-form-builder-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.1-02": {
+    "evidence": "docs/sections/3.1-form-builder-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.1-03": {
+    "evidence": "docs/sections/3.1-form-builder-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.1-04": {
+    "evidence": "docs/sections/3.1-form-builder-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.1-05": {
+    "evidence": "docs/sections/3.1-form-builder-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.1-06": {
+    "evidence": "docs/sections/3.1-form-builder-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.1-07": {
+    "evidence": "docs/sections/3.1-form-builder-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.1-08": {
+    "evidence": "docs/sections/3.1-form-builder-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.1-CONTRACT": {
+    "evidence": "section 3.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-3.1-SCOPE": {
+    "evidence": "3.1-form-builder-api.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-3.2-01": {
+    "evidence": "docs/sections/3.2-form-builder-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.2-02": {
+    "evidence": "docs/sections/3.2-form-builder-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.2-03": {
+    "evidence": "docs/sections/3.2-form-builder-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.2-04": {
+    "evidence": "docs/sections/3.2-form-builder-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.2-05": {
+    "evidence": "docs/sections/3.2-form-builder-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.2-06": {
+    "evidence": "docs/sections/3.2-form-builder-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.2-07": {
+    "evidence": "docs/sections/3.2-form-builder-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.2-08": {
+    "evidence": "docs/sections/3.2-form-builder-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.2-CONTRACT": {
+    "evidence": "section 3.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-3.2-SCOPE": {
+    "evidence": "3.2-form-builder-ui.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-3.3-01": {
+    "evidence": "docs/sections/3.3-public-cfp.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.3-02": {
+    "evidence": "docs/sections/3.3-public-cfp.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.3-03": {
+    "evidence": "docs/sections/3.3-public-cfp.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.3-04": {
+    "evidence": "docs/sections/3.3-public-cfp.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.3-05": {
+    "evidence": "docs/sections/3.3-public-cfp.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.3-06": {
+    "evidence": "docs/sections/3.3-public-cfp.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.3-07": {
+    "evidence": "docs/sections/3.3-public-cfp.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.3-08": {
+    "evidence": "docs/sections/3.3-public-cfp.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.3-CONTRACT": {
+    "evidence": "section 3.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-3.3-SCOPE": {
+    "evidence": "3.3-public-cfp.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-3.4-01": {
+    "evidence": "docs/sections/3.4-evaluation.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.4-02": {
+    "evidence": "docs/sections/3.4-evaluation.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.4-03": {
+    "evidence": "docs/sections/3.4-evaluation.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.4-04": {
+    "evidence": "docs/sections/3.4-evaluation.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.4-05": {
+    "evidence": "docs/sections/3.4-evaluation.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.4-06": {
+    "evidence": "docs/sections/3.4-evaluation.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.4-07": {
+    "evidence": "docs/sections/3.4-evaluation.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.4-08": {
+    "evidence": "docs/sections/3.4-evaluation.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.4-CONTRACT": {
+    "evidence": "section 3.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-3.4-SCOPE": {
+    "evidence": "3.4-evaluation.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-3.5-01": {
+    "evidence": "docs/sections/3.5-decisions.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.5-02": {
+    "evidence": "docs/sections/3.5-decisions.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.5-03": {
+    "evidence": "docs/sections/3.5-decisions.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.5-04": {
+    "evidence": "docs/sections/3.5-decisions.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.5-05": {
+    "evidence": "docs/sections/3.5-decisions.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.5-06": {
+    "evidence": "docs/sections/3.5-decisions.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.5-07": {
+    "evidence": "docs/sections/3.5-decisions.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.5-08": {
+    "evidence": "docs/sections/3.5-decisions.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.5-CONTRACT": {
+    "evidence": "section 3.5; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-3.5-SCOPE": {
+    "evidence": "3.5-decisions.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-3.6-01": {
+    "evidence": "docs/sections/3.6-cfp-eval-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.6-02": {
+    "evidence": "docs/sections/3.6-cfp-eval-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.6-03": {
+    "evidence": "docs/sections/3.6-cfp-eval-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.6-04": {
+    "evidence": "docs/sections/3.6-cfp-eval-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.6-05": {
+    "evidence": "docs/sections/3.6-cfp-eval-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.6-06": {
+    "evidence": "docs/sections/3.6-cfp-eval-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.6-07": {
+    "evidence": "docs/sections/3.6-cfp-eval-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.6-08": {
+    "evidence": "docs/sections/3.6-cfp-eval-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-3.6-CONTRACT": {
+    "evidence": "section 3.6; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-3.6-SCOPE": {
+    "evidence": "3.6-cfp-eval-e2e.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-4.1-01": {
+    "evidence": "docs/sections/4.1-portal-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.1-02": {
+    "evidence": "docs/sections/4.1-portal-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.1-03": {
+    "evidence": "docs/sections/4.1-portal-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.1-04": {
+    "evidence": "docs/sections/4.1-portal-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.1-05": {
+    "evidence": "docs/sections/4.1-portal-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.1-06": {
+    "evidence": "docs/sections/4.1-portal-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.1-07": {
+    "evidence": "docs/sections/4.1-portal-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.1-08": {
+    "evidence": "docs/sections/4.1-portal-api.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.1-CONTRACT": {
+    "evidence": "section 4.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-4.1-SCOPE": {
+    "evidence": "4.1-portal-api.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-4.2-01": {
+    "evidence": "docs/sections/4.2-r2-uploads.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.2-02": {
+    "evidence": "docs/sections/4.2-r2-uploads.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.2-03": {
+    "evidence": "docs/sections/4.2-r2-uploads.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.2-04": {
+    "evidence": "docs/sections/4.2-r2-uploads.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.2-05": {
+    "evidence": "docs/sections/4.2-r2-uploads.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.2-06": {
+    "evidence": "docs/sections/4.2-r2-uploads.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.2-07": {
+    "evidence": "docs/sections/4.2-r2-uploads.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.2-08": {
+    "evidence": "docs/sections/4.2-r2-uploads.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.2-CONTRACT": {
+    "evidence": "section 4.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-4.2-SCOPE": {
+    "evidence": "4.2-r2-uploads.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-4.3-01": {
+    "evidence": "docs/sections/4.3-portal-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.3-02": {
+    "evidence": "docs/sections/4.3-portal-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.3-03": {
+    "evidence": "docs/sections/4.3-portal-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.3-04": {
+    "evidence": "docs/sections/4.3-portal-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.3-05": {
+    "evidence": "docs/sections/4.3-portal-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.3-06": {
+    "evidence": "docs/sections/4.3-portal-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.3-07": {
+    "evidence": "docs/sections/4.3-portal-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.3-08": {
+    "evidence": "docs/sections/4.3-portal-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.3-CONTRACT": {
+    "evidence": "section 4.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-4.3-SCOPE": {
+    "evidence": "4.3-portal-ui.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-4.4-01": {
+    "evidence": "docs/sections/4.4-portal-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.4-02": {
+    "evidence": "docs/sections/4.4-portal-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.4-03": {
+    "evidence": "docs/sections/4.4-portal-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.4-04": {
+    "evidence": "docs/sections/4.4-portal-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.4-05": {
+    "evidence": "docs/sections/4.4-portal-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.4-06": {
+    "evidence": "docs/sections/4.4-portal-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.4-07": {
+    "evidence": "docs/sections/4.4-portal-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.4-08": {
+    "evidence": "docs/sections/4.4-portal-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-4.4-CONTRACT": {
+    "evidence": "section 4.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-4.4-SCOPE": {
+    "evidence": "4.4-portal-e2e.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-5.1-01": {
+    "evidence": "docs/sections/5.1-email-templates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.1-02": {
+    "evidence": "docs/sections/5.1-email-templates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.1-03": {
+    "evidence": "docs/sections/5.1-email-templates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.1-04": {
+    "evidence": "docs/sections/5.1-email-templates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.1-05": {
+    "evidence": "docs/sections/5.1-email-templates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.1-06": {
+    "evidence": "docs/sections/5.1-email-templates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.1-07": {
+    "evidence": "docs/sections/5.1-email-templates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.1-08": {
+    "evidence": "docs/sections/5.1-email-templates.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.1-CONTRACT": {
+    "evidence": "section 5.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-5.1-SCOPE": {
+    "evidence": "5.1-email-templates.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-5.2-01": {
+    "evidence": "docs/sections/5.2-send-ics.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.2-02": {
+    "evidence": "docs/sections/5.2-send-ics.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.2-03": {
+    "evidence": "docs/sections/5.2-send-ics.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.2-04": {
+    "evidence": "docs/sections/5.2-send-ics.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.2-05": {
+    "evidence": "docs/sections/5.2-send-ics.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.2-06": {
+    "evidence": "docs/sections/5.2-send-ics.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.2-07": {
+    "evidence": "docs/sections/5.2-send-ics.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.2-08": {
+    "evidence": "docs/sections/5.2-send-ics.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.2-CONTRACT": {
+    "evidence": "section 5.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-5.2-SCOPE": {
+    "evidence": "5.2-send-ics.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-5.3-01": {
+    "evidence": "docs/sections/5.3-comms-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.3-02": {
+    "evidence": "docs/sections/5.3-comms-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.3-03": {
+    "evidence": "docs/sections/5.3-comms-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.3-04": {
+    "evidence": "docs/sections/5.3-comms-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.3-05": {
+    "evidence": "docs/sections/5.3-comms-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.3-06": {
+    "evidence": "docs/sections/5.3-comms-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.3-07": {
+    "evidence": "docs/sections/5.3-comms-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.3-08": {
+    "evidence": "docs/sections/5.3-comms-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.3-CONTRACT": {
+    "evidence": "section 5.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-5.3-SCOPE": {
+    "evidence": "5.3-comms-ui.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-5.4-01": {
+    "evidence": "docs/sections/5.4-comms-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.4-02": {
+    "evidence": "docs/sections/5.4-comms-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.4-03": {
+    "evidence": "docs/sections/5.4-comms-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.4-04": {
+    "evidence": "docs/sections/5.4-comms-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.4-05": {
+    "evidence": "docs/sections/5.4-comms-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.4-06": {
+    "evidence": "docs/sections/5.4-comms-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.4-07": {
+    "evidence": "docs/sections/5.4-comms-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.4-08": {
+    "evidence": "docs/sections/5.4-comms-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-5.4-CONTRACT": {
+    "evidence": "section 5.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-5.4-SCOPE": {
+    "evidence": "5.4-comms-e2e.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-6.1-01": {
+    "evidence": "docs/sections/6.1-schedule-conflicts.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.1-02": {
+    "evidence": "docs/sections/6.1-schedule-conflicts.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.1-03": {
+    "evidence": "docs/sections/6.1-schedule-conflicts.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.1-04": {
+    "evidence": "docs/sections/6.1-schedule-conflicts.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.1-05": {
+    "evidence": "docs/sections/6.1-schedule-conflicts.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.1-06": {
+    "evidence": "docs/sections/6.1-schedule-conflicts.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.1-07": {
+    "evidence": "docs/sections/6.1-schedule-conflicts.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.1-08": {
+    "evidence": "docs/sections/6.1-schedule-conflicts.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.1-CONTRACT": {
+    "evidence": "section 6.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-6.1-SCOPE": {
+    "evidence": "6.1-schedule-conflicts.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-6.2-01": {
+    "evidence": "docs/sections/6.2-schedule-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.2-02": {
+    "evidence": "docs/sections/6.2-schedule-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.2-03": {
+    "evidence": "docs/sections/6.2-schedule-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.2-04": {
+    "evidence": "docs/sections/6.2-schedule-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.2-05": {
+    "evidence": "docs/sections/6.2-schedule-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.2-06": {
+    "evidence": "docs/sections/6.2-schedule-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.2-07": {
+    "evidence": "docs/sections/6.2-schedule-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.2-08": {
+    "evidence": "docs/sections/6.2-schedule-ui.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.2-CONTRACT": {
+    "evidence": "section 6.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-6.2-SCOPE": {
+    "evidence": "6.2-schedule-ui.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-6.3-01": {
+    "evidence": "docs/sections/6.3-readiness-dashboard.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.3-02": {
+    "evidence": "docs/sections/6.3-readiness-dashboard.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.3-03": {
+    "evidence": "docs/sections/6.3-readiness-dashboard.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.3-04": {
+    "evidence": "docs/sections/6.3-readiness-dashboard.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.3-05": {
+    "evidence": "docs/sections/6.3-readiness-dashboard.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.3-06": {
+    "evidence": "docs/sections/6.3-readiness-dashboard.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.3-07": {
+    "evidence": "docs/sections/6.3-readiness-dashboard.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.3-08": {
+    "evidence": "docs/sections/6.3-readiness-dashboard.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.3-CONTRACT": {
+    "evidence": "section 6.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-6.3-SCOPE": {
+    "evidence": "6.3-readiness-dashboard.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-6.4-01": {
+    "evidence": "docs/sections/6.4-schedule-dash-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.4-02": {
+    "evidence": "docs/sections/6.4-schedule-dash-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.4-03": {
+    "evidence": "docs/sections/6.4-schedule-dash-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.4-04": {
+    "evidence": "docs/sections/6.4-schedule-dash-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.4-05": {
+    "evidence": "docs/sections/6.4-schedule-dash-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.4-06": {
+    "evidence": "docs/sections/6.4-schedule-dash-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.4-07": {
+    "evidence": "docs/sections/6.4-schedule-dash-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.4-08": {
+    "evidence": "docs/sections/6.4-schedule-dash-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-6.4-CONTRACT": {
+    "evidence": "section 6.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-6.4-SCOPE": {
+    "evidence": "6.4-schedule-dash-e2e.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-7.1-01": {
+    "evidence": "docs/sections/7.1-api-keys.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.1-02": {
+    "evidence": "docs/sections/7.1-api-keys.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.1-03": {
+    "evidence": "docs/sections/7.1-api-keys.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.1-04": {
+    "evidence": "docs/sections/7.1-api-keys.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.1-05": {
+    "evidence": "docs/sections/7.1-api-keys.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.1-06": {
+    "evidence": "docs/sections/7.1-api-keys.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.1-07": {
+    "evidence": "docs/sections/7.1-api-keys.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.1-08": {
+    "evidence": "docs/sections/7.1-api-keys.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.1-CONTRACT": {
+    "evidence": "section 7.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-7.1-SCOPE": {
+    "evidence": "7.1-api-keys.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-7.2-01": {
+    "evidence": "docs/sections/7.2-cli.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.2-02": {
+    "evidence": "docs/sections/7.2-cli.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.2-03": {
+    "evidence": "docs/sections/7.2-cli.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.2-04": {
+    "evidence": "docs/sections/7.2-cli.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.2-05": {
+    "evidence": "docs/sections/7.2-cli.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.2-06": {
+    "evidence": "docs/sections/7.2-cli.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.2-07": {
+    "evidence": "docs/sections/7.2-cli.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.2-08": {
+    "evidence": "docs/sections/7.2-cli.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.2-CONTRACT": {
+    "evidence": "section 7.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-7.2-SCOPE": {
+    "evidence": "7.2-cli.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-7.3-01": {
+    "evidence": "docs/sections/7.3-airtable-projection.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.3-02": {
+    "evidence": "docs/sections/7.3-airtable-projection.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.3-03": {
+    "evidence": "docs/sections/7.3-airtable-projection.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.3-04": {
+    "evidence": "docs/sections/7.3-airtable-projection.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.3-05": {
+    "evidence": "docs/sections/7.3-airtable-projection.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.3-06": {
+    "evidence": "docs/sections/7.3-airtable-projection.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.3-07": {
+    "evidence": "docs/sections/7.3-airtable-projection.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.3-08": {
+    "evidence": "docs/sections/7.3-airtable-projection.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.3-CONTRACT": {
+    "evidence": "section 7.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-7.3-SCOPE": {
+    "evidence": "7.3-airtable-projection.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-7.4-01": {
+    "evidence": "docs/sections/7.4-cli-airtable-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.4-02": {
+    "evidence": "docs/sections/7.4-cli-airtable-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.4-03": {
+    "evidence": "docs/sections/7.4-cli-airtable-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.4-04": {
+    "evidence": "docs/sections/7.4-cli-airtable-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.4-05": {
+    "evidence": "docs/sections/7.4-cli-airtable-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.4-06": {
+    "evidence": "docs/sections/7.4-cli-airtable-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.4-07": {
+    "evidence": "docs/sections/7.4-cli-airtable-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.4-08": {
+    "evidence": "docs/sections/7.4-cli-airtable-e2e.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-7.4-CONTRACT": {
+    "evidence": "section 7.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-7.4-SCOPE": {
+    "evidence": "7.4-cli-airtable-e2e.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-8.1-01": {
+    "evidence": "docs/sections/8.1-inventory-completeness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.1-02": {
+    "evidence": "docs/sections/8.1-inventory-completeness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.1-03": {
+    "evidence": "docs/sections/8.1-inventory-completeness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.1-04": {
+    "evidence": "docs/sections/8.1-inventory-completeness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.1-05": {
+    "evidence": "docs/sections/8.1-inventory-completeness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.1-06": {
+    "evidence": "docs/sections/8.1-inventory-completeness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.1-07": {
+    "evidence": "docs/sections/8.1-inventory-completeness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.1-08": {
+    "evidence": "docs/sections/8.1-inventory-completeness.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.1-CONTRACT": {
+    "evidence": "section 8.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-8.1-SCOPE": {
+    "evidence": "8.1-inventory-completeness.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-8.2-01": {
+    "evidence": "docs/sections/8.2-full-playwright-suite.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.2-02": {
+    "evidence": "docs/sections/8.2-full-playwright-suite.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.2-03": {
+    "evidence": "docs/sections/8.2-full-playwright-suite.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.2-04": {
+    "evidence": "docs/sections/8.2-full-playwright-suite.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.2-05": {
+    "evidence": "docs/sections/8.2-full-playwright-suite.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.2-06": {
+    "evidence": "docs/sections/8.2-full-playwright-suite.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.2-07": {
+    "evidence": "docs/sections/8.2-full-playwright-suite.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.2-08": {
+    "evidence": "docs/sections/8.2-full-playwright-suite.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.2-CONTRACT": {
+    "evidence": "section 8.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-8.2-SCOPE": {
+    "evidence": "8.2-full-playwright-suite.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-8.3-01": {
+    "evidence": "docs/sections/8.3-security-hardening.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.3-02": {
+    "evidence": "docs/sections/8.3-security-hardening.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.3-03": {
+    "evidence": "docs/sections/8.3-security-hardening.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.3-04": {
+    "evidence": "docs/sections/8.3-security-hardening.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.3-05": {
+    "evidence": "docs/sections/8.3-security-hardening.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.3-06": {
+    "evidence": "docs/sections/8.3-security-hardening.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.3-07": {
+    "evidence": "docs/sections/8.3-security-hardening.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.3-08": {
+    "evidence": "docs/sections/8.3-security-hardening.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.3-CONTRACT": {
+    "evidence": "section 8.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-8.3-SCOPE": {
+    "evidence": "8.3-security-hardening.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-8.4-01": {
+    "evidence": "docs/sections/8.4-demo-seed.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.4-02": {
+    "evidence": "docs/sections/8.4-demo-seed.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.4-03": {
+    "evidence": "docs/sections/8.4-demo-seed.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.4-04": {
+    "evidence": "docs/sections/8.4-demo-seed.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.4-05": {
+    "evidence": "docs/sections/8.4-demo-seed.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.4-06": {
+    "evidence": "docs/sections/8.4-demo-seed.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.4-07": {
+    "evidence": "docs/sections/8.4-demo-seed.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.4-08": {
+    "evidence": "docs/sections/8.4-demo-seed.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.4-CONTRACT": {
+    "evidence": "section 8.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-8.4-SCOPE": {
+    "evidence": "8.4-demo-seed.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-8.5-01": {
+    "evidence": "docs/sections/8.5-e2e-keystone-report.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.5-02": {
+    "evidence": "docs/sections/8.5-e2e-keystone-report.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.5-03": {
+    "evidence": "docs/sections/8.5-e2e-keystone-report.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.5-04": {
+    "evidence": "docs/sections/8.5-e2e-keystone-report.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.5-05": {
+    "evidence": "docs/sections/8.5-e2e-keystone-report.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.5-06": {
+    "evidence": "docs/sections/8.5-e2e-keystone-report.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.5-07": {
+    "evidence": "docs/sections/8.5-e2e-keystone-report.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.5-08": {
+    "evidence": "docs/sections/8.5-e2e-keystone-report.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.5-CONTRACT": {
+    "evidence": "section 8.5; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-8.5-SCOPE": {
+    "evidence": "8.5-e2e-keystone-report.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-8.6-01": {
+    "evidence": "docs/sections/8.6-cloudflare-dogfood-deploy.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.6-02": {
+    "evidence": "docs/sections/8.6-cloudflare-dogfood-deploy.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.6-03": {
+    "evidence": "docs/sections/8.6-cloudflare-dogfood-deploy.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.6-04": {
+    "evidence": "docs/sections/8.6-cloudflare-dogfood-deploy.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.6-05": {
+    "evidence": "docs/sections/8.6-cloudflare-dogfood-deploy.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.6-06": {
+    "evidence": "docs/sections/8.6-cloudflare-dogfood-deploy.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.6-07": {
+    "evidence": "docs/sections/8.6-cloudflare-dogfood-deploy.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.6-08": {
+    "evidence": "docs/sections/8.6-cloudflare-dogfood-deploy.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-8.6-CONTRACT": {
+    "evidence": "section 8.6; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-8.6-SCOPE": {
+    "evidence": "8.6-cloudflare-dogfood-deploy.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-9.1-01": {
+    "evidence": "docs/sections/9.1-docs-ia.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.1-02": {
+    "evidence": "docs/sections/9.1-docs-ia.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.1-03": {
+    "evidence": "docs/sections/9.1-docs-ia.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.1-04": {
+    "evidence": "docs/sections/9.1-docs-ia.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.1-05": {
+    "evidence": "docs/sections/9.1-docs-ia.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.1-06": {
+    "evidence": "docs/sections/9.1-docs-ia.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.1-07": {
+    "evidence": "docs/sections/9.1-docs-ia.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.1-08": {
+    "evidence": "docs/sections/9.1-docs-ia.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.1-CONTRACT": {
+    "evidence": "section 9.1; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-9.1-SCOPE": {
+    "evidence": "9.1-docs-ia.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-9.2-01": {
+    "evidence": "docs/sections/9.2-human-onboarding.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.2-02": {
+    "evidence": "docs/sections/9.2-human-onboarding.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.2-03": {
+    "evidence": "docs/sections/9.2-human-onboarding.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.2-04": {
+    "evidence": "docs/sections/9.2-human-onboarding.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.2-05": {
+    "evidence": "docs/sections/9.2-human-onboarding.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.2-06": {
+    "evidence": "docs/sections/9.2-human-onboarding.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.2-07": {
+    "evidence": "docs/sections/9.2-human-onboarding.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.2-08": {
+    "evidence": "docs/sections/9.2-human-onboarding.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.2-CONTRACT": {
+    "evidence": "section 9.2; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-9.2-SCOPE": {
+    "evidence": "9.2-human-onboarding.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-9.3-01": {
+    "evidence": "docs/sections/9.3-agent-setup.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.3-02": {
+    "evidence": "docs/sections/9.3-agent-setup.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.3-03": {
+    "evidence": "docs/sections/9.3-agent-setup.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.3-04": {
+    "evidence": "docs/sections/9.3-agent-setup.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.3-05": {
+    "evidence": "docs/sections/9.3-agent-setup.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.3-06": {
+    "evidence": "docs/sections/9.3-agent-setup.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.3-07": {
+    "evidence": "docs/sections/9.3-agent-setup.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.3-08": {
+    "evidence": "docs/sections/9.3-agent-setup.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.3-CONTRACT": {
+    "evidence": "section 9.3; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-9.3-SCOPE": {
+    "evidence": "9.3-agent-setup.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-9.4-01": {
+    "evidence": "docs/sections/9.4-deep-docs.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.4-02": {
+    "evidence": "docs/sections/9.4-deep-docs.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.4-03": {
+    "evidence": "docs/sections/9.4-deep-docs.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.4-04": {
+    "evidence": "docs/sections/9.4-deep-docs.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.4-05": {
+    "evidence": "docs/sections/9.4-deep-docs.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.4-06": {
+    "evidence": "docs/sections/9.4-deep-docs.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.4-07": {
+    "evidence": "docs/sections/9.4-deep-docs.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.4-08": {
+    "evidence": "docs/sections/9.4-deep-docs.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.4-CONTRACT": {
+    "evidence": "section 9.4; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-9.4-SCOPE": {
+    "evidence": "9.4-deep-docs.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-9.5-01": {
+    "evidence": "docs/sections/9.5-html-reports.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.5-02": {
+    "evidence": "docs/sections/9.5-html-reports.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.5-03": {
+    "evidence": "docs/sections/9.5-html-reports.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.5-04": {
+    "evidence": "docs/sections/9.5-html-reports.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.5-05": {
+    "evidence": "docs/sections/9.5-html-reports.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.5-06": {
+    "evidence": "docs/sections/9.5-html-reports.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.5-07": {
+    "evidence": "docs/sections/9.5-html-reports.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.5-08": {
+    "evidence": "docs/sections/9.5-html-reports.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.5-CONTRACT": {
+    "evidence": "section 9.5; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-9.5-SCOPE": {
+    "evidence": "9.5-html-reports.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "PH-9.6-01": {
+    "evidence": "docs/sections/9.6-onboarding-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.6-02": {
+    "evidence": "docs/sections/9.6-onboarding-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.6-03": {
+    "evidence": "docs/sections/9.6-onboarding-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.6-04": {
+    "evidence": "docs/sections/9.6-onboarding-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.6-05": {
+    "evidence": "docs/sections/9.6-onboarding-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.6-06": {
+    "evidence": "docs/sections/9.6-onboarding-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.6-07": {
+    "evidence": "docs/sections/9.6-onboarding-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.6-08": {
+    "evidence": "docs/sections/9.6-onboarding-proof.md + section tests + phase APPROVE + initiative/evidence/handover/post-sr-gates-20260809T0146Z.txt + e2e-full-rerun-20260809.txt",
+    "status": "PASS"
+  },
+  "PH-9.6-CONTRACT": {
+    "evidence": "section 9.6; contracts maintained; test:ci",
+    "status": "PASS"
+  },
+  "PH-9.6-SCOPE": {
+    "evidence": "9.6-onboarding-proof.md; Phases 0-9 Codex APPROVE; SR 50/50; tip ce32819",
+    "status": "PASS"
+  },
+  "SEC-01": {
+    "evidence": "auth magic-link tests + B02 e2e PASS",
+    "status": "PASS"
+  },
+  "SEC-02": {
+    "evidence": "session cookie HttpOnly path; B01/B03 e2e",
+    "status": "PASS"
+  },
+  "SEC-03": {
+    "evidence": "B04\u2013B06 e2e PASS + authz tests",
+    "status": "PASS"
+  },
+  "SEC-04": {
+    "evidence": "role-switch.test.ts controlled + judge revoke fix",
+    "status": "PASS"
+  },
+  "SEC-05": {
+    "evidence": "keys module tests; secret once",
+    "status": "PASS"
+  },
+  "SEC-06": {
+    "evidence": "SCOPES.md + default-deny tests",
+    "status": "PASS"
+  },
+  "SEC-07": {
+    "evidence": "authz middleware tests",
+    "status": "PASS"
+  },
+  "SEC-08": {
+    "evidence": "publicCfp Turnstile production reject (phase3 audit)",
+    "status": "PASS"
+  },
+  "SEC-09": {
+    "evidence": "security_hardening CSP e2e PASS",
+    "status": "PASS"
+  },
+  "SEC-10": {
+    "evidence": "A10/C09 e2e PASS",
+    "status": "PASS"
+  },
+  "SEC-11": {
+    "evidence": "rate limit code path",
+    "status": "PASS"
+  },
+  "SEC-12": {
+    "evidence": "files module mime/size + virus_scan field tests",
+    "status": "PASS"
+  },
+  "SEC-13": {
+    "evidence": "gitleaks no leaks on tip",
+    "status": "PASS"
+  },
+  "SEC-14": {
+    "evidence": "packages/shared errors E4 envelope",
+    "status": "PASS"
+  },
+  "SEC-15": {
+    "evidence": "audit_events on keys/decisions/comms/design/schedule",
+    "status": "PASS"
+  },
+  "SEC-16": {
+    "evidence": "docs/SECURITY.md",
+    "status": "PASS"
+  },
+  "SEC-17": {
+    "evidence": "security middleware CORS tests",
+    "status": "PASS"
+  },
+  "SEC-18": {
+    "evidence": "bootstrap controlled / BOOTSTRAP policy tests",
+    "status": "PASS"
+  }
+}
