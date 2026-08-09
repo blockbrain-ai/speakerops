@@ -43,22 +43,14 @@ export const notFoundHandler: NotFoundHandler = (c: Context) => {
 };
 
 /**
- * Global onError — never leak stack traces or secrets to the client (E4/E10).
- * Logs stay structured server-side; body is envelope-only.
+ * Global onError — never leak stack traces, SQL, schema details, or other
+ * diagnostics to the client (E4/E10). Applies equally under DEMO_MODE (dogfood
+ * public URL): client envelope stays generic; details stay server-side only.
  */
 export const onErrorHandler: ErrorHandler = (err, c) => {
-  // Structured log placeholder: message only, no stack/secrets to client.
-  // Real logger lands with observability sections; void keeps no console in product path.
-  // DEMO_MODE dogfood: surface message (not stack) so live D proofs can diagnose
-  // Worker failures without reading wrangler tail.
-  const demo =
-    (c.env as { DEMO_MODE?: string } | undefined)?.DEMO_MODE === "1" ||
-    (c.env as { DEMO_MODE?: string } | undefined)?.DEMO_MODE === "true";
-  const message =
-    demo && err instanceof Error && err.message
-      ? `Unexpected error: ${err.message}`
-      : "Unexpected error";
+  // Structured log placeholder: retain err for future observability wiring.
+  // No console in product path; never put Error.message / stack in the E4 body.
   void err;
-  const body: ErrorEnvelope = errorEnvelope(message, INTERNAL_ERROR);
+  const body: ErrorEnvelope = errorEnvelope("Unexpected error", INTERNAL_ERROR);
   return c.json(body, 500);
 };

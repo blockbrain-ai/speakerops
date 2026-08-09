@@ -77,6 +77,34 @@ describe("1.2 Worker API health", () => {
     expect(raw).not.toMatch(/boom|stack|secret-should-not-leak/i);
   });
 
+  it("onError keeps generic envelope under DEMO_MODE (no Error.message leak)", async () => {
+    // Dogfood sets DEMO_MODE=1 on the public binding URL — must not surface
+    // SQL/schema/provider diagnostics from unexpected throws (E4/E10).
+    const app = createApp();
+    app.get("/__test_throw_demo", () => {
+      throw new Error(
+        "D1_ERROR: SELECT * FROM speakers WHERE id = 'evt_secret' no such table",
+      );
+    });
+    app.onError(onErrorHandler);
+
+    const res = await app.request("http://localhost/__test_throw_demo", undefined, {
+      DEMO_MODE: "1",
+    } as WorkerBindings);
+    expect(res.status).toBe(500);
+    const body: unknown = await res.json();
+    const parsed = ErrorEnvelopeSchema.safeParse(body);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.code).toBe(INTERNAL_ERROR);
+      expect(parsed.data.error).toBe("Unexpected error");
+    }
+    const raw = JSON.stringify(body);
+    expect(raw).not.toMatch(
+      /D1_ERROR|SELECT|speakers|evt_secret|no such table/i,
+    );
+  });
+
   it("propagates correlationId header (E3)", async () => {
     const app = createApp();
     const res = await app.request("http://localhost/health", {
