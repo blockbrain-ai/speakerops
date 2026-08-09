@@ -43,6 +43,8 @@ export function isSendEnabled(input: {
  * Segment fingerprint used to invalidate preview when audience or event
  * changes (J09 / event-scoped trust-before-send).
  * Includes activeEventId so switching events never reuses a prior preview.
+ * Includes search query so a narrowed audience cannot keep a status-only
+ * preview valid (AC-11.2-SEL / field-flow audienceRules).
  */
 export function segmentFingerprint(input: {
   status: string;
@@ -50,9 +52,76 @@ export function segmentFingerprint(input: {
   templateId: string | null;
   /** Active event scope — required so cross-event send is blocked. */
   eventId?: string | null;
+  /**
+   * Audience search text. Part of the fingerprint whenever it contributes to
+   * the effective segment (status-mode with search, or explicit selection
+   * still records "" so edits that only change search under selection do not
+   * need to match query — callers pass "" when selection wins).
+   */
+  query?: string;
 }): string {
   const ids = [...input.participationIds].sort();
-  return `${input.eventId ?? ""}|${input.templateId ?? ""}|${input.status}|${ids.join(",")}`;
+  const q = (input.query ?? "").trim().toLowerCase();
+  return `${input.eventId ?? ""}|${input.templateId ?? ""}|${input.status}|${q}|${ids.join(",")}`;
+}
+
+/**
+ * Effective audience segment for POST /api/comms/preview (and count parity).
+ *
+ * Explicit selection wins. Otherwise a non-empty search is resolved to the
+ * filtered participation ids (server segment has no `query` field) so the
+ * displayed recipient count matches preview/send. An empty filtered list under
+ * search yields `{ participationIds: [] }` — an explicit empty audience; the
+ * API must not treat that as "absent" and fall back to accepted-status.
+ * Status filter alone is used when there is no selection and no search.
+ */
+export function buildCommsSegment(input: {
+  selectedParticipationIds: readonly string[];
+  segmentStatus: string;
+  audienceQuery: string;
+  /** participationIds of the client-filtered audience (status + search). */
+  filteredParticipationIds: readonly string[];
+}): { status?: string; participationIds?: string[] } {
+  if (input.selectedParticipationIds.length > 0) {
+    return { participationIds: [...input.selectedParticipationIds] };
+  }
+  if (input.audienceQuery.trim().length > 0) {
+    // Explicit list including [] so zero search matches never expand to
+    // status-default audience on the server (AC-11.2-SEL / trust-before-send).
+    return { participationIds: [...input.filteredParticipationIds] };
+  }
+  return { status: input.segmentStatus };
+}
+
+/**
+ * Whether preview may run for the current effective segment.
+ * Blocks zero-match search / empty selection so the UI cannot show count 0
+ * while the server would (historically) expand to all accepted speakers.
+ */
+export function canRunCommsPreview(input: {
+  templateId: string | null;
+  /** Displayed audience count (selection or filtered total). */
+  segmentCount: number;
+  previewing?: boolean;
+}): boolean {
+  if (input.previewing) return false;
+  if (!input.templateId) return false;
+  if (input.segmentCount <= 0) return false;
+  return true;
+}
+
+/** Human-readable reason preview is blocked (for status UI). */
+export function previewDisabledReason(input: {
+  templateId: string | null;
+  segmentCount: number;
+  previewing?: boolean;
+}): string | null {
+  if (input.previewing) return "Previewing…";
+  if (!input.templateId) return "Save a template first to obtain a template id";
+  if (input.segmentCount <= 0) {
+    return "No recipients match this audience — adjust search or status";
+  }
+  return null;
 }
 
 /** Human-readable reason the send button is disabled (for status UI). */

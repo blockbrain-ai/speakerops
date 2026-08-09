@@ -480,8 +480,11 @@ export async function previewComms(
     template.eventId,
   );
 
+  // Explicit participationIds (including []) overrides status filter.
+  // Empty array = intentional empty audience (UI search with zero matches).
+  // Absent / undefined = fall back to status (default accepted).
   let selected = allParts;
-  if (segment.participationIds && segment.participationIds.length > 0) {
+  if (Array.isArray(segment.participationIds)) {
     const want = new Set(segment.participationIds);
     selected = allParts.filter((p) => want.has(p.id));
   } else {

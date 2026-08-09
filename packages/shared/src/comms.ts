@@ -58,9 +58,13 @@ export type CommsUpsertTemplateResponse = z.infer<
 /** Audience segment for preview/send. */
 export const CommsSegmentSchema = z
   .object({
-    /** Filter participations by status (default: accepted). */
+    /** Filter participations by status (default: accepted when ids absent). */
     status: z.string().min(1).max(64).optional(),
-    /** Explicit participation ids (overrides status filter when non-empty). */
+    /**
+     * Explicit participation ids. When the field is present (including `[]`),
+     * it overrides status filter entirely — empty means zero recipients.
+     * Omit the field to use status (default accepted).
+     */
     participationIds: z.array(z.string().min(1).max(128)).max(500).optional(),
   })
   .default({});

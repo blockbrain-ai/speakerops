@@ -15,6 +15,9 @@ import {
   paginateAudience,
   audienceCount,
   isSelectionStable,
+  buildCommsSegment,
+  canRunCommsPreview,
+  previewDisabledReason,
   AUDIENCE_PAGE_SIZE,
   CAMPAIGN_STEPS,
   type AudienceSpeakerRow,
@@ -124,6 +127,34 @@ describe("5.3 comms-utils trust-before-send", () => {
     expect(c).toBe(d);
   });
 
+  it("assert search query changes fingerprint (AC-11.2-SEL)", () => {
+    const noSearch = segmentFingerprint({
+      status: "accepted",
+      participationIds: [],
+      templateId: "tpl_1",
+      eventId: "evt_a",
+      query: "",
+    });
+    const withSearch = segmentFingerprint({
+      status: "accepted",
+      participationIds: [],
+      templateId: "tpl_1",
+      eventId: "evt_a",
+      query: "ada",
+    });
+    expect(noSearch).not.toBe(withSearch);
+
+    // Resolved ids for search also change fingerprint
+    const resolved = segmentFingerprint({
+      status: "",
+      participationIds: ["p_001", "p_002"],
+      templateId: "tpl_1",
+      eventId: "evt_a",
+      query: "ada",
+    });
+    expect(resolved).not.toBe(noSearch);
+  });
+
   it("assert event switch invalidates preview fingerprint", () => {
     const a = segmentFingerprint({
       status: "accepted",
@@ -138,6 +169,88 @@ describe("5.3 comms-utils trust-before-send", () => {
       eventId: "evt_b",
     });
     expect(a).not.toBe(b);
+  });
+
+  it("buildCommsSegment resolves search to participationIds for preview parity", () => {
+    // Explicit selection wins
+    expect(
+      buildCommsSegment({
+        selectedParticipationIds: ["p_a", "p_b"],
+        segmentStatus: "accepted",
+        audienceQuery: "ignored",
+        filteredParticipationIds: ["p_x"],
+      }),
+    ).toEqual({ participationIds: ["p_a", "p_b"] });
+
+    // Search without selection → filtered ids (not status-only)
+    expect(
+      buildCommsSegment({
+        selectedParticipationIds: [],
+        segmentStatus: "accepted",
+        audienceQuery: "ada",
+        filteredParticipationIds: ["p_001", "p_012"],
+      }),
+    ).toEqual({ participationIds: ["p_001", "p_012"] });
+
+    // Zero-match search → explicit empty list (must not omit field / status-default)
+    expect(
+      buildCommsSegment({
+        selectedParticipationIds: [],
+        segmentStatus: "accepted",
+        audienceQuery: "zzznomatch",
+        filteredParticipationIds: [],
+      }),
+    ).toEqual({ participationIds: [] });
+    // Empty array is present — API treats as empty audience, not absent
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        buildCommsSegment({
+          selectedParticipationIds: [],
+          segmentStatus: "accepted",
+          audienceQuery: "zzznomatch",
+          filteredParticipationIds: [],
+        }),
+        "participationIds",
+      ),
+    ).toBe(true);
+
+    // Status-only when no selection and no search
+    expect(
+      buildCommsSegment({
+        selectedParticipationIds: [],
+        segmentStatus: "waitlisted",
+        audienceQuery: "  ",
+        filteredParticipationIds: ["p_001"],
+      }),
+    ).toEqual({ status: "waitlisted" });
+  });
+
+  it("blocks preview for zero-match audience", () => {
+    expect(
+      canRunCommsPreview({
+        templateId: "tpl_1",
+        segmentCount: 0,
+      }),
+    ).toBe(false);
+    expect(
+      previewDisabledReason({
+        templateId: "tpl_1",
+        segmentCount: 0,
+      }),
+    ).toMatch(/no recipients/i);
+
+    expect(
+      canRunCommsPreview({
+        templateId: "tpl_1",
+        segmentCount: 3,
+      }),
+    ).toBe(true);
+    expect(
+      canRunCommsPreview({
+        templateId: null,
+        segmentCount: 3,
+      }),
+    ).toBe(false);
   });
 });
 
