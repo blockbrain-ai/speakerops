@@ -33,7 +33,7 @@ import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DecisionsStore } from "./store.js";
-import { requireRole, requireSession } from "../../middleware/authz.js";
+import { requireRole, actorFromContext } from "../../middleware/authz.js";
 import {
   recordDecision,
   createDirectSession,
@@ -47,6 +47,8 @@ export type DecisionRouteOptions = {
   events: EventsStore;
   submissions: SubmissionsStore;
   decisions: DecisionsStore;
+  /** Bearer decisions:write / submissions:read (COMMANDS.md / CLI 7.2). */
+  keys?: import("../keys/store.js").KeysStore;
 };
 
 function commandError(
@@ -77,13 +79,27 @@ export function createEventDecisionRoutes(
   options: DecisionRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions } = options;
+  const { store, events, submissions, decisions, keys } = options;
   const deps = {
     decisions,
     events,
     auth: store,
     submissions,
   };
+  const bearerRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["submissions:read", "decisions:write"] as const,
+        eventsStore: events,
+      }
+    : {};
+  const bearerWrite = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["decisions:write"] as const,
+        eventsStore: events,
+      }
+    : {};
 
   /**
    * GET /:eventId/submissions — Submission.List (admin)
@@ -91,7 +107,7 @@ export function createEventDecisionRoutes(
    */
   app.get(
     "/:eventId/submissions",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const statusRaw = c.req.query("status");
@@ -136,10 +152,10 @@ export function createEventDecisionRoutes(
    */
   app.post(
     "/:eventId/sessions/direct",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,
@@ -170,7 +186,7 @@ export function createEventDecisionRoutes(
       const result = await createDirectSession(deps, {
         ...parsed.data,
         eventId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
         correlationId: c.get("correlationId"),
       });
 
@@ -194,7 +210,7 @@ export function createEventDecisionRoutes(
    */
   app.post(
     "/:eventId/submissions/bulk-preview",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const eventId = c.req.param("eventId");
       let raw: unknown;
@@ -250,47 +266,73 @@ export function createSubmissionDecisionRoutes(
   options: DecisionRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions } = options;
+  const { store, events, submissions, decisions, keys } = options;
   const deps = {
     decisions,
     events,
     auth: store,
     submissions,
   };
+  const bearerWrite = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["decisions:write"] as const,
+        eventsStore: events,
+      }
+    : {};
+  const bearerRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["submissions:read", "decisions:write"] as const,
+        eventsStore: events,
+      }
+    : {};
 
   /**
    * GET /:submissionId — Submission.Get (admin)
    */
-  app.get("/:submissionId", requireSession(store), async (c) => {
-    const user = c.get("user");
-    if (!user) {
-      return c.json(
-        errorEnvelope("Authentication required", "UNAUTHORIZED"),
-        401,
-      );
-    }
-
+  app.get("/:submissionId", requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerRead }), async (c) => {
     const submissionId = c.req.param("submissionId");
     const submission = await submissions.findSubmissionById(submissionId);
     if (!submission) {
       return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
     }
 
-    const membership = await store.findMembership(
-      submission.eventId,
-      user.id,
-    );
-    if (!membership) {
-      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
-    }
-    if (membership.role !== "admin") {
-      return c.json(
-        errorEnvelope("Insufficient role", FORBIDDEN, {
-          required: ["admin"],
-          role: membership.role,
-        }),
-        403,
+    const apiKey = c.get("apiKey");
+    if (apiKey) {
+      if (apiKey.eventId && apiKey.eventId !== submission.eventId) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      if (!apiKey.eventId) {
+        const event = await events.findEventById(submission.eventId);
+        if (!event || event.orgId !== apiKey.orgId) {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
+      }
+    } else {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      const membership = await store.findMembership(
+        submission.eventId,
+        user.id,
       );
+      if (!membership) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      if (membership.role !== "admin") {
+        return c.json(
+          errorEnvelope("Insufficient role", FORBIDDEN, {
+            required: ["admin"],
+            role: membership.role,
+          }),
+          403,
+        );
+      }
     }
 
     const result = await getSubmission(deps, submissionId);
@@ -312,9 +354,9 @@ export function createSubmissionDecisionRoutes(
    * POST /:submissionId/decision — Decision.Record (admin / decisions:write)
    * Evaluator → 403 (assert evaluator decision 403).
    */
-  app.post("/:submissionId/decision", requireSession(store), async (c) => {
-    const user = c.get("user");
-    if (!user) {
+  app.post("/:submissionId/decision", requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerWrite }), async (c) => {
+    const actor = actorFromContext(c);
+    if (!actor) {
       return c.json(
         errorEnvelope("Authentication required", "UNAUTHORIZED"),
         401,
@@ -327,22 +369,42 @@ export function createSubmissionDecisionRoutes(
       return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
     }
 
-    const membership = await store.findMembership(
-      submission.eventId,
-      user.id,
-    );
-    if (!membership) {
-      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
-    }
-    if (membership.role !== "admin") {
-      // Evaluators explicitly 403 (not 404) so UI/tests can assert denial
-      return c.json(
-        errorEnvelope("Insufficient role", FORBIDDEN, {
-          required: ["admin"],
-          role: membership.role,
-        }),
-        403,
+    const apiKey = c.get("apiKey");
+    if (apiKey) {
+      if (apiKey.eventId && apiKey.eventId !== submission.eventId) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      if (!apiKey.eventId) {
+        const event = await events.findEventById(submission.eventId);
+        if (!event || event.orgId !== apiKey.orgId) {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
+      }
+    } else {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      const membership = await store.findMembership(
+        submission.eventId,
+        user.id,
       );
+      if (!membership) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      if (membership.role !== "admin") {
+        // Evaluators explicitly 403 (not 404) so UI/tests can assert denial
+        return c.json(
+          errorEnvelope("Insufficient role", FORBIDDEN, {
+            required: ["admin"],
+            role: membership.role,
+          }),
+          403,
+        );
+      }
     }
 
     let raw: unknown;
@@ -368,7 +430,7 @@ export function createSubmissionDecisionRoutes(
     const result = await recordDecision(deps, {
       ...parsed.data,
       submissionId,
-      actorUserId: user.id,
+      actorUserId: actor.userId,
       correlationId: c.get("correlationId"),
     });
 

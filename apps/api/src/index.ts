@@ -429,6 +429,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     events: eventsStore,
     submissions: submissionsStore,
     decisions: decisionsStore,
+    keys: keysStore,
   };
 
   // Section 3.5 — Submission.List + Session.CreateDirect + bulk preview
