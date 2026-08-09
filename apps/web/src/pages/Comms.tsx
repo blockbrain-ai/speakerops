@@ -54,6 +54,7 @@ import {
   filterAudienceSpeakers,
   paginateAudience,
   audienceCount,
+  buildCommsSegment,
   type CampaignStepId,
   type AudienceSpeakerRow,
 } from "./comms-utils.js";
@@ -181,15 +182,44 @@ export function CommsPage() {
     filteredTotal: filteredAudience.length,
   });
 
+  /** Effective segment for preview/send — must match displayed audience count. */
+  const previewSegment = useMemo(
+    () =>
+      buildCommsSegment({
+        selectedParticipationIds,
+        segmentStatus,
+        audienceQuery,
+        filteredParticipationIds: filteredAudience.map((r) => r.participationId),
+      }),
+    [
+      selectedParticipationIds,
+      segmentStatus,
+      audienceQuery,
+      filteredAudience,
+    ],
+  );
+
   const currentFingerprint = useMemo(
     () =>
       segmentFingerprint({
-        status: segmentStatus,
-        participationIds: selectedParticipationIds,
+        status: previewSegment.status ?? "",
+        participationIds: previewSegment.participationIds ?? [],
         templateId,
         eventId: activeEventId,
+        // Search is part of audience rules only when not using explicit selection
+        // (selection already pins the set; filter is UI-only then).
+        query:
+          selectedParticipationIds.length > 0
+            ? ""
+            : audienceQuery,
       }),
-    [segmentStatus, selectedParticipationIds, templateId, activeEventId],
+    [
+      previewSegment,
+      templateId,
+      activeEventId,
+      selectedParticipationIds.length,
+      audienceQuery,
+    ],
   );
 
   const previewValid =
@@ -482,16 +512,11 @@ export function CommsPage() {
     }
     setPreviewing(true);
     setPreviewStatus(null);
+    // Capture fingerprint for the segment we are about to preview so a concurrent
+    // audience edit cannot leave a mismatched "valid" preview.
+    const fp = currentFingerprint;
+    const segment = previewSegment;
     try {
-      const segment: {
-        status?: string;
-        participationIds?: string[];
-      } = {};
-      if (selectedParticipationIds.length > 0) {
-        segment.participationIds = selectedParticipationIds;
-      } else {
-        segment.status = segmentStatus;
-      }
       const res = await fetch("/api/comms/preview", {
         method: "POST",
         credentials: "include",
@@ -518,36 +543,30 @@ export function CommsPage() {
         return;
       }
       setPreview(parsed.data);
-      setPreviewFingerprint(
-        segmentFingerprint({
-          status: segmentStatus,
-          participationIds: selectedParticipationIds,
-          templateId,
-          eventId: activeEventId,
-        }),
-      );
+      setPreviewFingerprint(fp);
       setPreviewStatus({
         kind: "ok",
         text: `Preview ready — ${parsed.data.recipientCount} recipient(s)`,
       });
       setSendStatus(null);
+      // Successful preview starts a new send attempt chain (new audience rules).
+      setLastIdempotencyKey(null);
     } catch {
       setPreviewStatus({ kind: "error", text: "Network error" });
     } finally {
       setPreviewing(false);
     }
-  }, [
-    activeEventId,
-    templateId,
-    segmentStatus,
-    selectedParticipationIds,
-  ]);
+  }, [activeEventId, templateId, currentFingerprint, previewSegment]);
 
   const onSend = useCallback(async () => {
     if (!previewValid || !preview || sending) return;
     setSending(true);
     setSendStatus(null);
+    // Persist idempotency key *before* the request so a lost response still
+    // retries with the same key (AC-11.2-SEND / J04). Reset only when
+    // preview/audience changes (invalidatePreview / successful new preview).
     const idempotencyKey = lastIdempotencyKey ?? newIdempotencyKey("send");
+    setLastIdempotencyKey(idempotencyKey);
     try {
       const res = await fetch("/api/comms/send", {
         method: "POST",
@@ -575,7 +594,6 @@ export function CommsPage() {
         setSendStatus({ kind: "error", text: "Unexpected send response" });
         return;
       }
-      setLastIdempotencyKey(idempotencyKey);
       setLastJobId(parsed.data.job.id);
       setSendStatus({
         kind: "ok",
@@ -587,6 +605,7 @@ export function CommsPage() {
         void loadJobs(activeEventId);
       }
     } catch {
+      // Ambiguous network failure: keep lastIdempotencyKey for safe retry.
       setSendStatus({ kind: "error", text: "Network error" });
     } finally {
       setSending(false);
@@ -885,6 +904,10 @@ export function CommsPage() {
                 onChange={(e) => {
                   setAudienceQuery(e.target.value);
                   setAudiencePage(1);
+                  // Search is part of audience rules when no explicit selection
+                  // (narrows displayed count + preview segment). Always invalidate
+                  // so a prior status-only preview cannot stay "valid".
+                  invalidatePreview();
                 }}
                 autoComplete="off"
               />

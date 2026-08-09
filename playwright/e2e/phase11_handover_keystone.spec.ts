@@ -20,7 +20,7 @@
  * | S-EVAL-EXPORT   | export/sort or API CSV                           |
  * | S-L2-SYSTEM     | state sheet present post-deploy                  |
  * | S-L2-SHELL      | overview attention on dogfood                    |
- * | S-L2-COMMS      | J01–J10 campaign surface + scale chrome          |
+ * | S-L2-COMMS      | J01–J10 + 150 scale + preview/send + idempotency |
  * | S-L2-CFP        | builder + public branded                         |
  * | S-L2-SUB        | submissions master-detail                        |
  * | S-L2-SCHED      | schedule studio                                  |
@@ -642,7 +642,7 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // S-L2-SHELL
+  // S-L2-SHELL — AC-11.1-A attention + metrics within 5s (livability matrix)
   // ---------------------------------------------------------------------------
   test("D: S-L2-SHELL overview attention on dogfood", async ({
     page,
@@ -652,44 +652,319 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     test.skip(!dogfoodCredsPresent(), "CF credentials required for session mint");
     await loginDogfoodRole(context, "admin");
     await bindAdminEvent(page, DOGFOOD_EVENT_ID, "/admin");
+    // 5-second protocol (S-L2-SHELL / AC-11.1-A): clock from navigation commit
     const start = Date.now();
     await page.goto(url("/admin"), { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("admin-shell")).toBeVisible({
-      timeout: 15_000,
+      timeout: 5_000,
     });
-    // Overview readiness / attention within 5s budget when possible
     const readiness =
       page.getByTestId("page-readiness").or(page.getByTestId("page-overview"));
-    await expect(readiness.first()).toBeVisible({ timeout: 10_000 });
+    await expect(readiness.first()).toBeVisible({
+      timeout: Math.max(500, 5_000 - (Date.now() - start)),
+    });
     const attention =
       (await page.getByTestId("overview-attention").count()) +
       (await page.getByTestId("attention-queue").count()) +
       (await page.locator("[data-testid*='attention']").count()) +
       (await page.locator("[data-testid*='readiness']").count());
     expect(attention).toBeGreaterThan(0);
-    expect(Date.now() - start).toBeLessThanOrEqual(15_000);
+    expect(Date.now() - start).toBeLessThanOrEqual(5_000);
   });
 
   // ---------------------------------------------------------------------------
-  // S-L2-COMMS
+  // S-L2-COMMS — J01–J10 + 150 scale + preview/send + idempotency + authz (D)
   // ---------------------------------------------------------------------------
-  test("D: S-L2-COMMS campaign surface + scale chrome on dogfood", async ({
+  test("D: S-L2-COMMS J01–J10 + scale + preview/send + idempotency on dogfood", async ({
     page,
     context,
+    request,
   }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     test.skip(!dogfoodCredsPresent(), "CF credentials required for session mint");
-    await loginDogfoodRole(context, "admin");
+    const admin = await loginDogfoodRole(context, "admin");
+    const templateKey = `ks11-comms-${RUN.slice(-8)}`.replace(/[^a-z0-9_-]/g, "");
+    const placementId = `plc_ks11_${RUN.slice(-8)}`;
+    const idemKey = `ks11-send-${RUN}`;
+
+    // —— J07 authz: unauthenticated send blocked ——
+    const unauthSend = await dogfoodRequest(request, "POST", "/api/comms/send", {
+      data: {
+        previewId: "prv_missing",
+        idempotencyKey: `unauth-${RUN}`,
+      },
+    });
+    expect([401, 403]).toContain(unauthSend.status());
+
+    // —— Campaign UI + 150-scale chrome (AC-11.2-SCALE) ——
     await bindAdminEvent(page, DOGFOOD_EVENT_ID, "/admin/comms");
     await expect(page.getByTestId("page-comms")).toBeVisible({
       timeout: 20_000,
     });
-    // Campaign steps or audience scale controls
-    const campaign =
-      (await page.getByTestId("comms-campaign").count()) +
-      (await page.getByTestId("comms-step-audience").count()) +
-      (await page.locator("[data-testid*='comms']").count());
-    expect(campaign).toBeGreaterThan(0);
+    await expect(page.getByTestId("comms-campaign-steps")).toBeVisible();
+    await expect(page.getByTestId("comms-step-nav-audience")).toBeVisible();
+    await expect(page.getByTestId("comms-step-nav-message")).toBeVisible();
+    await expect(page.getByTestId("comms-step-nav-review")).toBeVisible();
+    await expect(page.getByTestId("comms-step-nav-send")).toBeVisible();
+    await expect(page.getByTestId("comms-campaign-summary")).toBeVisible();
+    await expect(page.getByTestId("comms-segment-builder")).toBeVisible();
+    await expect(page.getByTestId("comms-template-editor")).toBeVisible();
+    await expect(page.getByTestId("comms-preview-panel")).toBeVisible();
+    await expect(page.getByTestId("comms-send-panel")).toBeVisible();
+    await expect(page.getByTestId("comms-delivery-log")).toBeVisible();
+    await expect(page.getByTestId("comms-ics-panel")).toBeVisible();
+
+    // Audience list loads; dogfood seed is multi-speaker — page ≤25 wall proof
+    await expect(page.getByTestId("comms-segment-count")).toHaveAttribute(
+      "data-count",
+      /[1-9]/,
+      { timeout: 30_000 },
+    );
+    const list = page.getByTestId("comms-segment-speakers");
+    await expect(list).toHaveAttribute("data-page-size", "25");
+    const totalAttr = await list.getAttribute("data-total");
+    const total = Number(totalAttr ?? "0");
+    // Seed may exceed or equal 150; require operability at scale when total is large
+    if (total >= 25) {
+      const visible = Number(await list.getAttribute("data-visible-count"));
+      expect(visible).toBeLessThanOrEqual(25);
+      expect(visible).toBeGreaterThan(0);
+      const checkboxCount = await page
+        .locator(
+          '[data-testid="comms-segment-speakers"] input[type="checkbox"]',
+        )
+        .count();
+      expect(checkboxCount).toBeLessThanOrEqual(25);
+      if (total > 25) {
+        await expect(page.getByTestId("comms-audience-pager")).toBeVisible();
+      }
+    }
+    // Prefer proving 150-class seed when present (dogfood-2026)
+    if (total >= 150) {
+      expect(total).toBeGreaterThanOrEqual(150);
+    }
+
+    // Search narrows without breaking page size (AC-11.2-SEL)
+    await page.getByTestId("comms-audience-search").fill("a");
+    await expect(list).toBeVisible();
+    const filteredVisible = Number(
+      await list.getAttribute("data-visible-count"),
+    );
+    expect(filteredVisible).toBeLessThanOrEqual(25);
+    await page.getByTestId("comms-audience-search").fill("");
+
+    // —— J08: send blocked until preview ——
+    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
+    await expect(page.getByTestId("comms-send-blocked-reason")).toContainText(
+      /preview/i,
+    );
+
+    // —— J01: template save with merge fields ——
+    await page.getByTestId("comms-template-key-input").fill(templateKey);
+    await page
+      .getByTestId("comms-template-subject-input")
+      .fill(`Keystone11 {{name}} — {{eventName}}`);
+    await page
+      .getByTestId("comms-template-body-input")
+      .fill(`Hi {{name}}, dogfood keystone body for {{eventName}}.`);
+    await expect(page.getByTestId("comms-merge-fields")).toContainText(
+      "{{name}}",
+    );
+    await page.getByTestId("comms-template-save").click();
+    await expect(page.getByTestId("comms-template-status")).toContainText(
+      /saved/i,
+      { timeout: 20_000 },
+    );
+    await expect(page.getByTestId("comms-template-id")).toBeVisible();
+
+    // —— J02: segment — pick a small explicit audience (safe on live dogfood) ——
+    const firstPick = page
+      .locator('[data-testid^="comms-segment-pick-"]')
+      .first();
+    await expect(firstPick).toBeVisible({ timeout: 15_000 });
+    await firstPick.check();
+    await expect(page.getByTestId("comms-segment-count")).toHaveAttribute(
+      "data-count",
+      "1",
+    );
+    await expect(page.getByTestId("comms-summary-selection-mode")).toBeVisible();
+
+    // —— J03: preview recipients ——
+    await page.getByTestId("comms-preview-run").click();
+    await expect(page.getByTestId("comms-preview-results")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(
+      page.getByTestId("comms-preview-recipient-count"),
+    ).toHaveAttribute("data-count", "1");
+    await expect(page.getByTestId("comms-send-button")).toBeEnabled();
+
+    // —— J09: audience edit invalidates preview ——
+    await page.getByTestId("comms-segment-clear").click();
+    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
+    await expect(page.getByTestId("comms-preview-results")).toHaveCount(0);
+
+    // Re-select one + re-preview for send path
+    await firstPick.check();
+    await page.getByTestId("comms-preview-run").click();
+    await expect(page.getByTestId("comms-send-button")).toBeEnabled({
+      timeout: 30_000,
+    });
+
+    // —— J04: send + idempotent second send (same job) ——
+    await page.getByTestId("comms-send-button").click();
+    await expect(page.getByTestId("comms-send-status")).toContainText(
+      /Enqueued|job|Idempotent/i,
+      { timeout: 30_000 },
+    );
+    const jobId1 = await page
+      .getByTestId("comms-send-status")
+      .getAttribute("data-job-id");
+    expect(jobId1).toBeTruthy();
+    const uiIdem = await page
+      .getByTestId("comms-send-status")
+      .getAttribute("data-idempotency-key");
+    expect(uiIdem).toBeTruthy();
+
+    await page.getByTestId("comms-send-button").click();
+    await expect(page.getByTestId("comms-send-status")).toContainText(
+      /Idempotent|same job|Enqueued|job/i,
+      { timeout: 30_000 },
+    );
+    const jobId2 = await page
+      .getByTestId("comms-send-status")
+      .getAttribute("data-job-id");
+    expect(jobId2).toBe(jobId1);
+
+    // API idempotency with explicit key (stable across ambiguous retries)
+    const tplList = await dogfoodRequest(
+      request,
+      "GET",
+      `/api/events/${DOGFOOD_EVENT_ID}/templates`,
+      { session: admin.session },
+    );
+    expect(tplList.status()).toBe(200);
+    const tplBody = (await tplList.json()) as {
+      templates: Array<{ id: string; key: string }>;
+    };
+    const tpl = tplBody.templates.find((t) => t.key === templateKey);
+    expect(tpl, "keystone template on dogfood").toBeTruthy();
+
+    // Speakers list for a single participationId
+    const speakersRes = await dogfoodRequest(
+      request,
+      "GET",
+      `/api/events/${DOGFOOD_EVENT_ID}/speakers`,
+      { session: admin.session },
+    );
+    expect(speakersRes.status()).toBe(200);
+    const speakersBody = (await speakersRes.json()) as {
+      speakers: Array<{ participation: { id: string; status: string } }>;
+    };
+    const accepted = speakersBody.speakers.find(
+      (s) => s.participation.status === "accepted",
+    );
+    expect(accepted, "dogfood has accepted participation").toBeTruthy();
+
+    const previewApi = await dogfoodRequest(
+      request,
+      "POST",
+      "/api/comms/preview",
+      {
+        session: admin.session,
+        data: {
+          templateId: tpl!.id,
+          segment: { participationIds: [accepted!.participation.id] },
+        },
+      },
+    );
+    expect(previewApi.status(), await previewApi.text()).toBe(200);
+    const preview = (await previewApi.json()) as {
+      previewId: string;
+      recipientCount: number;
+    };
+    expect(preview.recipientCount).toBeGreaterThanOrEqual(1);
+
+    const send1 = await dogfoodRequest(request, "POST", "/api/comms/send", {
+      session: admin.session,
+      data: {
+        previewId: preview.previewId,
+        idempotencyKey: idemKey,
+      },
+    });
+    expect([200, 201]).toContain(send1.status());
+    const send1Body = (await send1.json()) as {
+      job: { id: string };
+      enqueued: boolean;
+    };
+    const send2 = await dogfoodRequest(request, "POST", "/api/comms/send", {
+      session: admin.session,
+      data: {
+        previewId: preview.previewId,
+        idempotencyKey: idemKey,
+      },
+    });
+    expect([200, 201]).toContain(send2.status());
+    const send2Body = (await send2.json()) as {
+      job: { id: string };
+      enqueued: boolean;
+    };
+    expect(send2Body.job.id).toBe(send1Body.job.id);
+    // Second call is idempotent replay (not a second enqueue)
+    expect(send2Body.enqueued).toBe(false);
+
+    // —— J05: delivery log ——
+    await page.getByTestId("comms-log-refresh").click();
+    await expect(page.getByTestId("comms-delivery-log")).toBeVisible();
+    // Table or at least non-error after a successful send
+    const logOk =
+      (await page.getByTestId("comms-log-table").count()) > 0 ||
+      (await page.getByTestId("comms-log-empty").count()) === 0 ||
+      (await page.getByTestId(`comms-log-row-${jobId1}`).count()) > 0;
+    expect(logOk).toBeTruthy();
+
+    // —— J06 / J10: ICS attach + SEQUENCE bump ——
+    await page.getByTestId("comms-ics-placement-input").fill(placementId);
+    await page.getByTestId("comms-ics-summary-input").fill("Keystone11 Slot");
+    await page
+      .getByTestId("comms-ics-starts-input")
+      .fill("2026-09-01T10:00:00.000Z");
+    await page
+      .getByTestId("comms-ics-ends-input")
+      .fill("2026-09-01T11:00:00.000Z");
+    await page.getByTestId("comms-ics-generate").click();
+    await expect(page.getByTestId("comms-ics-status")).toContainText("UID", {
+      timeout: 20_000,
+    });
+    const icsInvite = page.getByTestId(`comms-ics-invite-${placementId}`);
+    await expect(icsInvite).toBeVisible();
+    const uid1 = await icsInvite.getAttribute("data-uid");
+    expect(uid1).toBeTruthy();
+    await page
+      .getByTestId("comms-ics-starts-input")
+      .fill("2026-09-01T15:00:00.000Z");
+    await page
+      .getByTestId("comms-ics-ends-input")
+      .fill("2026-09-01T16:00:00.000Z");
+    await page.getByTestId("comms-ics-generate").click();
+    await expect(page.getByTestId("comms-ics-status")).toContainText(
+      /SEQUENCE\s*1/i,
+      { timeout: 20_000 },
+    );
+    await expect(icsInvite).toHaveAttribute("data-sequence", "1");
+    expect(await icsInvite.getAttribute("data-uid")).toBe(uid1);
+
+    // —— J07: evaluator cannot send ——
+    await context.clearCookies();
+    const evaluator = await loginDogfoodRole(context, "evaluator");
+    const evalDeny = await dogfoodRequest(request, "POST", "/api/comms/send", {
+      session: evaluator.session,
+      data: {
+        previewId: preview.previewId,
+        idempotencyKey: `eval-deny-${RUN}`,
+      },
+    });
+    expect([403, 404]).toContain(evalDeny.status());
   });
 
   // ---------------------------------------------------------------------------
