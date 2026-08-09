@@ -27,6 +27,11 @@ export type QueueProducerLike = {
  * Worker bindings (names only — values from wrangler / CF dashboard).
  * Placeholders match wrangler.toml; real resources land in deploy sections.
  */
+/** Workers Static Assets binding (dogfood SPA — section 11.9). */
+export type AssetsFetcher = {
+  fetch: (request: Request | string, init?: RequestInit) => Promise<Response>;
+};
+
 export type WorkerBindings = {
   /** D1 database binding name: DB (required for production SoR) */
   DB?: D1DatabaseLike;
@@ -34,6 +39,11 @@ export type WorkerBindings = {
   FILES?: R2BucketLike;
   /** Queue producer binding name: JOBS_QUEUE (kick after Comms.Send) */
   JOBS_QUEUE?: QueueProducerLike;
+  /**
+   * Workers Assets binding for SPA (wrangler [assets] binding = "ASSETS").
+   * Dogfood only — serves Vite build for non-API routes (section 11.9).
+   */
+  ASSETS?: AssetsFetcher;
   /** Non-secret public version string (wrangler [vars]) */
   APP_VERSION?: string;
   /**

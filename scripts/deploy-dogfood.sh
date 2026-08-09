@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Section 8.6 — Cloudflare dogfood deploy (S-CF / BC10)
+# Section 8.6 + 11.9 — Cloudflare dogfood deploy (S-CF / S-DOGFOOD / BC10 / BC-16)
 #
-# Deploys the Hono API Worker to a private workers.dev URL, smokes GET /health,
-# and writes redacted evidence for BUILD_CHECKLIST BC10.
+# Deploys Worker + SPA assets to the dogfood Worker bound to www.speakerops.org
+# (speakerops-demo), smokes GET /health on the binding URL, and writes redacted
+# evidence for BUILD_CHECKLIST BC10 + phase 11.9 deploy.md.
 #
 # Env **names** only in docs (E10). Load secrets out-of-band:
 #   scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
@@ -12,13 +13,15 @@
 #   CLOUDFLARE_ACCOUNT_ID
 #
 # Optional env **names**:
-#   SPEAKEROPS_D1_DATABASE_ID   — real D1 id (overrides wrangler.toml placeholder)
-#   SPEAKEROPS_R2_BUCKET_NAME  — R2 bucket name override
+#   SPEAKEROPS_D1_DATABASE_ID   — real D1 id (overrides wrangler.toml dogfood id)
 #   WRANGLER_BIN               — path/command for wrangler (default: resolve)
-#   DOGFOOD_WORKER_NAME        — worker name (default: speakerops-api)
-#   DOGFOOD_EVIDENCE_PATH      — evidence out path (default: initiative evidence)
+#   DOGFOOD_WORKER_NAME        — worker name (default: speakerops-demo)
+#   DOGFOOD_WRANGLER_ENV       — wrangler --env (default: dogfood)
+#   DOGFOOD_EVIDENCE_PATH      — BC10 evidence out path
+#   DOGFOOD_PHASE11_EVIDENCE   — phase 11.9 deploy.md path
 #   DOGFOOD_SKIP_DEPLOY=1      — skip wrangler deploy (health-only against SMOKE_BASE_URL)
-#   SMOKE_BASE_URL             — base URL for health smoke (set after deploy or manually)
+#   DOGFOOD_SKIP_WEB_BUILD=1   — skip pnpm web build (assets already present)
+#   SMOKE_BASE_URL             — base URL for health smoke (default: https://www.speakerops.org)
 #   DEPLOY_DRY_RUN=1           — validate creds + write dry-run evidence; no network deploy
 #
 # Exit codes:
@@ -29,11 +32,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-WORKER_NAME="${DOGFOOD_WORKER_NAME:-speakerops-api}"
+WORKER_NAME="${DOGFOOD_WORKER_NAME:-speakerops-demo}"
+WRANGLER_ENV="${DOGFOOD_WRANGLER_ENV:-dogfood}"
 EVIDENCE_PATH="${DOGFOOD_EVIDENCE_PATH:-$ROOT/KMS-competition/initiative/evidence/cf-dogfood.txt}"
+PHASE11_EVIDENCE="${DOGFOOD_PHASE11_EVIDENCE:-$ROOT/initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md}"
+# S-DOGFOOD binding URL — constitution: www.speakerops.org only (no alternate for claim)
+BINDING_SMOKE_URL="https://www.speakerops.org"
 WRANGLER_CONFIG="${WRANGLER_CONFIG:-$ROOT/wrangler.toml}"
 TIMESTAMP_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+GIT_SHA_FULL="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+APP_VERSION="${DOGFOOD_APP_VERSION:-0.1.0-demo+${GIT_SHA}}"
 
 die() {
   echo "deploy-dogfood: ERROR: $*" >&2
@@ -65,10 +74,8 @@ info "credentials present (CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID) — con
 # --- redaction helpers (never write secrets or full account ids to evidence) ---
 redact_url() {
   local url="$1"
-  # Strip query/fragments that might hold tokens
   url="${url%%\?*}"
   url="${url%%#*}"
-  # workers.dev: keep service label, redact account subdomain hash
   if [[ "$url" =~ ^(https?://)([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+)\.workers\.dev(.*)$ ]]; then
     echo "${BASH_REMATCH[1]}${BASH_REMATCH[2]}.***.workers.dev${BASH_REMATCH[4]}"
     return
@@ -77,7 +84,11 @@ redact_url() {
     echo "${BASH_REMATCH[1]}${BASH_REMATCH[2]}.workers.dev${BASH_REMATCH[3]}"
     return
   fi
-  # Generic host: keep scheme + first label, redact rest of host
+  # Keep www.speakerops.org fully (public dogfood claim URL — not a secret)
+  if [[ "$url" == *"speakerops.org"* ]]; then
+    echo "$url"
+    return
+  fi
   if [[ "$url" =~ ^(https?://)([^/]+)(.*)$ ]]; then
     local host="${BASH_REMATCH[2]}"
     local path="${BASH_REMATCH[3]}"
@@ -90,14 +101,12 @@ redact_url() {
 
 redact_text() {
   local text="$1"
-  # Never echo token or full account id into evidence
   if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
     text="${text//"${CLOUDFLARE_API_TOKEN}"/[REDACTED_TOKEN]}"
   fi
   if [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
     text="${text//"${CLOUDFLARE_ACCOUNT_ID}"/[REDACTED_ACCOUNT_ID]}"
   fi
-  # Common secret-shaped patterns
   text="$(printf '%s' "$text" | sed -E \
     -e 's/[Bb]earer [A-Za-z0-9._~+\/-]{20,}/Bearer [REDACTED]/g' \
     -e 's/api[_-]?key[=: ]+["'"'"']?[A-Za-z0-9._-]{16,}/api_key=[REDACTED]/gi')"
@@ -117,7 +126,6 @@ resolve_wrangler() {
     echo "$ROOT/node_modules/.bin/wrangler"
     return
   fi
-  # Prefer pnpm exec when wrangler is a workspace dep
   if [[ -f "$ROOT/node_modules/wrangler/package.json" ]]; then
     echo "pnpm exec wrangler"
     return
@@ -141,47 +149,53 @@ write_evidence() {
   safe_body="$(redact_text "${health_body:-}")"
   mkdir -p "$(dirname "$EVIDENCE_PATH")"
   cat >"$EVIDENCE_PATH" <<EOF
-# BC10 / S-CF — Cloudflare dogfood health evidence (section 8.6)
+# BC10 / S-CF — Cloudflare dogfood health evidence (section 8.6 / 11.9)
 
-Section: 8.6 Cloudflare dogfood deploy
+Section: 8.6 + 11.9 Cloudflare dogfood deploy
 Workspace: speakerops-build
 Date (UTC): ${TIMESTAMP_UTC}
 Git SHA: ${GIT_SHA}
+Git SHA (full): ${GIT_SHA_FULL}
+App version: ${APP_VERSION}
 Status: ${status}
 
 ## Claim
 
-Private Cloudflare (workers.dev / preview) dogfood URL returns GET /health → 200
-with body \`{ "ok": true, "version": string }\`. Deploy uses env **names** only;
+Dogfood URL returns GET /health → 200 with body \`{ "ok": true, "version": string }\`.
+S-DOGFOOD binds **https://www.speakerops.org** only. Deploy uses env **names** only;
 secret **values** never committed (E10).
 
-Souls: **S-CF** (constitution) · BUILD_CHECKLIST **BC10**
+Souls: **S-CF** · **S-DOGFOOD** · BUILD_CHECKLIST **BC10** · **BC-16**
 
 ## Evidence path
 
 This file: KMS-competition/initiative/evidence/cf-dogfood.txt
+Phase 11.9: initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md
 Template: KMS-competition/initiative/evidence/cf-dogfood.template.txt
 Deploy script: scripts/deploy-dogfood.sh
 Operations: docs/OPERATIONS.md
-wrangler: wrangler.toml (binding **names** only)
+wrangler: wrangler.toml [env.dogfood] (binding **names** only)
 
 ## URL redaction rules (binding)
 
 1. Never write CLOUDFLARE_API_TOKEN, API keys, session cookies, or magic-link tokens.
 2. Never write full CLOUDFLARE_ACCOUNT_ID — replace with \`[REDACTED_ACCOUNT_ID]\`.
-3. workers.dev hosts: keep worker service label; redact account subdomain as \`***\`
-   (example: \`https://speakerops-api.***.workers.dev\`).
-4. Strip query strings and fragments from recorded URLs (may contain tokens).
-5. Health body may include public \`version\` only — no env dumps.
+3. workers.dev hosts: keep worker service label; redact account subdomain as \`***\`.
+4. www.speakerops.org is the public dogfood claim URL and may appear in full.
+5. Strip query strings and fragments from recorded URLs (may contain tokens).
+6. Health body may include public \`version\` only — no env dumps.
 
 ## Smoke result
 
 | Field | Value |
 |-------|-------|
-| Base URL (redacted) | ${redacted_url} |
+| Base URL | ${redacted_url} |
 | GET /health HTTP status | ${health_code:-n/a} |
 | Health body (redacted) | ${safe_body:-n/a} |
 | Worker name | ${WORKER_NAME} |
+| Wrangler env | ${WRANGLER_ENV} |
+| Deploy revision (git) | ${GIT_SHA} |
+| App version | ${APP_VERSION} |
 
 ## Notes
 
@@ -193,13 +207,13 @@ ${notes}
 # Load secrets out-of-band (never commit values)
 scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
 
-# Optional: health-only re-smoke against an existing dogfood URL
-SMOKE_BASE_URL=https://<your-workers-dev-host> \\
+# Optional: health-only re-smoke against binding URL
+SMOKE_BASE_URL=https://www.speakerops.org \\
   DOGFOOD_SKIP_DEPLOY=1 \\
   scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
 
-# Optional Playwright remote smoke (skips when unset)
-SMOKE_BASE_URL=https://<your-workers-dev-host> pnpm exec playwright test playwright/e2e/cf_dogfood_smoke.spec.ts
+# Phase 11.9 keystone (all 18 souls D)
+scripts/with-secrets.sh pnpm test:e2e:phase11-keystone
 \`\`\`
 
 ## Gate local proof (no CF network)
@@ -210,10 +224,61 @@ SMOKE_BASE_URL=https://<your-workers-dev-host> pnpm exec playwright test playwri
 - Local GET /health 200: apps/api/src/health.test.ts (section 1.2)
 
 Env **names** only (E10): CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
-SPEAKEROPS_D1_DATABASE_ID, SPEAKEROPS_R2_BUCKET_NAME, SMOKE_BASE_URL,
-DOGFOOD_SKIP_DEPLOY, DEPLOY_DRY_RUN, DOGFOOD_EVIDENCE_PATH, WRANGLER_BIN.
+SPEAKEROPS_D1_DATABASE_ID, SMOKE_BASE_URL, DOGFOOD_SKIP_DEPLOY, DEPLOY_DRY_RUN,
+DOGFOOD_EVIDENCE_PATH, DOGFOOD_PHASE11_EVIDENCE, WRANGLER_BIN, DOGFOOD_WORKER_NAME,
+DOGFOOD_WRANGLER_ENV, DOGFOOD_SKIP_WEB_BUILD, DOGFOOD_APP_VERSION.
 EOF
-  info "wrote evidence → $EVIDENCE_PATH"
+  info "wrote BC10 evidence → $EVIDENCE_PATH"
+
+  # Phase 11.9 deploy.md (S-DOGFOOD revision + health)
+  mkdir -p "$(dirname "$PHASE11_EVIDENCE")"
+  cat >"$PHASE11_EVIDENCE" <<EOF
+# Section 11.9 — Dogfood deploy evidence (S-DOGFOOD)
+
+| Field | Value |
+|-------|-------|
+| **Status** | ${status} |
+| **Timestamp (UTC)** | ${TIMESTAMP_UTC} |
+| **Git SHA (short)** | \`${GIT_SHA}\` |
+| **Git SHA (full)** | \`${GIT_SHA_FULL}\` |
+| **App version** | \`${APP_VERSION}\` |
+| **Worker name** | \`${WORKER_NAME}\` |
+| **Wrangler env** | \`${WRANGLER_ENV}\` |
+| **Binding URL** | https://www.speakerops.org |
+| **GET /health** | ${health_code:-n/a} |
+| **Health body** | ${safe_body:-n/a} |
+| **Smoke base (recorded)** | ${redacted_url} |
+
+## Claim
+
+S-DOGFOOD: deploy healthy at **https://www.speakerops.org** only; revision + timestamp recorded;
+keystone e2e non-skipped for all **18** constitution soul IDs (see \`SOUL_EVIDENCE_TABLE.md\`).
+
+## Reproduce
+
+\`\`\`bash
+scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
+# Health-only:
+SMOKE_BASE_URL=https://www.speakerops.org DOGFOOD_SKIP_DEPLOY=1 \\
+  scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
+\`\`\`
+
+## Notes
+
+${notes}
+
+## Related evidence
+
+| Artifact | Path |
+|----------|------|
+| BC10 / S-CF | \`KMS-competition/initiative/evidence/cf-dogfood.txt\` |
+| Soul table | \`initiative/PHASE10_11_GAP_CLOSE/evidence/SOUL_EVIDENCE_TABLE.md\` |
+| Keystone | \`playwright/e2e/phase11_handover_keystone.spec.ts\` |
+| Handover | \`initiative/PHASE10_11_GAP_CLOSE/evidence/PRODUCTION_HANDOVER_WAVE.md\` |
+
+Secrets: never commit CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID values (E10).
+EOF
+  info "wrote phase11 deploy evidence → $PHASE11_EVIDENCE"
 }
 
 # --- dry-run path: creds present, no network deploy ---
@@ -224,7 +289,7 @@ if [[ "${DEPLOY_DRY_RUN:-}" == "1" ]]; then
     "DRY_RUN" \
     "" \
     "" \
-    "${SMOKE_BASE_URL:-}" \
+    "${SMOKE_BASE_URL:-$BINDING_SMOKE_URL}" \
     "Dry-run only. Credentials were present; wrangler deploy was not invoked.
 Live dogfood smoke requires DEPLOY_DRY_RUN unset and network access to Cloudflare.
 See docs/OPERATIONS.md for wrangler create D1/R2/queue + secret put steps."
@@ -232,8 +297,8 @@ See docs/OPERATIONS.md for wrangler create D1/R2/queue + secret put steps."
   exit 0
 fi
 
-# --- resolve smoke URL: skip deploy when operator only wants re-smoke ---
-SMOKE_URL="${SMOKE_BASE_URL:-}"
+# --- resolve smoke URL: default binding URL for S-DOGFOOD ---
+SMOKE_URL="${SMOKE_BASE_URL:-$BINDING_SMOKE_URL}"
 
 if [[ "${DOGFOOD_SKIP_DEPLOY:-}" == "1" ]]; then
   info "DOGFOOD_SKIP_DEPLOY=1 — skipping wrangler deploy"
@@ -246,59 +311,68 @@ else
   info "using wrangler: $WRANGLER"
   [[ -f "$WRANGLER_CONFIG" ]] || die "wrangler.toml missing at $WRANGLER_CONFIG"
 
-  # Optional resource id overrides (names in docs; values from secrets/env)
-  EXTRA_ARGS=()
+  # Build SPA assets for Workers Assets (env.dogfood.assets.directory)
+  if [[ "${DOGFOOD_SKIP_WEB_BUILD:-}" != "1" ]]; then
+    info "building @speakerops/web (Vite → apps/web/dist) for dogfood assets"
+    pnpm --filter @speakerops/web build || die "web build failed"
+    [[ -f "$ROOT/apps/web/dist/index.html" ]] || die "apps/web/dist/index.html missing after build"
+  else
+    info "DOGFOOD_SKIP_WEB_BUILD=1 — expecting apps/web/dist already present"
+    [[ -f "$ROOT/apps/web/dist/index.html" ]] || die "apps/web/dist/index.html missing (build SPA or unset DOGFOOD_SKIP_WEB_BUILD)"
+  fi
+
+  # Optional D1 id override (names in docs; values from secrets/env)
+  CONFIG_FOR_DEPLOY="$WRANGLER_CONFIG"
   if [[ -n "${SPEAKEROPS_D1_DATABASE_ID:-}" ]]; then
     info "SPEAKEROPS_D1_DATABASE_ID set — injecting D1 database_id for deploy"
-    # wrangler supports --var and config; use temporary config merge via env for d1 is limited.
-    # Documented path: edit wrangler.toml database_id or use CF dashboard id in this env
-    # and a local non-committed override file.
     OVERRIDE_TOML="$(mktemp "${TMPDIR:-/tmp}/wrangler-dogfood.XXXXXX.toml")"
     # shellcheck disable=SC2064
     trap 'rm -f "$OVERRIDE_TOML"' EXIT
     sed -E "s/database_id = \"[^\"]+\"/database_id = \"${SPEAKEROPS_D1_DATABASE_ID}\"/" \
       "$WRANGLER_CONFIG" >"$OVERRIDE_TOML"
-    if [[ -n "${SPEAKEROPS_R2_BUCKET_NAME:-}" ]]; then
-      sed -i -E "s/bucket_name = \"[^\"]+\"/bucket_name = \"${SPEAKEROPS_R2_BUCKET_NAME}\"/" \
-        "$OVERRIDE_TOML"
-    fi
-    WRANGLER_CONFIG="$OVERRIDE_TOML"
+    CONFIG_FOR_DEPLOY="$OVERRIDE_TOML"
   fi
 
-  info "deploying worker ${WORKER_NAME} (account id redacted in logs)"
-  # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are read by wrangler from env
+  info "deploying worker ${WORKER_NAME} --env ${WRANGLER_ENV} (account id redacted in logs)"
+  info "APP_VERSION=${APP_VERSION}"
   set +e
   DEPLOY_LOG="$(mktemp "${TMPDIR:-/tmp}/dogfood-deploy.XXXXXX.log")"
+  # Note: with --env, Worker name comes from [env.<env>].name in wrangler.toml
+  # (legacy mode forbids --name + --env together).
   # shellcheck disable=SC2086
-  $WRANGLER deploy --config "$WRANGLER_CONFIG" --name "$WORKER_NAME" >"$DEPLOY_LOG" 2>&1
+  $WRANGLER deploy \
+    --config "$CONFIG_FOR_DEPLOY" \
+    --env "$WRANGLER_ENV" \
+    --var "APP_VERSION:${APP_VERSION}" \
+    --keep-vars \
+    >"$DEPLOY_LOG" 2>&1
   deploy_rc=$?
   set -e
 
-  # Never print raw deploy log to stdout (may include account metadata); redact on failure summary
   if [[ $deploy_rc -ne 0 ]]; then
-    redact_text "$(tail -n 40 "$DEPLOY_LOG")" >&2 || true
+    redact_text "$(tail -n 60 "$DEPLOY_LOG")" >&2 || true
     rm -f "$DEPLOY_LOG"
     write_evidence \
       "DEPLOY_FAILED" \
       "" \
       "" \
-      "" \
-      "wrangler deploy exited ${deploy_rc}. Fix D1/R2/queue resource ids per docs/OPERATIONS.md, then re-run."
+      "$SMOKE_URL" \
+      "wrangler deploy exited ${deploy_rc}. Fix D1/queue/assets per docs/OPERATIONS.md, then re-run."
     die "wrangler deploy failed (exit ${deploy_rc})"
   fi
 
-  # Parse workers.dev URL from deploy output
-  if [[ -z "$SMOKE_URL" ]]; then
-    SMOKE_URL="$(grep -Eo 'https://[a-zA-Z0-9._-]+\.workers\.dev' "$DEPLOY_LOG" | head -n1 || true)"
+  # Prefer binding URL for S-DOGFOOD; keep workers.dev parse as fallback note only
+  if [[ -z "${SMOKE_BASE_URL:-}" ]]; then
+    SMOKE_URL="$BINDING_SMOKE_URL"
   fi
+  PARSED_WORKERS="$(grep -Eo 'https://[a-zA-Z0-9._-]+\.workers\.dev' "$DEPLOY_LOG" | head -n1 || true)"
   rm -f "$DEPLOY_LOG"
-  [[ -n "$SMOKE_URL" ]] || die "could not parse workers.dev URL from wrangler deploy output; set SMOKE_BASE_URL"
-  info "deployed; smoke base (redacted): $(redact_url "$SMOKE_URL")"
+  info "deployed; smoke base: $(redact_url "$SMOKE_URL")${PARSED_WORKERS:+ (workers.dev also: $(redact_url "$PARSED_WORKERS"))}"
 fi
 
 # --- health smoke ---
 HEALTH_URL="${SMOKE_URL%/}/health"
-info "GET ${HEALTH_URL%%/*}//…/health (URL redacted in evidence)"
+info "GET $(redact_url "$HEALTH_URL")"
 set +e
 HEALTH_RESP="$(curl -sS -m 30 -w '\n%{http_code}' "$HEALTH_URL" 2>&1)"
 curl_rc=$?
@@ -327,7 +401,6 @@ if [[ "$HEALTH_CODE" != "200" ]]; then
   die "health smoke expected 200, got ${HEALTH_CODE}"
 fi
 
-# Minimal body check without requiring jq
 if ! printf '%s' "$HEALTH_BODY" | grep -q '"ok"[[:space:]]*:[[:space:]]*true'; then
   write_evidence \
     "SMOKE_FAILED" \
@@ -343,8 +416,10 @@ write_evidence \
   "$HEALTH_CODE" \
   "$HEALTH_BODY" \
   "$SMOKE_URL" \
-  "Live dogfood smoke succeeded. S-CF / BC10 health 200 recorded with redacted URL.
-Optional: SMOKE_BASE_URL=$(redact_url "$SMOKE_URL") pnpm exec playwright test playwright/e2e/cf_dogfood_smoke.spec.ts"
+  "Live dogfood smoke succeeded. S-CF / S-DOGFOOD / BC10 / BC-16 health 200 recorded.
+Deploy revision: ${GIT_SHA} · APP_VERSION: ${APP_VERSION}
+Binding URL: https://www.speakerops.org
+Next: scripts/with-secrets.sh pnpm test:e2e:phase11-keystone"
 
-info "health 200 ok — S-CF smoke complete (exit 0)"
+info "health 200 ok — S-DOGFOOD smoke complete (exit 0)"
 exit 0

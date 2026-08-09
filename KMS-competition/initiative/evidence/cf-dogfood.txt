@@ -1,49 +1,57 @@
-# BC10 / S-CF — Cloudflare dogfood health evidence (section 8.6)
+# BC10 / S-CF — Cloudflare dogfood health evidence (section 8.6 / 11.9)
 
-Section: 8.6 Cloudflare dogfood deploy
+Section: 8.6 + 11.9 Cloudflare dogfood deploy
 Workspace: speakerops-build
-Date (UTC): 2026-08-09T00:21:02Z
-Git SHA: 300c0fa
+Date (UTC): 2026-08-09T15:59:09Z
+Git SHA: 97ab397
+Git SHA (full): 97ab397806dd621a9194e11930d5968d8ebdb218
+App version: 0.1.0-demo+97ab397
 Status: DONE_WITH_EVIDENCE
 
 ## Claim
 
-Private Cloudflare (workers.dev / preview) dogfood URL returns GET /health → 200
-with body `{ "ok": true, "version": string }`. Deploy uses env **names** only;
+Dogfood URL returns GET /health → 200 with body `{ "ok": true, "version": string }`.
+S-DOGFOOD binds **https://www.speakerops.org** only. Deploy uses env **names** only;
 secret **values** never committed (E10).
 
-Souls: **S-CF** (constitution) · BUILD_CHECKLIST **BC10**
+Souls: **S-CF** · **S-DOGFOOD** · BUILD_CHECKLIST **BC10** · **BC-16**
 
 ## Evidence path
 
 This file: KMS-competition/initiative/evidence/cf-dogfood.txt
+Phase 11.9: initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md
 Template: KMS-competition/initiative/evidence/cf-dogfood.template.txt
 Deploy script: scripts/deploy-dogfood.sh
 Operations: docs/OPERATIONS.md
-wrangler: wrangler.toml (binding **names** only)
+wrangler: wrangler.toml [env.dogfood] (binding **names** only)
 
 ## URL redaction rules (binding)
 
 1. Never write CLOUDFLARE_API_TOKEN, API keys, session cookies, or magic-link tokens.
 2. Never write full CLOUDFLARE_ACCOUNT_ID — replace with `[REDACTED_ACCOUNT_ID]`.
-3. workers.dev hosts: keep worker service label; redact account subdomain as `***`
-   (example: `https://speakerops-api.***.workers.dev`).
-4. Strip query strings and fragments from recorded URLs (may contain tokens).
-5. Health body may include public `version` only — no env dumps.
+3. workers.dev hosts: keep worker service label; redact account subdomain as `***`.
+4. www.speakerops.org is the public dogfood claim URL and may appear in full.
+5. Strip query strings and fragments from recorded URLs (may contain tokens).
+6. Health body may include public `version` only — no env dumps.
 
 ## Smoke result
 
 | Field | Value |
 |-------|-------|
-| Base URL (redacted) | https://speakerops-api.***.workers.dev |
+| Base URL | https://www.speakerops.org |
 | GET /health HTTP status | 200 |
-| Health body (redacted) | {"ok":true,"version":"0.1.0"} |
-| Worker name | speakerops-api |
+| Health body (redacted) | {"ok":true,"version":"0.1.0-demo+97ab397"} |
+| Worker name | speakerops-demo |
+| Wrangler env | dogfood |
+| Deploy revision (git) | 97ab397 |
+| App version | 0.1.0-demo+97ab397 |
 
 ## Notes
 
-Live dogfood smoke succeeded. S-CF / BC10 health 200 recorded with redacted URL.
-Optional: SMOKE_BASE_URL=https://speakerops-api.***.workers.dev pnpm exec playwright test playwright/e2e/cf_dogfood_smoke.spec.ts
+Live dogfood smoke succeeded. S-CF / S-DOGFOOD / BC10 / BC-16 health 200 recorded.
+Deploy revision: 97ab397 · APP_VERSION: 0.1.0-demo+97ab397
+Binding URL: https://www.speakerops.org
+Next: scripts/with-secrets.sh pnpm test:e2e:phase11-keystone
 
 ## Reproduce (operator)
 
@@ -51,13 +59,13 @@ Optional: SMOKE_BASE_URL=https://speakerops-api.***.workers.dev pnpm exec playwr
 # Load secrets out-of-band (never commit values)
 scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
 
-# Optional: health-only re-smoke against an existing dogfood URL
-SMOKE_BASE_URL=https://<your-workers-dev-host> \
+# Optional: health-only re-smoke against binding URL
+SMOKE_BASE_URL=https://www.speakerops.org \
   DOGFOOD_SKIP_DEPLOY=1 \
   scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
 
-# Optional Playwright remote smoke (skips when unset)
-SMOKE_BASE_URL=https://<your-workers-dev-host> pnpm exec playwright test playwright/e2e/cf_dogfood_smoke.spec.ts
+# Phase 11.9 keystone (all 18 souls D)
+scripts/with-secrets.sh pnpm test:e2e:phase11-keystone
 ```
 
 ## Gate local proof (no CF network)
@@ -68,5 +76,6 @@ SMOKE_BASE_URL=https://<your-workers-dev-host> pnpm exec playwright test playwri
 - Local GET /health 200: apps/api/src/health.test.ts (section 1.2)
 
 Env **names** only (E10): CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
-SPEAKEROPS_D1_DATABASE_ID, SPEAKEROPS_R2_BUCKET_NAME, SMOKE_BASE_URL,
-DOGFOOD_SKIP_DEPLOY, DEPLOY_DRY_RUN, DOGFOOD_EVIDENCE_PATH, WRANGLER_BIN.
+SPEAKEROPS_D1_DATABASE_ID, SMOKE_BASE_URL, DOGFOOD_SKIP_DEPLOY, DEPLOY_DRY_RUN,
+DOGFOOD_EVIDENCE_PATH, DOGFOOD_PHASE11_EVIDENCE, WRANGLER_BIN, DOGFOOD_WORKER_NAME,
+DOGFOOD_WRANGLER_ENV, DOGFOOD_SKIP_WEB_BUILD, DOGFOOD_APP_VERSION.

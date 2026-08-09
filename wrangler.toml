@@ -48,33 +48,44 @@ max_retries = 5
 crons = ["* * * * *"]
 
 # ---------------------------------------------------------------------------
-# Dogfood env (section 8.6 / S-CF) — same bindings; private workers.dev host.
+# Dogfood env (section 8.6 / S-CF + 11.9 S-DOGFOOD).
+# Binding host: https://www.speakerops.org → Worker name speakerops-demo
 # Usage: wrangler deploy --env dogfood
-# Or:    scripts/deploy-dogfood.sh (preferred; writes BC10 evidence)
+# Or:    scripts/deploy-dogfood.sh (preferred; writes BC10 + phase11 deploy.md)
 # ---------------------------------------------------------------------------
 [env.dogfood]
-name = "speakerops-api"
+name = "speakerops-demo"
 # Section 10.3 — DEMO captcha path for dogfood (S-CFP-SUBMIT). Names only (E10).
 # DEMO_MODE forces test Turnstile site key + DEV_PASS under host allowlist.
 # See docs/DEMO_HOST.md and docs/OPERATIONS.md.
-vars = { APP_VERSION = "0.1.0", DEMO_MODE = "1", DEMO_ALLOWLIST_ENABLED = "1", DEMO_ALLOWLIST_HOSTS = "www.speakerops.org,speakerops.org,localhost,127.0.0.1" }
+# APP_VERSION overridden at deploy time with git short SHA (section 11.9 revision).
+vars = { APP_VERSION = "0.1.0-demo", DEMO_MODE = "1", DEMO_ALLOWLIST_ENABLED = "1", DEMO_ALLOWLIST_HOSTS = "www.speakerops.org,speakerops.org,localhost,127.0.0.1" }
+
+# SPA static assets (Workers Assets) — Vite build output.
+# run_worker_first=true (wrangler 3 boolean): Worker handles /api + /health, then
+# default fetch falls through to env.ASSETS for SPA routes (see apps/api/src/index.ts).
+[env.dogfood.assets]
+directory = "apps/web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
 
 [[env.dogfood.d1_databases]]
 binding = "DB"
-database_name = "speakerops"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_name = "speakerops-demo"
+# Resource id (not a secret). Override with SPEAKEROPS_D1_DATABASE_ID if needed.
+database_id = "f01cd279-e505-4e4e-92b2-56ff2661b74a"
 migrations_dir = "packages/db/migrations"
 
-[[env.dogfood.r2_buckets]]
-binding = "FILES"
-bucket_name = "speakerops-files"
+# R2 omitted on dogfood: account may not have R2 enabled; design store falls back
+# to isolate-local blobs. Enable FILES later via dashboard + re-add binding.
 
 [[env.dogfood.queues.producers]]
 binding = "JOBS_QUEUE"
-queue = "speakerops-jobs"
+queue = "speakerops-demo-jobs"
 
 [[env.dogfood.queues.consumers]]
-queue = "speakerops-jobs"
+queue = "speakerops-demo-jobs"
 max_batch_size = 10
 max_batch_timeout = 5
 max_retries = 5

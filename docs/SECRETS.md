@@ -75,13 +75,18 @@
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account scope for wrangler. **Required** by deploy script. Evidence redacts full id (`[REDACTED_ACCOUNT_ID]`).
 - `SPEAKEROPS_D1_DATABASE_ID` — optional real D1 `database_id` override (placeholder in `wrangler.toml` is not deployable until set).
 - `SPEAKEROPS_R2_BUCKET_NAME` — optional R2 bucket name override for `FILES` binding.
-- `SMOKE_BASE_URL` — optional private workers.dev / preview base for health re-smoke and optional Playwright (`playwright/e2e/cf_dogfood_smoke.spec.ts` skips when unset).
+- `SMOKE_BASE_URL` — optional base for health re-smoke (default for 11.9 claim is `https://www.speakerops.org`) and optional Playwright (`playwright/e2e/cf_dogfood_smoke.spec.ts` skips when unset).
 - `DOGFOOD_SKIP_DEPLOY` — when `"1"`, deploy script skips `wrangler deploy` and only smokes `SMOKE_BASE_URL`.
+- `DOGFOOD_SKIP_WEB_BUILD` — when `"1"`, skip Vite SPA build (use existing `apps/web/dist`).
+- `DOGFOOD_PHASE11_EVIDENCE` — optional override for section 11.9 `deploy.md` (default `initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md`).
+- `DOGFOOD_KEYSTONE` — when `"1"`, enables phase11 18-soul D keystone against www.speakerops.org (`pnpm test:e2e:phase11-keystone`).
 - `DEPLOY_DRY_RUN` — when `"1"`, validate creds + write dry-run evidence; no network deploy.
 - `DOGFOOD_EVIDENCE_PATH` — optional override for BC10 evidence output (default `KMS-competition/initiative/evidence/cf-dogfood.txt`).
-- `DOGFOOD_WORKER_NAME` — optional Worker name (default `speakerops-api`).
+- `DOGFOOD_WORKER_NAME` — optional Worker name (default `speakerops-demo` for S-DOGFOOD binding).
+- `DOGFOOD_WRANGLER_ENV` — optional wrangler `--env` (default `dogfood`).
 - `WRANGLER_BIN` — optional path/command for wrangler CLI.
 - Deploy entry: `pnpm deploy:dogfood` / `scripts/with-secrets.sh bash scripts/deploy-dogfood.sh`.
+- Phase 11.9 keystone: `scripts/with-secrets.sh pnpm test:e2e:phase11-keystone`.
 - Runbook: `docs/OPERATIONS.md`. Never source these into general `test:ci` / `typecheck` gates.
 
 ## Base
