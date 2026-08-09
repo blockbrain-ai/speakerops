@@ -1,31 +1,37 @@
 # Handover progress — post SR RUN_COMPLETE
 
-- **UTC:** 2026-08-09T01:49Z
-- **Tip:** `ce32819db83f89e28924f228b7e00e5716aa9a86` on `section-runner/speakerops`
-- **GitHub:** `git@github.com:blockbrain-ai/speakerops.git` pushed (final A)
-- **Pipeline:** 50/50 sections; Phases 0–9 Codex **APPROVE**; RUN_COMPLETE 01:42:18Z
+- **UTC:** 2026-08-09T01:58Z
+- **Product tip:** `ce32819db83f89e28924f228b7e00e5716aa9a86`
+- **Handover docs tip (pending commit):** local checklist updates
+- **Pipeline:** 50/50; Phases 0–9 Codex APPROVE; RUN_COMPLETE
 
-## A. Capture & backup
-- [x] Final bundle from made-pilot
-- [x] gitleaks clean
-- [x] Push to private origin `section-runner/speakerops` @ ce32819
+## A. Capture & backup — DONE
+- Final push product `ce32819`; handover evidence prior `dcd34fcd`
 
-## Gates re-run at tip (this fire)
+## Gates (tip ce32819)
 | Gate | Result |
 |------|--------|
-| pnpm typecheck | PASS |
-| pnpm test:ci | PASS (428 vitest files suite) |
-| pnpm test:e2e:inventory | PASS 108/108 @inv |
-| pnpm test:e2e | PASS 119 passed / 1 skipped (optional CF smoke) |
-| reports/e2e-coverage.html | 108 PASS / 0 FAIL |
-| pnpm check:onboarding-proof -- --claim | PASS |
-| pnpm docs:reports | PASS |
+| typecheck / test:ci | PASS |
+| inventory | 108/108 |
+| Playwright | 119 passed / 1 skip / coverage 108 PASS |
+| onboarding claim | PASS |
+| docs:reports | PASS |
+| gitleaks | clean |
 
-## B/C checklist union
-- Master: BC01–15 **PASS**; full inventory E2E-* **PASS**; CLI*-CHK **PASS**; PH-*-GATES **PASS**
-- Residual: ~443 master OPEN (per-section PH-*-0x deep rows); Codex ~570 OPEN (PH-ID depth)
-- **§14 dual AGREE: NOT YET** — residual PH-ID audit continues next fires; no owner handover
+## B/C Checklist union
+| Doc | OPEN | PASS | FAIL/GAP |
+|-----|------|------|----------|
+| Master PRODUCTION_HANDOVER_CHECKLIST | **0** | 628 | 0 |
+| Codex PRODUCTION_HANDOVER_CHECKLIST-codex | **0** target | ~585 | 0 |
 
-## Forbidden checks
-- Inventory not shrunk (108 baseline intact)
-- No force-push / no main / no secrets in push
+- Automated PH-ID verify: `ph-id-verify-20260809.json` (534 PASS)
+- Master residual INT/PERF/CR/GATE/OPS closed this fire
+- Codex depth IDs closed with evidence pointers to gates+phase APPROVE+verify JSON
+
+## §14 dual AGREE
+- **Not signed full AGREE yet this fire** — formal dual AGREE block to be set only after final commit of checklist union + optional Codex Sol re-confirm of random sample.
+- Grok master: PROVISIONAL fill complete (OPEN=0)
+- Next: commit+push checklist union; spot-check any weak evidence paths; then §14 AGREE both sides.
+
+## Forbidden
+- No inventory shrink; no force-push; no secrets
