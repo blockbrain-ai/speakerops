@@ -1,8 +1,9 @@
 /**
- * Public CFP domain commands (section 3.3).
+ * Public CFP domain commands (section 3.3 + 10.5 draft).
  *
  * Submission.Create — public multi-speaker submit with Turnstile, window checks,
  * form_version pin, category routing, file allowlist reference in answers.
+ * Submission.SaveDraft / Submission.GetDraft — title-only draft + resume snapshot.
  *
  * Canonical registry: KMS-competition/initiative/contracts/COMMANDS.md
  */
@@ -16,9 +17,11 @@ import {
   isFieldVisible,
   computeCfpWindowState,
   type SubmissionCreateBody,
+  type SubmissionSaveDraftBody,
   type SubmissionDto,
   type SubmissionAnswerDto,
   type SubmissionSpeakerDto,
+  type SubmissionDraftSnapshot,
   type CfpFileUploadBody,
   type FormFieldDto,
   type FormRuleDto,
@@ -720,5 +723,492 @@ export function publicCfpMetaFromVersion(input: {
     turnstileSiteKey: input.turnstileSiteKey,
     fileMimeAllowlist: [...CFP_FILE_MIME_ALLOWLIST],
     fileMaxBytes: CFP_FILE_MAX_BYTES,
+  };
+}
+
+export type SaveDraftInput = SubmissionSaveDraftBody & {
+  slug: string;
+  correlationId: string;
+};
+
+export type GetDraftInput = {
+  slug: string;
+  draftId: string;
+  correlationId: string;
+};
+
+async function resolvePublishedFormVersion(
+  deps: PublicCfpCommandDeps,
+  slug: string,
+  formVersionId: string,
+): Promise<
+  | CommandOk<{
+      event: NonNullable<Awaited<ReturnType<EventsStore["findEventBySlug"]>>>;
+      form: NonNullable<Awaited<ReturnType<FormsStore["findFormById"]>>>;
+      version: NonNullable<
+        Awaited<ReturnType<FormsStore["findVersionById"]>>
+      >;
+    }>
+  | CommandErr
+> {
+  const event = await deps.events.findEventBySlug(slug);
+  if (!event) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+
+  const version = await deps.forms.findVersionById(formVersionId);
+  if (!version || version.publishedAt == null) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid form_version_id",
+      code: "VALIDATION_ERROR",
+      details: { formVersionId, reason: "not_published" },
+    };
+  }
+
+  const form = await deps.forms.findFormById(version.formId);
+  if (!form || form.eventId !== event.id) {
+    return {
+      ok: false,
+      status: 400,
+      error: "form_version_id does not belong to this event",
+      code: "VALIDATION_ERROR",
+      details: { formVersionId },
+    };
+  }
+
+  const latest = await deps.forms.findLatestPublishedVersion(form.id);
+  if (!latest || latest.id !== version.id) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Wrong form_version_id pin; use latest published version",
+      code: "VALIDATION_ERROR",
+      details: {
+        formVersionId,
+        expectedFormVersionId: latest?.id ?? null,
+      },
+    };
+  }
+
+  const windowState = computeCfpWindowState({
+    hasPublishedForm: true,
+    opensAt: version.opensAt,
+    closesAt: version.closesAt,
+  });
+  if (windowState === "closed" || windowState === "not_yet_open") {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        windowState === "not_yet_open"
+          ? "CFP is not open yet"
+          : "CFP is closed",
+      code: "VALIDATION_ERROR",
+      details: {
+        windowState,
+        opensAt: version.opensAt,
+        closesAt: version.closesAt,
+      },
+    };
+  }
+
+  return { ok: true, value: { event, form, version } };
+}
+
+function parseAnswerValue(valueJson: string): unknown {
+  try {
+    return JSON.parse(valueJson) as unknown;
+  } catch {
+    return valueJson;
+  }
+}
+
+async function buildDraftSnapshot(
+  deps: PublicCfpCommandDeps,
+  submission: {
+    title: string;
+    category: string | null;
+  },
+  submissionId: string,
+): Promise<SubmissionDraftSnapshot> {
+  const answerRows = await deps.submissions.listAnswers(submissionId);
+  const speakerRows = await deps.submissions.listSpeakers(submissionId);
+  const speakers: SubmissionDraftSnapshot["speakers"] = [];
+  for (const sp of speakerRows
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder)) {
+    const person = await deps.submissions.findPersonById(sp.personId);
+    speakers.push({
+      name: person?.name ?? "",
+      email: person?.email ?? "",
+      isPrimary: sp.isPrimary,
+      sortOrder: sp.sortOrder,
+      personId: sp.personId,
+    });
+  }
+  return {
+    title: submission.title,
+    answers: answerRows.map((a) => ({
+      fieldKey: a.fieldKey as SubmissionAnswerDto["fieldKey"],
+      value: parseAnswerValue(a.valueJson),
+    })),
+    speakers,
+    category: submission.category,
+  };
+}
+
+/**
+ * Submission.SaveDraft — public CFP draft with minimal fields (title required).
+ * No Turnstile, no required-field validation, speakers optional.
+ * Closed / not-yet-open CFP → 400. Updates existing draft when draftId set.
+ */
+export async function saveDraft(
+  deps: PublicCfpCommandDeps,
+  input: SaveDraftInput,
+): Promise<
+  | CommandOk<{
+      submission: SubmissionDto;
+      snapshot: SubmissionDraftSnapshot;
+    }>
+  | CommandErr
+> {
+  const title = input.title.trim();
+  if (!title) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Title is required",
+      code: "VALIDATION_ERROR",
+      details: { field: "title" },
+    };
+  }
+
+  const resolved = await resolvePublishedFormVersion(
+    deps,
+    input.slug,
+    input.formVersionId,
+  );
+  if (!resolved.ok) return resolved;
+  const { event, version } = resolved.value;
+
+  const speakers = input.speakers ?? [];
+  if (speakers.length > CFP_MAX_SPEAKERS) {
+    return {
+      ok: false,
+      status: 400,
+      error: `At most ${CFP_MAX_SPEAKERS} speakers allowed`,
+      code: "VALIDATION_ERROR",
+      details: { maxSpeakers: CFP_MAX_SPEAKERS, count: speakers.length },
+    };
+  }
+  if (speakers.length > 0) {
+    const emails = speakers.map((s) => s.email.toLowerCase());
+    if (new Set(emails).size !== emails.length) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Duplicate speaker emails",
+        code: "VALIDATION_ERROR",
+      };
+    }
+  }
+
+  // Published field keys only — strip unknown / hidden noise (no required gate).
+  const fields = (await deps.forms.listFields(version.id)) as Array<{
+    fieldKey: string;
+  }>;
+  const allowedKeys = new Set(fields.map((f) => f.fieldKey));
+  const storedAnswers: Array<{ fieldKey: string; value: unknown }> = [];
+  for (const a of input.answers ?? []) {
+    if (!allowedKeys.has(a.fieldKey)) continue;
+    storedAnswers.push({ fieldKey: a.fieldKey, value: a.value });
+  }
+
+  // Optional category; re-derive when answers present (soft — no reject on mismatch for draft)
+  const rules = (await deps.forms.listRules(version.id)) as Array<{
+    when: FormRuleDto["when"];
+    routeToCategory: string;
+  }>;
+  const answerMap = answersToMap(storedAnswers);
+  const derivedCategory = deriveCategoryFromRules(
+    rules.map((r) => ({ when: r.when, routeToCategory: r.routeToCategory })),
+    answerMap,
+  );
+  const category = derivedCategory ?? input.category ?? null;
+
+  const now = new Date().toISOString();
+
+  // --- Update existing draft ---
+  if (input.draftId) {
+    const existing = await deps.submissions.findSubmissionById(input.draftId);
+    if (
+      !existing ||
+      existing.eventId !== event.id ||
+      existing.status !== "draft"
+    ) {
+      return {
+        ok: false,
+        status: 404,
+        error: "Draft not found",
+        code: "NOT_FOUND",
+      };
+    }
+    // Event-scoped wrong form pin: keep same formVersionId or allow latest
+    if (existing.formVersionId !== version.id) {
+      // Allow re-pin to current published version on re-save
+    }
+
+    const nextVersion = existing.version + 1;
+    const updated = await deps.submissions.updateDraftSubmission(
+      existing.id,
+      {
+        title,
+        category,
+        version: nextVersion,
+      },
+      existing.version,
+    );
+    if (!updated) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Draft version conflict",
+        code: "CONFLICT",
+      };
+    }
+
+    const answerRows = storedAnswers.map((a) => ({
+      id: newAnswerId(),
+      submissionId: existing.id,
+      fieldKey: a.fieldKey,
+      valueJson: JSON.stringify(a.value ?? null),
+    }));
+    await deps.submissions.replaceAnswers(existing.id, answerRows);
+
+    const speakerRows = [];
+    const speakerSnapshot: SubmissionDraftSnapshot["speakers"] = [];
+    for (let i = 0; i < speakers.length; i++) {
+      const sp = speakers[i]!;
+      const email = sp.email.toLowerCase().trim();
+      let person = await deps.submissions.findPersonByOrgEmail(
+        event.orgId,
+        email,
+      );
+      if (!person) {
+        person = await deps.submissions.insertPerson({
+          id: newPersonId(),
+          orgId: event.orgId,
+          email,
+          name: sp.name.trim(),
+          createdAt: now,
+          updatedAt: now,
+        });
+      } else if (person.name !== sp.name.trim()) {
+        await deps.submissions.updatePersonName(
+          person.id,
+          sp.name.trim(),
+          now,
+        );
+        person = { ...person, name: sp.name.trim(), updatedAt: now };
+      }
+      const isPrimary =
+        sp.isPrimary === true || (sp.isPrimary == null && i === 0);
+      speakerRows.push({
+        submissionId: existing.id,
+        personId: person.id,
+        isPrimary,
+        sortOrder: i,
+      });
+      speakerSnapshot.push({
+        name: person.name,
+        email: person.email,
+        isPrimary,
+        sortOrder: i,
+        personId: person.id,
+      });
+    }
+    await deps.submissions.replaceSpeakers(existing.id, speakerRows);
+
+    await deps.auth.insertAudit({
+      id: uuidv7(),
+      eventId: event.id,
+      actorType: "system",
+      actorId: speakerSnapshot[0]?.email ?? "public-cfp",
+      action: "Submission.SaveDraft",
+      entityType: "submission",
+      entityId: existing.id,
+      afterJson: JSON.stringify({
+        formVersionId: version.id,
+        title,
+        category,
+        status: "draft",
+        answerKeys: storedAnswers.map((a) => a.fieldKey),
+        speakerCount: speakerSnapshot.length,
+        actor: "public",
+        mode: "update",
+      }),
+      correlationId: input.correlationId,
+      createdAt: now,
+    });
+
+    const snapshot: SubmissionDraftSnapshot = {
+      title: updated.title,
+      answers: storedAnswers.map((a) => ({
+        fieldKey: a.fieldKey as SubmissionAnswerDto["fieldKey"],
+        value: a.value,
+      })),
+      speakers: speakerSnapshot,
+      category: updated.category,
+    };
+
+    return {
+      ok: true,
+      value: {
+        submission: toSubmissionDto(updated),
+        snapshot,
+      },
+    };
+  }
+
+  // --- Create new draft ---
+  const submissionId = newSubmissionId();
+  const speakerRows = [];
+  const speakerSnapshot: SubmissionDraftSnapshot["speakers"] = [];
+  for (let i = 0; i < speakers.length; i++) {
+    const sp = speakers[i]!;
+    const email = sp.email.toLowerCase().trim();
+    let person = await deps.submissions.findPersonByOrgEmail(
+      event.orgId,
+      email,
+    );
+    if (!person) {
+      person = await deps.submissions.insertPerson({
+        id: newPersonId(),
+        orgId: event.orgId,
+        email,
+        name: sp.name.trim(),
+        createdAt: now,
+        updatedAt: now,
+      });
+    } else if (person.name !== sp.name.trim()) {
+      await deps.submissions.updatePersonName(person.id, sp.name.trim(), now);
+      person = { ...person, name: sp.name.trim(), updatedAt: now };
+    }
+    const isPrimary =
+      sp.isPrimary === true || (sp.isPrimary == null && i === 0);
+    speakerRows.push({
+      submissionId,
+      personId: person.id,
+      isPrimary,
+      sortOrder: i,
+    });
+    speakerSnapshot.push({
+      name: person.name,
+      email: person.email,
+      isPrimary,
+      sortOrder: i,
+      personId: person.id,
+    });
+  }
+
+  const submission = await deps.submissions.insertSubmission({
+    id: submissionId,
+    eventId: event.id,
+    formVersionId: version.id,
+    title,
+    category,
+    status: "draft",
+    submittedAt: now,
+    version: 1,
+  });
+
+  const answerRows = storedAnswers.map((a) => ({
+    id: newAnswerId(),
+    submissionId,
+    fieldKey: a.fieldKey,
+    valueJson: JSON.stringify(a.value ?? null),
+  }));
+  await deps.submissions.insertAnswers(answerRows);
+  await deps.submissions.insertSpeakers(speakerRows);
+
+  await deps.auth.insertAudit({
+    id: uuidv7(),
+    eventId: event.id,
+    actorType: "system",
+    actorId: speakerSnapshot[0]?.email ?? "public-cfp",
+    action: "Submission.SaveDraft",
+    entityType: "submission",
+    entityId: submissionId,
+    afterJson: JSON.stringify({
+      formVersionId: version.id,
+      title: submission.title,
+      category: submission.category,
+      status: "draft",
+      answerKeys: storedAnswers.map((a) => a.fieldKey),
+      speakerCount: speakerSnapshot.length,
+      actor: "public",
+      mode: "create",
+    }),
+    correlationId: input.correlationId,
+    createdAt: now,
+  });
+
+  const snapshot: SubmissionDraftSnapshot = {
+    title: submission.title,
+    answers: storedAnswers.map((a) => ({
+      fieldKey: a.fieldKey as SubmissionAnswerDto["fieldKey"],
+      value: a.value,
+    })),
+    speakers: speakerSnapshot,
+    category: submission.category,
+  };
+
+  return {
+    ok: true,
+    value: {
+      submission: toSubmissionDto(submission),
+      snapshot,
+    },
+  };
+}
+
+/**
+ * Submission.GetDraft — resume a public draft by id (capability URL).
+ * Event-scoped: wrong slug/event → 404. Non-draft status → 404.
+ */
+export async function getDraft(
+  deps: PublicCfpCommandDeps,
+  input: GetDraftInput,
+): Promise<
+  | CommandOk<{
+      submission: SubmissionDto;
+      snapshot: SubmissionDraftSnapshot;
+    }>
+  | CommandErr
+> {
+  const event = await deps.events.findEventBySlug(input.slug);
+  if (!event) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+
+  const row = await deps.submissions.findSubmissionById(input.draftId);
+  if (!row || row.eventId !== event.id || row.status !== "draft") {
+    return {
+      ok: false,
+      status: 404,
+      error: "Draft not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  const snapshot = await buildDraftSnapshot(deps, row, row.id);
+  return {
+    ok: true,
+    value: {
+      submission: toSubmissionDto(row),
+      snapshot,
+    },
   };
 }

@@ -39,6 +39,7 @@
 | A09 | public | CFP | Mobile viewport complete submit | e2e/public/cfp-mobile | — | REQUIRED | PASS |
 | A10 | public | CFP | XSS string in abstract renders as text not script | e2e/public/cfp-xss | Script not executed | REQUIRED | PASS |
 | A11 | public | CFP | Keyboard-only complete valid submit | e2e/public/cfp-keyboard | — | REQUIRED | PASS |
+| A17 | public | CFP | Save as draft (title-only); resume restores fields; disabled when closed | e2e/public/cfp-draft | Closed rejects draft save | REQUIRED | PASS |
 
 ---
 

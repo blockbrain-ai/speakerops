@@ -920,11 +920,11 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   it("Phase 8 gate rejects OPEN statuses even with full Playwright-bound @inv map", () => {
-    // Auditor regression: 108 tagged real-looking tests must not green-wash
+    // Auditor regression: 109 tagged real-looking tests must not green-wash
     // inventory rows that are still OPEN at the Phase 8 gate.
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     const body =
       ids
         .map((id) => {
@@ -950,11 +950,11 @@ describe("0.3 Browser E2E inventory law", () => {
   });
 
   it("Phase 8 gate rejects mass DEFER without owner amendments (anti greenwash)", () => {
-    // Auditor critical: marking all 108 rows DEFER + one empty placeholder
+    // Auditor critical: marking all 109 rows DEFER + one empty placeholder
     // test file must NOT yield "0 non-DEFER REQUIRED rows are PASS".
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     const r = runLintInProbe({
       inventoryMutate: (inv) =>
         inv.replace(
@@ -1139,7 +1139,7 @@ describe("0.3 Browser E2E inventory law", () => {
     // alone cannot be the only defence — import masking must reject the decoy.
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     const spoofBody =
       'const decoy = "import { test } from \'@playwright/test\'";\n' +
       "const test = noop;\n" +
@@ -1254,7 +1254,7 @@ describe("0.3 Browser E2E inventory law", () => {
   it("Phase 8 gate rejects local no-op test() map even when all statuses are PASS", () => {
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     const fakeBody =
       "const test = (..._args) => {};\n" +
       ids
@@ -1284,7 +1284,7 @@ describe("0.3 Browser E2E inventory law", () => {
   it("Phase 8 gate rejects comment-only tags for all REQUIRED IDs", () => {
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     const comments =
       pwSource(ids.map((id) => `// @inv:${id}`).join("\n") + "\n");
     const r = runLintInProbe({
@@ -1295,7 +1295,7 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.notEqual(
       r.status,
       0,
-      `phase8 must not accept 108 comment-only tags:\n${fmtResult(r)}`,
+      `phase8 must not accept 109 comment-only tags:\n${fmtResult(r)}`,
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
@@ -1343,7 +1343,7 @@ describe("0.3 Browser E2E inventory law", () => {
   it("Phase 8 gate rejects single test() owning all REQUIRED @inv tags", () => {
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     // Mega-title: every @inv + every test_id string (auditor greenwash probe).
     const tags = ids.map((id) => `@inv:${id}`).join(" ");
     const testIds = ids
@@ -1363,7 +1363,7 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.notEqual(
       r.status,
       0,
-      `phase8 must not accept one test owning 108 @inv tags:\n${fmtResult(r)}`,
+      `phase8 must not accept one test owning 109 @inv tags:\n${fmtResult(r)}`,
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
@@ -1375,7 +1375,7 @@ describe("0.3 Browser E2E inventory law", () => {
   it("Phase 8 gate rejects test.fail() as active coverage for all REQUIRED IDs", () => {
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     const body =
       ids
         .map((id) => {
@@ -1391,7 +1391,7 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.notEqual(
       r.status,
       0,
-      `phase8 must not accept 108 test.fail() declarations as coverage:\n${fmtResult(r)}`,
+      `phase8 must not accept 109 test.fail() declarations as coverage:\n${fmtResult(r)}`,
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,
@@ -1403,7 +1403,7 @@ describe("0.3 Browser E2E inventory law", () => {
   it("Phase 8 gate accepts full PASS inventory + 1:1 Playwright-bound @inv map + run report", () => {
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     const body =
       ids
         .map((id) => {
@@ -1466,12 +1466,12 @@ describe("0.3 Browser E2E inventory law", () => {
     );
   });
 
-  it("Phase 8 gate rejects all 108 @inv nested under test.describe.skip", () => {
+  it("Phase 8 gate rejects all 109 @inv nested under test.describe.skip", () => {
     // Auditor full-gate probe: all PASS + every tagged test under describe.skip
     // previously returned exit 0.
     const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
     const ids = baseline.required_ids;
-    assert.equal(ids.length, 108, "baseline must list 108 REQUIRED IDs");
+    assert.equal(ids.length, 109, "baseline must list 109 REQUIRED IDs");
     const inner = ids
       .map((id) => {
         const testId = baseline.fingerprints[id]?.test_id || id;
@@ -1490,7 +1490,7 @@ describe("0.3 Browser E2E inventory law", () => {
     assert.notEqual(
       r.status,
       0,
-      `phase8 must fail when all 108 @inv are under describe.skip:\n${fmtResult(r)}`,
+      `phase8 must fail when all 109 @inv are under describe.skip:\n${fmtResult(r)}`,
     );
     assert.match(
       `${r.stderr}\n${r.stdout}`,

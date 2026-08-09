@@ -808,6 +808,14 @@
   cursor: pointer;
 }
 
+.public-cfp__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-3);
+  align-items: center;
+  margin-top: var(--lumen-space-2);
+}
+
 .public-cfp__primary {
   display: inline-flex;
   align-items: center;
@@ -827,6 +835,20 @@
 .public-cfp__primary:disabled {
   opacity: var(--lumen-disabled-opacity);
   cursor: not-allowed;
+}
+
+.public-cfp__draft-confirmation {
+  margin: var(--lumen-space-3) 0;
+  padding: var(--lumen-space-3) var(--lumen-space-4);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-surface);
+}
+
+.public-cfp__draft-confirmation-title {
+  margin: 0 0 var(--lumen-space-2);
+  font-weight: 600;
+  color: var(--lumen-text);
 }
 
 .public-cfp__btn {

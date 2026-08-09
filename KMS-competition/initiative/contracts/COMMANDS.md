@@ -34,6 +34,8 @@ Auth: session cookie **or** API key with scopes.
 | `Form.Publish` | cfp:write | formId | formVersion immutable |
 | `Form.GetPublic` | public | eventSlug / form slug | published form + tokens |
 | `Submission.Create` | public | formVersionId, answers, speakers[], turnstile | submission |
+| `Submission.SaveDraft` | public | formVersionId, title (required), answers?, speakers?, draftId? | submission status=draft + form-field snapshot |
+| `Submission.GetDraft` | public | eventSlug, draftId | draft submission + snapshot (event-scoped; non-draft → 404) |
 | `Cfp.FileUpload` | public | eventSlug, filename, mime, size, contentBase64 | { fileId, mime, size, filename } — supporting file for public CFP; mime/size allowlist enforced |
 | `Submission.List` | submissions:read | eventId, filters | page |
 | `Submission.Get` | submissions:read | submissionId | detail |
@@ -129,6 +131,8 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/forms/:formId/publish | Form.Publish |
 | GET | /api/public/cfp/:slug | Form.GetPublic |
 | POST | /api/public/cfp/:slug/submissions | Submission.Create |
+| POST | /api/public/cfp/:slug/drafts | Submission.SaveDraft |
+| GET | /api/public/cfp/:slug/drafts/:draftId | Submission.GetDraft |
 | POST | /api/public/cfp/:slug/files | Cfp.FileUpload |
 | GET | /api/events/:eventId/submissions | Submission.List |
 | GET | /api/submissions/:submissionId | Submission.Get |

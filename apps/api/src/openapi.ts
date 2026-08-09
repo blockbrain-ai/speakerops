@@ -494,6 +494,77 @@ export const FORM_OPENAPI_PATHS = {
       },
     },
   },
+  "/api/public/cfp/{slug}/drafts": {
+    post: {
+      operationId: "Submission.SaveDraft",
+      summary: "Submission.SaveDraft",
+      description:
+        "Public CFP draft save (title-only allowed; no Turnstile; closed window rejected)",
+      tags: ["Submission"],
+      parameters: [
+        {
+          name: "slug",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["formVersionId", "title"],
+              properties: {
+                formVersionId: { type: "string" },
+                title: { type: "string" },
+                answers: { type: "array" },
+                speakers: { type: "array" },
+                draftId: { type: "string" },
+                category: { type: "string", nullable: true },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "201": { description: "Draft created" },
+        "200": { description: "Draft updated" },
+        "400": { description: "Validation / closed window / empty title" },
+        "404": { description: "Event or draft not found" },
+        "409": { description: "Version conflict" },
+        "429": { description: "Rate limited" },
+      },
+    },
+  },
+  "/api/public/cfp/{slug}/drafts/{draftId}": {
+    get: {
+      operationId: "Submission.GetDraft",
+      summary: "Submission.GetDraft",
+      description:
+        "Resume public CFP draft; event-scoped; non-draft status → 404",
+      tags: ["Submission"],
+      parameters: [
+        {
+          name: "slug",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "draftId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Draft + snapshot" },
+        "404": { description: "Draft not found / wrong event / not draft" },
+      },
+    },
+  },
 } as const;
 
 /** Eval + assignment OpenAPI paths (section 3.4 / S-EVAL). */
@@ -1646,6 +1717,8 @@ export const OPENAPI_COMMANDS = [
   "Form.Publish",
   "Form.GetPublic",
   "Submission.Create",
+  "Submission.SaveDraft",
+  "Submission.GetDraft",
   "Cfp.FileUpload",
   "Eval.UpsertRubric",
   "Eval.GetRubric",

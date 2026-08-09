@@ -14,6 +14,7 @@
     "A09",
     "A10",
     "A11",
+    "A17",
     "B01",
     "B02",
     "B03",
@@ -159,11 +160,11 @@
     },
     "B01": {
       "test_id": "e2e/auth/admin-login",
-      "journey": "Magic/invite login → session cookie set HttpOnly path"
+      "journey": "Magic/invite login \u2192 session cookie set HttpOnly path"
     },
     "B02": {
       "test_id": "e2e/auth/speaker-magic",
-      "journey": "Single-use link → portal; second use fails"
+      "journey": "Single-use link \u2192 portal; second use fails"
     },
     "B03": {
       "test_id": "e2e/auth/logout",
@@ -211,7 +212,7 @@
     },
     "C08": {
       "test_id": "e2e/admin/design-contrast",
-      "journey": "Near-white brand → contrast warn/block or derived text on public CFP"
+      "journey": "Near-white brand \u2192 contrast warn/block or derived text on public CFP"
     },
     "C09": {
       "test_id": "e2e/admin/design-logo-xss",
@@ -223,7 +224,7 @@
     },
     "C11": {
       "test_id": "e2e/admin/event-isolation",
-      "journey": "Switch event A→B; no A data in B lists"
+      "journey": "Switch event A\u2192B; no A data in B lists"
     },
     "D01": {
       "test_id": "e2e/admin/form-create",
@@ -359,7 +360,7 @@
     },
     "H04": {
       "test_id": "e2e/dash/live",
-      "journey": "Live update after portal complete (same session or poll ≤5s)"
+      "journey": "Live update after portal complete (same session or poll \u22645s)"
     },
     "H05": {
       "test_id": "e2e/dash/empty",
@@ -544,6 +545,10 @@
     "O06": {
       "test_id": "e2e/settings/airtable-status",
       "journey": "Airtable projection status read"
+    },
+    "A17": {
+      "test_id": "e2e/public/cfp-draft",
+      "journey": "Save as draft (title-only); resume restores fields; disabled when closed"
     }
   }
 }
