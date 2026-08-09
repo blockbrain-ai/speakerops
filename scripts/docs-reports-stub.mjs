@@ -1,8 +1,8 @@
 /**
- * Placeholder until Phase 9 (`pnpm docs:reports` / reports HTML portal).
- * Outline locked in docs/governance/0.5-docs-onboarding-outline.md.
+ * @deprecated Section 9.5 — use `pnpm docs:reports` → `tsx scripts/build-docs-reports.ts`.
+ * Kept only so accidental `node scripts/docs-reports-stub.mjs` still points operators forward.
  */
-console.log(
-  "[docs:reports] stub — Phase 9 will emit reports/*.html from docs tree",
+console.error(
+  "[docs:reports] stub retired — run: pnpm docs:reports (scripts/build-docs-reports.ts)",
 );
-process.exit(0);
+process.exit(1);

@@ -212,6 +212,7 @@ Never force Airtable or Resend on the request path to “speed up demos.”
 | Audit | D1 `audit_events` on consequential writes |
 | Worker logs | `wrangler tail` (redact secrets in shared transcripts) |
 | E2E coverage | `pnpm docs:e2e-report` → `reports/e2e-coverage.html` |
+| Reports portal | `pnpm docs:reports` → `reports/index.html` (section 9.5) |
 
 **Redact** tokens, cookies, and magic links before pasting logs into issues or evidence.
 

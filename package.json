@@ -14,7 +14,7 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "seed": "tsx scripts/seed.ts",
     "deploy:dogfood": "bash scripts/deploy-dogfood.sh",
-    "docs:reports": "node scripts/docs-reports-stub.mjs",
+    "docs:reports": "tsx scripts/build-docs-reports.ts",
     "docs:e2e-report": "tsx scripts/build-e2e-report.ts",
     "audit:deps": "node scripts/dependency-audit.mjs",
     "lint": "eslint . --max-warnings 0"

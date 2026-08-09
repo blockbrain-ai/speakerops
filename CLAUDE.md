@@ -23,6 +23,7 @@ This file is loaded automatically by Claude Code at the start of every session. 
 - **Browser E2E:** `pnpm test:e2e` (Playwright harness from 1.5; full REQUIRED set at Phase 8)
 - **Inventory lint:** `pnpm test:e2e:inventory` (`scripts/inventory-lint.ts` — anti-shrinkage + `@inv` coverage)
 - **E2E coverage HTML:** `pnpm docs:e2e-report` → offline `reports/e2e-coverage.html` (section 8.5)
+- **Reports portal:** `pnpm docs:reports` → offline `reports/index.html` + report set (section 9.5 · S-DOCS)
 - **Inventory lint (Phase 8 full gate):** `E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory` — non-DEFER REQUIRED must be status `PASS` + Playwright-bound `@inv` tags
 
 > The Section Runner build gate uses these same commands via `GATE_TYPECHECK_CMD` and `GATE_TEST_CMD`. They must match.

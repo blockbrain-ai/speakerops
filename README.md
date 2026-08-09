@@ -44,7 +44,8 @@ pnpm typecheck && pnpm test:ci  # non-watch gates (E5)
 | [`docs/CONTRACTS.md`](./docs/CONTRACTS.md) | Binding contract index |
 | [`docs/SECRETS.md`](./docs/SECRETS.md) | Env **names** only (E10) |
 | [`docs/sections/9.1-docs-ia.md`](./docs/sections/9.1-docs-ia.md) | This IA section note |
-| [`reports/e2e-coverage.html`](./reports/e2e-coverage.html) | Offline E2E coverage (8.5); full portal **9.5** |
+| [`reports/index.html`](./reports/index.html) | Offline Lumen reports portal (**9.5** · S-DOCS) |
+| [`reports/e2e-coverage.html`](./reports/e2e-coverage.html) | Offline E2E coverage (8.5); linked from portal **9.5** |
 
 Outline + build order: [`docs/governance/0.5-docs-onboarding-outline.md`](./docs/governance/0.5-docs-onboarding-outline.md).
 
@@ -94,7 +95,7 @@ pnpm db:generate          # verify Drizzle schema + migration inventory (1.3+)
 pnpm db:migrate           # apply packages/db/migrations to local SQLite (1.3+)
 pnpm seed                 # deterministic demo graph (~150 speakers; section 8.4)
 pnpm docs:e2e-report      # offline E2E coverage HTML (section 8.5 · S-E2E-RUN)
-pnpm docs:reports         # stub until Phase 9
+pnpm docs:reports         # Lumen reports portal (section 9.5 · S-DOCS)
 ```
 
 ### Demo seed and role switcher (section 8.4)
