@@ -6,7 +6,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 
 ## 5-minute orientation
 
-New here? Pick a path, then skim the map. Human timed checklist is live (**9.2** / **S-ONB-HUMAN**); agent + deep docs land in **9.3–9.4**. The **tree is locked** (section **9.1** / outline **0.5**).
+New here? Pick a path, then skim the map. Human timed checklist is live (**9.2** / **S-ONB-HUMAN**); agent CLI path is live (**9.3** / **S-ONB-AGENT**); deep docs land in **9.4**. The **tree is locked** (section **9.1** / outline **0.5**).
 
 | You are… | Start | Then |
 |----------|--------|------|
@@ -30,7 +30,8 @@ pnpm typecheck && pnpm test:ci  # non-watch gates (E5)
 |-----|------|
 | [`docs/ONBOARDING.md`](./docs/ONBOARDING.md) | Human zero → dogfood (timed **9.2** / S-ONB-HUMAN) |
 | [`docs/sections/9.2-human-onboarding.md`](./docs/sections/9.2-human-onboarding.md) | Section note · AC → proof for human path |
-| [`docs/AGENT_SETUP.md`](./docs/AGENT_SETUP.md) | Agent zero → CLI ops (stub → 9.3) |
+| [`docs/AGENT_SETUP.md`](./docs/AGENT_SETUP.md) | Agent zero → CLI ops (timed **9.3** / S-ONB-AGENT) |
+| [`docs/sections/9.3-agent-setup.md`](./docs/sections/9.3-agent-setup.md) | Section note · AC → proof for agent path |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | D1 SoR, projection, auth, CLI model |
 | [`docs/SECURITY.md`](./docs/SECURITY.md) | CSP, cookies, roles, keys |
 | [`docs/CLI.md`](./docs/CLI.md) | `speakerops` command reference |

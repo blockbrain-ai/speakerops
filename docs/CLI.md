@@ -3,9 +3,11 @@
 Machine-facing admin surface for **S-CLI**. The `speakerops` binary maps **1:1** to domain commands in [`COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md). Scopes are enforced **server-side** on the Worker — the CLI never elevates itself (E8).
 
 **Inventory (proof IDs):** [`CLI_INVENTORY.md`](../KMS-competition/initiative/contracts/CLI_INVENTORY.md) CLI01–CLI12  
-**OpenAPI:** `GET /openapi.json`  
+**OpenAPI:** `GET /openapi.json` (local: `http://127.0.0.1:8787/openapi.json`)  
 **Package:** `@speakerops/cli` (`packages/cli`)  
-**Agent path:** [`AGENT_SETUP.md`](./AGENT_SETUP.md) (**S-ONB-AGENT**) · **Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md)
+**Agent path:** [`AGENT_SETUP.md`](./AGENT_SETUP.md) (**S-ONB-AGENT**) · Section note: [9.3](./sections/9.3-agent-setup.md) · **Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md)
+
+> **Section 9.3:** This runbook is the human + agent CLI reference. Agent-first copy-paste prompt, readiness/design walkthrough, and deny-scope narrative live in [AGENT_SETUP.md](./AGENT_SETUP.md).
 
 ## Install / run
 
