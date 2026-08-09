@@ -995,6 +995,147 @@ describe("10.5 public CFP draft save/resume", () => {
     );
     expect(get.status).toBe(404);
   });
+
+  it("re-save after form republication re-pins formVersionId with answers", async () => {
+    const { app, cookie, submissions } = await magicLinkSession(
+      "admin-draft-repin@example.com",
+    );
+    const event = await createEvent(app, cookie, "Draft Repin", "draft-repin");
+    const { formId, formVersionId: v1 } = await publishOpenForm(
+      app,
+      cookie,
+      event.id,
+    );
+
+    const create = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-repin-1",
+        },
+        body: JSON.stringify({
+          formVersionId: v1,
+          title: "Pinned Draft",
+          answers: [{ fieldKey: "abstract", value: "v1 abstract" }],
+        }),
+      },
+      env,
+    );
+    expect(create.status).toBe(201);
+    const created = SubmissionSaveDraftResponseSchema.parse(await create.json());
+    expect(created.submission.formVersionId).toBe(v1);
+
+    // Republish form → new immutable version
+    const draftUpdate = await app.request(
+      `http://localhost/api/forms/${formId}/draft`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-draft-repin-fields",
+        },
+        body: JSON.stringify({
+          fields: openFields,
+          rules: openRules,
+          welcomeMd: "Welcome v2",
+        }),
+      },
+      env,
+    );
+    expect(draftUpdate.status).toBe(200);
+    const pub2 = await app.request(
+      `http://localhost/api/forms/${formId}/publish`,
+      {
+        method: "POST",
+        headers: {
+          cookie,
+          "x-correlation-id": "corr-draft-repin-pub2",
+        },
+      },
+      env,
+    );
+    expect(pub2.status).toBe(200);
+    const published2 = FormPublishResponseSchema.parse(await pub2.json());
+    const v2 = published2.formVersion.id;
+    expect(v2).not.toBe(v1);
+
+    // Re-save draft against latest form version — pin must update atomically
+    const update = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-repin-2",
+        },
+        body: JSON.stringify({
+          formVersionId: v2,
+          draftId: created.submission.id,
+          title: "Pinned Draft v2",
+          answers: [{ fieldKey: "abstract", value: "v2 abstract" }],
+        }),
+      },
+      env,
+    );
+    expect(update.status).toBe(200);
+    const updated = SubmissionSaveDraftResponseSchema.parse(await update.json());
+    expect(updated.submission.formVersionId).toBe(v2);
+    expect(updated.submission.title).toBe("Pinned Draft v2");
+    expect(
+      updated.snapshot.answers.find((a) => a.fieldKey === "abstract")?.value,
+    ).toBe("v2 abstract");
+
+    const row = await submissions.findSubmissionById(created.submission.id);
+    expect(row?.formVersionId).toBe(v2);
+    expect(row?.title).toBe("Pinned Draft v2");
+  });
+
+  it("draft GET/POST responses set Cache-Control: no-store", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin-draft-cache@example.com",
+    );
+    const event = await createEvent(app, cookie, "Draft Cache", "draft-cache");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id);
+
+    const save = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-cache",
+        },
+        body: JSON.stringify({
+          formVersionId,
+          title: "Cache Sensitive Draft",
+          speakers: [
+            { name: "PII Person", email: "pii@example.com", isPrimary: true },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(save.status).toBe(201);
+    expect(save.headers.get("cache-control")?.toLowerCase()).toContain(
+      "no-store",
+    );
+    const saved = SubmissionSaveDraftResponseSchema.parse(await save.json());
+
+    const get = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts/${saved.submission.id}`,
+      {
+        headers: { "x-correlation-id": "corr-draft-cache-get" },
+      },
+      env,
+    );
+    expect(get.status).toBe(200);
+    expect(get.headers.get("cache-control")?.toLowerCase()).toContain(
+      "no-store",
+    );
+  });
 });
 
 describe("3.3 rate limiter unit", () => {

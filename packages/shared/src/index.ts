@@ -236,6 +236,10 @@ export {
 export {
   SubmissionStatusSchema,
   type SubmissionStatus,
+  SUBMISSION_EVAL_ELIGIBLE_STATUSES,
+  SUBMISSION_DECISION_SOURCE_STATUSES,
+  isSubmissionEvalEligible,
+  isSubmissionDecisionSource,
   CFP_MIN_SPEAKERS,
   CFP_MAX_SPEAKERS,
   TURNSTILE_TEST_SITE_KEY,
@@ -328,6 +332,7 @@ export {
   type EvalSortableSubmission,
   sortEvalSubmissionsByScore,
   csvEscapeField,
+  neutralizeCsvFormula,
   type EvalCsvRow,
   evalRollupToCsv,
 } from "./eval.js";

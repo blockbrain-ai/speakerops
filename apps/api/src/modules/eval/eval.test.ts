@@ -1030,4 +1030,119 @@ describe("3.4 evaluation scoring", () => {
       FORBIDDEN,
     );
   });
+
+  it("must-not: draft submissions excluded from rollup/export and assign", async () => {
+    const shared = createAppWithAuth({ cookieSecure: true });
+    const admin = await magicLinkSession(
+      "admin",
+      "eval-admin-draft-guard@example.com",
+      undefined,
+      shared,
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Draft Eval Guard");
+    const evaluator = await magicLinkSession(
+      "evaluator",
+      "eval-evaluator-draft-guard@example.com",
+      event.id,
+      shared,
+    );
+
+    await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rubric`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          criteria: [{ name: "Impact", maxScore: 10, weight: 1 }],
+        }),
+      },
+      env,
+    );
+
+    const submittedId = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Real Submitted Talk",
+    );
+
+    // Public form pin for draft save
+    const publicCfp = await admin.app.request(
+      `http://localhost/api/public/cfp/${event.slug}`,
+      { method: "GET" },
+      env,
+    );
+    const formVersionId = (
+      (await publicCfp.json()) as { formVersion: { id: string } }
+    ).formVersion.id;
+
+    const draftRes = await admin.app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          formVersionId,
+          title: "Title-only Draft Must Not Eval",
+        }),
+      },
+      env,
+    );
+    expect(draftRes.status).toBe(201);
+    const draftBody = (await draftRes.json()) as {
+      submission: { id: string; status: string };
+    };
+    expect(draftBody.submission.status).toBe("draft");
+    const draftId = draftBody.submission.id;
+
+    // Assign to draft → 400
+    const assignDraft = await admin.app.request(
+      `http://localhost/api/submissions/${draftId}/assign`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-assign-draft",
+        },
+        body: JSON.stringify({ userIds: [evaluator.userId] }),
+      },
+      env,
+    );
+    expect(assignDraft.status).toBe(400);
+    const assignErr = ErrorEnvelopeSchema.parse(await assignDraft.json());
+    expect(assignErr.code).toBe(VALIDATION_ERROR);
+    expect(assignErr.error.toLowerCase()).toMatch(/draft/);
+
+    // Rollup must include submitted, exclude draft
+    const rollupRes = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rollup`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(rollupRes.status).toBe(200);
+    const rollup = EvalAdminRollupResponseSchema.parse(await rollupRes.json());
+    expect(rollup.submissions.some((s) => s.submissionId === draftId)).toBe(
+      false,
+    );
+    expect(
+      rollup.submissions.some((s) => s.submissionId === submittedId),
+    ).toBe(true);
+
+    // CSV export must not list draft id/title
+    const exportRes = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/export`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(exportRes.status).toBe(200);
+    const csv = await exportRes.text();
+    expect(csv).not.toContain(draftId);
+    expect(csv).not.toContain("Title-only Draft Must Not Eval");
+    expect(csv).toContain(submittedId);
+  });
 });

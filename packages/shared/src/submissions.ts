@@ -20,6 +20,41 @@ export const SubmissionStatusSchema = z.enum([
 ]);
 export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>;
 
+/**
+ * Statuses eligible for evaluator assignment (section 10.5 + S-EVAL).
+ * Incomplete public drafts must never enter the scoring queue.
+ */
+export const SUBMISSION_EVAL_ELIGIBLE_STATUSES = [
+  "submitted",
+  "in_review",
+] as const satisfies readonly SubmissionStatus[];
+
+/**
+ * Valid source statuses for Decision.Record / bulk preview.
+ * Drafts are incomplete CFP rows — accept must not materialize sessions/tasks.
+ * Terminal withdrawn is not a decision source; re-decision among
+ * accepted/rejected/waitlist remains allowed.
+ */
+export const SUBMISSION_DECISION_SOURCE_STATUSES = [
+  "submitted",
+  "in_review",
+  "accepted",
+  "rejected",
+  "waitlist",
+] as const satisfies readonly SubmissionStatus[];
+
+export function isSubmissionEvalEligible(status: string): boolean {
+  return (SUBMISSION_EVAL_ELIGIBLE_STATUSES as readonly string[]).includes(
+    status,
+  );
+}
+
+export function isSubmissionDecisionSource(status: string): boolean {
+  return (SUBMISSION_DECISION_SOURCE_STATUSES as readonly string[]).includes(
+    status,
+  );
+}
+
 /** Multi-speaker bounds on public CFP (A04). */
 export const CFP_MIN_SPEAKERS = 1 as const;
 export const CFP_MAX_SPEAKERS = 5 as const;

@@ -188,12 +188,16 @@ export function createPublicCfpRoutes(
 
   /**
    * POST /cfp/:slug/drafts — Submission.SaveDraft (public, rate limited, no Turnstile).
+   * Cache-Control: no-store — draft body may include speaker PII.
    */
   app.post("/cfp/:slug/drafts", async (c) => {
     const slug = c.req.param("slug");
     const key = clientKeyFromRequest(c);
     const rl = limiter.check(`draft:${key}`);
-    const headers = rateLimitHeaders(rl);
+    const headers: Record<string, string> = {
+      ...rateLimitHeaders(rl),
+      "Cache-Control": "no-store",
+    };
 
     if (!rl.allowed) {
       return commandError(
@@ -263,10 +267,12 @@ export function createPublicCfpRoutes(
 
   /**
    * GET /cfp/:slug/drafts/:draftId — Submission.GetDraft (resume snapshot).
+   * Cache-Control: no-store — capability-protected proposal + speaker PII.
    */
   app.get("/cfp/:slug/drafts/:draftId", async (c) => {
     const slug = c.req.param("slug");
     const draftId = c.req.param("draftId");
+    const noStore = { "Cache-Control": "no-store" };
 
     const result = await getDraft(submitDeps, {
       slug,
@@ -275,18 +281,22 @@ export function createPublicCfpRoutes(
     });
 
     if (!result.ok) {
-      return commandError(c, result);
+      return commandError(c, result, noStore);
     }
 
     const out = SubmissionGetDraftResponseSchema.safeParse(result.value);
     if (!out.success) {
-      return c.json(
+      const res = c.json(
         errorEnvelope("Response validation failed", INTERNAL_ERROR),
         500,
       );
+      res.headers.set("Cache-Control", "no-store");
+      return res;
     }
 
-    return c.json(out.data, 200);
+    const res = c.json(out.data, 200);
+    res.headers.set("Cache-Control", "no-store");
+    return res;
   });
 
   /**
