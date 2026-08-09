@@ -5,7 +5,7 @@
 **Deploy revision:** see `deploy.md` (git SHA + APP_VERSION)  
 **Keystone suite:** `playwright/e2e/phase11_handover_keystone.spec.ts`  
 **Keystone run report:** `phase11-keystone-run.json`  
-**Report SHA-256:** `e89747f5ac687d02157f55168d1affe7822ad381816c419dc9900b1bc3624eb4`  
+**Report SHA-256:** `bc4d72448a46c4859dc32a43f86fdafbb1d5422a5cc4f189ef2a2c8b662c7fa4`  
 **Gate commands:** `scripts/with-secrets.sh bash scripts/deploy-dogfood.sh` · `scripts/with-secrets.sh pnpm test:e2e:phase11-keystone` · `pnpm test:e2e:inventory`
 
 > Constitution Article II: all **18** soul IDs must be non-skipped D on dogfood.  
@@ -17,7 +17,7 @@
 |-------|-------|
 | Binding URL | https://www.speakerops.org |
 | Worker | `speakerops-demo` (`wrangler.toml` `[env.dogfood]`) |
-| GET /health | **200** `{"ok":true,"version":"0.1.0-demo+97ab397"}` |
+| GET /health | **200** `{"ok":true,"version":"0.1.0-demo+70b3d4b"}` |
 | Deploy evidence | `initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md` |
 | BC10 evidence | `KMS-competition/initiative/evidence/cf-dogfood.txt` |
 | Keystone result | **19 passed** (all D rows + must-not + meta) |
@@ -29,7 +29,7 @@ Every row: named test title · inventory family (ownership stays on implementati
 
 | Soul | Named test title | @inv family (documented) | Deploy rev | Report hash path | Result |
 |------|------------------|--------------------------|------------|------------------|--------|
-| **S-SUB-LIST** | `D: S-SUB-LIST submissions list on dogfood ≤5s` | E01, L05 | `0.1.0-demo+97ab397` | `evidence/phase11-keystone-run.SHA256` | **PASS** |
+| **S-SUB-LIST** | `D: S-SUB-LIST submissions list on dogfood ≤5s` | E01, L05 | `0.1.0-demo+70b3d4b` | `evidence/phase11-keystone-run.SHA256` | **PASS** |
 | **S-EVAL-UI** | `D: S-EVAL-UI evaluations progress on dogfood` | F01 | same | same | **PASS** |
 | **S-CFP-SUBMIT** | `D: S-CFP-SUBMIT public CFP DEMO submit on dogfood` | A06 | same | same | **PASS** |
 | **S-CFP-CLOSED** | `D: S-CFP-CLOSED closed window on dogfood` | A07 | same | same | **PASS** |
