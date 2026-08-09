@@ -1,0 +1,23 @@
+{
+  "utc": "2026-08-09T17:20:00Z",
+  "product_tip_sr_complete": "891dd45fb8185f23842e04379a9578504ac798c2",
+  "evidence_tip": "7a3df63271e690f8e84869054225de007db0a688",
+  "dogfood_deploy_rev": "2ab9f55",
+  "codex_sol": {
+    "verdict": "AGREE",
+    "residual_ph_ids": [],
+    "summary": "Independent co-sign for dogfood_ready at product tip 891dd45 with evidence tip 7a3df63. Verified clean ancestry, 628 master checklist PASS rows with zero OPEN/GAP/FAIL, post-P11 187-pass E2E evidence, 115/115 inventory coverage, and checksum-valid Phase 11 keystone results (19 passed, 0 skipped/unexpected) for deploy 2ab9f55. Permitted gates independently pass; no blocking PH residuals identified.",
+    "gates": {
+      "typecheck": "PASS",
+      "test_ci": "PASS",
+      "inventory": "PASS"
+    }
+  },
+  "verdict": {
+    "grok": "AGREE",
+    "codex_sol": "AGREE"
+  },
+  "handover_authorized": true,
+  "claim": "dogfood_ready",
+  "supersedes": "a2e2a01 pre-P10 dual AGREE"
+}

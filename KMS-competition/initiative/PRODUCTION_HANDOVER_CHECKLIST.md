@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | **§14 DUAL AGREE — dogfood_ready handover authorized** · product tip `a2e2a01` (SR complete `ce32819` + decisions:write Bearer) · gates green |
+| **Status** | **§14 DUAL AGREE — dogfood_ready authorized** · tip `891dd45` (evidence `7a3df63`) · dogfood `2ab9f55` · P0–P11 APPROVE · gates e2e187/inv115 green · Codex Sol post-P11 co-sign |
 | **Date locked** | 2026-08-09 |
 | **Claim** | `dogfood_ready` — full production-hard, competition-grade, open-source quality |
 | **Owner order** | FULL — **no shortcuts**; not critical/major-only |
