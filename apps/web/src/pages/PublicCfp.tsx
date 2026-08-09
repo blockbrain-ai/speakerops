@@ -1,5 +1,6 @@
 /**
- * Public CFP surface — section 3.3 (S-CFP) + 10.5 draft save/resume (S-CFP-DRAFT).
+ * Public CFP surface — section 3.3 (S-CFP) + 10.5 draft save/resume (S-CFP-DRAFT)
+ * + 11.3 Lumen 2 branded public CFP with recovery (S-L2-CFP).
  *
  * - Published Design Kit tokens only (S-THEME / 2.4)
  * - Form.GetPublic + Submission.Create + file upload
@@ -7,6 +8,7 @@
  * - Turnstile (test key path for e2e)
  * - Multi-speaker min/max, conditionals, category routing
  * - XSS-safe: all user/copy content as text (no dangerouslySetInnerHTML)
+ * - Branded intro, section progress, load/submit failure recovery
  * - Inventory A01–A11, A17
  */
 import {
@@ -186,6 +188,12 @@ export function PublicCfpPage() {
   const titleRef = useRef<HTMLInputElement | null>(null);
   const turnstileHostRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
+  /** Bump to re-run public load (failure recovery). */
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  /** Active form section for progress chrome (11.3). */
+  const [activeSection, setActiveSection] = useState<
+    "proposal" | "details" | "speakers" | "submit"
+  >("proposal");
 
   /** Production site key → real CF widget; Cloudflare always-pass test key → e2e control. */
   const useLiveTurnstileWidget =
@@ -198,6 +206,7 @@ export function PublicCfpPage() {
       return;
     }
     let cancelled = false;
+    setLoadState("loading");
     (async () => {
       try {
         const [designRes, formRes] = await Promise.all([
@@ -253,7 +262,12 @@ export function PublicCfpPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, loadAttempt]);
+
+  const retryLoad = useCallback(() => {
+    setLoadState("loading");
+    setLoadAttempt((n) => n + 1);
+  }, []);
 
   const fields: FormFieldDto[] = useMemo(
     () => formVersion?.fields ?? formVersion?.snapshotJson?.fields ?? [],
@@ -855,19 +869,38 @@ export function PublicCfpPage() {
 
   const style = cssVarsFromString(cssVariables);
 
+  const wordmark =
+    published?.tokens.wordmark?.trim() || "Call for proposals";
+
+  const progressSections = [
+    { id: "proposal" as const, label: "Proposal", testId: "cfp-progress-proposal" },
+    { id: "details" as const, label: "Details", testId: "cfp-progress-details" },
+    { id: "speakers" as const, label: "Speakers", testId: "cfp-progress-speakers" },
+    { id: "submit" as const, label: "Submit", testId: "cfp-progress-submit" },
+  ];
+
+  const progressIndex = progressSections.findIndex((s) => s.id === activeSection);
+
   return (
     <section
       className="public-cfp"
       data-testid="page-public-cfp"
-      data-section="3.3"
+      data-section="11.3"
       data-has-published={published ? "true" : "false"}
       data-window-state={windowState}
+      data-active-section={activeSection}
       style={style}
     >
-      <p className="page-stub__overline">Public</p>
-      <h1 className="page-stub__title" data-testid="public-cfp-title">
-        {published?.tokens.wordmark?.trim() || "CFP"}
-      </h1>
+      {/* Branded intro hero */}
+      <header
+        className="public-cfp__intro"
+        data-testid="public-cfp-intro"
+      >
+        <p className="public-cfp__eyebrow">Public CFP</p>
+        <h1 className="public-cfp__title" data-testid="public-cfp-title">
+          {wordmark}
+        </h1>
+      </header>
 
       {loadState === "loading" ? (
         <p className="page-stub__body" data-testid="public-cfp-skeleton">
@@ -876,12 +909,27 @@ export function PublicCfpPage() {
       ) : null}
 
       {loadState === "error" ? (
-        <p
-          className="event-settings__status event-settings__status--error"
+        <div
+          className="public-cfp__recovery"
           data-testid="public-cfp-error"
+          role="alert"
         >
-          Could not load public CFP for this event.
-        </p>
+          <p className="public-cfp__recovery-title">
+            Could not load public CFP for this event.
+          </p>
+          <p className="page-stub__body">
+            Check your connection and try again. Your draft is not lost if you
+            already saved one.
+          </p>
+          <button
+            type="button"
+            className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"
+            data-testid="public-cfp-retry-load"
+            onClick={retryLoad}
+          >
+            Retry
+          </button>
+        </div>
       ) : null}
 
       {loadState === "not_found" ? (
@@ -943,6 +991,66 @@ export function PublicCfpPage() {
             </p>
           )}
 
+          {/* Section progress (open form only) */}
+          {canSubmit ? (
+            <nav
+              className="public-cfp__progress"
+              data-testid="public-cfp-progress"
+              aria-label="Form progress"
+            >
+              <ol className="public-cfp__progress-list">
+                {progressSections.map((s, i) => {
+                  const done = i < progressIndex;
+                  const current = s.id === activeSection;
+                  return (
+                    <li
+                      key={s.id}
+                      className={
+                        current
+                          ? "public-cfp__progress-item is-current"
+                          : done
+                            ? "public-cfp__progress-item is-done"
+                            : "public-cfp__progress-item"
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="public-cfp__progress-btn lumen-focusable"
+                        data-testid={s.testId}
+                        aria-current={current ? "step" : undefined}
+                        onClick={() => {
+                          setActiveSection(s.id);
+                          const el = document.querySelector(
+                            `[data-cfp-section="${s.id}"]`,
+                          );
+                          if (el instanceof HTMLElement) {
+                            el.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            });
+                          }
+                        }}
+                      >
+                        <span className="public-cfp__progress-index">
+                          {i + 1}
+                        </span>
+                        <span className="public-cfp__progress-label">
+                          {s.label}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+              <p
+                className="event-settings__meta"
+                data-testid="public-cfp-progress-meta"
+              >
+                Step {progressIndex + 1} of {progressSections.length}
+              </p>
+            </nav>
+          ) : null}
+
           {isClosed ? (
             <div
               className="public-cfp__closed"
@@ -1003,7 +1111,11 @@ export function PublicCfpPage() {
               onKeyDown={onFormKeyDown}
               noValidate
             >
-              <div className="public-cfp__field">
+              <div
+                className="public-cfp__field"
+                data-cfp-section="proposal"
+                onFocus={() => setActiveSection("proposal")}
+              >
                 <label className="public-cfp__label" htmlFor="cfp-title">
                   Proposal title *
                 </label>
@@ -1031,6 +1143,12 @@ export function PublicCfpPage() {
                 ) : null}
               </div>
 
+              <div
+                className="public-cfp__details"
+                data-cfp-section="details"
+                data-testid="cfp-section-details"
+                onFocus={() => setActiveSection("details")}
+              >
               {visibleFields.map((f) => (
                 <div
                   key={f.id}
@@ -1146,6 +1264,7 @@ export function PublicCfpPage() {
                   ) : null}
                 </div>
               ))}
+              </div>
 
               {derivedCategory ? (
                 <p
@@ -1159,6 +1278,8 @@ export function PublicCfpPage() {
               <div
                 className="public-cfp__speakers"
                 data-testid="cfp-speakers"
+                data-cfp-section="speakers"
+                onFocus={() => setActiveSection("speakers")}
               >
                 <h2 className="public-cfp__section-title">Speakers</h2>
                 <p className="event-settings__meta" data-testid="cfp-speaker-bounds">
@@ -1262,10 +1383,12 @@ export function PublicCfpPage() {
               <div
                 className="public-cfp__turnstile"
                 data-testid="cfp-turnstile"
+                data-cfp-section="submit"
                 data-sitekey={turnstileSiteKey}
                 data-turnstile-mode={
                   useLiveTurnstileWidget ? "live" : "test"
                 }
+                onFocus={() => setActiveSection("submit")}
               >
                 {useLiveTurnstileWidget ? (
                   <div
@@ -1303,23 +1426,47 @@ export function PublicCfpPage() {
               </div>
 
               {submitError ? (
-                <p
-                  className="public-cfp__error"
+                <div
+                  className="public-cfp__recovery public-cfp__recovery--inline"
                   data-testid="public-cfp-submit-error"
                   role="alert"
                 >
-                  {submitError}
-                </p>
+                  <p className="public-cfp__error">{submitError}</p>
+                  <p className="event-settings__meta">
+                    Your answers are still on this page. Fix any issues and try
+                    again — nothing was discarded.
+                  </p>
+                  <button
+                    type="button"
+                    className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"
+                    data-testid="public-cfp-retry-submit"
+                    onClick={() => {
+                      setSubmitState("idle");
+                      setSubmitError(null);
+                      void handleSubmit();
+                    }}
+                  >
+                    Retry submit
+                  </button>
+                </div>
               ) : null}
 
               {draftError ? (
-                <p
-                  className="public-cfp__error"
-                  data-testid="cfp-draft-error"
-                  role="alert"
+                <div
+                  className="public-cfp__recovery public-cfp__recovery--inline"
+                  data-testid="cfp-draft-error-wrap"
                 >
-                  {draftError}
-                </p>
+                  <p
+                    className="public-cfp__error"
+                    data-testid="cfp-draft-error"
+                    role="alert"
+                  >
+                    {draftError}
+                  </p>
+                  <p className="event-settings__meta">
+                    Draft was not saved. You can retry without losing form input.
+                  </p>
+                </div>
               ) : null}
 
               {draftConfirmation && draftSaveState === "saved" ? (
@@ -1347,7 +1494,17 @@ export function PublicCfpPage() {
                 </div>
               ) : null}
 
-              <div className="public-cfp__actions">
+              {draftSaveState === "saving" ? (
+                <p
+                  className="event-settings__meta"
+                  data-testid="cfp-draft-saving"
+                  role="status"
+                >
+                  Saving draft…
+                </p>
+              ) : null}
+
+              <div className="public-cfp__actions" data-cfp-section="submit">
                 <button
                   type="button"
                   className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"

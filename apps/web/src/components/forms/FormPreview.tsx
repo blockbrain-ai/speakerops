@@ -1,5 +1,6 @@
 /**
- * Side-by-side live preview of the draft CFP form (D07).
+ * Side-by-side live preview of the draft CFP form (D07 / 11.3).
+ * Used in Build workspace canvas and Public preview view mode.
  * Shows welcome copy and visible fields; conditional showWhen applied.
  */
 import { useMemo, useState } from "react";

@@ -774,7 +774,7 @@
   border-top: 1px solid var(--lumen-border);
 }
 
-/* Public CFP (published tokens only; section 3.3 form) — Lumen tokens only */
+/* Public CFP (published tokens only; section 3.3 + 11.3) — Lumen tokens only */
 .public-cfp {
   background: var(--lumen-surface);
   border: 1px solid var(--lumen-border);
@@ -787,9 +787,118 @@
   box-sizing: border-box;
 }
 
+.public-cfp__intro {
+  margin-bottom: var(--lumen-space-4);
+}
+
+.public-cfp__eyebrow {
+  margin: 0 0 var(--lumen-space-1);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lumen-text-secondary);
+}
+
+.public-cfp__title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--event-brand, var(--lumen-brand, var(--lumen-text)));
+  line-height: 1.2;
+}
+
 .public-cfp__brand-panel {
   margin-top: var(--lumen-space-4);
   margin-bottom: var(--lumen-space-4);
+  padding: var(--lumen-space-4);
+  border-radius: var(--lumen-radius-md);
+  border: 1px solid var(--lumen-border);
+  background: var(--lumen-bg);
+}
+
+.public-cfp__progress {
+  margin: var(--lumen-space-4) 0;
+  padding: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-bg);
+}
+
+.public-cfp__progress-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  list-style: none;
+  margin: 0 0 var(--lumen-space-2);
+  padding: 0;
+}
+
+.public-cfp__progress-item {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.public-cfp__progress-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  appearance: none;
+  border: 1px solid var(--lumen-border);
+  background: var(--lumen-surface);
+  color: var(--lumen-text-secondary);
+  font-family: var(--lumen-font);
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border-radius: var(--lumen-radius-sm);
+  cursor: pointer;
+}
+
+.public-cfp__progress-item.is-current .public-cfp__progress-btn {
+  color: var(--lumen-text);
+  border-color: var(--event-brand, var(--lumen-brand));
+  box-shadow: var(--lumen-shadow-sm);
+}
+
+.public-cfp__progress-item.is-done .public-cfp__progress-btn {
+  color: var(--lumen-text);
+}
+
+.public-cfp__progress-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: var(--lumen-bg);
+  font-size: 12px;
+}
+
+.public-cfp__progress-item.is-current .public-cfp__progress-index {
+  background: var(--event-brand, var(--lumen-brand));
+  color: var(--lumen-surface);
+}
+
+.public-cfp__recovery {
+  margin: var(--lumen-space-4) 0;
+  padding: var(--lumen-space-4);
+  border: 1px solid var(--lumen-danger, var(--lumen-border));
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-danger-soft, var(--lumen-bg));
+}
+
+.public-cfp__recovery--inline {
+  margin-top: var(--lumen-space-3);
+}
+
+.public-cfp__recovery-title {
+  margin: 0 0 var(--lumen-space-2);
+  font-weight: 600;
+  color: var(--lumen-text);
 }
 
 .public-cfp__logo {
@@ -1267,16 +1376,60 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Form builder (section 3.2) — Lumen tokens only
+ * Form builder (section 3.2 + 11.3 Lumen 2) — Lumen tokens only
+ * Outline + canvas + inspector on desktop; progressive advanced disclosure.
  * --------------------------------------------------------------------------- */
 
 .form-builder {
   display: flex;
   flex-direction: column;
   gap: var(--lumen-space-4);
-  max-width: 1200px;
+  max-width: 1400px;
 }
 
+.form-builder__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  align-items: center;
+}
+
+.form-builder__view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  padding: var(--lumen-space-1);
+  background: var(--lumen-bg);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+}
+
+.form-builder__view-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--lumen-text-secondary);
+  font-family: var(--lumen-font);
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border-radius: var(--lumen-radius-sm);
+  cursor: pointer;
+}
+
+.form-builder__view-tab:hover {
+  color: var(--lumen-text);
+  background: var(--lumen-surface);
+}
+
+.form-builder__view-tab.is-active {
+  color: var(--lumen-text);
+  background: var(--lumen-surface);
+  border-color: var(--lumen-border);
+  box-shadow: var(--lumen-shadow-sm);
+}
+
+/* Lumen 2 three-region desktop layout */
 .form-builder__workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
@@ -1284,9 +1437,36 @@
   align-items: start;
 }
 
+.form-builder__workspace--l2 {
+  grid-template-columns:
+    minmax(180px, 0.85fr)
+    minmax(0, 1.4fr)
+    minmax(220px, 1fr);
+}
+
+.form-builder__workspace--preview,
+.form-builder__workspace--publish {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 1100px) {
+  .form-builder__workspace--l2 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .form-builder__outline {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 900px) {
-  .form-builder__workspace {
+  .form-builder__workspace,
+  .form-builder__workspace--l2 {
     grid-template-columns: 1fr;
+  }
+
+  .form-builder__outline {
+    grid-column: auto;
   }
 }
 
@@ -1297,10 +1477,132 @@
   min-width: 0;
 }
 
+.form-builder__outline,
+.form-builder__canvas,
+.form-builder__inspector {
+  min-width: 0;
+}
+
+.form-builder__canvas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-4);
+}
+
+.form-builder__subheading {
+  margin: var(--lumen-space-3) 0 var(--lumen-space-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.form-builder__outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+}
+
+.form-builder__outline-item {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--lumen-radius-sm);
+  background: transparent;
+  color: var(--lumen-text);
+  font-family: var(--lumen-font);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.form-builder__outline-item:hover {
+  background: var(--lumen-bg);
+}
+
+.form-builder__outline-item.is-selected {
+  background: var(--lumen-brand-soft, var(--lumen-bg));
+  border-color: var(--lumen-border);
+}
+
+.form-builder__outline-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-bg);
+  color: var(--lumen-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.form-builder__outline-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-builder__outline-req {
+  color: var(--lumen-danger, var(--lumen-text-secondary));
+  font-weight: 700;
+}
+
+.form-builder__disclosure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+}
+
+.form-builder__disclosure-toggle {
+  appearance: none;
+  align-self: flex-start;
+  border: 1px solid var(--lumen-border);
+  background: var(--lumen-bg);
+  color: var(--lumen-text);
+  font-family: var(--lumen-font);
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border-radius: var(--lumen-radius-sm);
+  cursor: pointer;
+}
+
+.form-builder__disclosure-toggle:hover {
+  background: var(--lumen-surface);
+}
+
+.form-builder__advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-6);
+}
+
+.form-builder__publish-field-list {
+  margin: var(--lumen-space-3) 0 0;
+  padding-left: var(--lumen-space-5);
+  color: var(--lumen-text);
+  font-size: 14px;
+}
+
 .form-builder__preview-col {
   position: sticky;
   top: var(--lumen-space-4);
   min-width: 0;
+}
+
+.form-builder__preview-full {
+  max-width: 640px;
 }
 
 .form-builder__card {
