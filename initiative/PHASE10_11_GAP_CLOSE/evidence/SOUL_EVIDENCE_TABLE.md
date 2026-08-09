@@ -5,7 +5,7 @@
 **Deploy revision:** see `deploy.md` (git SHA + APP_VERSION)  
 **Keystone suite:** `playwright/e2e/phase11_handover_keystone.spec.ts`  
 **Keystone run report:** `phase11-keystone-run.json`  
-**Report SHA-256:** `0af373ac6cf2c09edf901ac0d4bbe5cbb1dfa4c50c0a224c709c26235dbf94f4`  
+**Report SHA-256:** `1265bc7affc6b126563e2e6f755d3efa7f65e8e3183c1bf7d75d19a661e73a44`  
 **Gate commands:** `scripts/with-secrets.sh bash scripts/deploy-dogfood.sh` · `scripts/with-secrets.sh pnpm test:e2e:phase11-keystone` · `pnpm test:e2e:inventory`
 
 > Constitution Article II: all **18** soul IDs must be non-skipped D on dogfood.  
@@ -17,7 +17,7 @@
 |-------|-------|
 | Binding URL | https://www.speakerops.org |
 | Worker | `speakerops-demo` (`wrangler.toml` `[env.dogfood]`) |
-| GET /health | **200** `{"ok":true,"version":"0.1.0-demo+6d70915"}` |
+| GET /health | **200** `{"ok":true,"version":"0.1.0-demo+2ab9f55"}` |
 | Deploy evidence | `initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md` |
 | BC10 evidence | `KMS-competition/initiative/evidence/cf-dogfood.txt` |
 | Keystone result | **19 passed** (all D rows + must-not + meta; S-L2-COMMS ≥150 + J05 job row) |
@@ -29,7 +29,7 @@ Every row: named test title · inventory family (ownership stays on implementati
 
 | Soul | Named test title | @inv family (documented) | Deploy rev | Report hash path | Result |
 |------|------------------|--------------------------|------------|------------------|--------|
-| **S-SUB-LIST** | `D: S-SUB-LIST submissions list on dogfood ≤5s` | E01, L05 | `0.1.0-demo+6d70915` | `evidence/phase11-keystone-run.SHA256` | **PASS** |
+| **S-SUB-LIST** | `D: S-SUB-LIST submissions list on dogfood ≤5s` | E01, L05 | `0.1.0-demo+2ab9f55` | `evidence/phase11-keystone-run.SHA256` | **PASS** |
 | **S-EVAL-UI** | `D: S-EVAL-UI evaluations progress on dogfood` | F01 | same | same | **PASS** |
 | **S-CFP-SUBMIT** | `D: S-CFP-SUBMIT public CFP DEMO submit on dogfood` | A06 | same | same | **PASS** |
 | **S-CFP-CLOSED** | `D: S-CFP-CLOSED closed window on dogfood` | A07 | same | same | **PASS** |
