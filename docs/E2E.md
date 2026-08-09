@@ -1,10 +1,10 @@
 # Browser E2E — Playwright inventory harness
 
-**Section:** 1.5 · **Law:** [0.3 inventory law](./governance/0.3-e2e-inventory-law.md) · **Souls:** S-E2E-INV, S-E2E-RUN  
+**Harness section:** 1.5 · **Deep docs owner:** **9.4** (this runbook leaf) · **Law:** [0.3 inventory law](./governance/0.3-e2e-inventory-law.md) · **Souls:** S-E2E-INV, S-E2E-RUN · **S-DOCS**  
 **Canonical inventory:** [`KMS-competition/initiative/BROWSER_E2E_INVENTORY.md`](../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md)  
-**Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md) · [ONBOARDING](./ONBOARDING.md) · offline report [`reports/e2e-coverage.html`](../reports/e2e-coverage.html)
+**Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md) · [ONBOARDING](./ONBOARDING.md) · offline report [`reports/e2e-coverage.html`](../reports/e2e-coverage.html) · [9.4 deep docs](./sections/9.4-deep-docs.md)
 
-This document is the workspace runbook for Playwright + inventory law. Human onboarding prose expands in Phase 9 (`docs/ONBOARDING.md`).
+This document is the workspace runbook for Playwright + inventory law. It is part of the Phase 9 coherent docs tree (**S-DOCS**). Human onboarding points here from [`docs/ONBOARDING.md`](./ONBOARDING.md); agent path from [`docs/AGENT_SETUP.md`](./AGENT_SETUP.md).
 
 ---
 
@@ -196,8 +196,36 @@ Section **8.6** owns **S-CF** dogfood deploy (`scripts/deploy-dogfood.sh`, `docs
 
 ---
 
+## Operator checklist (copy)
+
+```bash
+pnpm install
+pnpm exec playwright install chromium
+pnpm test:e2e:inventory                 # exit 0 required
+pnpm test:e2e                           # full suite + coverage refresh
+E2E_INVENTORY_GATE=phase8 pnpm test:e2e:inventory   # Phase 8 claim gate
+pnpm docs:e2e-report                    # offline reports/e2e-coverage.html
+```
+
+**Do not:**
+
+- Shrink REQUIRED inventory to green CI  
+- Ship UI controls without inventory row + `@inv` in the same PR  
+- Commit magic-link tokens or session cookies from debug dumps  
+- Treat `test.skip` / `playwright test --list` as PASS evidence  
+
+**Do:**
+
+- Tag every owned inventory ID on Playwright-bound `test()`  
+- Keep seed helpers deterministic for keystones  
+- Redact secrets when attaching evidence  
+
 ## Related
 
 - Law: [`docs/governance/0.3-e2e-inventory-law.md`](./governance/0.3-e2e-inventory-law.md)
 - Section notes: [`docs/sections/1.5-playwright-inventory-harness.md`](./sections/1.5-playwright-inventory-harness.md)
 - Ownership: `KMS-competition/initiative/contracts/INVENTORY_OWNERSHIP.md`
+- Architecture / security: [ARCHITECTURE.md](./ARCHITECTURE.md) · [SECURITY.md](./SECURITY.md)
+- Competition non-goals: [COMPETITION.md](./COMPETITION.md)
+- Troubleshooting: [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+- Deep docs section: [9.4-deep-docs.md](./sections/9.4-deep-docs.md)

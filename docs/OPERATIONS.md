@@ -1,13 +1,17 @@
-# Operations — Cloudflare dogfood deploy (S-CF)
+# Operations — deploy, migrate, backup (S-CF + day-2)
 
-> **Owner section:** **8.6** · **Soul:** **S-CF** · **Checklist:** **BC10**  
+> **Owner sections:** **8.6** (dogfood deploy) · **9.4** (ops deep prose) · **Soul:** **S-CF** · **Checklist:** **BC10**  
 > **Standards:** E5 gates · E7 side effects · **E10** secrets names-only  
 > **Depends:** Worker health **1.2**, D1 baseline **1.3**, demo seed **8.4**  
-> **Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md) · [ONBOARDING](./ONBOARDING.md) · [ARCHITECTURE](./ARCHITECTURE.md) · [AIRTABLE](./AIRTABLE.md)
+> **Docs map:** [README](../README.md) · [9.1 IA](./sections/9.1-docs-ia.md) · [ONBOARDING](./ONBOARDING.md) · [ARCHITECTURE](./ARCHITECTURE.md) · [AIRTABLE](./AIRTABLE.md) · [9.4](./sections/9.4-deep-docs.md)
 
-This runbook is the operator path from a clean workspace → private Cloudflare
-workers.dev dogfood URL with `GET /health` → **200**. Custom domain production
-cutover is **out of scope** for 8.6.
+This runbook covers:
+
+1. Clean workspace → private Cloudflare workers.dev dogfood URL with `GET /health` → **200**  
+2. Local migrate / seed / day-2 operations  
+3. Rollback including **D1 Time Travel**  
+
+Custom domain production cutover is **out of scope** for dogfood claim unless owner amends.
 
 ---
 
@@ -44,14 +48,34 @@ cutover is **out of scope** for 8.6.
 | `BOOTSTRAP_ADMIN_EMAIL` | first admin | Controlled bootstrap allowlist (email, not a token) |
 | `RESEND_API_KEY` | if live email | Only with `EMAIL_PROVIDER=resend` |
 | `AIRTABLE_API_KEY` / `AIRTABLE_BASE_ID` | optional | Projection drain only (paused when unset) |
+| `SPEAKEROPS_DB_PATH` | local | SQLite path for `pnpm db:migrate` / `pnpm seed` |
+| `EMAIL_PROVIDER` | optional | `sandbox` (default) \| `resend` |
 
 Full names index: [`docs/SECRETS.md`](./SECRETS.md).
 
 ---
 
-## 3. Wrangler steps (dogfood)
+## 3. Local day-0 loop (no Cloudflare network)
 
-### 3.1 Login / token auth
+```bash
+pnpm install
+pnpm db:migrate          # packages/db/migrations → local SQLite
+pnpm seed                # demo graph (section 8.4)
+pnpm typecheck
+pnpm test:ci
+# optional product UI locally:
+#   API + web per AGENTS.md / ONBOARDING (ports 8787 / 5173 typical)
+pnpm test:e2e            # Playwright inventory suite
+pnpm test:e2e:inventory  # inventory law + crawl
+```
+
+Gates must be **non-interactive** (E5): no `--watch` on CI scripts.
+
+---
+
+## 4. Wrangler steps (dogfood)
+
+### 4.1 Login / token auth
 
 Prefer **API token** (CI/operator) over interactive login:
 
@@ -63,7 +87,7 @@ export CLOUDFLARE_ACCOUNT_ID
 # wrangler login
 ```
 
-### 3.2 Create Cloudflare resources (once per account)
+### 4.2 Create Cloudflare resources (once per account)
 
 Binding **names** are fixed in root [`wrangler.toml`](../wrangler.toml):
 
@@ -87,7 +111,7 @@ wrangler r2 bucket create speakerops-files
 wrangler queues create speakerops-jobs
 ```
 
-### 3.3 Apply D1 migrations on Cloudflare
+### 4.3 Apply D1 migrations on Cloudflare
 
 ```bash
 wrangler d1 migrations apply speakerops --remote
@@ -96,7 +120,9 @@ wrangler d1 migrations apply speakerops --remote
 
 Local SQLite path for dev remains `pnpm db:migrate` (`SPEAKEROPS_DB_PATH`).
 
-### 3.4 Put Worker secrets (names only here)
+**Migration policy:** additive / linear only. No destructive “reset production” in dogfood without a Time Travel bookmark first (see Rollback).
+
+### 4.4 Put Worker secrets (names only here)
 
 ```bash
 wrangler secret put TURNSTILE_SECRET_KEY
@@ -108,11 +134,12 @@ wrangler secret put TURNSTILE_SECRET_KEY
 Non-secret public config may live under `[vars]` in `wrangler.toml`
 (e.g. `APP_VERSION`). Never put tokens in `[vars]` or commit `.dev.vars`.
 
-### 3.5 Deploy + health smoke (preferred one-shot)
+### 4.5 Deploy + health smoke (preferred one-shot)
 
 ```bash
 # From repo root — loads secrets.env then runs deploy script
 scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
+# or: pnpm deploy:dogfood  (when secrets already in env)
 ```
 
 The script:
@@ -132,7 +159,7 @@ curl -sS "https://<worker>.<account>.workers.dev/health"
 # expect: {"ok":true,"version":"…"}
 ```
 
-### 3.6 Optional remote Playwright smoke
+### 4.6 Optional remote Playwright smoke
 
 ```bash
 SMOKE_BASE_URL=https://<worker>.<account>.workers.dev \
@@ -144,7 +171,7 @@ block local `pnpm test:e2e`).
 
 ---
 
-## 4. Demo seed on dogfood data
+## 5. Demo seed on dogfood data
 
 After remote migrations:
 
@@ -162,7 +189,35 @@ See [`docs/sections/8.4-demo-seed.md`](./sections/8.4-demo-seed.md).
 
 ---
 
-## 5. Evidence & redaction (BC10)
+## 6. Queues, outbox, and scheduled drains
+
+| Concern | Operator note |
+|---------|----------------|
+| Comms send | Request path inserts outbox; consumer drains with `EMAIL_PROVIDER` |
+| Airtable | Paused when keys unset — product still 200 ([AIRTABLE.md](./AIRTABLE.md)) |
+| Stuck outbox | Inspect D1 `outbox_events` where `processed_at` is null; check `last_error` |
+| Rate limits | 429 from providers keep rows pending — do not drop |
+| Correlation | Use `correlationId` in logs to join request → outbox → audit |
+
+Never force Airtable or Resend on the request path to “speed up demos.”
+
+---
+
+## 7. Observability
+
+| Signal | Where |
+|--------|--------|
+| Health | `GET /health` → `{ ok, version }` |
+| Correlation | Request header / CLI `SPEAKEROPS_CORRELATION_ID` |
+| Audit | D1 `audit_events` on consequential writes |
+| Worker logs | `wrangler tail` (redact secrets in shared transcripts) |
+| E2E coverage | `pnpm docs:e2e-report` → `reports/e2e-coverage.html` |
+
+**Redact** tokens, cookies, and magic links before pasting logs into issues or evidence.
+
+---
+
+## 8. Evidence & redaction (BC10)
 
 | Artifact | Path |
 |----------|------|
@@ -180,22 +235,22 @@ See [`docs/sections/8.4-demo-seed.md`](./sections/8.4-demo-seed.md).
 
 ---
 
-## 6. Rollback
+## 9. Rollback
 
 | Layer | Action |
 |-------|--------|
 | Code | `git revert` of the deploy-related commit; redeploy previous SHA with wrangler |
 | Worker | Cloudflare dashboard → Workers → prior deployment rollback |
-| D1 data | **D1 Time Travel** (Cloudflare): restore database to a point-in-time bookmark before a bad migration/seed. Note the bookmark **before** risky applies. |
+| D1 data | **D1 Time Travel** (Cloudflare): restore database to a point-in-time bookmark before a bad migration/seed. **Note the bookmark before risky applies.** |
 | Secrets | Rotate via `wrangler secret put` / dashboard; never commit rotated values |
 | Local SQLite | Delete/recreate `.data/speakerops.local.sqlite` + `pnpm db:migrate && pnpm seed` |
 
 D1 Time Travel is the data rollback path for dogfood mistakes; code rollback alone
-does not undo destructive SQL.
+does not undo destructive SQL. Keep this note for section rollback tables across the programme.
 
 ---
 
-## 7. Failure modes (ops)
+## 10. Failure modes (ops)
 
 | Symptom | Check |
 |---------|--------|
@@ -204,10 +259,28 @@ does not undo destructive SQL.
 | Health not 200 | Worker threw at boot (missing Turnstile secrets); check wrangler tail |
 | 500 on product routes | E4 envelope without stack (expected); inspect logs with correlationId |
 | Projection lag | Airtable paused when `AIRTABLE_API_KEY` unset — product still 200 |
+| Migrate fails locally | `SPEAKEROPS_DB_PATH` permissions; linear migration gap |
+| Seed drift | Re-run `pnpm seed` on clean DB; see 8.4 |
+| Inventory lint fail | [E2E.md](./E2E.md) — do not shrink REQUIRED |
+| Typecheck / test hang | Remove watch flags; use gate scripts only |
+
+Full recovery matrix: [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
 
 ---
 
-## 8. Related docs
+## 11. Performance expectations (ops notes)
+
+| Surface | Target |
+|---------|--------|
+| Admin primary lists | p95 &lt; 200ms local after warm load for seed ≤150 rows |
+| Public CFP | First contentful interaction without multi-second blank (skeleton OK) |
+| Status APIs (readiness, airtable lag) | D1-only; no external HTTP on request path |
+
+Document measurement in test notes when adding new list surfaces; do not invent endpoints to “fix” latency.
+
+---
+
+## 12. Related docs
 
 | Doc | Role |
 |-----|------|
@@ -218,14 +291,15 @@ does not undo destructive SQL.
 | [`docs/sections/8.6-cloudflare-dogfood-deploy.md`](./sections/8.6-cloudflare-dogfood-deploy.md) | Section deliverables |
 | [`docs/SECURITY.md`](./SECURITY.md) | CSP, cookies, hardening |
 | [`docs/E2E.md`](./E2E.md) | Playwright / inventory |
+| [`docs/ONBOARDING.md`](./ONBOARDING.md) | Human zero → running |
 
 ---
 
-## 9. Gates (do not hang)
+## 13. Gates (do not hang)
 
 ```bash
 pnpm typecheck
-pnpm test:ci          # includes 8.6 named assertions (no CF network)
+pnpm test:ci          # includes 8.6 / 9.4 named assertions (no CF network)
 # operator only:
 scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
 ```
