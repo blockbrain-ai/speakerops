@@ -70,8 +70,10 @@ export function segmentFingerprint(input: {
  *
  * Explicit selection wins. Otherwise a non-empty search is resolved to the
  * filtered participation ids (server segment has no `query` field) so the
- * displayed recipient count matches preview/send. Status filter alone is used
- * when there is no selection and no search.
+ * displayed recipient count matches preview/send. An empty filtered list under
+ * search yields `{ participationIds: [] }` — an explicit empty audience; the
+ * API must not treat that as "absent" and fall back to accepted-status.
+ * Status filter alone is used when there is no selection and no search.
  */
 export function buildCommsSegment(input: {
   selectedParticipationIds: readonly string[];
@@ -84,9 +86,42 @@ export function buildCommsSegment(input: {
     return { participationIds: [...input.selectedParticipationIds] };
   }
   if (input.audienceQuery.trim().length > 0) {
+    // Explicit list including [] so zero search matches never expand to
+    // status-default audience on the server (AC-11.2-SEL / trust-before-send).
     return { participationIds: [...input.filteredParticipationIds] };
   }
   return { status: input.segmentStatus };
+}
+
+/**
+ * Whether preview may run for the current effective segment.
+ * Blocks zero-match search / empty selection so the UI cannot show count 0
+ * while the server would (historically) expand to all accepted speakers.
+ */
+export function canRunCommsPreview(input: {
+  templateId: string | null;
+  /** Displayed audience count (selection or filtered total). */
+  segmentCount: number;
+  previewing?: boolean;
+}): boolean {
+  if (input.previewing) return false;
+  if (!input.templateId) return false;
+  if (input.segmentCount <= 0) return false;
+  return true;
+}
+
+/** Human-readable reason preview is blocked (for status UI). */
+export function previewDisabledReason(input: {
+  templateId: string | null;
+  segmentCount: number;
+  previewing?: boolean;
+}): string | null {
+  if (input.previewing) return "Previewing…";
+  if (!input.templateId) return "Save a template first to obtain a template id";
+  if (input.segmentCount <= 0) {
+    return "No recipients match this audience — adjust search or status";
+  }
+  return null;
 }
 
 /** Human-readable reason the send button is disabled (for status UI). */

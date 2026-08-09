@@ -325,6 +325,102 @@ describe("5.1 Comms email templates + outbox", () => {
     }
   });
 
+  it("explicit empty participationIds is empty audience (not status default)", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-admin-empty-seg@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Empty Seg Event");
+
+    await admin.submissions.insertPerson({
+      id: "person_comms_empty",
+      orgId: "org_dogfood",
+      email: "speaker-empty-seg@example.com",
+      name: "Speaker Empty Seg",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await admin.decisions.insertParticipation({
+      id: "part_comms_empty",
+      eventId: event.id,
+      personId: "person_comms_empty",
+      userId: null,
+      roleLabel: "speaker",
+      status: "accepted",
+      bio: null,
+      company: "Acme",
+      title: "Engineer",
+      headshotFileId: null,
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const upsert = await admin.app.request(
+      `http://localhost/api/events/${event.id}/templates/empty-seg`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          subject: "Hi {{name}}",
+          body: "Body",
+        }),
+      },
+      env,
+    );
+    expect(upsert.status).toBe(201);
+    const tpl = CommsUpsertTemplateResponseSchema.parse(await upsert.json());
+
+    // Status-default would match the accepted speaker (recipientCount 1).
+    // Explicit [] must not fall back — zero matches stay zero.
+    const emptyPreview = await admin.app.request(
+      "http://localhost/api/comms/preview",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          templateId: tpl.template.id,
+          segment: { participationIds: [] },
+        }),
+      },
+      env,
+    );
+    expect(emptyPreview.status).toBe(200);
+    const emptyBody = CommsPreviewResponseSchema.parse(
+      await emptyPreview.json(),
+    );
+    expect(emptyBody.recipientCount).toBe(0);
+    expect(emptyBody.recipients).toEqual([]);
+
+    // Omitted participationIds still uses status default
+    const statusPreview = await admin.app.request(
+      "http://localhost/api/comms/preview",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          templateId: tpl.template.id,
+          segment: { status: "accepted" },
+        }),
+      },
+      env,
+    );
+    expect(statusPreview.status).toBe(200);
+    const statusBody = CommsPreviewResponseSchema.parse(
+      await statusPreview.json(),
+    );
+    expect(statusBody.recipientCount).toBe(1);
+  });
+
   it("unauthenticated template upsert returns 401", async () => {
     const { app } = createAppWithAuth({ cookieSecure: true });
     const res = await app.request(

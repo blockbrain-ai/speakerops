@@ -55,6 +55,8 @@ import {
   paginateAudience,
   audienceCount,
   buildCommsSegment,
+  canRunCommsPreview,
+  previewDisabledReason,
   type CampaignStepId,
   type AudienceSpeakerRow,
 } from "./comms-utils.js";
@@ -226,6 +228,18 @@ export function CommsPage() {
     preview != null &&
     previewFingerprint != null &&
     previewFingerprint === currentFingerprint;
+
+  const previewEnabled = canRunCommsPreview({
+    templateId,
+    segmentCount,
+    previewing,
+  });
+
+  const previewBlockReason = previewDisabledReason({
+    templateId,
+    segmentCount,
+    previewing,
+  });
 
   const sendEnabled = isSendEnabled({
     previewId: previewValid ? preview?.previewId ?? null : null,
@@ -510,6 +524,17 @@ export function CommsPage() {
       });
       return;
     }
+    // Block zero-match audience so UI count 0 never expands to status-default
+    // on the server (explicit empty participationIds is also enforced API-side).
+    if (segmentCount <= 0) {
+      setPreviewStatus({
+        kind: "error",
+        text: "No recipients match this audience — adjust search or status",
+      });
+      setPreview(null);
+      setPreviewFingerprint(null);
+      return;
+    }
     setPreviewing(true);
     setPreviewStatus(null);
     // Capture fingerprint for the segment we are about to preview so a concurrent
@@ -556,7 +581,13 @@ export function CommsPage() {
     } finally {
       setPreviewing(false);
     }
-  }, [activeEventId, templateId, currentFingerprint, previewSegment]);
+  }, [
+    activeEventId,
+    templateId,
+    currentFingerprint,
+    previewSegment,
+    segmentCount,
+  ]);
 
   const onSend = useCallback(async () => {
     if (!previewValid || !preview || sending) return;
@@ -1272,12 +1303,21 @@ export function CommsPage() {
                 variant="secondary"
                 data-testid="comms-preview-run"
                 pending={previewing}
-                disabled={previewing || !templateId}
+                disabled={!previewEnabled}
                 onClick={() => void onPreview()}
               >
                 {previewing ? "Previewing…" : "Run preview"}
               </Button>
             </div>
+            {!previewEnabled && previewBlockReason && !previewing ? (
+              <p
+                className="event-settings__meta"
+                data-testid="comms-preview-blocked-reason"
+                role="status"
+              >
+                {previewBlockReason}
+              </p>
+            ) : null}
             {previewStatus ? (
               <p
                 className={

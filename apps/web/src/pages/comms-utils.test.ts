@@ -16,6 +16,8 @@ import {
   audienceCount,
   isSelectionStable,
   buildCommsSegment,
+  canRunCommsPreview,
+  previewDisabledReason,
   AUDIENCE_PAGE_SIZE,
   CAMPAIGN_STEPS,
   type AudienceSpeakerRow,
@@ -190,6 +192,28 @@ describe("5.3 comms-utils trust-before-send", () => {
       }),
     ).toEqual({ participationIds: ["p_001", "p_012"] });
 
+    // Zero-match search → explicit empty list (must not omit field / status-default)
+    expect(
+      buildCommsSegment({
+        selectedParticipationIds: [],
+        segmentStatus: "accepted",
+        audienceQuery: "zzznomatch",
+        filteredParticipationIds: [],
+      }),
+    ).toEqual({ participationIds: [] });
+    // Empty array is present — API treats as empty audience, not absent
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        buildCommsSegment({
+          selectedParticipationIds: [],
+          segmentStatus: "accepted",
+          audienceQuery: "zzznomatch",
+          filteredParticipationIds: [],
+        }),
+        "participationIds",
+      ),
+    ).toBe(true);
+
     // Status-only when no selection and no search
     expect(
       buildCommsSegment({
@@ -199,6 +223,34 @@ describe("5.3 comms-utils trust-before-send", () => {
         filteredParticipationIds: ["p_001"],
       }),
     ).toEqual({ status: "waitlisted" });
+  });
+
+  it("blocks preview for zero-match audience", () => {
+    expect(
+      canRunCommsPreview({
+        templateId: "tpl_1",
+        segmentCount: 0,
+      }),
+    ).toBe(false);
+    expect(
+      previewDisabledReason({
+        templateId: "tpl_1",
+        segmentCount: 0,
+      }),
+    ).toMatch(/no recipients/i);
+
+    expect(
+      canRunCommsPreview({
+        templateId: "tpl_1",
+        segmentCount: 3,
+      }),
+    ).toBe(true);
+    expect(
+      canRunCommsPreview({
+        templateId: null,
+        segmentCount: 3,
+      }),
+    ).toBe(false);
   });
 });
 

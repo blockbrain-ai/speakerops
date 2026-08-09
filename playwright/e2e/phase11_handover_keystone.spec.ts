@@ -714,7 +714,8 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     await expect(page.getByTestId("comms-delivery-log")).toBeVisible();
     await expect(page.getByTestId("comms-ics-panel")).toBeVisible();
 
-    // Audience list loads; dogfood seed is multi-speaker — page ≤25 wall proof
+    // Audience list loads; dogfood seed is ≥150 (scripts/seed.ts SEED_SPEAKER_COUNT)
+    // — require scale (AC-11.2-SCALE) and page ≤25 wall proof.
     await expect(page.getByTestId("comms-segment-count")).toHaveAttribute(
       "data-count",
       /[1-9]/,
@@ -724,25 +725,20 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     await expect(list).toHaveAttribute("data-page-size", "25");
     const totalAttr = await list.getAttribute("data-total");
     const total = Number(totalAttr ?? "0");
-    // Seed may exceed or equal 150; require operability at scale when total is large
-    if (total >= 25) {
-      const visible = Number(await list.getAttribute("data-visible-count"));
-      expect(visible).toBeLessThanOrEqual(25);
-      expect(visible).toBeGreaterThan(0);
-      const checkboxCount = await page
-        .locator(
-          '[data-testid="comms-segment-speakers"] input[type="checkbox"]',
-        )
-        .count();
-      expect(checkboxCount).toBeLessThanOrEqual(25);
-      if (total > 25) {
-        await expect(page.getByTestId("comms-audience-pager")).toBeVisible();
-      }
-    }
-    // Prefer proving 150-class seed when present (dogfood-2026)
-    if (total >= 150) {
-      expect(total).toBeGreaterThanOrEqual(150);
-    }
+    expect(
+      total,
+      "dogfood-2026 must expose ≥150 audience recipients for S-L2-COMMS scale",
+    ).toBeGreaterThanOrEqual(150);
+    const visible = Number(await list.getAttribute("data-visible-count"));
+    expect(visible).toBeLessThanOrEqual(25);
+    expect(visible).toBeGreaterThan(0);
+    const checkboxCount = await page
+      .locator(
+        '[data-testid="comms-segment-speakers"] input[type="checkbox"]',
+      )
+      .count();
+    expect(checkboxCount).toBeLessThanOrEqual(25);
+    await expect(page.getByTestId("comms-audience-pager")).toBeVisible();
 
     // Search narrows without breaking page size (AC-11.2-SEL)
     await page.getByTestId("comms-audience-search").fill("a");
@@ -913,15 +909,19 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     // Second call is idempotent replay (not a second enqueue)
     expect(send2Body.enqueued).toBe(false);
 
-    // —— J05: delivery log ——
+    // —— J05: delivery log must list the sent job (not vacuous empty/absent checks) ——
     await page.getByTestId("comms-log-refresh").click();
     await expect(page.getByTestId("comms-delivery-log")).toBeVisible();
-    // Table or at least non-error after a successful send
-    const logOk =
-      (await page.getByTestId("comms-log-table").count()) > 0 ||
-      (await page.getByTestId("comms-log-empty").count()) === 0 ||
-      (await page.getByTestId(`comms-log-row-${jobId1}`).count()) > 0;
-    expect(logOk).toBeTruthy();
+    await expect(page.getByTestId("comms-log-empty")).toHaveCount(0);
+    await expect(page.getByTestId("comms-log-table")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId(`comms-log-row-${jobId1!}`)).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(
+      page.getByTestId(`comms-log-status-${jobId1!}`),
+    ).toBeVisible();
 
     // —— J06 / J10: ICS attach + SEQUENCE bump ——
     await page.getByTestId("comms-ics-placement-input").fill(placementId);
