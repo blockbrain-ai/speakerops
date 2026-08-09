@@ -69,3 +69,9 @@
 2026-08-09T16:51:47Z Phase11 final audit APPROVED iteration 5; tip 891dd45 evidence @ 2ab9f55
 2026-08-09T16:51:47Z Pipeline run complete. Keystone 19/19 pass; health 0.1.0-demo+2ab9f55; inventory 115 IDs
 2026-08-09T16:55:00Z Bring-back: merged pilot tip 891dd45 into local section-runner/speakerops (6cfe0c56e)
+2026-08-09T17:11:00Z Independent Codex postbuild CLAIM_FAIL (empty send API, Cache-Control, hash, stubs)
+2026-08-09T17:16:00Z Independent Fable postbuild CLAIM_WITH_RESIDUALS (same core majors)
+2026-08-09T17:21:00Z Residual fixes committed 463d642; pushed origin
+2026-08-09T17:22:48Z Dogfood redeployed 0.1.0-demo+3421b4f; Cache-Control no-store live
+2026-08-09T17:25:00Z Keystone A11Y networkidle flake fixed (domcontentloaded)
+2026-08-09T17:26:00Z Keystone 19/19 PASS at 3421b4f; CLAIM_PROVEN synthesis
