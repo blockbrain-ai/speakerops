@@ -82,6 +82,29 @@ export type SubmissionsStore = {
     patch: { status: string; version: number },
     expectedVersion: number,
   ): Promise<SubmissionRow | null>;
+  /**
+   * Update draft title/category with optimistic concurrency (section 10.5).
+   * Returns null on missing row or version conflict.
+   */
+  updateDraftSubmission(
+    submissionId: string,
+    patch: {
+      title: string;
+      category: string | null;
+      version: number;
+    },
+    expectedVersion: number,
+  ): Promise<SubmissionRow | null>;
+  /** Replace all answers for a submission (draft re-save). */
+  replaceAnswers(
+    submissionId: string,
+    rows: SubmissionAnswerRow[],
+  ): Promise<void>;
+  /** Replace all speakers for a submission (draft re-save). */
+  replaceSpeakers(
+    submissionId: string,
+    rows: SubmissionSpeakerRow[],
+  ): Promise<void>;
   /** Count submitted rows for event (submission_limit check). */
   countSubmittedForEvent(eventId: string): Promise<number>;
   countSubmittedForFormVersion(formVersionId: string): Promise<number>;
@@ -224,6 +247,48 @@ export class MemorySubmissionsStore implements SubmissionsStore {
     };
     this.submissions.set(submissionId, next);
     return { ...next };
+  }
+
+  async updateDraftSubmission(
+    submissionId: string,
+    patch: {
+      title: string;
+      category: string | null;
+      version: number;
+    },
+    expectedVersion: number,
+  ): Promise<SubmissionRow | null> {
+    const existing = this.submissions.get(submissionId);
+    if (!existing) return null;
+    if (existing.version !== expectedVersion) return null;
+    const next: SubmissionRow = {
+      ...existing,
+      title: patch.title,
+      category: patch.category,
+      version: patch.version,
+    };
+    this.submissions.set(submissionId, next);
+    return { ...next };
+  }
+
+  async replaceAnswers(
+    submissionId: string,
+    rows: SubmissionAnswerRow[],
+  ): Promise<void> {
+    this.answers.set(
+      submissionId,
+      rows.map((r) => ({ ...r })),
+    );
+  }
+
+  async replaceSpeakers(
+    submissionId: string,
+    rows: SubmissionSpeakerRow[],
+  ): Promise<void> {
+    this.speakers.set(
+      submissionId,
+      rows.map((r) => ({ ...r })),
+    );
   }
 
   async countSubmittedForEvent(eventId: string): Promise<number> {
@@ -498,6 +563,70 @@ export class D1SubmissionsStore implements SubmissionsStore {
       return null;
     }
     return this.findSubmissionById(submissionId);
+  }
+
+  async updateDraftSubmission(
+    submissionId: string,
+    patch: {
+      title: string;
+      category: string | null;
+      version: number;
+    },
+    expectedVersion: number,
+  ): Promise<SubmissionRow | null> {
+    const result = await this.db
+      .update(submissions)
+      .set({
+        title: patch.title,
+        category: patch.category,
+        version: patch.version,
+      })
+      .where(
+        and(
+          eq(submissions.id, submissionId),
+          eq(submissions.version, expectedVersion),
+        ),
+      );
+    if (d1Changes(result) === 0) {
+      return null;
+    }
+    return this.findSubmissionById(submissionId);
+  }
+
+  async replaceAnswers(
+    submissionId: string,
+    rows: SubmissionAnswerRow[],
+  ): Promise<void> {
+    await this.db
+      .delete(submissionAnswers)
+      .where(eq(submissionAnswers.submissionId, submissionId));
+    if (rows.length === 0) return;
+    await this.db.insert(submissionAnswers).values(
+      rows.map((r) => ({
+        id: r.id,
+        submissionId: r.submissionId,
+        fieldKey: r.fieldKey,
+        valueJson: r.valueJson,
+      })),
+    );
+  }
+
+  async replaceSpeakers(
+    submissionId: string,
+    rows: SubmissionSpeakerRow[],
+  ): Promise<void> {
+    await this.db
+      .delete(submissionSpeakers)
+      .where(eq(submissionSpeakers.submissionId, submissionId));
+    if (rows.length === 0) return;
+    await this.db.insert(submissionSpeakers).values(
+      rows.map((r) => ({
+        submissionId: r.submissionId,
+        personId: r.personId,
+        isPrimary: r.isPrimary ? 1 : 0,
+        sortOrder: r.sortOrder,
+      })),
+    );
   }
 
   async countSubmittedForEvent(eventId: string): Promise<number> {

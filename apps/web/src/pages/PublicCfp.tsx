@@ -1,12 +1,13 @@
 /**
- * Public CFP surface — section 3.3 (S-CFP).
+ * Public CFP surface — section 3.3 (S-CFP) + 10.5 draft save/resume (S-CFP-DRAFT).
  *
  * - Published Design Kit tokens only (S-THEME / 2.4)
  * - Form.GetPublic + Submission.Create + file upload
+ * - Submission.SaveDraft / GetDraft (title-only allowed; closed disables)
  * - Turnstile (test key path for e2e)
  * - Multi-speaker min/max, conditionals, category routing
  * - XSS-safe: all user/copy content as text (no dangerouslySetInnerHTML)
- * - Inventory A01–A11
+ * - Inventory A01–A11, A17
  */
 import {
   useCallback,
@@ -18,11 +19,13 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   PublicDesignResponseSchema,
   PublicCfpResponseSchema,
   SubmissionCreateResponseSchema,
+  SubmissionSaveDraftResponseSchema,
+  SubmissionGetDraftResponseSchema,
   CfpFileUploadResponseSchema,
   ErrorEnvelopeSchema,
   TURNSTILE_DEV_PASS_TOKEN,
@@ -37,6 +40,11 @@ import {
   type FormRuleDto,
   type SubmissionSpeakerInput,
 } from "@speakerops/shared";
+
+/** localStorage key for last draft id per event slug (resume without URL). */
+function draftStorageKey(eventSlug: string): string {
+  return `speakerops:cfp-draft:${eventSlug}`;
+}
 
 /** Cloudflare Turnstile global (loaded from challenges.cloudflare.com). */
 type TurnstileApi = {
@@ -124,8 +132,11 @@ function cssVarsFromString(
   return s as CSSProperties;
 }
 
+type DraftSaveState = "idle" | "saving" | "saved" | "error";
+
 export function PublicCfpPage() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [published, setPublished] = useState<DesignPublished | null>(null);
   const [cssVariables, setCssVariables] = useState<string | null>(null);
@@ -160,6 +171,16 @@ export function PublicCfpPage() {
   } | null>(null);
   const [fileStatus, setFileStatus] = useState<string | null>(null);
   const [derivedCategory, setDerivedCategory] = useState<string | null>(null);
+
+  /** Active draft id for re-save / resume (section 10.5). */
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>("idle");
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftConfirmation, setDraftConfirmation] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const draftResumeAttempted = useRef(false);
 
   const firstErrorRef = useRef<HTMLElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
@@ -274,10 +295,117 @@ export function PublicCfpPage() {
     windowState === "not_yet_open" ||
     windowState === "no_form";
   const canSubmit = !isClosed && formVersion != null && submitState !== "success";
+  /** Draft save only when CFP open and not already fully submitted. */
+  const canSaveDraft =
+    !isClosed && formVersion != null && submitState !== "success";
 
   const setAnswer = useCallback((fieldKey: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [fieldKey]: value }));
   }, []);
+
+  /** Apply GetDraft / SaveDraft snapshot into form state. */
+  const applyDraftSnapshot = useCallback(
+    (snap: {
+      title: string;
+      answers: Array<{ fieldKey: string; value?: unknown }>;
+      speakers: Array<{
+        name: string;
+        email: string;
+        isPrimary: boolean;
+        sortOrder: number;
+      }>;
+    }) => {
+      setTitle(snap.title);
+      const nextAnswers: Record<string, string> = {};
+      for (const a of snap.answers) {
+        if (a.value == null) continue;
+        nextAnswers[a.fieldKey] =
+          typeof a.value === "string" ? a.value : String(a.value);
+      }
+      setAnswers(nextAnswers);
+      if (snap.speakers.length > 0) {
+        setSpeakers(
+          snap.speakers
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((s) => ({
+              clientId: newSpeakerId(),
+              name: s.name,
+              email: s.email,
+            })),
+        );
+      }
+    },
+    [],
+  );
+
+  // Resume draft from ?draft= or localStorage after form load (AC-10.5-B).
+  useEffect(() => {
+    if (loadState !== "ok" || !slug || !canSaveDraft || draftResumeAttempted.current) {
+      return;
+    }
+    draftResumeAttempted.current = true;
+
+    const fromQuery = searchParams.get("draft");
+    let fromStorage: string | null = null;
+    try {
+      fromStorage = localStorage.getItem(draftStorageKey(slug));
+    } catch {
+      fromStorage = null;
+    }
+    const resumeId = fromQuery || fromStorage;
+    if (!resumeId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/public/cfp/${encodeURIComponent(slug)}/drafts/${encodeURIComponent(resumeId)}`,
+          { headers: { accept: "application/json" } },
+        );
+        if (!res.ok) {
+          // Stale localStorage / wrong event — clear quietly
+          if (!fromQuery) {
+            try {
+              localStorage.removeItem(draftStorageKey(slug));
+            } catch {
+              /* ignore */
+            }
+          }
+          return;
+        }
+        const raw: unknown = await res.json();
+        const parsed = SubmissionGetDraftResponseSchema.safeParse(raw);
+        if (!parsed.success || cancelled) return;
+        setDraftId(parsed.data.submission.id);
+        applyDraftSnapshot(parsed.data.snapshot);
+        setDraftConfirmation({
+          id: parsed.data.submission.id,
+          title: parsed.data.snapshot.title,
+        });
+        setDraftSaveState("saved");
+        try {
+          localStorage.setItem(
+            draftStorageKey(slug),
+            parsed.data.submission.id,
+          );
+        } catch {
+          /* ignore */
+        }
+      } catch {
+        /* network — leave form empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    loadState,
+    slug,
+    canSaveDraft,
+    searchParams,
+    applyDraftSnapshot,
+  ]);
 
   const addSpeaker = () => {
     if (speakers.length >= maxSpeakers) return;
@@ -528,6 +656,98 @@ export function PublicCfpPage() {
         [`field:${fieldKey}`]: "Upload failed",
       }));
       setFileStatus("rejected:network");
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!slug || !formVersion || !canSaveDraft) return;
+
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setFieldErrors((prev) => ({ ...prev, title: "Title is required" }));
+      setDraftSaveState("error");
+      setDraftError("Title is required to save a draft");
+      queueMicrotask(() => titleRef.current?.focus());
+      return;
+    }
+
+    setDraftSaveState("saving");
+    setDraftError(null);
+
+    const speakerPayload: SubmissionSpeakerInput[] = speakers
+      .filter((s) => s.name.trim() && s.email.trim() && s.email.includes("@"))
+      .map((s, i) => ({
+        name: s.name.trim(),
+        email: s.email.trim(),
+        isPrimary: i === 0,
+      }));
+
+    const answerPayload = Object.entries(answers)
+      .filter(([, v]) => v != null && v !== "")
+      .map(([fieldKey, value]) => ({ fieldKey, value }));
+
+    const body: Record<string, unknown> = {
+      formVersionId: formVersion.id,
+      title: trimmed,
+      answers: answerPayload,
+      speakers: speakerPayload,
+      category: derivedCategory,
+    };
+    if (draftId) body.draftId = draftId;
+
+    try {
+      const res = await fetch(
+        `/api/public/cfp/${encodeURIComponent(slug)}/drafts`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-correlation-id": `cfp-draft-${Date.now()}`,
+          },
+          body: JSON.stringify(body),
+        },
+      );
+      const raw: unknown = await res.json().catch(() => null);
+      if (!res.ok) {
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setDraftSaveState("error");
+        setDraftError(
+          env.success ? env.data.error : `Draft save failed (${res.status})`,
+        );
+        return;
+      }
+      const parsed = SubmissionSaveDraftResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        setDraftSaveState("error");
+        setDraftError("Unexpected draft response");
+        return;
+      }
+
+      const id = parsed.data.submission.id;
+      setDraftId(id);
+      setDraftConfirmation({
+        id,
+        title: parsed.data.snapshot.title,
+      });
+      setDraftSaveState("saved");
+      setFieldErrors((prev) => {
+        if (!prev.title) return prev;
+        const next = { ...prev };
+        delete next.title;
+        return next;
+      });
+      try {
+        localStorage.setItem(draftStorageKey(slug), id);
+      } catch {
+        /* ignore */
+      }
+      // Keep resume URL in query without full navigation
+      const next = new URLSearchParams(searchParams);
+      next.set("draft", id);
+      setSearchParams(next, { replace: true });
+    } catch {
+      setDraftSaveState("error");
+      setDraftError("Network error");
     }
   };
 
@@ -1092,27 +1312,83 @@ export function PublicCfpPage() {
                 </p>
               ) : null}
 
-              <button
-                type="submit"
-                className="public-cfp__primary lumen-focusable"
-                data-testid="public-cfp-primary"
-                disabled={submitState === "submitting"}
-              >
-                {submitState === "submitting" ? "Submitting…" : "Submit proposal"}
-              </button>
+              {draftError ? (
+                <p
+                  className="public-cfp__error"
+                  data-testid="cfp-draft-error"
+                  role="alert"
+                >
+                  {draftError}
+                </p>
+              ) : null}
+
+              {draftConfirmation && draftSaveState === "saved" ? (
+                <div
+                  className="public-cfp__draft-confirmation"
+                  data-testid="cfp-draft-confirmation"
+                  role="status"
+                >
+                  <p className="public-cfp__draft-confirmation-title">
+                    Draft saved
+                  </p>
+                  <p
+                    className="event-settings__meta"
+                    data-testid="cfp-draft-id"
+                  >
+                    Reference {draftConfirmation.id}
+                  </p>
+                  <p data-testid="cfp-draft-confirmation-title">
+                    {draftConfirmation.title}
+                  </p>
+                  <p className="event-settings__meta">
+                    Reload this page or open the link with{" "}
+                    <code>?draft=…</code> to resume.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="public-cfp__actions">
+                <button
+                  type="button"
+                  className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"
+                  data-testid="cfp-draft-save"
+                  disabled={draftSaveState === "saving"}
+                  onClick={() => void handleSaveDraft()}
+                >
+                  {draftSaveState === "saving" ? "Saving draft…" : "Save as draft"}
+                </button>
+                <button
+                  type="submit"
+                  className="public-cfp__primary lumen-focusable"
+                  data-testid="public-cfp-primary"
+                  disabled={submitState === "submitting"}
+                >
+                  {submitState === "submitting" ? "Submitting…" : "Submit proposal"}
+                </button>
+              </div>
             </form>
           ) : null}
 
-          {/* Keep primary button visible when closed for layout, but disabled */}
+          {/* Keep primary + draft controls visible when closed for layout, but disabled */}
           {isClosed && submitState !== "success" ? (
-            <button
-              type="button"
-              className="public-cfp__primary lumen-focusable"
-              data-testid="public-cfp-primary"
-              disabled
-            >
-              Submit proposal
-            </button>
+            <div className="public-cfp__actions">
+              <button
+                type="button"
+                className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"
+                data-testid="cfp-draft-save"
+                disabled
+              >
+                Save as draft
+              </button>
+              <button
+                type="button"
+                className="public-cfp__primary lumen-focusable"
+                data-testid="public-cfp-primary"
+                disabled
+              >
+                Submit proposal
+              </button>
+            </div>
           ) : null}
         </>
       ) : null}

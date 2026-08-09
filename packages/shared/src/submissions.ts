@@ -143,6 +143,73 @@ export type SubmissionCreateResponse = z.infer<
 >;
 
 /**
+ * Submission.SaveDraft body — POST /api/public/cfp/:slug/drafts (section 10.5).
+ * Title-only is valid; speakers/answers optional; no Turnstile; no required-field gate.
+ */
+export const SubmissionSaveDraftBodySchema = z.object({
+  /** Must match the published form_version for this event (immutable pin). */
+  formVersionId: z.string().min(1),
+  /** Minimal required field for a draft (empty title rejected). */
+  title: z.string().min(1).max(500),
+  answers: z.array(SubmissionAnswerInputSchema).max(200).default([]),
+  /** Optional speakers; empty allowed on draft (unlike full submit). */
+  speakers: z
+    .array(SubmissionSpeakerInputSchema)
+    .max(CFP_MAX_SPEAKERS)
+    .default([]),
+  /**
+   * When set, update an existing draft (status must remain draft).
+   * Omitted → create a new draft row.
+   */
+  draftId: z.string().min(1).optional(),
+  category: z.string().min(1).max(128).optional().nullable(),
+});
+export type SubmissionSaveDraftBody = z.infer<
+  typeof SubmissionSaveDraftBodySchema
+>;
+
+/**
+ * Form-field snapshot returned on save/resume (field_key → value, speakers).
+ * Keys align with published form_fields (form_versions-compatible).
+ */
+export const SubmissionDraftSnapshotSchema = z.object({
+  title: z.string().min(1),
+  answers: z.array(SubmissionAnswerDtoSchema),
+  speakers: z.array(
+    z.object({
+      name: z.string(),
+      email: z.string(),
+      isPrimary: z.boolean(),
+      sortOrder: z.number().int(),
+      personId: z.string().optional(),
+    }),
+  ),
+  category: z.string().nullable(),
+});
+export type SubmissionDraftSnapshot = z.infer<
+  typeof SubmissionDraftSnapshotSchema
+>;
+
+/** Submission.SaveDraft response */
+export const SubmissionSaveDraftResponseSchema = z.object({
+  submission: SubmissionSchema,
+  /** Snapshot of form fields for resume (roundtrip with GetDraft). */
+  snapshot: SubmissionDraftSnapshotSchema,
+});
+export type SubmissionSaveDraftResponse = z.infer<
+  typeof SubmissionSaveDraftResponseSchema
+>;
+
+/** Submission.GetDraft response — GET /api/public/cfp/:slug/drafts/:draftId */
+export const SubmissionGetDraftResponseSchema = z.object({
+  submission: SubmissionSchema,
+  snapshot: SubmissionDraftSnapshotSchema,
+});
+export type SubmissionGetDraftResponse = z.infer<
+  typeof SubmissionGetDraftResponseSchema
+>;
+
+/**
  * Public CFP supporting file upload — POST /api/public/cfp/:slug/files
  * JSON body with base64 content for local/e2e; mime allowlist enforced.
  */

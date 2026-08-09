@@ -19,6 +19,8 @@ import {
   EventResponseSchema,
   PublicCfpResponseSchema,
   SubmissionCreateResponseSchema,
+  SubmissionSaveDraftResponseSchema,
+  SubmissionGetDraftResponseSchema,
   CfpFileUploadResponseSchema,
   SESSION_COOKIE_NAME,
   TURNSTILE_DEV_PASS_TOKEN,
@@ -689,6 +691,309 @@ describe("3.3 public CFP submit", () => {
     expect(OPENAPI_COMMANDS).toContain("Submission.Create");
     const paths = doc.paths as Record<string, unknown>;
     expect(paths["/api/public/cfp/{slug}/submissions"]).toBeTruthy();
+  });
+
+  it("OpenAPI lists Submission.SaveDraft and GetDraft", () => {
+    const doc = buildOpenApiDocument();
+    expect(OPENAPI_COMMANDS).toContain("Submission.SaveDraft");
+    expect(OPENAPI_COMMANDS).toContain("Submission.GetDraft");
+    const paths = doc.paths as Record<string, unknown>;
+    expect(paths["/api/public/cfp/{slug}/drafts"]).toBeTruthy();
+    expect(paths["/api/public/cfp/{slug}/drafts/{draftId}"]).toBeTruthy();
+  });
+});
+
+describe("10.5 public CFP draft save/resume", () => {
+  it("AC-10.5-A: title-only draft persists with status draft", async () => {
+    const { app, cookie, submissions, store } = await magicLinkSession(
+      "admin-draft-title@example.com",
+    );
+    const event = await createEvent(app, cookie, "Draft Title", "draft-title");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id);
+
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-title",
+        },
+        body: JSON.stringify({
+          formVersionId,
+          title: "  Minimal Draft Title  ",
+        }),
+      },
+      env,
+    );
+    expect(res.status).toBe(201);
+    const body = SubmissionSaveDraftResponseSchema.parse(await res.json());
+    expect(body.submission.status).toBe("draft");
+    expect(body.submission.title).toBe("Minimal Draft Title");
+    expect(body.snapshot.title).toBe("Minimal Draft Title");
+    expect(body.snapshot.answers).toEqual([]);
+    expect(body.snapshot.speakers).toEqual([]);
+
+    const row = await submissions.findSubmissionById(body.submission.id);
+    expect(row?.status).toBe("draft");
+    expect(row?.title).toBe("Minimal Draft Title");
+    expect(row?.formVersionId).toBe(formVersionId);
+
+    const audits = await store.listAudits();
+    const audit = audits.find(
+      (a) =>
+        a.action === "Submission.SaveDraft" &&
+        a.entityId === body.submission.id,
+    );
+    expect(audit).toBeTruthy();
+    expect(audit!.correlationId).toBe("corr-draft-title");
+  });
+
+  it("AC-10.5-B: snapshot roundtrip — save answers/speakers then GetDraft restores", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin-draft-roundtrip@example.com",
+    );
+    const event = await createEvent(
+      app,
+      cookie,
+      "Draft Roundtrip",
+      "draft-roundtrip",
+    );
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id);
+
+    const save = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-save",
+        },
+        body: JSON.stringify({
+          formVersionId,
+          title: "Roundtrip Talk",
+          answers: [
+            { fieldKey: "talk_title", value: "Roundtrip Talk" },
+            { fieldKey: "category", value: "ai" },
+            { fieldKey: "abstract", value: "Draft abstract body" },
+            // Unknown keys dropped
+            { fieldKey: "not_a_field", value: "nope" },
+          ],
+          speakers: [
+            {
+              name: "Grace Hopper",
+              email: "grace@example.com",
+              isPrimary: true,
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(save.status).toBe(201);
+    const saved = SubmissionSaveDraftResponseSchema.parse(await save.json());
+    expect(saved.snapshot.answers.map((a) => a.fieldKey).sort()).toEqual(
+      ["abstract", "category", "talk_title"].sort(),
+    );
+    expect(
+      saved.snapshot.answers.find((a) => a.fieldKey === "abstract")?.value,
+    ).toBe("Draft abstract body");
+    expect(saved.snapshot.speakers).toHaveLength(1);
+    expect(saved.snapshot.speakers[0]!.email).toBe("grace@example.com");
+    expect(saved.snapshot.category).toBe("artificial-intelligence");
+
+    const get = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts/${saved.submission.id}`,
+      {
+        headers: { "x-correlation-id": "corr-draft-get" },
+      },
+      env,
+    );
+    expect(get.status).toBe(200);
+    const loaded = SubmissionGetDraftResponseSchema.parse(await get.json());
+    expect(loaded.submission.id).toBe(saved.submission.id);
+    expect(loaded.submission.status).toBe("draft");
+    expect(loaded.snapshot.title).toBe(saved.snapshot.title);
+    expect(loaded.snapshot.answers).toEqual(saved.snapshot.answers);
+    expect(loaded.snapshot.speakers[0]!.email).toBe("grace@example.com");
+    expect(loaded.snapshot.category).toBe(saved.snapshot.category);
+  });
+
+  it("re-save with draftId updates title and version", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin-draft-update@example.com",
+    );
+    const event = await createEvent(app, cookie, "Draft Update", "draft-upd");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id);
+
+    const create = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-c",
+        },
+        body: JSON.stringify({ formVersionId, title: "V1 Title" }),
+      },
+      env,
+    );
+    const created = SubmissionSaveDraftResponseSchema.parse(
+      await create.json(),
+    );
+    expect(created.submission.version).toBe(1);
+
+    const update = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-u",
+        },
+        body: JSON.stringify({
+          formVersionId,
+          title: "V2 Title",
+          draftId: created.submission.id,
+          answers: [{ fieldKey: "abstract", value: "now with abstract" }],
+        }),
+      },
+      env,
+    );
+    expect(update.status).toBe(200);
+    const updated = SubmissionSaveDraftResponseSchema.parse(
+      await update.json(),
+    );
+    expect(updated.submission.id).toBe(created.submission.id);
+    expect(updated.submission.title).toBe("V2 Title");
+    expect(updated.submission.version).toBe(2);
+    expect(
+      updated.snapshot.answers.find((a) => a.fieldKey === "abstract")?.value,
+    ).toBe("now with abstract");
+  });
+
+  it("rejects empty title on draft save", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin-draft-empty@example.com",
+    );
+    const event = await createEvent(app, cookie, "Draft Empty", "draft-empty");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id);
+
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-empty",
+        },
+        body: JSON.stringify({ formVersionId, title: "   " }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    const err = ErrorEnvelopeSchema.parse(await res.json());
+    expect(err.code).toBe(VALIDATION_ERROR);
+  });
+
+  it("must-not: closed CFP rejects draft save", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin-draft-closed@example.com",
+    );
+    const event = await createEvent(
+      app,
+      cookie,
+      "Draft Closed",
+      "draft-closed",
+    );
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      closesAt: "2020-01-01T00:00:00.000Z",
+    });
+
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-closed",
+        },
+        body: JSON.stringify({ formVersionId, title: "Too Late" }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    const err = ErrorEnvelopeSchema.parse(await res.json());
+    expect(err.code).toBe(VALIDATION_ERROR);
+    expect(err.error.toLowerCase()).toMatch(/closed/);
+  });
+
+  it("must-not: wrong event slug for draft → 404", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin-draft-scope@example.com",
+    );
+    const eventA = await createEvent(app, cookie, "Draft A", "draft-a");
+    const eventB = await createEvent(app, cookie, "Draft B", "draft-b");
+    const { formVersionId } = await publishOpenForm(app, cookie, eventA.id);
+    await publishOpenForm(app, cookie, eventB.id);
+
+    const save = await app.request(
+      `http://localhost/api/public/cfp/${eventA.slug}/drafts`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-scope",
+        },
+        body: JSON.stringify({ formVersionId, title: "Scoped Draft" }),
+      },
+      env,
+    );
+    const saved = SubmissionSaveDraftResponseSchema.parse(await save.json());
+
+    const wrong = await app.request(
+      `http://localhost/api/public/cfp/${eventB.slug}/drafts/${saved.submission.id}`,
+      {},
+      env,
+    );
+    expect(wrong.status).toBe(404);
+    const err = ErrorEnvelopeSchema.parse(await wrong.json());
+    expect(err.code).toBe(NOT_FOUND);
+  });
+
+  it("must-not: submitted submission is not resumable as draft", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin-draft-submitted@example.com",
+    );
+    const event = await createEvent(
+      app,
+      cookie,
+      "Draft Submitted",
+      "draft-submitted",
+    );
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id);
+
+    const submit = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-draft-sub",
+        },
+        body: JSON.stringify(baseSubmitBody(formVersionId)),
+      },
+      env,
+    );
+    expect(submit.status).toBe(201);
+    const body = SubmissionCreateResponseSchema.parse(await submit.json());
+
+    const get = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/drafts/${body.submission.id}`,
+      {},
+      env,
+    );
+    expect(get.status).toBe(404);
   });
 });
 

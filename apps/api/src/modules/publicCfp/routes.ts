@@ -1,8 +1,10 @@
 /**
- * Public CFP HTTP routes (section 3.3).
+ * Public CFP HTTP routes (section 3.3 + 10.5 draft).
  *
  * POST /api/public/cfp/:slug/submissions  → Submission.Create
  * POST /api/public/cfp/:slug/files        → public file upload (allowlist)
+ * POST /api/public/cfp/:slug/drafts       → Submission.SaveDraft
+ * GET  /api/public/cfp/:slug/drafts/:id   → Submission.GetDraft
  *
  * GET  /api/public/cfp/:slug remains Form.GetPublic (forms module, enriched in 3.3).
  *
@@ -12,6 +14,9 @@ import { Hono, type Context } from "hono";
 import {
   SubmissionCreateBodySchema,
   SubmissionCreateResponseSchema,
+  SubmissionSaveDraftBodySchema,
+  SubmissionSaveDraftResponseSchema,
+  SubmissionGetDraftResponseSchema,
   CfpFileUploadBodySchema,
   CfpFileUploadResponseSchema,
   errorEnvelope,
@@ -28,7 +33,12 @@ import type { EventsStore } from "../events/store.js";
 import type { FormsStore } from "../forms/store.js";
 import type { DesignStore } from "../design/store.js";
 import type { SubmissionsStore } from "./store.js";
-import { createSubmission, uploadCfpFile } from "./commands.js";
+import {
+  createSubmission,
+  uploadCfpFile,
+  saveDraft,
+  getDraft,
+} from "./commands.js";
 import {
   defaultCfpRateLimiter,
   rateLimitHeaders,
@@ -174,6 +184,109 @@ export function createPublicCfpRoutes(
     const res = c.json(out.data, 201);
     for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
     return res;
+  });
+
+  /**
+   * POST /cfp/:slug/drafts — Submission.SaveDraft (public, rate limited, no Turnstile).
+   */
+  app.post("/cfp/:slug/drafts", async (c) => {
+    const slug = c.req.param("slug");
+    const key = clientKeyFromRequest(c);
+    const rl = limiter.check(`draft:${key}`);
+    const headers = rateLimitHeaders(rl);
+
+    if (!rl.allowed) {
+      return commandError(
+        c,
+        {
+          status: 429,
+          error: "Rate limit exceeded",
+          code: RATE_LIMITED,
+          details: {
+            limit: rl.limit,
+            retryAfterSec: rl.retryAfterSec,
+          },
+        },
+        headers,
+      );
+    }
+
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      const res = c.json(
+        errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
+        400,
+      );
+      for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
+      return res;
+    }
+
+    const parsed = SubmissionSaveDraftBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      const res = c.json(
+        errorEnvelope("Validation failed", VALIDATION_ERROR, {
+          issues: parsed.error.flatten(),
+        }),
+        400,
+      );
+      for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
+      return res;
+    }
+
+    const result = await saveDraft(submitDeps, {
+      ...parsed.data,
+      slug,
+      correlationId: c.get("correlationId"),
+    });
+
+    if (!result.ok) {
+      return commandError(c, result, headers);
+    }
+
+    const out = SubmissionSaveDraftResponseSchema.safeParse(result.value);
+    if (!out.success) {
+      const res = c.json(
+        errorEnvelope("Response validation failed", INTERNAL_ERROR),
+        500,
+      );
+      for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
+      return res;
+    }
+
+    const status = parsed.data.draftId ? 200 : 201;
+    const res = c.json(out.data, status);
+    for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
+    return res;
+  });
+
+  /**
+   * GET /cfp/:slug/drafts/:draftId — Submission.GetDraft (resume snapshot).
+   */
+  app.get("/cfp/:slug/drafts/:draftId", async (c) => {
+    const slug = c.req.param("slug");
+    const draftId = c.req.param("draftId");
+
+    const result = await getDraft(submitDeps, {
+      slug,
+      draftId,
+      correlationId: c.get("correlationId"),
+    });
+
+    if (!result.ok) {
+      return commandError(c, result);
+    }
+
+    const out = SubmissionGetDraftResponseSchema.safeParse(result.value);
+    if (!out.success) {
+      return c.json(
+        errorEnvelope("Response validation failed", INTERNAL_ERROR),
+        500,
+      );
+    }
+
+    return c.json(out.data, 200);
   });
 
   /**
