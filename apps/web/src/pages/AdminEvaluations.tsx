@@ -1,7 +1,8 @@
 /**
- * Admin evaluations rollup (section 3.4 / 10.2 S-EVAL-UI / 10.6 S-EVAL-EXPORT).
+ * Admin evaluations rollup (section 3.4 / 10.2 S-EVAL-UI / 10.6 S-EVAL-EXPORT / 11.4 S-L2-SUB).
  * Aggregate scores via GET /api/events/:eventId/eval/rollup.
  * Sort + CSV export via Eval.ExportScores (GET .../eval/export).
+ * Lumen 2: coverage table, progress bars, DataTable.
  * Contract: EvalAdminRollupResponseSchema — never surface "Response validation failed".
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -14,8 +15,32 @@ import {
   type EvalScoreSort,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  PageHeader,
+  Skeleton,
+  type DataTableColumn,
+} from "../components/ui/index.js";
 
 const ROLLUP_FETCH_TIMEOUT_MS = 12_000;
+
+function assignmentCoverage(row: EvalAdminSubmissionRollup): {
+  total: number;
+  scored: number;
+  pct: number;
+} {
+  const total = row.assignments.length;
+  const scored = row.assignments.filter(
+    (a) => a.status === "scored" || a.aggregateScore != null,
+  ).length;
+  const pct = total === 0 ? 0 : Math.round((scored / total) * 100);
+  return { total, scored, pct };
+}
 
 export function AdminEvaluationsPage() {
   const { activeEventId } = useEventContext();
@@ -122,6 +147,29 @@ export function AdminEvaluationsPage() {
     [rows, sort],
   );
 
+  const coverageSummary = useMemo(() => {
+    let assignmentTotal = 0;
+    let assignmentScored = 0;
+    let withScore = 0;
+    for (const row of rows) {
+      const c = assignmentCoverage(row);
+      assignmentTotal += c.total;
+      assignmentScored += c.scored;
+      if (row.aggregateScore != null) withScore += 1;
+    }
+    const pct =
+      assignmentTotal === 0
+        ? 0
+        : Math.round((assignmentScored / assignmentTotal) * 100);
+    return {
+      submissionCount: rows.length,
+      withScore,
+      assignmentTotal,
+      assignmentScored,
+      pct,
+    };
+  }, [rows]);
+
   const onSortChange = useCallback((value: string) => {
     const parsed = EvalScoreSortSchema.safeParse(value);
     if (parsed.success) setSort(parsed.data);
@@ -177,24 +225,102 @@ export function AdminEvaluationsPage() {
     }
   }, [activeEventId, sort]);
 
+  const columns: DataTableColumn<EvalAdminSubmissionRollup>[] = [
+    {
+      id: "title",
+      header: "Submission",
+      primary: true,
+      cell: (row) => (
+        <>
+          <span data-testid={`eval-rollup-title-${row.submissionId}`}>
+            {row.title}
+          </span>
+          {row.category ? (
+            <span className="l2-table__secondary">{row.category}</span>
+          ) : null}
+        </>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (row) => (
+        <Badge tone="neutral" data-testid={`eval-rollup-status-${row.submissionId}`}>
+          {row.status}
+        </Badge>
+      ),
+    },
+    {
+      id: "coverage",
+      header: "Coverage",
+      cell: (row) => {
+        const c = assignmentCoverage(row);
+        return (
+          <div
+            className="eval-coverage__cell"
+            data-testid={`eval-coverage-${row.submissionId}`}
+            data-scored={c.scored}
+            data-total={c.total}
+            data-pct={c.pct}
+          >
+            <span className="eval-coverage__label">
+              {c.scored}/{c.total} scored
+            </span>
+            <div
+              className="eval-coverage__track"
+              role="progressbar"
+              aria-valuenow={c.pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Evaluation coverage ${c.pct}%`}
+            >
+              <div
+                className="eval-coverage__fill"
+                style={{ width: `${c.pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "assignments",
+      header: "Assignments",
+      cell: (row) => row.assignments.length,
+    },
+    {
+      id: "score",
+      header: "Aggregate score",
+      cell: (row) => (
+        <span data-testid={`eval-aggregate-score-${row.submissionId}`}>
+          {row.aggregateScore != null ? row.aggregateScore.toFixed(2) : "—"}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div
-      className="event-settings"
+      className="event-settings eval-admin-page"
       data-testid="page-evaluations"
-      data-section="3.4"
+      data-section="11.4"
+      data-layout="coverage-table"
     >
-      <p className="page-stub__overline">Evaluations</p>
-      <h2 className="page-stub__title">Evaluation progress</h2>
-      <p className="page-stub__body">
-        Aggregate scores per submission (weighted mean of scored assignments).{" "}
-        <a
-          href="/admin/settings/rubric"
-          className="design-kit__link lumen-focusable"
-          data-testid="evaluations-rubric-link"
-        >
-          Edit rubric →
-        </a>
-      </p>
+      <PageHeader
+        eyebrow="Evaluations"
+        title="Evaluation progress"
+        description="Coverage and aggregate scores per submission (weighted mean of scored assignments)."
+        data-testid="evaluations-page-header"
+        actions={
+          <a
+            href="/admin/settings/rubric"
+            className="l2-btn l2-btn--secondary lumen-focusable"
+            data-testid="evaluations-rubric-link"
+          >
+            <span className="l2-btn__label">Edit rubric →</span>
+          </a>
+        }
+      />
 
       {!activeEventId ? (
         <p className="eval-queue__muted" data-testid="eval-rollup-no-event">
@@ -202,32 +328,40 @@ export function AdminEvaluationsPage() {
         </p>
       ) : null}
       {loading ? (
-        <p className="eval-queue__muted" data-testid="eval-rollup-loading">
-          Loading…
-        </p>
+        <div data-testid="eval-rollup-loading" aria-busy="true">
+          <p className="eval-queue__muted">Loading…</p>
+          <Skeleton variant="row" />
+          <Skeleton variant="row" />
+        </div>
       ) : null}
       {loadError ? (
-        <p
-          className="event-settings__status event-settings__status--error"
-          data-testid="eval-rollup-error"
-          role="alert"
-        >
+        <Alert tone="danger" data-testid="eval-rollup-error">
           {loadError}
-        </p>
+        </Alert>
       ) : null}
 
       {activeEventId && !loading && !loadError ? (
         <section
-          className="event-settings__card"
+          className="eval-admin-page__section"
           data-testid="eval-rollup-section"
           data-has-round={hasRound ? "1" : "0"}
           data-criteria-count={String(criteriaCount)}
         >
           {!hasRound ? (
-            <p className="eval-queue__muted" data-testid="eval-rollup-no-rubric">
-              No rubric configured yet. Configure criteria under Settings → Eval
-              rubric.
-            </p>
+            <EmptyState
+              title="No rubric configured"
+              description="Configure criteria under Settings → Eval rubric before tracking coverage."
+              data-testid="eval-rollup-no-rubric"
+              action={
+                <a
+                  href="/admin/settings/rubric"
+                  className="l2-btn l2-btn--primary lumen-focusable"
+                  data-testid="eval-rollup-rubric-cta"
+                >
+                  <span className="l2-btn__label">Open rubric settings</span>
+                </a>
+              }
+            />
           ) : null}
           {hasRound && rows.length === 0 ? (
             <p className="eval-queue__muted" data-testid="eval-rollup-empty">
@@ -236,8 +370,37 @@ export function AdminEvaluationsPage() {
           ) : null}
           {rows.length > 0 ? (
             <>
+              <Card
+                className="eval-admin-page__summary"
+                data-testid="eval-coverage-summary"
+                title="Coverage overview"
+                meta={`${coverageSummary.assignmentScored} of ${coverageSummary.assignmentTotal} assignments scored · ${coverageSummary.withScore}/${coverageSummary.submissionCount} submissions have an aggregate`}
+              >
+                <div
+                  className="eval-coverage__summary-track"
+                  role="progressbar"
+                  aria-valuenow={coverageSummary.pct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`Overall evaluation coverage ${coverageSummary.pct}%`}
+                  data-testid="eval-coverage-progress"
+                  data-pct={coverageSummary.pct}
+                >
+                  <div
+                    className="eval-coverage__fill"
+                    style={{ width: `${coverageSummary.pct}%` }}
+                  />
+                </div>
+                <p
+                  className="eval-coverage__summary-label"
+                  data-testid="eval-coverage-progress-label"
+                >
+                  {coverageSummary.pct}% complete
+                </p>
+              </Card>
+
               <div
-                className="submissions-page__toolbar"
+                className="submissions-page__toolbar eval-admin-page__toolbar"
                 data-testid="eval-rollup-toolbar"
               >
                 <label className="event-settings__label" htmlFor="eval-sort">
@@ -254,66 +417,37 @@ export function AdminEvaluationsPage() {
                   <option value="score_asc">Score (low → high)</option>
                   <option value="title">Title</option>
                 </select>
-                <button
-                  type="button"
-                  className="event-settings__submit lumen-focusable"
+                <Button
+                  variant="primary"
                   data-testid="eval-export-csv"
                   data-inv="F05"
                   disabled={exporting}
+                  pending={exporting}
                   onClick={() => void onExport()}
                 >
                   {exporting ? "Exporting…" : "Export CSV"}
-                </button>
+                </Button>
               </div>
               {exportError ? (
-                <p
-                  className="event-settings__status event-settings__status--error"
-                  data-testid="eval-export-error"
-                  role="alert"
-                >
+                <Alert tone="danger" data-testid="eval-export-error">
                   {exportError}
-                </p>
+                </Alert>
               ) : null}
-              <table
-                className="eval-queue__table"
+              <DataTable
                 data-testid="eval-rollup-table"
-                data-sort={sort}
-              >
-                <thead>
-                  <tr>
-                    <th scope="col">Submission</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Assignments</th>
-                    <th scope="col">Aggregate score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedRows.map((row) => (
-                    <tr
-                      key={row.submissionId}
-                      data-testid={`eval-rollup-row-${row.submissionId}`}
-                      data-aggregate-score={
-                        row.aggregateScore != null
-                          ? String(row.aggregateScore)
-                          : ""
-                      }
-                    >
-                      <td data-testid={`eval-rollup-title-${row.submissionId}`}>
-                        {row.title}
-                      </td>
-                      <td>{row.status}</td>
-                      <td>{row.assignments.length}</td>
-                      <td
-                        data-testid={`eval-aggregate-score-${row.submissionId}`}
-                      >
-                        {row.aggregateScore != null
-                          ? row.aggregateScore.toFixed(2)
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                columns={columns}
+                rows={sortedRows}
+                getRowId={(r) => r.submissionId}
+                getRowTestId={(r) => `eval-rollup-row-${r.submissionId}`}
+                getRowAttrs={(r) => ({
+                  "data-aggregate-score":
+                    r.aggregateScore != null ? String(r.aggregateScore) : "",
+                })}
+                wrapAttrs={{
+                  "data-sort": sort,
+                }}
+                density="comfortable"
+              />
             </>
           ) : null}
         </section>

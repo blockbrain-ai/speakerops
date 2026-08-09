@@ -1,5 +1,7 @@
 /**
- * Admin submissions + decisions UI (section 3.5 / S-EVAL + 10.1 reliability).
+ * Admin submissions + decisions UI (section 3.5 / S-EVAL + 10.1 + 11.4 S-L2-SUB).
+ *
+ * Lumen 2: DataTable, toolbar, sticky bulk bar, filter chips, detail hierarchy.
  *
  * Inventory: E01 list filters · E02 detail · E03 assign · E04 accept
  * · E05 reject · E06 waitlist · E07 direct session · E08 bulk preview
@@ -13,7 +15,14 @@
  * POST /api/events/:eventId/sessions/direct
  * POST /api/events/:eventId/submissions/bulk-preview
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   SubmissionListResponseSchema,
   SubmissionDetailResponseSchema,
@@ -29,22 +38,64 @@ import {
   type DecisionValue,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  PageHeader,
+  Skeleton,
+  type BadgeTone,
+  type DataTableColumn,
+} from "../components/ui/index.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
 
-const STATUS_OPTIONS = [
-  "",
-  "submitted",
-  "in_review",
-  "accepted",
-  "rejected",
-  "waitlist",
-  "withdrawn",
-  "draft",
+const STATUS_CHIP_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "submitted", label: "Submitted" },
+  { value: "in_review", label: "In review" },
+  { value: "accepted", label: "Accepted" },
+  { value: "rejected", label: "Rejected" },
+  { value: "waitlist", label: "Waitlist" },
+  { value: "withdrawn", label: "Withdrawn" },
+  { value: "draft", label: "Draft" },
 ] as const;
 
 /** Abort hung list fetches so Loading never sticks forever (AC-10.1-B). */
 const LIST_FETCH_TIMEOUT_MS = 12_000;
+
+function statusTone(status: string): BadgeTone {
+  switch (status) {
+    case "accepted":
+      return "success";
+    case "rejected":
+    case "withdrawn":
+      return "danger";
+    case "waitlist":
+    case "in_review":
+      return "warn";
+    case "submitted":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+function formatAnswerValue(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
 
 export function SubmissionsPage() {
   const { activeEventId } = useEventContext();
@@ -95,7 +146,10 @@ export function SubmissionsPage() {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), LIST_FETCH_TIMEOUT_MS);
       try {
-        const offset = Math.max(0, (pageNum - 1) * SUBMISSION_LIST_DEFAULT_LIMIT);
+        const offset = Math.max(
+          0,
+          (pageNum - 1) * SUBMISSION_LIST_DEFAULT_LIMIT,
+        );
         const params = new URLSearchParams();
         if (statusFilter) params.set("status", statusFilter);
         if (categoryFilter) params.set("category", categoryFilter);
@@ -162,6 +216,7 @@ export function SubmissionsPage() {
   // Reset to page 1 when filters or event change (keep filters when paging)
   useEffect(() => {
     setPage(1);
+    setSelected(new Set());
   }, [statusFilter, categoryFilter, activeEventId]);
 
   useEffect(() => {
@@ -319,14 +374,6 @@ export function SubmissionsPage() {
     });
   }
 
-  function toggleSelectAll() {
-    if (selected.size === rows.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(rows.map((r) => r.id)));
-    }
-  }
-
   async function runBulkPreview(decision: DecisionValue) {
     if (!activeEventId) return;
     if (selected.size === 0) {
@@ -448,59 +495,170 @@ export function SubmissionsPage() {
     }
   }
 
+  const columns: DataTableColumn<SubmissionListItem>[] = [
+    {
+      id: "title",
+      header: "Title",
+      primary: true,
+      cell: (row) => (
+        <>
+          <button
+            type="button"
+            className="l2-table__link lumen-focusable"
+            data-testid={`submission-open-${row.id}`}
+            onClick={() => void openDetail(row.id)}
+          >
+            {row.title}
+          </button>
+          {row.primarySpeakerName ? (
+            <span className="l2-table__secondary">{row.primarySpeakerName}</span>
+          ) : null}
+        </>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (row) => (
+        <Badge
+          tone={statusTone(row.status)}
+          showDot
+          data-testid={`submission-status-badge-${row.id}`}
+        >
+          <span data-testid={`submission-status-${row.id}`}>{row.status}</span>
+        </Badge>
+      ),
+    },
+    {
+      id: "category",
+      header: "Category",
+      cell: (row) => row.category ?? "—",
+    },
+    {
+      id: "speaker",
+      header: "Speaker",
+      cell: (row) => row.primarySpeakerName ?? "—",
+    },
+  ];
+
+  const activeFilters = [
+    statusFilter
+      ? {
+          key: "status",
+          label: `Status: ${statusFilter}`,
+          clear: () => setStatusFilter(""),
+        }
+      : null,
+    categoryFilter
+      ? {
+          key: "category",
+          label: `Category: ${categoryFilter}`,
+          clear: () => setCategoryFilter(""),
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    key: string;
+    label: string;
+    clear: () => void;
+  }>;
+
   return (
     <div
-      className="submissions-page"
+      className="submissions-page submissions-page--l2"
       data-testid="page-submissions"
-      data-section="3.5"
+      data-section="11.4"
+      data-layout="master-detail"
     >
-      <p className="page-stub__overline">Submissions</p>
-      <h2 className="page-stub__title">Submissions & decisions</h2>
-      <p className="page-stub__body">
-        Review CFP submissions, assign evaluators, and record accept / reject /
-        waitlist. Accept materializes a programme session and speaker tasks.
-      </p>
+      <PageHeader
+        eyebrow="Submissions"
+        title="Submissions & decisions"
+        description="Review CFP submissions, assign evaluators, and record accept / reject / waitlist. Accept materializes a programme session and speaker tasks."
+        data-testid="submissions-page-header"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="submissions-direct-open"
+            onClick={() => setDirectOpen((v) => !v)}
+          >
+            {directOpen ? "Hide direct session" : "Direct / sponsor session"}
+          </Button>
+        }
+      />
 
       {!activeEventId ? (
-        <p className="eval-queue__muted">Select an event.</p>
-      ) : null}
-
-      {status ? (
-        <p
-          className={
-            status.kind === "ok"
-              ? "event-settings__status event-settings__status--ok"
-              : "event-settings__status event-settings__status--error"
-          }
-          data-testid="submissions-status"
-          role="status"
-        >
-          {status.text}
+        <p className="eval-queue__muted" data-testid="submissions-no-event">
+          Select an event.
         </p>
       ) : null}
 
-      {/* Filters E01 */}
+      {status ? (
+        <Alert
+          tone={status.kind === "ok" ? "success" : "danger"}
+          data-testid="submissions-status"
+        >
+          {status.text}
+        </Alert>
+      ) : null}
+
+      {/* Toolbar + filter chips (E01) */}
       <section
-        className="event-settings__card submissions-page__filters"
+        className="submissions-page__toolbar-card"
         data-testid="submissions-filters"
+        aria-label="Submission filters"
       >
-        <div className="eval-queue__row">
-          <label className="event-settings__field">
-            <span className="event-settings__label">Status</span>
-            <select
-              className="event-settings__input lumen-focusable"
-              data-testid="submissions-filter-status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s || "all"} value={s}>
-                  {s || "All statuses"}
-                </option>
-              ))}
-            </select>
+        <div
+          className="submissions-page__filter-chips"
+          data-testid="submissions-filter-chips"
+          role="group"
+          aria-label="Status filters"
+        >
+          {STATUS_CHIP_OPTIONS.map((opt) => {
+            const active = statusFilter === opt.value;
+            return (
+              <button
+                key={opt.value || "all"}
+                type="button"
+                className={
+                  active
+                    ? "l2-chip l2-chip--active lumen-focusable"
+                    : "l2-chip lumen-focusable"
+                }
+                data-testid={
+                  opt.value
+                    ? `submissions-chip-status-${opt.value}`
+                    : "submissions-chip-status-all"
+                }
+                aria-pressed={active}
+                onClick={() => setStatusFilter(opt.value)}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Hidden native select keeps E01 e2e + a11y label contract */}
+        <div className="submissions-page__toolbar-row">
+          <label className="submissions-page__sr-only" htmlFor="submissions-filter-status">
+            Status
           </label>
-          <label className="event-settings__field">
+          <select
+            id="submissions-filter-status"
+            className="l2-field__control lumen-focusable submissions-page__status-select"
+            data-testid="submissions-filter-status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Status"
+          >
+            {STATUS_CHIP_OPTIONS.map((s) => (
+              <option key={s.value || "all"} value={s.value}>
+                {s.label === "All" ? "All statuses" : s.label}
+              </option>
+            ))}
+          </select>
+
+          <label className="event-settings__field submissions-page__category-field">
             <span className="event-settings__label">Category</span>
             <select
               className="event-settings__input lumen-focusable"
@@ -514,60 +672,86 @@ export function SubmissionsPage() {
                   {c}
                 </option>
               ))}
-              {/* Keep current filter selectable even if categories reload empty */}
               {categoryFilter && !categories.includes(categoryFilter) ? (
                 <option value={categoryFilter}>{categoryFilter}</option>
               ) : null}
             </select>
           </label>
+
+          {/* Always-available bulk preview controls (E08 empty selection) */}
+          <div
+            className="submissions-page__toolbar-actions"
+            data-testid="submissions-toolbar-actions"
+          >
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="submissions-bulk-preview-accept"
+              disabled={busy}
+              onClick={() => void runBulkPreview("accept")}
+            >
+              Preview bulk accept
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="submissions-bulk-preview-reject"
+              disabled={busy}
+              onClick={() => void runBulkPreview("reject")}
+            >
+              Preview bulk reject
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="submissions-bulk-preview-waitlist"
+              disabled={busy}
+              onClick={() => void runBulkPreview("waitlist")}
+            >
+              Preview bulk waitlist
+            </Button>
+          </div>
         </div>
 
-        <div className="submissions-page__toolbar">
-          <button
-            type="button"
-            className="event-settings__btn lumen-focusable"
-            data-testid="submissions-bulk-preview-accept"
-            disabled={busy}
-            onClick={() => void runBulkPreview("accept")}
+        {activeFilters.length > 0 ? (
+          <div
+            className="submissions-page__active-filters"
+            data-testid="submissions-active-filters"
           >
-            Preview bulk accept
-          </button>
-          <button
-            type="button"
-            className="event-settings__btn lumen-focusable"
-            data-testid="submissions-bulk-preview-reject"
-            disabled={busy}
-            onClick={() => void runBulkPreview("reject")}
-          >
-            Preview bulk reject
-          </button>
-          <button
-            type="button"
-            className="event-settings__btn lumen-focusable"
-            data-testid="submissions-bulk-preview-waitlist"
-            disabled={busy}
-            onClick={() => void runBulkPreview("waitlist")}
-          >
-            Preview bulk waitlist
-          </button>
-          <button
-            type="button"
-            className="event-settings__btn lumen-focusable"
-            data-testid="submissions-direct-open"
-            onClick={() => setDirectOpen((v) => !v)}
-          >
-            {directOpen ? "Hide direct session" : "Direct / sponsor session"}
-          </button>
-        </div>
+            {activeFilters.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                className="l2-chip l2-chip--removable lumen-focusable"
+                data-testid={`submissions-active-filter-${f.key}`}
+                onClick={f.clear}
+              >
+                {f.label}
+                <span aria-hidden="true"> ×</span>
+              </button>
+            ))}
+            <Button
+              variant="quiet"
+              size="sm"
+              data-testid="submissions-clear-filters"
+              onClick={() => {
+                setStatusFilter("");
+                setCategoryFilter("");
+              }}
+            >
+              Clear filters
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       {/* Direct session E07 */}
       {directOpen && activeEventId ? (
-        <section
-          className="event-settings__card"
+        <Card
+          title="Direct / sponsor session"
           data-testid="submissions-direct-form"
+          className="submissions-page__direct"
         >
-          <h3 className="event-settings__card-title">Direct / sponsor session</h3>
           <form onSubmit={(e) => void createDirectSession(e)}>
             <label className="event-settings__field">
               <span className="event-settings__label">Title</span>
@@ -611,30 +795,34 @@ export function SubmissionsPage() {
                 />
               </label>
             </div>
-            <button
+            <Button
               type="submit"
-              className="event-settings__btn event-settings__btn--primary lumen-focusable"
+              variant="primary"
               data-testid="direct-session-submit"
               disabled={busy || !directTitle.trim()}
+              pending={busy}
             >
               Create session
-            </button>
+            </Button>
           </form>
-        </section>
+        </Card>
       ) : null}
 
       {/* Bulk preview E08 */}
       {bulkPreview ? (
-        <section
-          className="event-settings__card"
+        <Card
+          title={`Bulk preview → ${bulkPreview.decision}`}
           data-testid="submissions-bulk-preview"
         >
-          <h3 className="event-settings__card-title">
-            Bulk preview → {bulkPreview.decision}
-          </h3>
-          <ul className="submissions-page__preview-list" data-testid="bulk-preview-list">
+          <ul
+            className="submissions-page__preview-list"
+            data-testid="bulk-preview-list"
+          >
             {bulkPreview.items.map((item) => (
-              <li key={item.submissionId} data-testid={`bulk-preview-item-${item.submissionId}`}>
+              <li
+                key={item.submissionId}
+                data-testid={`bulk-preview-item-${item.submissionId}`}
+              >
                 <strong>{item.title}</strong>{" "}
                 <span className="eval-queue__muted">
                   {item.currentStatus} → {item.nextStatus}
@@ -642,7 +830,7 @@ export function SubmissionsPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </Card>
       ) : null}
 
       {loading ? (
@@ -657,73 +845,71 @@ export function SubmissionsPage() {
             Loading submissions…
           </p>
           <div className="list-skeleton__bars" aria-hidden="true">
-            <span className="list-skeleton__bar" />
-            <span className="list-skeleton__bar" />
-            <span className="list-skeleton__bar" />
+            <Skeleton variant="row" />
+            <Skeleton variant="row" />
+            <Skeleton variant="row" />
           </div>
         </div>
       ) : null}
       {loadError ? (
         <div
-          className="event-settings__card list-error-state"
+          className="list-error-state"
           data-testid="submissions-error-state"
           role="alert"
         >
-          <p
-            className="event-settings__status event-settings__status--error"
-            data-testid="submissions-load-error"
-          >
+          <Alert tone="danger" data-testid="submissions-load-error">
             {loadError}
-          </p>
+          </Alert>
           <p className="page-stub__body">
             The submissions list could not be loaded. Check your connection and
             try again — the page is not blank.
           </p>
-          <button
-            type="button"
-            className="event-settings__btn lumen-focusable"
+          <Button
+            variant="secondary"
             data-testid="submissions-error-retry"
             onClick={() => {
               if (activeEventId) void loadList(activeEventId, page);
             }}
           >
             Retry
-          </button>
+          </Button>
         </div>
       ) : null}
 
-      <div className="eval-queue__layout">
-        {/* List E01 · empty CTA L01 · page window 10.1 */}
-        <section data-testid="submissions-list-section">
+      <div
+        className="submissions-page__layout"
+        data-testid="submissions-master-detail"
+      >
+        {/* List E01 · empty CTA L01 · page window 10.1 · DataTable 11.4 */}
+        <section
+          className="submissions-page__list"
+          data-testid="submissions-list-section"
+        >
           {activeEventId && !loading && !loadError && rows.length === 0 ? (
-            <div
-              className="event-settings__card list-empty-state"
+            <EmptyState
+              title="No submissions yet"
+              description="No submissions match these filters. Publish a CFP form or add a direct / sponsor session to get started."
               data-testid="submissions-empty"
-            >
-              <h3 className="event-settings__heading">No submissions yet</h3>
-              <p className="page-stub__body">
-                No submissions match these filters. Publish a CFP form or add a
-                direct / sponsor session to get started.
-              </p>
-              <div className="list-empty-state__actions">
-                <button
-                  type="button"
-                  className="event-settings__btn event-settings__btn--primary lumen-focusable"
-                  data-testid="submissions-empty-cta"
-                  data-inv="L01"
-                  onClick={() => setDirectOpen(true)}
-                >
-                  Add direct / sponsor session
-                </button>
-                <a
-                  href="/admin/cfp"
-                  className="event-settings__btn lumen-focusable"
-                  data-testid="submissions-empty-forms-link"
-                >
-                  Open form builder
-                </a>
-              </div>
-            </div>
+              action={
+                <div className="list-empty-state__actions">
+                  <Button
+                    variant="primary"
+                    data-testid="submissions-empty-cta"
+                    data-inv="L01"
+                    onClick={() => setDirectOpen(true)}
+                  >
+                    Add direct / sponsor session
+                  </Button>
+                  <a
+                    href="/admin/cfp"
+                    className="l2-btn l2-btn--secondary lumen-focusable"
+                    data-testid="submissions-empty-forms-link"
+                  >
+                    <span className="l2-btn__label">Open form builder</span>
+                  </a>
+                </div>
+              }
+            />
           ) : null}
           {rows.length > 0 ? (
             <>
@@ -738,252 +924,359 @@ export function SubmissionsPage() {
               >
                 <span className="eval-queue__muted">
                   {total} submission{total === 1 ? "" : "s"}
-                  {totalPages > 1
-                    ? ` · page ${page} of ${totalPages}`
-                    : ""}
+                  {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ""}
                 </span>
               </div>
-              <table
-                className="eval-queue__table"
+              <DataTable
                 data-testid="submissions-table"
-                data-total={total}
-                data-visible={rows.length}
-              >
-                <thead>
-                  <tr>
-                    <th scope="col">
-                      <input
-                        type="checkbox"
-                        data-testid="submissions-select-all"
-                        aria-label="Select all on page"
-                        checked={
-                          rows.length > 0 && selected.size === rows.length
-                        }
-                        onChange={toggleSelectAll}
-                      />
-                    </th>
-                    <th scope="col">Title</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Category</th>
-                    <th scope="col">Speaker</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      data-testid={`submission-row-${row.id}`}
-                      data-status={row.status}
-                      data-category={row.category ?? ""}
-                      className={
-                        detailId === row.id
-                          ? "submissions-page__row--active"
-                          : undefined
-                      }
+                columns={columns}
+                rows={rows}
+                getRowId={(r) => r.id}
+                selectedIds={selected}
+                onToggleRow={toggleSelect}
+                onToggleAll={(all) => {
+                  if (all) setSelected(new Set(rows.map((r) => r.id)));
+                  else setSelected(new Set());
+                }}
+                selectAllTestId="submissions-select-all"
+                getSelectTestId={(r) => `submission-select-${r.id}`}
+                getRowTestId={(r) => `submission-row-${r.id}`}
+                activeRowId={detailId}
+                getRowAttrs={(r) => ({
+                  "data-status": r.status,
+                  "data-category": r.category ?? "",
+                })}
+                wrapAttrs={{
+                  "data-total": total,
+                  "data-visible": rows.length,
+                }}
+                density="comfortable"
+                bulkBar={
+                  <>
+                    <span
+                      className="submissions-page__bulk-count"
+                      data-testid="submissions-bulk-count"
                     >
-                      <td>
-                        <input
-                          type="checkbox"
-                          data-testid={`submission-select-${row.id}`}
-                          aria-label={`Select ${row.title}`}
-                          checked={selected.has(row.id)}
-                          onChange={() => toggleSelect(row.id)}
-                        />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="eval-queue__link lumen-focusable"
-                          data-testid={`submission-open-${row.id}`}
-                          onClick={() => void openDetail(row.id)}
-                        >
-                          {row.title}
-                        </button>
-                      </td>
-                      <td data-testid={`submission-status-${row.id}`}>
-                        <span
-                          className="submissions-page__badge"
-                          data-testid={`submission-status-badge-${row.id}`}
-                        >
-                          {row.status}
-                        </span>
-                      </td>
-                      <td>{row.category ?? "—"}</td>
-                      <td>{row.primarySpeakerName ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      {selected.size} selected
+                    </span>
+                    <Button
+                      variant="success"
+                      size="sm"
+                      data-testid="submissions-bulk-bar-accept"
+                      disabled={busy}
+                      onClick={() => void runBulkPreview("accept")}
+                    >
+                      Preview accept
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      data-testid="submissions-bulk-bar-reject"
+                      disabled={busy}
+                      onClick={() => void runBulkPreview("reject")}
+                    >
+                      Preview reject
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      data-testid="submissions-bulk-bar-waitlist"
+                      disabled={busy}
+                      onClick={() => void runBulkPreview("waitlist")}
+                    >
+                      Preview waitlist
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      size="sm"
+                      data-testid="submissions-bulk-clear"
+                      onClick={() => setSelected(new Set())}
+                    >
+                      Clear
+                    </Button>
+                  </>
+                }
+              />
               {totalPages > 1 ? (
                 <div
                   className="submissions-page__pager"
                   data-testid="submissions-pager"
                 >
-                  <button
-                    type="button"
-                    className="event-settings__btn lumen-focusable"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     data-testid="submissions-page-prev"
                     disabled={page <= 1 || loading}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
                     Previous
-                  </button>
+                  </Button>
                   <span
                     className="eval-queue__muted"
                     data-testid="submissions-page-label"
                   >
                     Page {page} / {totalPages}
                   </span>
-                  <button
-                    type="button"
-                    className="event-settings__btn lumen-focusable"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     data-testid="submissions-page-next"
                     disabled={page >= totalPages || loading}
-                    onClick={() =>
-                      setPage((p) => Math.min(totalPages, p + 1))
-                    }
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   >
                     Next
-                  </button>
+                  </Button>
                 </div>
               ) : null}
             </>
           ) : null}
         </section>
 
-        {/* Detail E02 + decisions E04–E06 + assign E03 */}
-        <section
-          className="event-settings__card"
+        {/* Detail hierarchy E02 + decisions E04–E06 + assign E03 */}
+        <aside
+          className="submissions-page__detail"
           data-testid="submissions-detail"
+          aria-label="Submission detail"
         >
           {!detail ? (
-            <p className="eval-queue__muted" data-testid="submissions-detail-empty">
+            <p
+              className="eval-queue__muted"
+              data-testid="submissions-detail-empty"
+            >
               Select a submission to view answers, speakers, and record a
               decision.
             </p>
           ) : (
-            <>
-              <h3
-                className="event-settings__card-title"
-                data-testid="submission-detail-title"
+            <div
+              className="submissions-page__detail-hierarchy"
+              data-testid="submission-detail-hierarchy"
+            >
+              <header
+                className="submissions-page__detail-header"
+                data-testid="submission-detail-header"
               >
-                {detail.submission.title}
-              </h3>
-              <p className="eval-queue__item-meta" data-testid="submission-detail-meta">
-                Status:{" "}
-                <span data-testid="submission-detail-status">
-                  {detail.submission.status}
-                </span>
-                {detail.submission.category
-                  ? ` · ${detail.submission.category}`
-                  : ""}
-                {detail.decision
-                  ? ` · decided: ${detail.decision.decision}`
-                  : ""}
-              </p>
-
-              <h4 className="submissions-page__subhead">Answers</h4>
-              <ul data-testid="submission-detail-answers">
-                {detail.answers.map((a) => (
-                  <li key={a.fieldKey} data-testid={`answer-${a.fieldKey}`}>
-                    <strong>{a.fieldKey}</strong>:{" "}
-                    {typeof a.value === "string"
-                      ? a.value
-                      : JSON.stringify(a.value)}
-                  </li>
-                ))}
-              </ul>
-
-              <h4 className="submissions-page__subhead">Speakers</h4>
-              <ul data-testid="submission-detail-speakers">
-                {detail.speakers.map((s) => (
-                  <li
-                    key={s.personId}
-                    data-testid={`speaker-${s.personId}`}
+                <h3
+                  className="submissions-page__detail-title"
+                  data-testid="submission-detail-title"
+                >
+                  {detail.submission.title}
+                </h3>
+                <div className="submissions-page__detail-badges">
+                  <Badge
+                    tone={statusTone(detail.submission.status)}
+                    showDot
+                    data-testid="submission-detail-status-badge"
                   >
-                    {s.name} ({s.email})
-                    {s.isPrimary ? " · primary" : ""}
-                  </li>
-                ))}
-              </ul>
+                    <span data-testid="submission-detail-status">
+                      {detail.submission.status}
+                    </span>
+                  </Badge>
+                  {detail.submission.category ? (
+                    <Badge tone="neutral" data-testid="submission-detail-category">
+                      {detail.submission.category}
+                    </Badge>
+                  ) : null}
+                  {detail.decision ? (
+                    <Badge
+                      tone={statusTone(detail.decision.decision)}
+                      data-testid="submission-detail-decision-badge"
+                    >
+                      decided: {detail.decision.decision}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p
+                  className="submissions-page__detail-meta"
+                  data-testid="submission-detail-meta"
+                >
+                  Status:{" "}
+                  <span>{detail.submission.status}</span>
+                  {detail.submission.category
+                    ? ` · ${detail.submission.category}`
+                    : ""}
+                  {detail.decision
+                    ? ` · decided: ${detail.decision.decision}`
+                    : ""}
+                </p>
+              </header>
+
+              <section
+                className="submissions-page__detail-section"
+                data-testid="submission-detail-section-speakers"
+                aria-labelledby="detail-speakers-heading"
+              >
+                <h4
+                  id="detail-speakers-heading"
+                  className="submissions-page__subhead"
+                >
+                  Speakers
+                </h4>
+                <ul
+                  className="submissions-page__speaker-list"
+                  data-testid="submission-detail-speakers"
+                >
+                  {detail.speakers.map((s) => (
+                    <li
+                      key={s.personId}
+                      className="submissions-page__speaker-card"
+                      data-testid={`speaker-${s.personId}`}
+                    >
+                      <span className="submissions-page__speaker-name">
+                        {s.name}
+                      </span>
+                      <span className="submissions-page__speaker-email">
+                        {s.email}
+                      </span>
+                      {s.isPrimary ? (
+                        <Badge tone="brand" data-testid={`speaker-primary-${s.personId}`}>
+                          Primary
+                        </Badge>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <section
+                className="submissions-page__detail-section"
+                data-testid="submission-detail-section-answers"
+                aria-labelledby="detail-answers-heading"
+              >
+                <h4
+                  id="detail-answers-heading"
+                  className="submissions-page__subhead"
+                >
+                  Answers
+                </h4>
+                <dl
+                  className="submissions-page__answer-list"
+                  data-testid="submission-detail-answers"
+                >
+                  {detail.answers.map((a) => (
+                    <div
+                      key={a.fieldKey}
+                      className="submissions-page__answer-row"
+                      data-testid={`answer-${a.fieldKey}`}
+                    >
+                      <dt className="submissions-page__answer-key">
+                        {a.fieldKey}
+                      </dt>
+                      <dd className="submissions-page__answer-value">
+                        {formatAnswerValue(a.value)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
 
               {detail.session ? (
-                <p data-testid="submission-detail-session">
-                  Session: {detail.session.title} ({detail.session.id})
-                </p>
+                <section
+                  className="submissions-page__detail-section"
+                  data-testid="submission-detail-section-session"
+                >
+                  <h4 className="submissions-page__subhead">Programme session</h4>
+                  <p data-testid="submission-detail-session">
+                    Session: {detail.session.title} ({detail.session.id})
+                  </p>
+                </section>
               ) : null}
 
-              <form
-                className="submissions-page__assign"
-                data-testid="submission-assign-form"
-                onSubmit={(e) => void assignEvaluator(e)}
+              <section
+                className="submissions-page__detail-section submissions-page__detail-section--assign"
+                data-testid="submission-detail-section-assign"
+                aria-labelledby="detail-assign-heading"
               >
+                <h4
+                  id="detail-assign-heading"
+                  className="submissions-page__subhead"
+                >
+                  Assignment
+                </h4>
+                <form
+                  className="submissions-page__assign"
+                  data-testid="submission-assign-form"
+                  onSubmit={(e) => void assignEvaluator(e)}
+                >
+                  <label className="event-settings__field">
+                    <span className="event-settings__label">
+                      Assign evaluator (user id)
+                    </span>
+                    <input
+                      className="event-settings__input lumen-focusable"
+                      data-testid="submission-assign-user-id"
+                      value={assignUserId}
+                      onChange={(e) => setAssignUserId(e.target.value)}
+                      placeholder="Evaluator user id"
+                    />
+                  </label>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    data-testid="submission-assign-submit"
+                    disabled={busy || !assignUserId.trim()}
+                    pending={busy}
+                  >
+                    Assign
+                  </Button>
+                </form>
+              </section>
+
+              <section
+                className="submissions-page__detail-section submissions-page__detail-section--decision"
+                data-testid="submission-detail-section-decision"
+                aria-labelledby="detail-decision-heading"
+              >
+                <h4
+                  id="detail-decision-heading"
+                  className="submissions-page__subhead"
+                >
+                  Decision
+                </h4>
                 <label className="event-settings__field">
-                  <span className="event-settings__label">
-                    Assign evaluator (user id)
-                  </span>
-                  <input
+                  <span className="event-settings__label">Decision reason</span>
+                  <textarea
                     className="event-settings__input lumen-focusable"
-                    data-testid="submission-assign-user-id"
-                    value={assignUserId}
-                    onChange={(e) => setAssignUserId(e.target.value)}
-                    placeholder="Evaluator user id"
+                    data-testid="submission-decision-reason"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    rows={2}
+                    placeholder="Optional reason (required for clear reject trail)"
                   />
                 </label>
-                <button
-                  type="submit"
-                  className="event-settings__btn lumen-focusable"
-                  data-testid="submission-assign-submit"
-                  disabled={busy || !assignUserId.trim()}
+                <div
+                  className="submissions-page__decision-actions"
+                  data-testid="submission-decision-actions"
                 >
-                  Assign
-                </button>
-              </form>
-
-              <label className="event-settings__field">
-                <span className="event-settings__label">Decision reason</span>
-                <textarea
-                  className="event-settings__input lumen-focusable"
-                  data-testid="submission-decision-reason"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  rows={2}
-                  placeholder="Optional reason (required for clear reject trail)"
-                />
-              </label>
-
-              <div className="submissions-page__toolbar">
-                <button
-                  type="button"
-                  className="event-settings__btn event-settings__btn--primary lumen-focusable"
-                  data-testid="submission-accept"
-                  disabled={busy}
-                  onClick={() => void recordDecision("accept")}
-                >
-                  Accept
-                </button>
-                <button
-                  type="button"
-                  className="event-settings__btn lumen-focusable"
-                  data-testid="submission-reject"
-                  disabled={busy}
-                  onClick={() => void recordDecision("reject")}
-                >
-                  Reject
-                </button>
-                <button
-                  type="button"
-                  className="event-settings__btn lumen-focusable"
-                  data-testid="submission-waitlist"
-                  disabled={busy}
-                  onClick={() => void recordDecision("waitlist")}
-                >
-                  Waitlist
-                </button>
-              </div>
-            </>
+                  <Button
+                    variant="success"
+                    data-testid="submission-accept"
+                    disabled={busy}
+                    pending={busy}
+                    onClick={() => void recordDecision("accept")}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    variant="danger"
+                    data-testid="submission-reject"
+                    disabled={busy}
+                    onClick={() => void recordDecision("reject")}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    data-testid="submission-waitlist"
+                    disabled={busy}
+                    onClick={() => void recordDecision("waitlist")}
+                  >
+                    Waitlist
+                  </Button>
+                </div>
+              </section>
+            </div>
           )}
-        </section>
+        </aside>
       </div>
     </div>
   );

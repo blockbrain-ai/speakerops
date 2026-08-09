@@ -1,11 +1,20 @@
 /**
- * Evaluator queue + scoring UI (section 3.4 / S-EVAL).
+ * Evaluator queue + scoring UI (section 3.4 / S-EVAL + 11.4 S-L2-SUB).
+ *
+ * Low-distraction review workspace: progress, focused score panel, no admin chrome.
  *
  * Inventory: F01 queue assigned-only · F02 score save · F03 no accept · F04 keyboard.
  * Wired to GET /api/me/eval-queue and POST /api/assignments/:id/scores.
  * No Decision.Record / accept-reject controls (F03).
  */
-import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import {
   EvalQueueResponseSchema,
   EvalScoreResponseSchema,
@@ -13,8 +22,27 @@ import {
   type EvalQueueItem,
   type EvalCriterionDto,
 } from "@speakerops/shared";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Skeleton,
+} from "../components/ui/index.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
+
+function isAssignmentComplete(item: EvalQueueItem): boolean {
+  if (item.assignment.status === "scored") return true;
+  if (item.assignment.aggregateScore != null) return true;
+  const scores = item.assignment.scores ?? [];
+  if (item.criteria.length === 0) return false;
+  return item.criteria.every((c) =>
+    scores.some((s) => s.criterionId === c.id && s.value != null),
+  );
+}
 
 export function EvaluatorQueuePage() {
   const [items, setItems] = useState<EvalQueueItem[]>([]);
@@ -88,6 +116,13 @@ export function EvaluatorQueuePage() {
   }, []);
 
   const active = items.find((i) => i.assignment.id === activeId) ?? null;
+
+  const progress = useMemo(() => {
+    const total = items.length;
+    const done = items.filter(isAssignmentComplete).length;
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    return { total, done, pct };
+  }, [items]);
 
   function selectItem(item: EvalQueueItem) {
     setActiveId(item.assignment.id);
@@ -174,38 +209,77 @@ export function EvaluatorQueuePage() {
 
   return (
     <div
-      className="eval-queue"
+      className="eval-queue eval-queue--l2"
       data-testid="evaluator-queue"
-      data-section="3.4"
+      data-section="11.4"
+      data-layout="low-distraction"
     >
-      <p className="page-stub__overline">Evaluator</p>
-      <h2 className="page-stub__title" data-testid="eval-queue-title">
+      <PageHeader
+        eyebrow="Evaluator"
+        title="Evaluation queue"
+        description="Score only submissions assigned to you. Accept/reject is admin-only — those controls are not available here."
+        data-testid="eval-queue-header"
+      />
+      {/* Preserve title testid used by older specs */}
+      <h2 className="eval-queue__sr-only" data-testid="eval-queue-title">
         Evaluation queue
       </h2>
-      <p className="page-stub__body">
-        Score only submissions assigned to you. Accept/reject is admin-only —
-        those controls are not available here.
-      </p>
 
       {loading ? (
-        <p className="eval-queue__muted" data-testid="eval-queue-loading">
-          Loading queue…
-        </p>
+        <div data-testid="eval-queue-loading" aria-busy="true">
+          <p className="eval-queue__muted">Loading queue…</p>
+          <Skeleton variant="row" />
+          <Skeleton variant="row" />
+        </div>
       ) : null}
       {loadError ? (
-        <p
-          className="event-settings__status event-settings__status--error"
-          data-testid="eval-queue-error"
-          role="alert"
-        >
+        <Alert tone="danger" data-testid="eval-queue-error">
           {loadError}
-        </p>
+        </Alert>
       ) : null}
 
       {!loading && !loadError && items.length === 0 ? (
-        <p className="eval-queue__muted" data-testid="eval-queue-empty">
-          No assigned submissions.
-        </p>
+        <EmptyState
+          title="No assigned submissions"
+          description="When an admin assigns you a proposal, it will appear here for low-distraction scoring."
+          data-testid="eval-queue-empty"
+        />
+      ) : null}
+
+      {!loading && !loadError && items.length > 0 ? (
+        <div
+          className="eval-queue__progress-card"
+          data-testid="eval-queue-progress"
+          data-done={progress.done}
+          data-total={progress.total}
+          data-pct={progress.pct}
+        >
+          <div className="eval-queue__progress-meta">
+            <span data-testid="eval-queue-progress-label">
+              {progress.done} of {progress.total} complete
+            </span>
+            <Badge
+              tone={progress.pct === 100 ? "success" : "info"}
+              data-testid="eval-queue-progress-badge"
+            >
+              {progress.pct}%
+            </Badge>
+          </div>
+          <div
+            className="eval-coverage__summary-track"
+            role="progressbar"
+            aria-valuenow={progress.pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`Queue progress ${progress.pct}%`}
+            data-testid="eval-queue-progress-bar"
+          >
+            <div
+              className="eval-coverage__fill"
+              style={{ width: `${progress.pct}%` }}
+            />
+          </div>
+        </div>
       ) : null}
 
       <div className="eval-queue__layout">
@@ -214,53 +288,72 @@ export function EvaluatorQueuePage() {
           data-testid="eval-queue-list"
           aria-label="Assigned submissions"
         >
-          {items.map((item) => (
-            <li key={item.assignment.id}>
-              <button
-                type="button"
-                className={
-                  item.assignment.id === activeId
-                    ? "eval-queue__item eval-queue__item--active lumen-focusable"
-                    : "eval-queue__item lumen-focusable"
-                }
-                data-testid={`eval-queue-item-${item.assignment.id}`}
-                data-submission-id={item.submission.id}
-                data-submission-title={item.submission.title}
-                onClick={() => selectItem(item)}
-              >
-                <span className="eval-queue__item-title">
-                  {item.submission.title}
-                </span>
-                <span className="eval-queue__item-meta">
-                  {item.assignment.status}
-                  {item.assignment.aggregateScore != null
-                    ? ` · ${item.assignment.aggregateScore.toFixed(1)}`
-                    : ""}
-                </span>
-              </button>
-            </li>
-          ))}
+          {items.map((item) => {
+            const done = isAssignmentComplete(item);
+            return (
+              <li key={item.assignment.id}>
+                <button
+                  type="button"
+                  className={
+                    item.assignment.id === activeId
+                      ? "eval-queue__item eval-queue__item--active lumen-focusable"
+                      : "eval-queue__item lumen-focusable"
+                  }
+                  data-testid={`eval-queue-item-${item.assignment.id}`}
+                  data-submission-id={item.submission.id}
+                  data-submission-title={item.submission.title}
+                  data-complete={done ? "1" : "0"}
+                  onClick={() => selectItem(item)}
+                >
+                  <span className="eval-queue__item-title">
+                    {item.submission.title}
+                  </span>
+                  <span className="eval-queue__item-meta">
+                    {item.assignment.status}
+                    {item.assignment.aggregateScore != null
+                      ? ` · ${item.assignment.aggregateScore.toFixed(1)}`
+                      : ""}
+                  </span>
+                  {done ? (
+                    <Badge tone="success" showDot>
+                      Done
+                    </Badge>
+                  ) : (
+                    <Badge tone="warn" showDot>
+                      To do
+                    </Badge>
+                  )}
+                </button>
+              </li>
+            );
+          })}
         </ul>
 
         {active ? (
-          <section
-            className="event-settings__card eval-queue__score-panel"
+          <Card
+            className="eval-queue__score-panel"
             data-testid="eval-score-panel"
-            aria-labelledby="eval-score-heading"
+            title={`Score: ${active.submission.title}`}
+            meta={active.event.name}
+            raised
           >
-            <h3 id="eval-score-heading" className="event-settings__heading">
-              Score: {active.submission.title}
-            </h3>
             <p className="eval-queue__muted" data-testid="eval-score-event">
               {active.event.name}
             </p>
 
             <form
-              className="event-settings__form"
+              className="event-settings__form eval-queue__score-form"
               onSubmit={onSave}
               onKeyDown={onScoreKeyDown}
               data-testid="eval-score-form"
             >
+              <p
+                className="eval-queue__hint"
+                data-testid="eval-score-keyboard-hint"
+              >
+                Tip: Ctrl/Cmd+Enter saves without leaving the keyboard.
+              </p>
+
               {active.criteria.map((c: EvalCriterionDto) => (
                 <div key={c.id} className="eval-queue__criterion">
                   <label
@@ -307,31 +400,27 @@ export function EvaluatorQueuePage() {
                 maxLength={4000}
               />
 
-              <button
+              <Button
                 type="submit"
-                className="event-settings__submit lumen-focusable"
+                variant="primary"
                 data-testid="eval-score-save"
                 disabled={saving}
+                pending={saving}
               >
                 {saving ? "Saving…" : "Save scores"}
-              </button>
+              </Button>
 
               {/* F03: no accept / reject / decide controls for evaluator */}
               {status ? (
-                <p
-                  className={
-                    status.kind === "ok"
-                      ? "event-settings__status event-settings__status--ok"
-                      : "event-settings__status event-settings__status--error"
-                  }
+                <Alert
+                  tone={status.kind === "ok" ? "success" : "danger"}
                   data-testid="eval-score-status"
-                  role="status"
                 >
                   {status.text}
-                </p>
+                </Alert>
               ) : null}
             </form>
-          </section>
+          </Card>
         ) : null}
       </div>
     </div>
