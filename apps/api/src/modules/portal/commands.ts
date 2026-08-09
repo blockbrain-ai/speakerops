@@ -577,6 +577,8 @@ export async function updateParticipationProfile(
 
 /**
  * Admin speakers list — event-scoped only (assert speakers list scoped by eventId).
+ * Batched person/task/session lookups so dogfood 150+ stays under Worker time limits
+ * (AC-11.2-SCALE / S-SUB-LIST / Speakers L05).
  */
 export async function listSpeakers(
   deps: PortalCommandDeps,
@@ -601,10 +603,37 @@ export async function listSpeakers(
     parts = parts.filter((p) => p.status === input.status);
   }
 
+  const partIds = parts.map((p) => p.id);
+  const personIds = [...new Set(parts.map((p) => p.personId))];
+
+  const [personById, allTasks, allLinks] = await Promise.all([
+    deps.submissions.listPersonsByIds(personIds),
+    deps.decisions.listSpeakerTasksForParticipations(partIds),
+    deps.decisions.listSessionSpeakersForParticipations(partIds),
+  ]);
+
+  const tasksByPart = new Map<string, SpeakerTaskRow[]>();
+  for (const t of allTasks) {
+    const list = tasksByPart.get(t.participationId) ?? [];
+    list.push(t);
+    tasksByPart.set(t.participationId, list);
+  }
+  const sessionCountByPart = new Map<string, number>();
+  for (const link of allLinks) {
+    sessionCountByPart.set(
+      link.participationId,
+      (sessionCountByPart.get(link.participationId) ?? 0) + 1,
+    );
+  }
+
   const speakers = [];
   const q = input.q?.trim().toLowerCase();
   for (const p of parts) {
-    const profile = await enrichProfile(deps, p);
+    const person = personById.get(p.personId);
+    const profile = toProfileDto(
+      p,
+      person ? { name: person.name, email: person.email } : null,
+    );
     if (q) {
       const hay = [
         profile.personName ?? "",
@@ -617,20 +646,18 @@ export async function listSpeakers(
         .toLowerCase();
       if (!hay.includes(q)) continue;
     }
-    const tasks = await deps.decisions.listSpeakerTasksForParticipation(p.id);
+    const tasks = tasksByPart.get(p.id) ?? [];
     const pendingTaskCount = tasks.filter(
       (t) => t.status === "pending" || t.status === "overdue",
     ).length;
     const completedTaskCount = tasks.filter(
       (t) => t.status === "completed",
     ).length;
-    const links =
-      await deps.decisions.listSessionSpeakersForParticipation(p.id);
     speakers.push({
       participation: profile,
       pendingTaskCount,
       completedTaskCount,
-      sessionCount: links.length,
+      sessionCount: sessionCountByPart.get(p.id) ?? 0,
     });
   }
 
