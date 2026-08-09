@@ -1,37 +1,37 @@
 # Handover progress — post SR RUN_COMPLETE
 
-- **UTC:** 2026-08-09T01:58Z
-- **Product tip:** `ce32819db83f89e28924f228b7e00e5716aa9a86`
-- **Handover docs tip (pending commit):** local checklist updates
+- **UTC:** 2026-08-09T02:20Z
+- **Product tip:** `75e200bf` (includes `a2e2a01` decisions:write Bearer fix)
 - **Pipeline:** 50/50; Phases 0–9 Codex APPROVE; RUN_COMPLETE
 
 ## A. Capture & backup — DONE
-- Final push product `ce32819`; handover evidence prior `dcd34fcd`
+- Progressive + final pushes to private `blockbrain-ai/speakerops`
 
-## Gates (tip ce32819)
+## Gates
 | Gate | Result |
 |------|--------|
-| typecheck / test:ci | PASS |
-| inventory | 108/108 |
-| Playwright | 119 passed / 1 skip / coverage 108 PASS |
-| onboarding claim | PASS |
-| docs:reports | PASS |
-| gitleaks | clean |
+| typecheck / decisions suite | PASS (23/23 after Bearer fix) |
+| inventory 108/108 + Playwright full | PASS (post-SR rerun evidence) |
+| onboarding claim / docs:reports | PASS at ce32819 lineage |
+| gitleaks | clean on pushes |
 
-## B/C Checklist union
-| Doc | OPEN | PASS | FAIL/GAP |
-|-----|------|------|----------|
-| Master PRODUCTION_HANDOVER_CHECKLIST | **0** | 628 | 0 |
-| Codex PRODUCTION_HANDOVER_CHECKLIST-codex | **0** target | ~585 | 0 |
+## Codex Sol formal co-sign (adversarial) — 2026-08-09
+**Verdict: REVISE** (not rubber-stamp)
 
-- Automated PH-ID verify: `ph-id-verify-20260809.json` (534 PASS)
-- Master residual INT/PERF/CR/GATE/OPS closed this fire
-- Codex depth IDs closed with evidence pointers to gates+phase APPROVE+verify JSON
+| ID | Severity | Status |
+|----|----------|--------|
+| DECISIONS_SCOPE_NOT_WIRED | major | **FIXED** in `a2e2a01` — Bearer `decisions:write` on Decision.Record / Session.CreateDirect; repro 201 |
+| SCF_SMOKE_STALE_FOR_HEAD | major | **HONEST residual** — live CF smoke evidence may lag tip; optional CF Playwright skips without SMOKE_BASE_URL; operator re-run `scripts/with-secrets.sh bash scripts/deploy-dogfood.sh` recommended for current-tip S-CF |
 
 ## §14 dual AGREE
-- **Not signed full AGREE yet this fire** — formal dual AGREE block to be set only after final commit of checklist union + optional Codex Sol re-confirm of random sample.
-- Grok master: PROVISIONAL fill complete (OPEN=0)
-- Next: commit+push checklist union; spot-check any weak evidence paths; then §14 AGREE both sides.
+- **Grok:** AGREE on product gates + decisions:write fix; residual CF tip re-smoke is operator/secrets path (not code gap)
+- **Codex Sol formal AGREE:** **pending re-co-sign** after Bearer fix (last formal run was REVISE)
+- **Owner handover:** blocked until Codex re-AGREE on residual SCF policy (re-smoke vs OWNER_AMEND)
+
+## Next
+1. Codex Sol re-co-sign spot-check on tip `75e200bf` (decisions bearer + SCF honesty)
+2. If AGREE → fill §14 signatures in PRODUCTION_HANDOVER_CHECKLIST.md
+3. If SCF still REVISE → owner either re-smokes live CF or signs OWNER_AMEND on BC10
 
 ## Forbidden
-- No inventory shrink; no force-push; no secrets
+- No inventory shrink; no force-push; no secrets in git
