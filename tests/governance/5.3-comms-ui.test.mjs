@@ -132,7 +132,8 @@ describe("5.3 comms admin UI governance", () => {
     assert.match(page, /\/api\/comms\/send/);
     assert.match(page, /comms\/jobs/);
     assert.match(page, /comms\/ics/);
-    assert.match(page, /data-section="5\.3"/);
+    // 5.3 shipped the surface; 11.2 recomposes campaign steps on the same page.
+    assert.match(page, /data-section="(5\.3|11\.2)"/);
   });
 
   it("App routes /admin/comms to CommsPage", () => {

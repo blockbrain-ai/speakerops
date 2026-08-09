@@ -1,21 +1,25 @@
 {
   "version": 1,
   "section": "8.1",
-  "description": "Admin primary-action discovery crawl allowlist (S-E2E-INV). Pure chrome is exempt; every other primary control must map to a REQUIRED inventory ID via data-inv or controlMap. Document reasons — bare wildcards forbidden.",
+  "description": "Admin primary-action discovery crawl allowlist (S-E2E-INV). Pure chrome is exempt; every other primary control must map to a REQUIRED inventory ID via data-inv or controlMap. Document reasons \u2014 bare wildcards forbidden.",
   "docs": [
-    "docs/governance/0.3-e2e-inventory-law.md §6 Discovery crawl",
+    "docs/governance/0.3-e2e-inventory-law.md \u00a76 Discovery crawl",
     "docs/sections/8.1-inventory-completeness.md",
     "KMS-competition/initiative/BROWSER_E2E_INVENTORY.md"
   ],
   "primaryRules": {
-    "elements": ["button", "input[type=submit]", "[role=button]"],
+    "elements": [
+      "button",
+      "input[type=submit]",
+      "[role=button]"
+    ],
     "requireTestIdOrInv": true,
     "notes": "Primary = interactive action control (button/submit/role=button). Decorative chrome and non-action anchors use chrome[] or are non-primary tags (div/span/nav)."
   },
   "chrome": [
     {
       "testid": "admin-shell",
-      "reason": "Layout root chrome — not an action"
+      "reason": "Layout root chrome \u2014 not an action"
     },
     {
       "testid": "admin-sidebar",
@@ -55,7 +59,7 @@
     },
     {
       "testid": "design-preview-button",
-      "reason": "Decorative brand preview sample — not a product action"
+      "reason": "Decorative brand preview sample \u2014 not a product action"
     },
     {
       "testid": "form-actions",
@@ -76,90 +80,556 @@
     {
       "testid": "schedule-list-session-*",
       "reason": "List label affordance for placed session identity; place/move actions use tray/slot controls (I06/I13)"
+    },
+    {
+      "testid": "comms-step-nav-*",
+      "reason": "Campaign step chrome (section 11.2); domain send/preview/segment remain J01\u2013J10"
+    },
+    {
+      "testid": "comms-step-next-message",
+      "reason": "Campaign wizard continue chrome (11.2); Message step domain actions use J01"
+    },
+    {
+      "testid": "comms-step-back-audience",
+      "reason": "Campaign wizard back chrome (11.2)"
+    },
+    {
+      "testid": "comms-step-next-review",
+      "reason": "Campaign wizard continue chrome (11.2); Review preview uses J03"
+    },
+    {
+      "testid": "comms-step-back-message",
+      "reason": "Campaign wizard back chrome (11.2)"
+    },
+    {
+      "testid": "comms-step-next-send",
+      "reason": "Campaign wizard continue chrome (11.2); Send action uses J04"
+    },
+    {
+      "testid": "comms-step-back-review",
+      "reason": "Campaign wizard back chrome (11.2)"
+    },
+    {
+      "testid": "comms-audience-pager",
+      "reason": "Audience pager chrome container (11.2); next/prev mapped to J02"
     }
   ],
   "controlMap": [
-    { "testid": "event-create-submit", "inv": "C01", "surface": "admin", "journey": "Create event" },
-    { "testid": "event-context", "inv": "C02", "surface": "admin", "journey": "Active event switcher (select)" },
-    { "testid": "design-save-draft", "inv": "C03", "surface": "admin", "journey": "Save design draft (color/tokens)" },
-    { "testid": "design-publish", "inv": "C05", "surface": "admin", "journey": "Publish design tokens" },
-    { "testid": "event-settings-save", "inv": "C07", "surface": "admin", "journey": "Event settings / CFP window" },
-    { "testid": "form-create-submit", "inv": "D01", "surface": "admin", "journey": "Create form" },
-    { "testid": "form-save-draft", "inv": "D01", "surface": "admin", "journey": "Save form draft" },
-    { "testid": "palette-text", "inv": "D01", "surface": "admin", "journey": "Add text field from palette" },
-    { "testid": "palette-textarea", "inv": "D01", "surface": "admin", "journey": "Add textarea field from palette" },
-    { "testid": "palette-select", "inv": "D01", "surface": "admin", "journey": "Add select field from palette" },
-    { "testid": "palette-multiselect", "inv": "D01", "surface": "admin", "journey": "Add multiselect field from palette" },
-    { "testid": "palette-checkbox", "inv": "D01", "surface": "admin", "journey": "Add checkbox field from palette" },
-    { "testid": "palette-email", "inv": "D01", "surface": "admin", "journey": "Add email field from palette" },
-    { "testid": "palette-number", "inv": "D01", "surface": "admin", "journey": "Add number field from palette" },
-    { "testid": "palette-url", "inv": "D01", "surface": "admin", "journey": "Add URL/file field from palette" },
-    { "testid": "palette-date", "inv": "D01", "surface": "admin", "journey": "Add date field from palette" },
-    { "testid": "palette-speaker", "inv": "D01", "surface": "admin", "journey": "Add speaker field from palette" },
-    { "testid": "field-move-up-*", "inv": "D02", "surface": "admin", "journey": "Reorder fields up" },
-    { "testid": "field-move-down-*", "inv": "D02", "surface": "admin", "journey": "Reorder fields down" },
-    { "testid": "field-remove-*", "inv": "D01", "surface": "admin", "journey": "Remove field from form" },
-    { "testid": "field-select-*", "inv": "D01", "surface": "admin", "journey": "Select field in list" },
-    { "testid": "rule-add", "inv": "D04", "surface": "admin", "journey": "Add category routing rule" },
-    { "testid": "rule-category-*", "inv": "D04", "surface": "admin", "journey": "Edit routing category" },
-    { "testid": "rule-remove-*", "inv": "D04", "surface": "admin", "journey": "Remove category routing rule" },
-    { "testid": "form-publish", "inv": "D08", "surface": "admin", "journey": "Publish form version" },
-    { "testid": "form-copy-link", "inv": "D10", "surface": "admin", "journey": "Copy public CFP link" },
-    { "testid": "submission-open-*", "inv": "E02", "surface": "admin", "journey": "Open submission detail" },
-    { "testid": "submission-assign-submit", "inv": "E03", "surface": "admin", "journey": "Assign evaluator" },
-    { "testid": "submission-accept", "inv": "E04", "surface": "admin", "journey": "Accept submission" },
-    { "testid": "submission-reject", "inv": "E05", "surface": "admin", "journey": "Reject submission" },
-    { "testid": "submission-waitlist", "inv": "E06", "surface": "admin", "journey": "Waitlist submission" },
-    { "testid": "submissions-direct-open", "inv": "E07", "surface": "admin", "journey": "Open direct session form" },
-    { "testid": "direct-session-submit", "inv": "E07", "surface": "admin", "journey": "Create direct session" },
-    { "testid": "submissions-bulk-preview-accept", "inv": "E08", "surface": "admin", "journey": "Bulk accept preview" },
-    { "testid": "submissions-bulk-preview-reject", "inv": "E08", "surface": "admin", "journey": "Bulk reject preview" },
-    { "testid": "submissions-bulk-preview-waitlist", "inv": "E08", "surface": "admin", "journey": "Bulk waitlist preview" },
-    { "testid": "submissions-empty-cta", "inv": "L01", "surface": "admin", "journey": "Empty submissions list CTA" },
-    { "testid": "submissions-error-retry", "inv": "L02", "surface": "admin", "journey": "Retry after submissions load error" },
-    { "testid": "submissions-page-prev", "inv": "E01", "surface": "admin", "journey": "Submissions list previous page (10.1 S-SUB-LIST)" },
-    { "testid": "submissions-page-next", "inv": "E01", "surface": "admin", "journey": "Submissions list next page (10.1 S-SUB-LIST)" },
-    { "testid": "eval-queue-item-*", "inv": "F01", "surface": "evaluator", "journey": "Open assigned eval item" },
-    { "testid": "eval-score-save", "inv": "F02", "surface": "evaluator", "journey": "Save evaluation score" },
-    { "testid": "eval-export-csv", "inv": "F05", "surface": "admin", "journey": "Export evaluation scores CSV" },
-    { "testid": "eval-sort-select", "inv": "F05", "surface": "admin", "journey": "Sort evaluation rollup by score" },
-    { "testid": "readiness-refresh", "inv": "H01", "surface": "admin", "journey": "Refresh readiness dashboard" },
-    { "testid": "schedule-view-list", "inv": "I01", "surface": "admin", "journey": "Schedule list view tab" },
-    { "testid": "schedule-view-day", "inv": "I02", "surface": "admin", "journey": "Schedule day view tab" },
-    { "testid": "schedule-view-week", "inv": "I03", "surface": "admin", "journey": "Schedule week view tab" },
-    { "testid": "schedule-view-track", "inv": "I04", "surface": "admin", "journey": "Schedule track view tab" },
-    { "testid": "schedule-view-room", "inv": "I05", "surface": "admin", "journey": "Schedule room view tab" },
-    { "testid": "schedule-view-*", "inv": "I16", "surface": "admin", "journey": "Schedule view tabs (templated family; concrete tabs listed above)" },
-    { "testid": "schedule-slot-*", "inv": "I06", "surface": "admin", "journey": "Place/move into schedule slot" },
-    { "testid": "schedule-tray-item-*", "inv": "I11", "surface": "admin", "journey": "Select unscheduled tray session" },
-    { "testid": "schedule-undo", "inv": "I10", "surface": "admin", "journey": "Undo last schedule move" },
-    { "testid": "schedule-refresh", "inv": "I16", "surface": "admin", "journey": "Reload schedule state" },
-    { "testid": "schedule-stale-refresh", "inv": "I15", "surface": "admin", "journey": "Recover from stale version" },
-    { "testid": "schedule-unschedule-*", "inv": "I14", "surface": "admin", "journey": "Unschedule session to tray" },
-    { "testid": "comms-template-pick-*", "inv": "J01", "surface": "admin", "journey": "Select email template" },
-    { "testid": "comms-template-save", "inv": "J01", "surface": "admin", "journey": "Save email template" },
-    { "testid": "comms-segment-clear", "inv": "J02", "surface": "admin", "journey": "Clear segment filters" },
-    { "testid": "comms-preview-run", "inv": "J03", "surface": "admin", "journey": "Run comms preview" },
-    { "testid": "comms-send-button", "inv": "J04", "surface": "admin", "journey": "Send communications" },
-    { "testid": "comms-log-refresh", "inv": "J05", "surface": "admin", "journey": "Refresh delivery log" },
-    { "testid": "comms-log-open-*", "inv": "J05", "surface": "admin", "journey": "Open delivery log row" },
-    { "testid": "comms-ics-generate", "inv": "J06", "surface": "admin", "journey": "Generate ICS attachment" },
-    { "testid": "comms-ics-cancel", "inv": "J06", "surface": "admin", "journey": "Cancel ICS attach flow" },
-    { "testid": "api-key-create-submit", "inv": "K01", "surface": "admin", "journey": "Create API key" },
-    { "testid": "api-key-revoke-*", "inv": "K02", "surface": "admin", "journey": "Revoke API key" },
-    { "testid": "api-key-secret-copy", "inv": "K03", "surface": "admin", "journey": "Copy secret once" },
-    { "testid": "api-key-secret-dismiss", "inv": "K03", "surface": "admin", "journey": "Dismiss secret after copy" },
-    { "testid": "api-key-copy-prefix-*", "inv": "K03", "surface": "admin", "journey": "Copy key prefix after dismiss" },
-    { "testid": "speaker-open-*", "inv": "N03", "surface": "admin", "journey": "Open speaker detail" },
-    { "testid": "speakers-page-prev", "inv": "N01", "surface": "admin", "journey": "Speakers list previous page" },
-    { "testid": "speakers-page-next", "inv": "N01", "surface": "admin", "journey": "Speakers list next page" },
-    { "testid": "room-save", "inv": "O02", "surface": "admin", "journey": "Save room" },
-    { "testid": "track-save", "inv": "O03", "surface": "admin", "journey": "Save track" },
-    { "testid": "rubric-add-criterion", "inv": "O04", "surface": "admin", "journey": "Add rubric criterion" },
-    { "testid": "rubric-criterion-remove-*", "inv": "O04", "surface": "admin", "journey": "Remove rubric criterion" },
-    { "testid": "rubric-save", "inv": "O04", "surface": "admin", "journey": "Save eval rubric" },
-    { "testid": "task-template-create", "inv": "O05", "surface": "admin", "journey": "Create task template" },
-    { "testid": "task-template-delete-*", "inv": "O05", "surface": "admin", "journey": "Delete task template" },
-    { "testid": "airtable-status-refresh", "inv": "O06", "surface": "admin", "journey": "Refresh Airtable status" }
+    {
+      "testid": "event-create-submit",
+      "inv": "C01",
+      "surface": "admin",
+      "journey": "Create event"
+    },
+    {
+      "testid": "event-context",
+      "inv": "C02",
+      "surface": "admin",
+      "journey": "Active event switcher (select)"
+    },
+    {
+      "testid": "design-save-draft",
+      "inv": "C03",
+      "surface": "admin",
+      "journey": "Save design draft (color/tokens)"
+    },
+    {
+      "testid": "design-publish",
+      "inv": "C05",
+      "surface": "admin",
+      "journey": "Publish design tokens"
+    },
+    {
+      "testid": "event-settings-save",
+      "inv": "C07",
+      "surface": "admin",
+      "journey": "Event settings / CFP window"
+    },
+    {
+      "testid": "form-create-submit",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Create form"
+    },
+    {
+      "testid": "form-save-draft",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Save form draft"
+    },
+    {
+      "testid": "palette-text",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add text field from palette"
+    },
+    {
+      "testid": "palette-textarea",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add textarea field from palette"
+    },
+    {
+      "testid": "palette-select",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add select field from palette"
+    },
+    {
+      "testid": "palette-multiselect",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add multiselect field from palette"
+    },
+    {
+      "testid": "palette-checkbox",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add checkbox field from palette"
+    },
+    {
+      "testid": "palette-email",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add email field from palette"
+    },
+    {
+      "testid": "palette-number",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add number field from palette"
+    },
+    {
+      "testid": "palette-url",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add URL/file field from palette"
+    },
+    {
+      "testid": "palette-date",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add date field from palette"
+    },
+    {
+      "testid": "palette-speaker",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add speaker field from palette"
+    },
+    {
+      "testid": "field-move-up-*",
+      "inv": "D02",
+      "surface": "admin",
+      "journey": "Reorder fields up"
+    },
+    {
+      "testid": "field-move-down-*",
+      "inv": "D02",
+      "surface": "admin",
+      "journey": "Reorder fields down"
+    },
+    {
+      "testid": "field-remove-*",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Remove field from form"
+    },
+    {
+      "testid": "field-select-*",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Select field in list"
+    },
+    {
+      "testid": "rule-add",
+      "inv": "D04",
+      "surface": "admin",
+      "journey": "Add category routing rule"
+    },
+    {
+      "testid": "rule-category-*",
+      "inv": "D04",
+      "surface": "admin",
+      "journey": "Edit routing category"
+    },
+    {
+      "testid": "rule-remove-*",
+      "inv": "D04",
+      "surface": "admin",
+      "journey": "Remove category routing rule"
+    },
+    {
+      "testid": "form-publish",
+      "inv": "D08",
+      "surface": "admin",
+      "journey": "Publish form version"
+    },
+    {
+      "testid": "form-copy-link",
+      "inv": "D10",
+      "surface": "admin",
+      "journey": "Copy public CFP link"
+    },
+    {
+      "testid": "submission-open-*",
+      "inv": "E02",
+      "surface": "admin",
+      "journey": "Open submission detail"
+    },
+    {
+      "testid": "submission-assign-submit",
+      "inv": "E03",
+      "surface": "admin",
+      "journey": "Assign evaluator"
+    },
+    {
+      "testid": "submission-accept",
+      "inv": "E04",
+      "surface": "admin",
+      "journey": "Accept submission"
+    },
+    {
+      "testid": "submission-reject",
+      "inv": "E05",
+      "surface": "admin",
+      "journey": "Reject submission"
+    },
+    {
+      "testid": "submission-waitlist",
+      "inv": "E06",
+      "surface": "admin",
+      "journey": "Waitlist submission"
+    },
+    {
+      "testid": "submissions-direct-open",
+      "inv": "E07",
+      "surface": "admin",
+      "journey": "Open direct session form"
+    },
+    {
+      "testid": "direct-session-submit",
+      "inv": "E07",
+      "surface": "admin",
+      "journey": "Create direct session"
+    },
+    {
+      "testid": "submissions-bulk-preview-accept",
+      "inv": "E08",
+      "surface": "admin",
+      "journey": "Bulk accept preview"
+    },
+    {
+      "testid": "submissions-bulk-preview-reject",
+      "inv": "E08",
+      "surface": "admin",
+      "journey": "Bulk reject preview"
+    },
+    {
+      "testid": "submissions-bulk-preview-waitlist",
+      "inv": "E08",
+      "surface": "admin",
+      "journey": "Bulk waitlist preview"
+    },
+    {
+      "testid": "submissions-empty-cta",
+      "inv": "L01",
+      "surface": "admin",
+      "journey": "Empty submissions list CTA"
+    },
+    {
+      "testid": "submissions-error-retry",
+      "inv": "L02",
+      "surface": "admin",
+      "journey": "Retry after submissions load error"
+    },
+    {
+      "testid": "submissions-page-prev",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "Submissions list previous page (10.1 S-SUB-LIST)"
+    },
+    {
+      "testid": "submissions-page-next",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "Submissions list next page (10.1 S-SUB-LIST)"
+    },
+    {
+      "testid": "eval-queue-item-*",
+      "inv": "F01",
+      "surface": "evaluator",
+      "journey": "Open assigned eval item"
+    },
+    {
+      "testid": "eval-score-save",
+      "inv": "F02",
+      "surface": "evaluator",
+      "journey": "Save evaluation score"
+    },
+    {
+      "testid": "eval-export-csv",
+      "inv": "F05",
+      "surface": "admin",
+      "journey": "Export evaluation scores CSV"
+    },
+    {
+      "testid": "eval-sort-select",
+      "inv": "F05",
+      "surface": "admin",
+      "journey": "Sort evaluation rollup by score"
+    },
+    {
+      "testid": "readiness-refresh",
+      "inv": "H01",
+      "surface": "admin",
+      "journey": "Refresh readiness dashboard"
+    },
+    {
+      "testid": "schedule-view-list",
+      "inv": "I01",
+      "surface": "admin",
+      "journey": "Schedule list view tab"
+    },
+    {
+      "testid": "schedule-view-day",
+      "inv": "I02",
+      "surface": "admin",
+      "journey": "Schedule day view tab"
+    },
+    {
+      "testid": "schedule-view-week",
+      "inv": "I03",
+      "surface": "admin",
+      "journey": "Schedule week view tab"
+    },
+    {
+      "testid": "schedule-view-track",
+      "inv": "I04",
+      "surface": "admin",
+      "journey": "Schedule track view tab"
+    },
+    {
+      "testid": "schedule-view-room",
+      "inv": "I05",
+      "surface": "admin",
+      "journey": "Schedule room view tab"
+    },
+    {
+      "testid": "schedule-view-*",
+      "inv": "I16",
+      "surface": "admin",
+      "journey": "Schedule view tabs (templated family; concrete tabs listed above)"
+    },
+    {
+      "testid": "schedule-slot-*",
+      "inv": "I06",
+      "surface": "admin",
+      "journey": "Place/move into schedule slot"
+    },
+    {
+      "testid": "schedule-tray-item-*",
+      "inv": "I11",
+      "surface": "admin",
+      "journey": "Select unscheduled tray session"
+    },
+    {
+      "testid": "schedule-undo",
+      "inv": "I10",
+      "surface": "admin",
+      "journey": "Undo last schedule move"
+    },
+    {
+      "testid": "schedule-refresh",
+      "inv": "I16",
+      "surface": "admin",
+      "journey": "Reload schedule state"
+    },
+    {
+      "testid": "schedule-stale-refresh",
+      "inv": "I15",
+      "surface": "admin",
+      "journey": "Recover from stale version"
+    },
+    {
+      "testid": "schedule-unschedule-*",
+      "inv": "I14",
+      "surface": "admin",
+      "journey": "Unschedule session to tray"
+    },
+    {
+      "testid": "comms-template-pick-*",
+      "inv": "J01",
+      "surface": "admin",
+      "journey": "Select email template"
+    },
+    {
+      "testid": "comms-template-save",
+      "inv": "J01",
+      "surface": "admin",
+      "journey": "Save email template"
+    },
+    {
+      "testid": "comms-segment-clear",
+      "inv": "J02",
+      "surface": "admin",
+      "journey": "Clear segment filters"
+    },
+    {
+      "testid": "comms-preview-run",
+      "inv": "J03",
+      "surface": "admin",
+      "journey": "Run comms preview"
+    },
+    {
+      "testid": "comms-send-button",
+      "inv": "J04",
+      "surface": "admin",
+      "journey": "Send communications"
+    },
+    {
+      "testid": "comms-log-refresh",
+      "inv": "J05",
+      "surface": "admin",
+      "journey": "Refresh delivery log"
+    },
+    {
+      "testid": "comms-log-open-*",
+      "inv": "J05",
+      "surface": "admin",
+      "journey": "Open delivery log row"
+    },
+    {
+      "testid": "comms-ics-generate",
+      "inv": "J06",
+      "surface": "admin",
+      "journey": "Generate ICS attachment"
+    },
+    {
+      "testid": "comms-ics-cancel",
+      "inv": "J06",
+      "surface": "admin",
+      "journey": "Cancel ICS attach flow"
+    },
+    {
+      "testid": "api-key-create-submit",
+      "inv": "K01",
+      "surface": "admin",
+      "journey": "Create API key"
+    },
+    {
+      "testid": "api-key-revoke-*",
+      "inv": "K02",
+      "surface": "admin",
+      "journey": "Revoke API key"
+    },
+    {
+      "testid": "api-key-secret-copy",
+      "inv": "K03",
+      "surface": "admin",
+      "journey": "Copy secret once"
+    },
+    {
+      "testid": "api-key-secret-dismiss",
+      "inv": "K03",
+      "surface": "admin",
+      "journey": "Dismiss secret after copy"
+    },
+    {
+      "testid": "api-key-copy-prefix-*",
+      "inv": "K03",
+      "surface": "admin",
+      "journey": "Copy key prefix after dismiss"
+    },
+    {
+      "testid": "speaker-open-*",
+      "inv": "N03",
+      "surface": "admin",
+      "journey": "Open speaker detail"
+    },
+    {
+      "testid": "speakers-page-prev",
+      "inv": "N01",
+      "surface": "admin",
+      "journey": "Speakers list previous page"
+    },
+    {
+      "testid": "speakers-page-next",
+      "inv": "N01",
+      "surface": "admin",
+      "journey": "Speakers list next page"
+    },
+    {
+      "testid": "room-save",
+      "inv": "O02",
+      "surface": "admin",
+      "journey": "Save room"
+    },
+    {
+      "testid": "track-save",
+      "inv": "O03",
+      "surface": "admin",
+      "journey": "Save track"
+    },
+    {
+      "testid": "rubric-add-criterion",
+      "inv": "O04",
+      "surface": "admin",
+      "journey": "Add rubric criterion"
+    },
+    {
+      "testid": "rubric-criterion-remove-*",
+      "inv": "O04",
+      "surface": "admin",
+      "journey": "Remove rubric criterion"
+    },
+    {
+      "testid": "rubric-save",
+      "inv": "O04",
+      "surface": "admin",
+      "journey": "Save eval rubric"
+    },
+    {
+      "testid": "task-template-create",
+      "inv": "O05",
+      "surface": "admin",
+      "journey": "Create task template"
+    },
+    {
+      "testid": "task-template-delete-*",
+      "inv": "O05",
+      "surface": "admin",
+      "journey": "Delete task template"
+    },
+    {
+      "testid": "airtable-status-refresh",
+      "inv": "O06",
+      "surface": "admin",
+      "journey": "Refresh Airtable status"
+    },
+    {
+      "testid": "comms-audience-select-page",
+      "inv": "J02",
+      "surface": "admin",
+      "journey": "Select visible audience page (11.2 scale)"
+    },
+    {
+      "testid": "comms-audience-select-all",
+      "inv": "J02",
+      "surface": "admin",
+      "journey": "Select all matching audience (11.2 scale)"
+    },
+    {
+      "testid": "comms-audience-prev",
+      "inv": "J02",
+      "surface": "admin",
+      "journey": "Audience previous page (11.2 scale)"
+    },
+    {
+      "testid": "comms-audience-next",
+      "inv": "J02",
+      "surface": "admin",
+      "journey": "Audience next page (11.2 scale)"
+    }
   ]
 }

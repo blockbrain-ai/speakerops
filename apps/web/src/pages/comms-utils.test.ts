@@ -1,15 +1,33 @@
 /**
  * Section 5.3 — comms UI trust-before-send unit tests.
+ * Section 11.2 — audience filter / pagination (AC-11.2-SEL / AC-11.2-SCALE).
  *
  * Named assertions:
  * - assert send button disabled until preview
+ * - unit audience filter
  */
 import { describe, it, expect } from "vitest";
 import {
   isSendEnabled,
   segmentFingerprint,
   sendDisabledReason,
+  filterAudienceSpeakers,
+  paginateAudience,
+  audienceCount,
+  isSelectionStable,
+  AUDIENCE_PAGE_SIZE,
+  CAMPAIGN_STEPS,
+  type AudienceSpeakerRow,
 } from "./comms-utils.js";
+
+function rows(n: number, status = "accepted"): AudienceSpeakerRow[] {
+  return Array.from({ length: n }, (_, i) => ({
+    participationId: `p_${String(i + 1).padStart(3, "0")}`,
+    name: `Speaker ${i + 1}`,
+    email: `spk${i + 1}@example.com`,
+    status: i % 10 === 0 ? "waitlisted" : status,
+  }));
+}
 
 describe("5.3 comms-utils trust-before-send", () => {
   it("assert send button disabled until preview", () => {
@@ -120,5 +138,100 @@ describe("5.3 comms-utils trust-before-send", () => {
       eventId: "evt_b",
     });
     expect(a).not.toBe(b);
+  });
+});
+
+describe("11.2 unit audience filter (AC-11.2-SEL / AC-11.2-SCALE)", () => {
+  it("filters by status and search query", () => {
+    const all = rows(30);
+    const accepted = filterAudienceSpeakers(all, {
+      status: "accepted",
+      query: "",
+    });
+    expect(accepted.every((r) => r.status === "accepted")).toBe(true);
+    expect(accepted.length).toBeLessThan(all.length);
+
+    const hit = filterAudienceSpeakers(all, {
+      status: "all",
+      query: "Speaker 12",
+    });
+    expect(hit).toHaveLength(1);
+    expect(hit[0]!.participationId).toBe("p_012");
+
+    const byEmail = filterAudienceSpeakers(all, {
+      status: "accepted",
+      query: "spk5@",
+    });
+    expect(byEmail.some((r) => r.email?.includes("spk5@"))).toBe(true);
+  });
+
+  it("paginates so primary window is ≤25 at 150 scale", () => {
+    expect(AUDIENCE_PAGE_SIZE).toBe(25);
+    // All accepted (no mixed statuses) for a clean 150-scale window.
+    const all: AudienceSpeakerRow[] = Array.from({ length: 150 }, (_, i) => ({
+      participationId: `p_${String(i + 1).padStart(3, "0")}`,
+      name: `Speaker ${i + 1}`,
+      email: `spk${i + 1}@example.com`,
+      status: "accepted",
+    }));
+    const filtered = filterAudienceSpeakers(all, {
+      status: "accepted",
+      query: "",
+    });
+    expect(filtered.length).toBe(150);
+
+    const page1 = paginateAudience(filtered, 1);
+    expect(page1.pageItems.length).toBe(AUDIENCE_PAGE_SIZE);
+    expect(page1.pageItems.length).toBeLessThanOrEqual(25);
+    expect(page1.total).toBe(150);
+    expect(page1.totalPages).toBe(6);
+
+    const page6 = paginateAudience(filtered, 6);
+    expect(page6.pageItems.length).toBe(25);
+    expect(page6.page).toBe(6);
+
+    // Clamp overflow page
+    const overflow = paginateAudience(filtered, 99);
+    expect(overflow.page).toBe(6);
+    expect(overflow.pageItems.length).toBeLessThanOrEqual(25);
+  });
+
+  it("keeps selection stable across filter/page (AC-11.2-SEL)", () => {
+    const selected = ["p_003", "p_001", "p_050"];
+    const afterPage = ["p_050", "p_003", "p_001"];
+    expect(isSelectionStable(selected, afterPage)).toBe(true);
+
+    const afterEdit = ["p_003", "p_001"];
+    expect(isSelectionStable(selected, afterEdit)).toBe(false);
+
+    // Explicit selection count wins over filtered total
+    expect(
+      audienceCount({
+        selectedParticipationIds: selected,
+        filteredTotal: 150,
+      }),
+    ).toBe(3);
+
+    expect(
+      audienceCount({
+        selectedParticipationIds: [],
+        filteredTotal: 150,
+      }),
+    ).toBe(150);
+  });
+
+  it("exposes four campaign steps Audience→Message→Review→Send", () => {
+    expect(CAMPAIGN_STEPS.map((s) => s.id)).toEqual([
+      "audience",
+      "message",
+      "review",
+      "send",
+    ]);
+    expect(CAMPAIGN_STEPS.map((s) => s.label)).toEqual([
+      "Audience",
+      "Message",
+      "Review",
+      "Send",
+    ]);
   });
 });
