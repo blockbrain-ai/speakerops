@@ -1,0 +1,21 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "frontend",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 11,
+  "section": "11.2",
+  "dependencies": [
+    "11.1",
+    "5.3"
+  ],
+  "files": [
+    "playwright/e2e/comms_lumen2.spec.ts",
+    "apps/web/src/pages/Comms.tsx",
+    "apps/web/src/pages/comms-utils.ts",
+    "apps/web/src/styles/shell.css"
+  ],
+  "notes": "phase10-11 11.2 lumen2-comms-campaign"
+}

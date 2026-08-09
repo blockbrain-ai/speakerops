@@ -1,0 +1,27 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "medium",
+  "domain": "frontend",
+  "estimated_effort": "L",
+  "requires_human_review": false,
+  "wave": 11,
+  "section": "11.8",
+  "dependencies": [
+    "11.2",
+    "11.3",
+    "11.4",
+    "11.5",
+    "11.6",
+    "11.7"
+  ],
+  "files": [
+    "playwright/e2e/visual_lumen2.spec.ts",
+    "docs/audits/LUMEN2_TASTE_SCORE.md",
+    "docs/audits/LUMEN2_QA_EVIDENCE.md",
+    "playwright/**",
+    "docs/audits/**",
+    "package.json"
+  ],
+  "notes": "phase10-11 11.8 lumen2-visual-score-gates"
+}

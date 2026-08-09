@@ -1,0 +1,21 @@
+# G4 Codex final advisory — SpeakerOps Phase 10–11
+
+**Role:** independent advisory critic only  
+**Date:** 2026-08-09  
+**Verdict:** **REVISE**  
+**Soul intact:** **YES at intent level; NO at executable proof-contract level**  
+**May execute-go proceed?** **NO**
+
+## Residual MUST_FIX blocking execute
+
+1. **Bring the phase indexes and all 17 packs up to the binding authoring-quality contract.** Both ACTIVE-RUNS files still say `active (authoring)` and omit the required section boundary/dependency table, complete five-role decision, rollout/rollback and human-approval boundaries, and deterministic gate strategy. All 17 specs use the non-traceable row `Success metrics | Named tests above`; 15 declare I16 `N/A`; only 10.1 and 11.2 have per-AC plan checks. Repair exact requirement → AC → file/symbol/step → named positive/negative test → gate/evidence traceability throughout. In particular, 10.1 must pin the `listSubmissions`/DTO and pagination, ordering, filter, error, and 5-second contracts; 11.2 must replace I16 `N/A` and `Wire existing APIs` with the audience/message/preview/send same-value flow, exact routes/DTOs/state transitions, J01–J10 proofs, inventory ownership, and fail-closed send semantics.
+
+2. **Close the keystone omissions literally in the packs.** `spo-10.7` says it proves Phase 10 but its task/scope only covers souls 1–6, omitting `S-SCHED-CHROME` and `S-EVAL-EXPORT` despite livability assigning their F proof to 10.7. `spo-11.9` names all 18 but provides only generic `keystone e2e full` / `Deploy` / `Evidence table` language. Give 10.7 exact F criteria for all eight Phase 10 souls and 11.9 an explicit per-soul D matrix with named non-skipped test titles, exact inventory IDs, deploy revision, timestamps, report/log hashes, and failure rules. No narrative evidence or “absence note” may pass an in-scope FULL soul without an owner amendment.
+
+3. **Make FULL Lumen coverage and scoring exhaustive.** Livability still contains non-exact mappings such as `admin eval routes`, `form builder inv`, `portal N* inv`, and `L02–L04 + new`, without named test titles or fixed evidence destinations. `PAGE_ATLAS_COVERAGE.md` marks evaluations, speakers, settings, evaluator, and public-program surfaces primary while the taste-score denominator omits several of them and leaves settings/public rows without QA proof. Freeze one route/surface set and map every route to a named AC, exact `@inv`, e2e/screenshot state and breakpoint, QA item, checklist row, F/D evidence path, and the no-primary-below-7 score denominator.
+
+4. **Make the design authority singular and readable on the build box.** The constitution, Phase 11 index, and sampled specs still cite `/Users/qualitycontrol/Documents/ChatGPT/speakerops/design-pack/`; every new spec repeats that laptop-only authority. Replace those references with the checksummed initiative/control-plane snapshot, pin its exact `/data/...` sync destination in the manifest, and require a remote digest match before build. A made-pilot builder must never improvise from an unavailable source.
+
+5. **Re-establish G3/G4 closure after repairing the artifacts.** Re-run the validator over the full dependency corpus and preserve the validator revision, manifest, exact command, exit status, and pack hash in evidence. Then complete the required clean-read and independent adversarial pack review to an explicit execution-ready verdict. The current 28-check PASS is structural and does not close the semantic counterexamples above.
+
+6. **Create a hash-bound executable authority object.** The constitution is still `LOCKED-CANDIDATE` awaiting owner approval, and the manifest is explicitly `DRAFT` with blank branch/SHA/worktree/hash/SECTION_ORDER fields, ellipsis paths, an unverified box workspace, no exact remote pack/design destinations, and no canonical command/result/e2e/deploy evidence paths. The product tree currently has 153 modified/untracked entries, so the listed HEAD does not identify the build input. Record constitution approval, clean or fully inventory the dirty baseline, populate and freeze every pin/rollback/stop/evidence field, reconcile the separately authorized post-completion push, then obtain fresh owner go for that frozen manifest. The present conditional authorization is not a go for an as-yet unidentified SHA and manifest hash.

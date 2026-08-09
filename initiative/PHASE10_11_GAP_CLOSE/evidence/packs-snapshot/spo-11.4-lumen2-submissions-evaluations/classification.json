@@ -1,0 +1,22 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "frontend",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 11,
+  "section": "11.4",
+  "dependencies": [
+    "11.0",
+    "10.1",
+    "10.2"
+  ],
+  "files": [
+    "playwright/e2e/submissions_lumen2.spec.ts",
+    "apps/web/src/pages/Submissions.tsx",
+    "apps/web/src/pages/AdminEvaluations.tsx",
+    "apps/web/src/pages/EvaluatorQueue.tsx"
+  ],
+  "notes": "phase10-11 11.4 lumen2-submissions-evaluations"
+}

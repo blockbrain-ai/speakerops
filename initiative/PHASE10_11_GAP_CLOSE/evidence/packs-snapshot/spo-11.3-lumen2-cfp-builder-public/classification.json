@@ -1,0 +1,22 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "frontend",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 11,
+  "section": "11.3",
+  "dependencies": [
+    "11.0",
+    "10.5",
+    "3.2"
+  ],
+  "files": [
+    "playwright/e2e/cfp_lumen2.spec.ts",
+    "apps/web/src/pages/FormBuilder.tsx",
+    "apps/web/src/pages/PublicCfp.tsx",
+    "apps/web/src/components/forms/**"
+  ],
+  "notes": "phase10-11 11.3 lumen2-cfp-builder-public"
+}

@@ -1,0 +1,22 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "fullstack",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 10,
+  "section": "10.3",
+  "dependencies": [
+    "10.2",
+    "3.3"
+  ],
+  "files": [
+    "playwright/e2e/public_cfp_submit_demo.spec.ts",
+    "apps/api/src/modules/publicCfp/**",
+    "apps/web/src/pages/PublicCfp.tsx",
+    "docs/DEMO_HOST.md",
+    "apps/api/src/env.ts"
+  ],
+  "notes": "phase10-11 10.3 public-cfp-captcha-closed"
+}

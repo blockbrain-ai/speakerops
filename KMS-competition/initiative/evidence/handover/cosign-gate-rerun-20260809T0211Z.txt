@@ -1,0 +1,8 @@
+Codex co-sign pre-run (outside sandbox) at tip ce32819
+UTC: 2026-08-09T02:11:00Z
+pnpm typecheck: PASS exit 0
+pnpm test:ci: PASS exit 0 (47 files / 428 tests)
+pnpm test:e2e:inventory: PASS exit 0 (108/108 REQUIRED)
+node --import tsx scripts/check-onboarding-proof.ts --claim: PASS exit 0
+BUILD_CHECKLIST BC10: DONE_WITH_EVIDENCE (cf-dogfood.txt)
+Note: prior Codex sandbox run DISAGREE was contaminated by workspace-write sandbox (tsx IPC EPERM + test pollution flipping BC10 temporarily). Clean re-run green.

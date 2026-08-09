@@ -1,0 +1,24 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "ops",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 11,
+  "section": "11.9",
+  "dependencies": [
+    "10.7",
+    "11.8",
+    "8.6"
+  ],
+  "files": [
+    "playwright/e2e/phase11_handover_keystone.spec.ts",
+    "initiative/PHASE10_11_GAP_CLOSE/evidence/SOUL_EVIDENCE_TABLE.md",
+    "initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md",
+    "scripts/**",
+    "docs/OPERATIONS.md",
+    "initiative/PHASE10_11_GAP_CLOSE/**"
+  ],
+  "notes": "phase10-11 11.9 lumen2-dogfood-handover-keystone"
+}
