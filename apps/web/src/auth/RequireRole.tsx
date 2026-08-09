@@ -181,6 +181,18 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
 
   useEffect(() => {
     void check();
+    // Session restore (10.4): re-probe when tab becomes visible so an expired
+    // or swapped cookie (role switcher / logout elsewhere) fails closed instead
+    // of leaving a stale privileged shell painted.
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void check();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [check, location.pathname]);
 
   if (state.status === "loading") {

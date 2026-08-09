@@ -200,6 +200,49 @@ See [`docs/sections/8.4-demo-seed.md`](./sections/8.4-demo-seed.md).
 
 ---
 
+## 5.1 DEMO persona session mint (section 10.4 / S-AUTH-ROLES)
+
+Organizer / speaker / evaluator sessions must stick via **real HttpOnly cookies**
+(`speakerops_session`: Path=/, SameSite=Lax, Secure, Max-Age ≈ 14d, **host-only** —
+no `Domain=` attribute). There is **no public production email outbox UI**; do not
+point judges or agents at `/api/auth/dev/outbox` on dogfood (route is **off** in
+`createAppFromBindings`).
+
+### Cookie contract (www.speakerops.org)
+
+| Attribute | Value | Why |
+|-----------|--------|-----|
+| Name | `speakerops_session` | Shared constant (`SESSION_COOKIE_NAME`) |
+| Path | `/` | SPA + `/api` same origin |
+| HttpOnly | yes | Not readable by JS (E10) |
+| Secure | yes | HTTPS dogfood |
+| SameSite | `Lax` | Same-site navigations; blocks cross-site POST CSRF |
+| Max-Age | `SESSION_TTL_DAYS` (14d) | Bounded session; survives reloads |
+| Domain | **omit** (host-only) | Exact host only — no sibling-host leakage |
+
+### Mint paths (agents + operators)
+
+| Path | When | How |
+|------|------|-----|
+| **A. Role switcher** (preferred dogfood) | Private dogfood with seed | `ROLE_SWITCHER_ENABLED=1` on Worker + `VITE_ROLE_SWITCHER=1` SPA build. Operator signs in as **event admin** once, then uses Role switcher chrome → `POST /api/auth/dev/role-switch` mints demo `admin` / `evaluator` / `speaker` sessions. Controlled mode requires existing admin (or preserved judge cookie); unauthenticated mint → 401. |
+| **B. Magic link + real email** | Live mail transport | `POST /api/auth/magic-link` then open link → `POST /api/auth/exchange` sets cookie. Login UI does **not** promise a product outbox. |
+| **C. Local e2e / Playwright** | `pnpm test:e2e` only | `scripts/e2e-api-server.mjs` enables in-memory `GET /api/auth/dev/outbox` (`AUTH_DEV_OUTBOX=1`). Harness reads token, exchanges, seeds browser cookie. **Never** enable outbox as dogfood default. |
+| **D. Agent mint script** | Local API or open-bootstrap e2e | `node scripts/sbek-mint-auth-states.mjs` — mints three role sessions via role-switch (open e2e) or documents controlled dogfood steps. Writes redacted state paths under `.data/mint-states/` (tokens not committed). |
+
+Demo emails (public, match seed):
+
+| Role | Email | Landing |
+|------|-------|---------|
+| admin | `admin@demo.speakerops.local` | `/admin` |
+| evaluator | `evaluator@demo.speakerops.local` | `/eval` |
+| speaker | `speaker@demo.speakerops.local` | `/portal?eventId=evt_dogfood` |
+
+**Proof e2e:** `playwright/e2e/auth_roles_dogfood.spec.ts` (AC-10.4-A/B/C + negatives).
+
+**Rollback:** disable `ROLE_SWITCHER_ENABLED`; prior Worker version; sessions expire by Max-Age or logout.
+
+---
+
 ## 6. Queues, outbox, and scheduled drains
 
 | Concern | Operator note |
