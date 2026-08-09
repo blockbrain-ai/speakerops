@@ -17,8 +17,12 @@ import {
   Field,
   Icon,
   ICON_NAMES,
+  LoadingState,
   Modal,
+  NetworkErrorState,
   PageHeader,
+  PermissionDeniedState,
+  SessionExpiredPanel,
   Skeleton,
 } from "./index.js";
 
@@ -58,6 +62,10 @@ describe("11.0 UI primitives exist (AC-11.0-A)", () => {
       "PageHeader.tsx",
       "Icon.tsx",
       "Skeleton.tsx",
+      "SessionExpiredPanel.tsx",
+      "NetworkErrorState.tsx",
+      "PermissionDeniedState.tsx",
+      "LoadingState.tsx",
       "index.ts",
     ];
     for (const name of required) {
@@ -229,6 +237,50 @@ describe("11.0 UI primitives exist (AC-11.0-A)", () => {
     expect(icon).toContain('viewBox="0 0 24 24"');
   });
 
+  it("11.7 LoadingState and NetworkErrorState render recovery anatomy", () => {
+    const loading = html(
+      createElement(LoadingState, {
+        label: "Loading…",
+        rows: 2,
+        "data-testid": "load",
+      }),
+    );
+    expect(loading).toContain('data-state="loading"');
+    expect(loading).toContain("load-label");
+    expect(loading).toContain("l2-skeleton");
+
+    const err = html(
+      createElement(NetworkErrorState, {
+        title: "Couldn't load",
+        description: "Retry the same operation.",
+        onRetry: () => {},
+        "data-testid": "net-err",
+      }),
+    );
+    expect(err).toContain('data-state="error"');
+    expect(err).toContain("net-err-retry");
+    // SSR escapes apostrophe in "Couldn't"
+    expect(err).toMatch(/Couldn(?:'|&#x27;)t load/);
+  });
+
+  it("11.7 SessionExpiredPanel and PermissionDeniedState modules export", () => {
+    // SessionExpiredPanel / PermissionDeniedState use react-router Link —
+    // assert exports and source contracts rather than full router SSR.
+    expect(typeof SessionExpiredPanel).toBe("function");
+    expect(typeof PermissionDeniedState).toBe("function");
+    const sessionSrc = readFileSync(
+      join(here, "SessionExpiredPanel.tsx"),
+      "utf8",
+    );
+    expect(sessionSrc).toContain('data-state="session-expired"');
+    expect(sessionSrc).toContain("session-expired-panel");
+    const permSrc = readFileSync(
+      join(here, "PermissionDeniedState.tsx"),
+      "utf8",
+    );
+    expect(permSrc).toContain('data-state="permission-denied"');
+  });
+
   it("components.css defines state anatomy classes", () => {
     const css = readFileSync(join(here, "../../styles/components.css"), "utf8");
     for (const cls of [
@@ -245,6 +297,10 @@ describe("11.0 UI primitives exist (AC-11.0-A)", () => {
       ".l2-page-header",
       ".l2-skeleton",
       ".l2-icon",
+      ".l2-session-expired",
+      ".l2-network-error",
+      ".l2-permission-denied",
+      ".l2-loading-state",
     ]) {
       expect(css, `missing ${cls}`).toContain(cls);
     }

@@ -23,6 +23,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { AdminShell } from "./layout/AdminShell.js";
+import { SettingsShell } from "./layout/SettingsShell.js";
 import { RequireRole } from "./auth/RequireRole.js";
 import { EventProvider } from "./events/EventContext.js";
 import { RoleSwitcher, isRoleSwitcherEnabled } from "./components/RoleSwitcher.js";
@@ -74,6 +75,18 @@ function AdminGuard({ children }: { children: ReactNode }) {
         <AdminShell>{children}</AdminShell>
       </EventProvider>
     </RequireRole>
+  );
+}
+
+/**
+ * Settings two-pane shell (section 11.7 · S-L2-A11Y).
+ * Nested under AdminGuard so chrome + event context remain shared.
+ */
+function SettingsGuard({ children }: { children: ReactNode }) {
+  return (
+    <AdminGuard>
+      <SettingsShell>{children}</SettingsShell>
+    </AdminGuard>
   );
 }
 
@@ -173,57 +186,57 @@ export function AppRoutes() {
       <Route
         path="/admin/settings"
         element={
-          <AdminGuard>
+          <SettingsGuard>
             <EventSettingsPage />
-          </AdminGuard>
+          </SettingsGuard>
         }
       />
       <Route
         path="/admin/settings/design"
         element={
-          <AdminGuard>
+          <SettingsGuard>
             <DesignKitPage />
-          </AdminGuard>
+          </SettingsGuard>
         }
       />
       <Route
         path="/admin/settings/rubric"
         element={
-          <AdminGuard>
+          <SettingsGuard>
             <RubricSettingsPage />
-          </AdminGuard>
+          </SettingsGuard>
         }
       />
       <Route
         path="/admin/settings/task-templates"
         element={
-          <AdminGuard>
+          <SettingsGuard>
             <TaskTemplatesSettingsPage />
-          </AdminGuard>
+          </SettingsGuard>
         }
       />
       <Route
         path="/admin/settings/api-keys"
         element={
-          <AdminGuard>
+          <SettingsGuard>
             <ApiKeysPage />
-          </AdminGuard>
+          </SettingsGuard>
         }
       />
       <Route
         path="/admin/settings/airtable"
         element={
-          <AdminGuard>
+          <SettingsGuard>
             <AirtableStatusPage />
-          </AdminGuard>
+          </SettingsGuard>
         }
       />
       <Route
         path="/admin/settings/l2-state-sheet"
         element={
-          <AdminGuard>
+          <SettingsGuard>
             <L2StateSheetPage />
-          </AdminGuard>
+          </SettingsGuard>
         }
       />
       <Route

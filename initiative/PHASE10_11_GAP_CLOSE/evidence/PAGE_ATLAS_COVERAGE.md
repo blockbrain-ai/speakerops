@@ -9,13 +9,13 @@
 | /admin/speakers | 11.6 | yes | lifecycle |
 | /admin/schedule | 11.5 | yes | studio |
 | /admin/comms | 11.2 | yes | campaign |
-| /admin/settings | 11.7 | yes | two-pane |
-| /admin/settings/design | 11.7 | yes | brand preview |
-| /admin/settings/rubric | 11.7 | remaining | |
-| /admin/settings/task-templates | 11.7 | remaining | |
-| /admin/settings/api-keys | 11.7 | remaining | |
-| /admin/settings/airtable | 11.7 | remaining | |
-| /login | 11.7 | yes | session recovery |
+| /admin/settings | 11.7 | yes | two-pane (`settings-shell`) |
+| /admin/settings/design | 11.7 | yes | live public CFP preview depth |
+| /admin/settings/rubric | 11.7 | yes | inherits SettingsShell |
+| /admin/settings/task-templates | 11.7 | yes | inherits SettingsShell |
+| /admin/settings/api-keys | 11.7 | yes | empty/loading/error + shell |
+| /admin/settings/airtable | 11.7 | yes | inherits SettingsShell |
+| /login | 11.7 | yes | session-expired recovery panel |
 | /cfp/:slug | 11.3 | yes | public CFP |
 | /portal | 11.6 | yes | portal |
 | /public/:slug/* | 11.3 note / already shipped | remaining polish | public program |

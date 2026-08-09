@@ -959,3 +959,115 @@ textarea.l2-field__control {
   color: var(--lumen-text-tertiary);
   margin-bottom: var(--lumen-space-1);
 }
+
+/* =========================================================================
+ * Section 11.7 — Session / network / permission / loading states
+ * ========================================================================= */
+
+.l2-session-expired,
+.l2-network-error,
+.l2-permission-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lumen-space-3);
+  padding: var(--lumen-space-6);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-surface);
+  box-shadow: var(--lumen-shadow-sm);
+  max-width: 28rem;
+}
+
+.l2-session-expired {
+  border-color: var(--lumen-border);
+  background: var(--lumen-surface-muted, var(--lumen-surface));
+  margin: 0 0 var(--lumen-space-4);
+}
+
+.l2-session-expired__icon,
+.l2-network-error__icon,
+.l2-permission-denied__icon {
+  color: var(--lumen-text-tertiary);
+}
+
+.l2-session-expired__title,
+.l2-network-error__title,
+.l2-permission-denied__title {
+  margin: 0;
+  font-size: var(--lumen-text-section);
+  line-height: var(--lumen-text-section-lh);
+  font-weight: var(--lumen-font-weight-semibold);
+  color: var(--lumen-text);
+}
+
+.l2-session-expired__body,
+.l2-network-error__body,
+.l2-permission-denied__body {
+  margin: 0;
+  font-size: var(--lumen-text-ui);
+  line-height: var(--lumen-text-ui-lh);
+  color: var(--lumen-text-secondary);
+}
+
+.l2-session-expired__from {
+  margin: 0;
+  font-size: var(--lumen-text-meta);
+  color: var(--lumen-text-tertiary);
+}
+
+.l2-session-expired__from code {
+  font-family: var(--lumen-font);
+  font-size: inherit;
+  color: var(--lumen-text-secondary);
+}
+
+.l2-session-expired__actions,
+.l2-network-error__actions,
+.l2-permission-denied__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lumen-space-3);
+  margin-top: var(--lumen-space-1);
+}
+
+.l2-session-expired__secondary,
+.l2-permission-denied__link {
+  font-size: var(--lumen-text-ui);
+  font-weight: var(--lumen-font-weight-semibold);
+  color: var(--lumen-brand);
+  text-decoration: none;
+}
+
+.l2-session-expired__secondary:hover,
+.l2-permission-denied__link:hover {
+  text-decoration: underline;
+}
+
+.l2-network-error {
+  border-color: var(--lumen-danger, var(--lumen-border));
+}
+
+.l2-network-error__icon {
+  color: var(--lumen-danger);
+}
+
+.l2-loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+  padding: var(--lumen-space-4) 0;
+}
+
+.l2-loading-state__label {
+  margin: 0;
+  font-size: var(--lumen-text-ui);
+  color: var(--lumen-text-secondary);
+}
+
+.l2-loading-state__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}

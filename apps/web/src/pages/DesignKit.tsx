@@ -31,7 +31,6 @@ import {
   type DesignRadius,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
-import { Link } from "react-router-dom";
 
 type StatusMsg = { kind: "ok" | "error" | "warn"; text: string } | null;
 
@@ -419,15 +418,17 @@ export function DesignKitPage() {
   const formBusy = loading || saving || publishing;
 
   return (
-    <div className="design-kit" data-testid="page-design-kit" data-section="2.4">
-      <p className="page-stub__overline">Settings · Design</p>
+    <div
+      className="design-kit"
+      data-testid="page-design-kit"
+      data-section="11.7"
+    >
+      <p className="page-stub__overline">Settings · Event brand</p>
       <h2 className="page-stub__title">Design Kit</h2>
       <p className="page-stub__body">
         Brand tokens for public CFP only. Admin chrome stays Lumen default.
-        No freeform CSS.{" "}
-        <Link to="/admin/settings" className="design-kit__link lumen-focusable">
-          ← Event settings
-        </Link>
+        No freeform CSS. Live preview mirrors the public CFP surface — it never
+        rethemes this admin shell.
       </p>
 
       {loadError ? (
@@ -609,32 +610,85 @@ export function DesignKitPage() {
             </div>
           </form>
 
-          {/* Live preview — scoped tokens only; does not retheme admin chrome */}
+          {/* Live public-CFP preview — scoped tokens only; never rethemes admin chrome */}
           <section
-            className="event-settings__card design-kit__preview"
+            className="event-settings__card design-kit__preview l2-brand-scope"
             data-testid="design-preview"
             style={previewStyle}
-            aria-label="Brand preview"
+            aria-label="Live public CFP preview"
           >
-            <h3 className="event-settings__heading">Live preview</h3>
-            <p className="design-kit__preview-wordmark" data-testid="design-preview-wordmark">
-              {wordmark.trim() || activeEvent?.name || "Wordmark"}
-            </p>
-            {logoPreviewUrl ? (
-              <img
-                src={logoPreviewUrl}
-                alt="Logo preview"
-                className="design-kit__preview-logo"
-                data-testid="design-preview-logo"
-              />
-            ) : null}
-            <button
-              type="button"
-              className="design-kit__preview-btn lumen-focusable"
-              data-testid="design-preview-button"
+            <div className="design-kit__preview-header">
+              <h3 className="event-settings__heading">Live public preview</h3>
+              <p className="event-settings__meta" data-testid="design-preview-scope">
+                Public CFP only · draft tokens live
+              </p>
+            </div>
+
+            <div
+              className="design-kit__preview-public"
+              data-testid="design-preview-public"
             >
-              Primary action
-            </button>
+              <header
+                className="design-kit__preview-hero"
+                data-testid="design-preview-hero"
+              >
+                {logoPreviewUrl ? (
+                  <img
+                    src={logoPreviewUrl}
+                    alt=""
+                    className="design-kit__preview-logo"
+                    data-testid="design-preview-logo"
+                  />
+                ) : null}
+                <p
+                  className="design-kit__preview-wordmark"
+                  data-testid="design-preview-wordmark"
+                >
+                  {wordmark.trim() || activeEvent?.name || "Wordmark"}
+                </p>
+                <p
+                  className="design-kit__preview-event"
+                  data-testid="design-preview-event-name"
+                >
+                  {activeEvent?.name ?? "Event name"}
+                </p>
+                <p
+                  className="design-kit__preview-status"
+                  data-testid="design-preview-status"
+                >
+                  Call for proposals open · sample deadline in event timezone
+                </p>
+              </header>
+
+              <div
+                className="design-kit__preview-form"
+                data-testid="design-preview-form"
+                aria-hidden="true"
+              >
+                <p className="design-kit__preview-section">Proposal</p>
+                <label className="design-kit__preview-label">
+                  Title
+                  <span className="design-kit__preview-input">
+                    Building accessible event platforms
+                  </span>
+                </label>
+                <label className="design-kit__preview-label">
+                  Abstract
+                  <span className="design-kit__preview-abstract">
+                    A short summary of the talk for the review board…
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  className="design-kit__preview-btn lumen-focusable"
+                  data-testid="design-preview-button"
+                  tabIndex={-1}
+                >
+                  Submit proposal
+                </button>
+              </div>
+            </div>
+
             <p className="event-settings__meta" data-testid="design-preview-brand">
               brand {brand} · radius {radius} · onBrand {liveTokens.brandFg}
             </p>

@@ -113,7 +113,11 @@
     "O04",
     "O05",
     "O06",
-    "L2-01"
+    "L2-01",
+    "L2-02",
+    "L2-03",
+    "L2-04",
+    "L2-05"
   ],
   "fingerprints": {
     "A01": {
@@ -559,6 +563,22 @@
     "L2-01": {
       "test_id": "e2e/lumen2/state-sheet",
       "journey": "Review primitives + state anatomy (`data-testid=l2-state-sheet`)"
+    },
+    "L2-02": {
+      "test_id": "e2e/lumen2/session-expired",
+      "journey": "Session expired \u2192 focused recovery panel (no auth alert in shell)"
+    },
+    "L2-03": {
+      "test_id": "e2e/lumen2/settings-two-pane",
+      "journey": "Two-pane category nav + content region"
+    },
+    "L2-04": {
+      "test_id": "e2e/lumen2/design-preview-public",
+      "journey": "Live public CFP preview depth (hero + form + CTA)"
+    },
+    "L2-05": {
+      "test_id": "e2e/lumen2/settings-a11y-keyboard",
+      "journey": "Keyboard focus journey + 390px usable settings"
     }
   }
 }

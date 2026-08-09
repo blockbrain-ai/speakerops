@@ -1,5 +1,5 @@
 /**
- * API Keys admin UI (section 7.1 / S-CLI).
+ * API Keys admin UI (section 7.1 / S-CLI) + 11.7 state polish (S-L2-A11Y).
  *
  * Inventory:
  * - K01 create key with subset of scopes; secret shown once
@@ -9,6 +9,7 @@
  *
  * Wired to real Keys.List / Keys.Create / Keys.Revoke APIs.
  * Secret is held in component state only until dismissed — never re-fetched.
+ * Session 401 → navigate to login recovery (never auth alert inside shell).
  */
 import {
   useCallback,
@@ -17,6 +18,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   API_SCOPES,
   DEFAULT_DENY_SCOPE_SET,
@@ -29,14 +31,23 @@ import {
   type KeysCreateResponse,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
+import {
+  EmptyState,
+  LoadingState,
+  NetworkErrorState,
+  PermissionDeniedState,
+} from "../components/ui/index.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
 
 export function ApiKeysPage() {
   const { activeEventId } = useEventContext();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [keys, setKeys] = useState<ApiKeyDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const [name, setName] = useState("");
   /** Multiselect: safe scopes start unchecked; default-deny opt-in. */
@@ -55,45 +66,63 @@ export function ApiKeysPage() {
 
   const loadKeys = useCallback(async () => {
     setLoadError(null);
-    const res = await fetch("/api/keys", {
-      credentials: "include",
-      headers: { accept: "application/json" },
-    });
-    if (res.status === 401 || res.status === 403) {
-      setLoadError(
-        res.status === 401
-          ? "Authentication required"
-          : "You do not have permission to manage API keys",
-      );
-      setKeys([]);
-      setLoading(false);
-      return;
-    }
-    if (!res.ok) {
-      setLoadError(`Failed to load keys (${res.status})`);
-      setLoading(false);
-      return;
-    }
-    const raw: unknown = await res.json();
-    const parsed = KeysListResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      setLoadError("Invalid keys response");
-      setLoading(false);
-      return;
-    }
-    // Defense: never accept secret/hash fields if a buggy server sends them
-    for (const k of parsed.data.keys) {
-      const rec = k as ApiKeyDto & { secret?: unknown; keyHash?: unknown };
-      if (rec.secret !== undefined || rec.keyHash !== undefined) {
-        setLoadError("Server returned secret material — refused");
+    setPermissionDenied(false);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/keys", {
+        credentials: "include",
+        headers: { accept: "application/json" },
+      });
+      if (res.status === 401) {
+        // Fail closed: focused recovery on login, not auth alert in shell.
+        setKeys([]);
+        setLoading(false);
+        navigate("/login", {
+          replace: true,
+          state: {
+            sessionExpired: true,
+            from: location.pathname,
+          },
+        });
+        return;
+      }
+      if (res.status === 403) {
+        setPermissionDenied(true);
         setKeys([]);
         setLoading(false);
         return;
       }
+      if (!res.ok) {
+        setLoadError(`Failed to load keys (${res.status})`);
+        setKeys([]);
+        setLoading(false);
+        return;
+      }
+      const raw: unknown = await res.json();
+      const parsed = KeysListResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        setLoadError("Invalid keys response");
+        setLoading(false);
+        return;
+      }
+      // Defense: never accept secret/hash fields if a buggy server sends them
+      for (const k of parsed.data.keys) {
+        const rec = k as ApiKeyDto & { secret?: unknown; keyHash?: unknown };
+        if (rec.secret !== undefined || rec.keyHash !== undefined) {
+          setLoadError("Server returned secret material — refused");
+          setKeys([]);
+          setLoading(false);
+          return;
+        }
+      }
+      setKeys(parsed.data.keys);
+      setLoading(false);
+    } catch {
+      setLoadError("Network error loading keys");
+      setKeys([]);
+      setLoading(false);
     }
-    setKeys(parsed.data.keys);
-    setLoading(false);
-  }, []);
+  }, [navigate, location.pathname]);
 
   useEffect(() => {
     void loadKeys();
@@ -244,9 +273,25 @@ export function ApiKeysPage() {
     }
   }
 
+  if (permissionDenied) {
+    return (
+      <div
+        className="api-keys"
+        data-testid="api-keys-page"
+        data-section="11.7"
+      >
+        <PermissionDeniedState
+          title="API keys require admin"
+          description="You do not have permission to manage API keys. High-risk scopes stay default-deny on the server."
+          data-testid="api-keys-permission-denied"
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="api-keys" data-testid="api-keys-page" data-section="7.1">
-      <p className="page-stub__overline">Settings</p>
+    <div className="api-keys" data-testid="api-keys-page" data-section="11.7">
+      <p className="page-stub__overline">Settings · API keys</p>
       <h2 className="page-stub__title">API keys</h2>
       <p className="page-stub__body">
         Mint scoped keys for CLI and agents. The full secret is shown once at
@@ -430,21 +475,25 @@ export function ApiKeysPage() {
           Active keys
         </h3>
         {loading ? (
-          <p className="page-stub__body" data-testid="api-keys-loading">
-            Loading…
-          </p>
+          <LoadingState
+            label="Loading API keys…"
+            rows={3}
+            data-testid="api-keys-loading"
+          />
         ) : loadError ? (
-          <p
-            className="event-settings__status event-settings__status--error"
+          <NetworkErrorState
+            title="Couldn't load API keys"
+            description={loadError}
+            onRetry={() => void loadKeys()}
             data-testid="api-keys-load-error"
-            role="alert"
-          >
-            {loadError}
-          </p>
+          />
         ) : activeKeys.length === 0 ? (
-          <p className="page-stub__body" data-testid="api-keys-empty">
-            No active API keys yet.
-          </p>
+          <EmptyState
+            title="No active API keys"
+            description="Create a scoped key for the CLI or an agent. The secret is shown once at creation."
+            icon="settings"
+            data-testid="api-keys-empty"
+          />
         ) : (
           <ul className="api-keys__list" data-testid="api-keys-list">
             {activeKeys.map((k) => (

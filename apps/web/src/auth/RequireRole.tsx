@@ -1,14 +1,16 @@
 /**
- * UI route guard — section 2.2.
+ * UI route guard — section 2.2 + 11.7 session recovery (S-L2-A11Y).
  *
  * Probes server-side role via real API (never trust client alone):
  * - roles includes admin → GET /api/events (Event.List admin gate)
  *
- * Unauthenticated (401) → redirect /login
- * Wrong role (403) → AccessDenied surface
+ * Unauthenticated (401) → redirect /login with session-expired recovery state
+ *   (never leave an auth alert inside a usable admin shell)
+ * Wrong role (403) → AccessDenied / PermissionDenied surface
  * OK (200) → children
  *
  * Inventory: B04 unauth admin blocked · B05 speaker blocked from admin
+ * · L2-02 session recovery
  */
 import {
   useCallback,
@@ -19,6 +21,8 @@ import {
 import { Navigate, useLocation } from "react-router-dom";
 import type { EventRole } from "@speakerops/shared";
 import { ErrorEnvelopeSchema } from "@speakerops/shared";
+import { LoadingState } from "../components/ui/LoadingState.js";
+
 
 export type RequireRoleProps = {
   /** Allowed roles for this surface (UI mirrors server requireRole). */
@@ -202,17 +206,25 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
         data-testid="require-role-loading"
         data-section="2.2"
       >
-        <p className="access-denied__body">Checking access…</p>
+        <LoadingState
+          label="Checking access…"
+          rows={2}
+          data-testid="require-role-loading-state"
+        />
       </div>
     );
   }
 
   if (state.status === "unauthenticated") {
+    // Focused recovery on login — never paint privileged shell with auth alert.
     return (
       <Navigate
         to="/login"
         replace
-        state={{ from: location.pathname }}
+        state={{
+          from: location.pathname,
+          sessionExpired: true,
+        }}
       />
     );
   }

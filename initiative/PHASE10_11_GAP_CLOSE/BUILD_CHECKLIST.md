@@ -19,7 +19,7 @@
 | BC-11 | S-L2-SUB | Master-detail polish | e2e | OPEN | | |
 | BC-12 | S-L2-SCHED | Studio polish | e2e | OPEN | | |
 | BC-13 | S-L2-PORTAL | Portal polish | e2e | OPEN | | |
-| BC-14 | S-L2-A11Y | a11y + session recovery | e2e + checklist | OPEN | | |
+| BC-14 | S-L2-A11Y | a11y + session recovery | e2e + checklist | DONE_WITH_EVIDENCE | 11.7 | docs/audits/LUMEN2_QA_EVIDENCE.md · playwright/e2e/session_states_a11y.spec.ts |
 | BC-15 | S-L2-SCORE | ≥8.0 / no primary &lt;7 | taste score doc | OPEN | | |
 | BC-16 | S-DOGFOOD | Deploy + keystone on www.speakerops.org | deploy log + e2e | OPEN | | |
 | BC-17 | S-SCHED-CHROME | Schedule day chrome fixed or absence proven | e2e or absence note | OPEN | | residual #7 |
