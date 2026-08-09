@@ -40,6 +40,7 @@
 | E2E keystone HTML report (8.5) | [`docs/sections/8.5-e2e-keystone-report.md`](./sections/8.5-e2e-keystone-report.md) · [`docs/E2E.md`](./E2E.md) | `pnpm docs:e2e-report` → offline `reports/e2e-coverage.html` (S-E2E-RUN) |
 | HTML reports portal (9.5 / S-DOCS) | [`docs/sections/9.5-html-reports.md`](./sections/9.5-html-reports.md) · [`reports/index.html`](../reports/index.html) | `pnpm docs:reports` → Lumen offline portal + report set |
 | Cloudflare dogfood deploy (8.6 / S-CF) | [`docs/sections/8.6-cloudflare-dogfood-deploy.md`](./sections/8.6-cloudflare-dogfood-deploy.md) · [`docs/OPERATIONS.md`](./OPERATIONS.md) | `scripts/deploy-dogfood.sh` · BC10 evidence · names-only secrets |
+| DEMO host / public CFP captcha (10.3) | [`docs/DEMO_HOST.md`](./DEMO_HOST.md) · [`docs/OPERATIONS.md`](./OPERATIONS.md) · [`docs/SECRETS.md`](./SECRETS.md) | `DEMO_MODE` + allowlist names; S-CFP-SUBMIT / S-CFP-CLOSED |
 
 Engineering standards **E1–E12** live in the Section Runner RUNS_DIR as `speakerops-engineering-standards.md` (not duplicated here).
 

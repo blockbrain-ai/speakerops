@@ -54,7 +54,10 @@ crons = ["* * * * *"]
 # ---------------------------------------------------------------------------
 [env.dogfood]
 name = "speakerops-api"
-vars = { APP_VERSION = "0.1.0" }
+# Section 10.3 — DEMO captcha path for dogfood (S-CFP-SUBMIT). Names only (E10).
+# DEMO_MODE forces test Turnstile site key + DEV_PASS under host allowlist.
+# See docs/DEMO_HOST.md and docs/OPERATIONS.md.
+vars = { APP_VERSION = "0.1.0", DEMO_MODE = "1", DEMO_ALLOWLIST_ENABLED = "1", DEMO_ALLOWLIST_HOSTS = "www.speakerops.org,speakerops.org,localhost,127.0.0.1" }
 
 [[env.dogfood.d1_databases]]
 binding = "DB"
