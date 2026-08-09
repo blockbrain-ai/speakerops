@@ -1,13 +1,18 @@
 import { z } from "zod";
 
 /**
- * Evaluation scoring DTOs (section 3.4 / S-EVAL).
+ * Evaluation scoring DTOs (section 3.4 / S-EVAL + 10.2 progress contract).
  * Commands: Eval.UpsertRubric · Eval.Score · Submission.AssignEvaluators
  * HTTP: PUT/GET /api/events/:eventId/eval/rubric
+ *       GET /api/events/:eventId/eval/rollup
  *       POST /api/assignments/:assignmentId/scores
  *       GET /api/me/eval-queue
  *       POST /api/submissions/:submissionId/assign
  * Human scoring only — no AI.
+ *
+ * Section 10.2: response schemas accept production / D1-shaped numbers
+ * (string numerics from some SQLite bindings) and nullish optionals so
+ * admin evaluations never 500 with "Response validation failed".
  */
 
 export const EvalRoundStatusSchema = z.enum(["open", "closed"]);
@@ -15,6 +20,40 @@ export type EvalRoundStatus = z.infer<typeof EvalRoundStatusSchema>;
 
 export const EvalAssignmentStatusSchema = z.enum(["pending", "scored"]);
 export type EvalAssignmentStatus = z.infer<typeof EvalAssignmentStatusSchema>;
+
+/**
+ * Finite number from number | numeric string (D1/SQLite quirks).
+ * Rejects NaN/Infinity. Does not coerce null/undefined (caller controls nullability).
+ */
+export function coerceFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+/** Zod helper: accept number or numeric string → finite number. */
+const FiniteNumberSchema = z.preprocess((v) => {
+  if (v === null || v === undefined) return v;
+  const n = coerceFiniteNumber(v);
+  return n === undefined ? v : n;
+}, z.number().finite());
+
+/** Nullable finite score (aggregate); null/undefined → null; NaN → fail then null via preprocess. */
+const NullableFiniteNumberSchema = z.preprocess((v) => {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number" && !Number.isFinite(v)) return null;
+  const n = coerceFiniteNumber(v);
+  return n === undefined ? v : n;
+}, z.number().finite().nullable());
+
+/** nullish string → string | null (closesAt, comments, category). */
+const NullableStringSchema = z.preprocess(
+  (v) => (v === undefined || v === "" ? null : v),
+  z.string().nullable(),
+);
 
 /** Rubric criterion input (UpsertRubric). */
 export const EvalCriterionInputSchema = z.object({
@@ -40,9 +79,12 @@ export const EvalCriterionSchema = z.object({
   id: z.string().min(1),
   roundId: z.string().min(1),
   name: z.string(),
-  maxScore: z.number(),
-  weight: z.number(),
-  sortOrder: z.number().int(),
+  maxScore: FiniteNumberSchema,
+  weight: FiniteNumberSchema,
+  sortOrder: z.preprocess((v) => {
+    const n = coerceFiniteNumber(v);
+    return n === undefined ? v : Math.trunc(n);
+  }, z.number().int()),
 });
 export type EvalCriterionDto = z.infer<typeof EvalCriterionSchema>;
 
@@ -51,7 +93,7 @@ export const EvalRoundSchema = z.object({
   eventId: z.string().min(1),
   name: z.string(),
   status: EvalRoundStatusSchema,
-  closesAt: z.string().nullable(),
+  closesAt: NullableStringSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -82,8 +124,8 @@ export const ScoreDtoSchema = z.object({
   id: z.string().min(1),
   assignmentId: z.string().min(1),
   criterionId: z.string().min(1),
-  value: z.number(),
-  comment: z.string().nullable(),
+  value: FiniteNumberSchema,
+  comment: NullableStringSchema,
 });
 export type ScoreDto = z.infer<typeof ScoreDtoSchema>;
 
@@ -93,11 +135,11 @@ export const EvalAssignmentSchema = z.object({
   submissionId: z.string().min(1),
   evaluatorUserId: z.string().min(1),
   status: EvalAssignmentStatusSchema,
-  overallComment: z.string().nullable(),
+  overallComment: NullableStringSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Weighted aggregate when scored; null when pending. */
-  aggregateScore: z.number().nullable().optional(),
+  aggregateScore: NullableFiniteNumberSchema.optional(),
   scores: z.array(ScoreDtoSchema).optional(),
 });
 export type EvalAssignmentDto = z.infer<typeof EvalAssignmentSchema>;
@@ -114,7 +156,7 @@ export const EvalQueueItemSchema = z.object({
     id: z.string().min(1),
     title: z.string(),
     eventId: z.string().min(1),
-    category: z.string().nullable(),
+    category: NullableStringSchema,
     status: z.string(),
   }),
   criteria: z.array(EvalCriterionSchema),
@@ -145,21 +187,21 @@ export type SubmissionAssignResponse = z.infer<
 
 /**
  * Admin rollup for a submission under an event's active round.
- * Aggregate score visible to admin (section 3.4 AC).
+ * Aggregate score visible to admin (section 3.4 AC / 10.2 S-EVAL-UI).
  */
 export const EvalAdminSubmissionRollupSchema = z.object({
   submissionId: z.string().min(1),
   title: z.string(),
-  category: z.string().nullable(),
+  category: NullableStringSchema,
   status: z.string(),
   /** Mean of assignment aggregates when any scored; null otherwise. */
-  aggregateScore: z.number().nullable(),
+  aggregateScore: NullableFiniteNumberSchema,
   assignments: z.array(
     z.object({
       id: z.string().min(1),
       evaluatorUserId: z.string().min(1),
       status: EvalAssignmentStatusSchema,
-      aggregateScore: z.number().nullable(),
+      aggregateScore: NullableFiniteNumberSchema,
     }),
   ),
 });
@@ -178,7 +220,7 @@ export type EvalAdminRollupResponse = z.infer<
 
 /**
  * Weighted aggregate: sum(value * weight) / sum(weight).
- * Returns null when there are no scored criteria.
+ * Returns null when there are no scored criteria or result is non-finite.
  */
 export function computeWeightedAggregate(
   items: ReadonlyArray<{ value: number; weight: number }>,
@@ -187,9 +229,13 @@ export function computeWeightedAggregate(
   let num = 0;
   let den = 0;
   for (const item of items) {
-    num += item.value * item.weight;
-    den += item.weight;
+    const value = coerceFiniteNumber(item.value);
+    const weight = coerceFiniteNumber(item.weight);
+    if (value === undefined || weight === undefined) continue;
+    num += value * weight;
+    den += weight;
   }
   if (den <= 0) return null;
-  return num / den;
+  const out = num / den;
+  return Number.isFinite(out) ? out : null;
 }

@@ -1,6 +1,7 @@
 /**
- * Admin evaluations rollup (section 3.4).
- * Aggregate scores visible to admin via GET /api/events/:eventId/eval/rollup.
+ * Admin evaluations rollup (section 3.4 / 10.2 S-EVAL-UI).
+ * Aggregate scores via GET /api/events/:eventId/eval/rollup.
+ * Contract: EvalAdminRollupResponseSchema — never surface "Response validation failed".
  */
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -10,45 +11,89 @@ import {
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
 
+const ROLLUP_FETCH_TIMEOUT_MS = 12_000;
+
 export function AdminEvaluationsPage() {
   const { activeEventId } = useEventContext();
   const [rows, setRows] = useState<EvalAdminSubmissionRollup[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasRound, setHasRound] = useState(false);
+  const [criteriaCount, setCriteriaCount] = useState(0);
 
   const load = useCallback(async (eventId: string) => {
     setLoading(true);
     setLoadError(null);
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      ROLLUP_FETCH_TIMEOUT_MS,
+    );
     try {
       const res = await fetch(
         `/api/events/${encodeURIComponent(eventId)}/eval/rollup`,
         {
           credentials: "include",
           headers: { accept: "application/json" },
+          signal: controller.signal,
         },
       );
+      if (res.status === 401) {
+        setLoadError("Sign in required");
+        setRows([]);
+        setHasRound(false);
+        setCriteriaCount(0);
+        return;
+      }
+      if (res.status === 403) {
+        setLoadError("Admin role required to view evaluation progress");
+        setRows([]);
+        setHasRound(false);
+        setCriteriaCount(0);
+        return;
+      }
       if (!res.ok) {
         const raw: unknown = await res.json().catch(() => null);
         const env = ErrorEnvelopeSchema.safeParse(raw);
-        setLoadError(env.success ? env.data.error : `Failed (${res.status})`);
+        // Map server Zod-output failure (pre-10.2) to recovery copy — never
+        // leave operators blocked on the raw INTERNAL_ERROR string alone.
+        const msg = env.success
+          ? env.data.error === "Response validation failed"
+            ? "Evaluation progress could not be loaded (server response invalid). Retry or re-save the rubric."
+            : env.data.error
+          : `Failed (${res.status})`;
+        setLoadError(msg);
         setRows([]);
-        setLoading(false);
+        setHasRound(false);
+        setCriteriaCount(0);
         return;
       }
       const raw: unknown = await res.json();
       const parsed = EvalAdminRollupResponseSchema.safeParse(raw);
       if (!parsed.success) {
-        setLoadError("Unexpected rollup response");
+        setLoadError(
+          "Evaluation progress response was not understood. Retry or contact support.",
+        );
         setRows([]);
-        setLoading(false);
+        setHasRound(false);
+        setCriteriaCount(0);
         return;
       }
       setHasRound(parsed.data.round != null);
+      setCriteriaCount(parsed.data.criteria.length);
       setRows(parsed.data.submissions);
-    } catch {
-      setLoadError("Network error");
+      setLoadError(null);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setLoadError("Timed out loading evaluation progress");
+      } else {
+        setLoadError("Network error");
+      }
+      setRows([]);
+      setHasRound(false);
+      setCriteriaCount(0);
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }, []);
@@ -56,6 +101,12 @@ export function AdminEvaluationsPage() {
   useEffect(() => {
     if (activeEventId) {
       void load(activeEventId);
+    } else {
+      setRows([]);
+      setHasRound(false);
+      setCriteriaCount(0);
+      setLoadError(null);
+      setLoading(false);
     }
   }, [activeEventId, load]);
 
@@ -79,7 +130,9 @@ export function AdminEvaluationsPage() {
       </p>
 
       {!activeEventId ? (
-        <p className="eval-queue__muted">Select an event.</p>
+        <p className="eval-queue__muted" data-testid="eval-rollup-no-event">
+          Select an event.
+        </p>
       ) : null}
       {loading ? (
         <p className="eval-queue__muted" data-testid="eval-rollup-loading">
@@ -100,6 +153,8 @@ export function AdminEvaluationsPage() {
         <section
           className="event-settings__card"
           data-testid="eval-rollup-section"
+          data-has-round={hasRound ? "1" : "0"}
+          data-criteria-count={String(criteriaCount)}
         >
           {!hasRound ? (
             <p className="eval-queue__muted" data-testid="eval-rollup-no-rubric">

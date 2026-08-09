@@ -10,6 +10,7 @@
 import {
   uuidv7,
   computeWeightedAggregate,
+  coerceFiniteNumber,
   type EvalUpsertRubricBody,
   type EvalScoreBody,
   type EvalRoundDto,
@@ -18,6 +19,8 @@ import {
   type ScoreDto,
   type EvalQueueItem,
   type EvalAdminSubmissionRollup,
+  type EvalAssignmentStatus,
+  type EvalRoundStatus,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
@@ -50,13 +53,29 @@ export type CommandErr = {
   details?: unknown;
 };
 
+function asRoundStatus(status: string): EvalRoundStatus {
+  return status === "closed" ? "closed" : "open";
+}
+
+function asAssignmentStatus(status: string): EvalAssignmentStatus {
+  return status === "scored" ? "scored" : "pending";
+}
+
+function finiteOr(
+  value: unknown,
+  fallback: number,
+): number {
+  const n = coerceFiniteNumber(value);
+  return n === undefined ? fallback : n;
+}
+
 function toRoundDto(row: EvalRoundRow): EvalRoundDto {
   return {
     id: row.id,
     eventId: row.eventId,
-    name: row.name,
-    status: row.status,
-    closesAt: row.closesAt,
+    name: row.name ?? "",
+    status: asRoundStatus(row.status),
+    closesAt: row.closesAt ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -66,10 +85,10 @@ function toCriterionDto(row: EvalCriterionRow): EvalCriterionDto {
   return {
     id: row.id,
     roundId: row.roundId,
-    name: row.name,
-    maxScore: row.maxScore,
-    weight: row.weight,
-    sortOrder: row.sortOrder,
+    name: row.name ?? "",
+    maxScore: finiteOr(row.maxScore, 0),
+    weight: finiteOr(row.weight, 1),
+    sortOrder: Math.trunc(finiteOr(row.sortOrder, 0)),
   };
 }
 
@@ -78,8 +97,8 @@ function toScoreDto(row: ScoreRow): ScoreDto {
     id: row.id,
     assignmentId: row.assignmentId,
     criterionId: row.criterionId,
-    value: row.value,
-    comment: row.comment,
+    value: finiteOr(row.value, 0),
+    comment: row.comment ?? null,
   };
 }
 
@@ -114,11 +133,14 @@ async function toAssignmentDto(
     roundId: row.roundId,
     submissionId: row.submissionId,
     evaluatorUserId: row.evaluatorUserId,
-    status: row.status,
-    overallComment: row.overallComment,
+    status: asAssignmentStatus(row.status),
+    overallComment: row.overallComment ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    aggregateScore,
+    aggregateScore:
+      aggregateScore != null && Number.isFinite(aggregateScore)
+        ? aggregateScore
+        : null,
   };
   if (includeScores) {
     const scores = await deps.eval.listScores(row.id);
@@ -572,6 +594,13 @@ export async function getEvalQueue(
 
 /**
  * Admin rollup: aggregate scores visible to admin per submission.
+ *
+ * Reliability (S-EVAL-UI / 10.2):
+ * - Event row may be absent for synthetic bootstrap memberships (evt_dogfood);
+ *   rollup is still event-scoped by id (empty when no rows) — same as Submission.List.
+ * - Always emit Zod-valid EvalAdminRollupResponse (coerce numerics, nullish fields,
+ *   normalize assignment status) so SPA never sees "Response validation failed".
+ * - Skip corrupt submission rows rather than 500 the whole progress view.
  */
 export async function getAdminEvalRollup(
   deps: EvalCommandDeps,
@@ -583,10 +612,8 @@ export async function getAdminEvalRollup(
     submissions: EvalAdminSubmissionRollup[];
   }> | CommandErr
 > {
-  const event = await deps.events.findEventById(eventId);
-  if (!event) {
-    return { ok: false, status: 404, error: "Event not found", code: "NOT_FOUND" };
-  }
+  // Prefer real event; bootstrap-only memberships have no row — still rollup by id.
+  void (await deps.events.findEventById(eventId));
 
   const round = await deps.eval.findActiveRoundForEvent(eventId);
   if (!round) {
@@ -602,19 +629,35 @@ export async function getAdminEvalRollup(
 
   const rollups: EvalAdminSubmissionRollup[] = [];
   for (const sub of submissions) {
+    // Harden against corrupt SoR rows — skip rather than 500 the whole rollup.
+    const submissionId = (sub.id ?? "").trim();
+    if (!submissionId) continue;
+    const title = (sub.title ?? "").trim() || "(untitled)";
+    const status =
+      typeof sub.status === "string" && sub.status.trim() !== ""
+        ? sub.status
+        : "submitted";
+    const category =
+      sub.category == null || sub.category === ""
+        ? null
+        : String(sub.category);
+
     const subAssignments = allAssignments.filter(
-      (a) => a.submissionId === sub.id,
+      (a) => a.submissionId === submissionId,
     );
     const assignmentSummaries: EvalAdminSubmissionRollup["assignments"] = [];
     const aggregates: number[] = [];
     for (const a of subAssignments) {
+      if (!(a.id ?? "").trim()) continue;
       const agg = await assignmentAggregate(deps, a, criteria);
-      if (agg != null) aggregates.push(agg);
+      const safeAgg =
+        agg != null && Number.isFinite(agg) ? agg : null;
+      if (safeAgg != null) aggregates.push(safeAgg);
       assignmentSummaries.push({
         id: a.id,
         evaluatorUserId: a.evaluatorUserId,
-        status: a.status,
-        aggregateScore: agg,
+        status: asAssignmentStatus(a.status),
+        aggregateScore: safeAgg,
       });
     }
     const mean =
@@ -622,11 +665,12 @@ export async function getAdminEvalRollup(
         ? aggregates.reduce((s, v) => s + v, 0) / aggregates.length
         : null;
     rollups.push({
-      submissionId: sub.id,
-      title: sub.title,
-      category: sub.category,
-      status: sub.status,
-      aggregateScore: mean,
+      submissionId,
+      title,
+      category,
+      status,
+      aggregateScore:
+        mean != null && Number.isFinite(mean) ? mean : null,
       assignments: assignmentSummaries,
     });
   }
