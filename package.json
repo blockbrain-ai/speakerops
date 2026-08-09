@@ -13,6 +13,7 @@
     "test:e2e:visual": "node scripts/e2e-run.mjs playwright/e2e/visual_lumen2.spec.ts",
     "test:e2e:phase10-keystone": "node scripts/e2e-run.mjs playwright/e2e/phase10_product_keystone.spec.ts",
     "test:e2e:phase10": "node scripts/e2e-run.mjs playwright/e2e/submissions_list_reliability.spec.ts playwright/e2e/evaluations_progress.spec.ts playwright/e2e/public_cfp_submit_demo.spec.ts playwright/e2e/auth_roles_dogfood.spec.ts playwright/e2e/cfp_draft.spec.ts playwright/e2e/schedule_day_chrome.spec.ts playwright/e2e/eval_export_sort.spec.ts playwright/e2e/phase10_product_keystone.spec.ts",
+    "test:e2e:phase11-keystone": "node scripts/e2e-phase11-keystone.mjs",
     "db:generate": "node scripts/db-generate.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "seed": "tsx scripts/seed.ts",

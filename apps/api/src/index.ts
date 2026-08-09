@@ -820,17 +820,47 @@ export type QueueMessageBatch = {
 };
 
 /**
+ * True when the request must hit the Hono API (not SPA assets).
+ * Used with Workers Static Assets + run_worker_first (section 11.9 dogfood).
+ */
+function isApiOrHealthPath(pathname: string): boolean {
+  return (
+    pathname === "/health" ||
+    pathname === "/health/" ||
+    pathname === "/api" ||
+    pathname.startsWith("/api/")
+  );
+}
+
+/**
  * Cloudflare Workers default export.
- * - fetch: Hono HTTP (D1-backed stores)
+ * - fetch: Hono HTTP (D1-backed stores) + optional SPA ASSETS fallback
  * - queue: drain comms + airtable outbox after JOBS_QUEUE kicks
  * - scheduled: cron backup drain so rows are never permanently stuck
  */
 export default {
-  fetch(
+  async fetch(
     request: Request,
     env: WorkerBindings,
     ctx?: unknown,
-  ): Response | Promise<Response> {
+  ): Promise<Response> {
+    const url = new URL(request.url);
+    // API + health always go through Hono (auth, domain commands, E4).
+    if (isApiOrHealthPath(url.pathname)) {
+      const key = env as object;
+      let app = appByEnv.get(key);
+      if (!app) {
+        app = createAppFromBindings(env);
+        appByEnv.set(key, app);
+      }
+      return app.fetch(request, env, ctx as never);
+    }
+    // Dogfood SPA: Workers Assets binding (wrangler [assets]).
+    if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
+      return env.ASSETS.fetch(request);
+    }
+    // No assets binding (workers.dev API-only): still serve API app for unknown paths
+    // so Hono can return E4 404 envelopes.
     const key = env as object;
     let app = appByEnv.get(key);
     if (!app) {

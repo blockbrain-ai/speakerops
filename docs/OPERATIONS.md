@@ -147,6 +147,10 @@ Without DEMO_MODE, production construction still requires real Turnstile keys.
 
 ### 4.5 Deploy + health smoke (preferred one-shot)
 
+**S-DOGFOOD binding URL:** `https://www.speakerops.org` (Worker name
+`speakerops-demo`, wrangler `[env.dogfood]`). Section **11.9** writes phase
+evidence under `initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md`.
+
 ```bash
 # From repo root — loads secrets.env then runs deploy script
 scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
@@ -157,28 +161,40 @@ The script:
 
 1. **Fails nonzero** if `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_ACCOUNT_ID` is missing
    (clear message listing required names).
-2. Runs `wrangler deploy` (unless `DOGFOOD_SKIP_DEPLOY=1` or `DEPLOY_DRY_RUN=1`).
-3. `GET {base}/health` and requires HTTP **200** + `"ok": true`.
-4. Writes redacted evidence to
-   `KMS-competition/initiative/evidence/cf-dogfood.txt` (**BC10** path).
+2. Builds SPA (`pnpm --filter @speakerops/web build`) into `apps/web/dist` for
+   Workers Assets (unless `DOGFOOD_SKIP_WEB_BUILD=1`).
+3. Runs `wrangler deploy --env dogfood` (unless `DOGFOOD_SKIP_DEPLOY=1` or
+   `DEPLOY_DRY_RUN=1`). Worker name comes from `[env.dogfood].name`.
+4. `GET https://www.speakerops.org/health` (default) and requires HTTP **200** +
+   `"ok": true`.
+5. Writes redacted evidence to:
+   - `KMS-competition/initiative/evidence/cf-dogfood.txt` (**BC10** / S-CF)
+   - `initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md` (**BC-16** / S-DOGFOOD)
 
 Manual equivalent:
 
 ```bash
-wrangler deploy --config wrangler.toml --name speakerops-api
-curl -sS "https://<worker>.<account>.workers.dev/health"
+pnpm --filter @speakerops/web build
+wrangler deploy --config wrangler.toml --env dogfood --keep-vars
+curl -sS "https://www.speakerops.org/health"
 # expect: {"ok":true,"version":"…"}
 ```
 
 ### 4.6 Optional remote Playwright smoke
 
 ```bash
-SMOKE_BASE_URL=https://<worker>.<account>.workers.dev \
+# Lightweight health-only (skips when SMOKE_BASE_URL unset)
+SMOKE_BASE_URL=https://www.speakerops.org \
   pnpm exec playwright test playwright/e2e/cf_dogfood_smoke.spec.ts
+
+# Section 11.9 — full 18-soul D keystone (never use alternate URL for S-DOGFOOD claim)
+scripts/with-secrets.sh pnpm test:e2e:phase11-keystone
 ```
 
-When `SMOKE_BASE_URL` is unset, the spec **skips** (no inventory ownership; does not
-block local `pnpm test:e2e`).
+When `SMOKE_BASE_URL` is unset, the optional health smoke **skips** (no inventory
+ownership; does not block local `pnpm test:e2e`). The phase11 keystone requires
+`DOGFOOD_KEYSTONE=1` (set by `pnpm test:e2e:phase11-keystone`) and CF credentials
+for session mint.
 
 ---
 
