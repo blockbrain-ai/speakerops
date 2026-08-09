@@ -15,8 +15,12 @@ import {
   Field,
   Icon,
   ICON_NAMES,
+  LoadingState,
   Modal,
+  NetworkErrorState,
   PageHeader,
+  PermissionDeniedState,
+  SessionExpiredPanel,
   Skeleton,
 } from "../components/ui/index.js";
 
@@ -314,6 +318,37 @@ export function L2StateSheetPage() {
             action={<Button variant="primary">Open CFP form</Button>}
           />
         </Card>
+      </section>
+
+      {/* 11.7 cross-cutting states */}
+      <section
+        className="l2-state-sheet__section"
+        data-testid="l2-sheet-global-states"
+      >
+        <h2 className="l2-state-sheet__section-title">
+          Session / network / permission / loading
+        </h2>
+        <div className="l2-state-sheet__stack" style={{ gap: 16 }}>
+          <SessionExpiredPanel
+            from="/admin/settings"
+            data-testid="l2-state-sheet-session-expired"
+          />
+          <NetworkErrorState
+            title="Couldn't load this data"
+            description="A network or server error interrupted the request."
+            onRetry={() => undefined}
+            data-testid="l2-state-sheet-network-error"
+          />
+          <PermissionDeniedState
+            description="You do not have permission for this area."
+            data-testid="l2-state-sheet-permission"
+          />
+          <LoadingState
+            label="Loading…"
+            rows={2}
+            data-testid="l2-state-sheet-loading"
+          />
+        </div>
       </section>
 
       {/* Skeleton */}

@@ -333,51 +333,60 @@ export function EventSettingsPage() {
   }
 
   return (
-    <div className="event-settings" data-testid="page-settings" data-section="2.3">
-      <p className="page-stub__overline">Settings</p>
+    <div
+      className="event-settings"
+      data-testid="page-settings"
+      data-section="11.7"
+    >
+      <p className="page-stub__overline">Settings · Event</p>
       <h2 className="page-stub__title">Event settings</h2>
       <p className="page-stub__body">
-        Create events, edit name/timezone/dates, and manage rooms and tracks.{" "}
+        Create events, edit name/timezone/dates, and manage rooms and tracks.
+        Use the settings categories on the left for brand, rubric, tasks, API
+        keys, and Airtable.
+      </p>
+      {/* Legacy deep-link anchors kept for existing e2e (settings-*-link). */}
+      <nav
+        className="event-settings__legacy-links"
+        aria-label="Related settings"
+        data-testid="settings-related-links"
+      >
         <a
           href="/admin/settings/design"
           className="design-kit__link lumen-focusable"
           data-testid="settings-design-link"
         >
-          Design Kit →
+          Design Kit
         </a>
-        {" · "}
         <a
           href="/admin/settings/rubric"
           className="design-kit__link lumen-focusable"
           data-testid="settings-rubric-link"
         >
-          Eval rubric →
+          Eval rubric
         </a>
-        {" · "}
         <a
           href="/admin/settings/task-templates"
           className="design-kit__link lumen-focusable"
           data-testid="settings-task-templates-link"
         >
-          Task templates →
+          Task templates
         </a>
-        {" · "}
         <a
           href="/admin/settings/api-keys"
           className="design-kit__link lumen-focusable"
           data-testid="settings-api-keys-link"
         >
-          API keys →
+          API keys
         </a>
-        {" · "}
         <a
           href="/admin/settings/airtable"
           className="design-kit__link lumen-focusable"
           data-testid="settings-airtable-link"
         >
-          Airtable status →
+          Airtable status
         </a>
-      </p>
+      </nav>
 
       {/* C01 — Create event */}
       <section

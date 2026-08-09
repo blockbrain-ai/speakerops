@@ -213,6 +213,10 @@
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
 | L2-01 | admin | Lumen 2 state sheet | Review primitives + state anatomy (`data-testid=l2-state-sheet`) | e2e/lumen2/state-sheet | Unauth cannot open sheet | REQUIRED | PASS |
+| L2-02 | admin | Login recovery | Session expired → focused recovery panel (no auth alert in shell) | e2e/lumen2/session-expired | Unauth never sees settings shell | REQUIRED | PASS |
+| L2-03 | admin | Settings shell | Two-pane category nav + content region | e2e/lumen2/settings-two-pane | Evaluator cannot open settings | REQUIRED | PASS |
+| L2-04 | admin | Design Kit | Live public CFP preview depth (hero + form + CTA) | e2e/lumen2/design-preview-public | Admin chrome not rethemed | REQUIRED | PASS |
+| L2-05 | admin | Settings a11y | Keyboard focus journey + 390px usable settings | e2e/lumen2/settings-a11y-keyboard | — | REQUIRED | PASS |
 
 ---
 

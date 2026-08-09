@@ -4133,3 +4133,202 @@ a.event-settings__btn {
     flex: 1 1 auto;
   }
 }
+
+/* =========================================================================
+ * Section 11.7 — Settings two-pane shell (S-L2-A11Y)
+ * ========================================================================= */
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: var(--lumen-space-6);
+  align-items: start;
+  max-width: 72rem;
+}
+
+.settings-shell__nav {
+  position: sticky;
+  top: var(--lumen-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+  padding: var(--lumen-space-4);
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  box-shadow: var(--lumen-shadow-sm);
+}
+
+.settings-shell__nav-heading {
+  margin: 0;
+  font-size: var(--lumen-text-meta);
+  font-weight: var(--lumen-font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lumen-text-tertiary);
+}
+
+.settings-shell__nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+}
+
+.settings-shell__nav-link {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lumen-space-2);
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border-radius: var(--lumen-radius-sm);
+  color: var(--lumen-text-secondary);
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.settings-shell__nav-link:hover {
+  background: var(--lumen-surface-muted);
+  color: var(--lumen-text);
+}
+
+.settings-shell__nav-link--active {
+  background: var(--lumen-brand-soft, var(--lumen-surface-muted));
+  color: var(--lumen-text);
+  font-weight: var(--lumen-font-weight-semibold);
+}
+
+.settings-shell__nav-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-shell__nav-label {
+  font-size: var(--lumen-text-ui);
+  line-height: var(--lumen-text-ui-lh);
+}
+
+.settings-shell__nav-desc {
+  font-size: var(--lumen-text-meta);
+  color: var(--lumen-text-tertiary);
+  line-height: 1.3;
+}
+
+.settings-shell__content {
+  min-width: 0;
+}
+
+.event-settings__legacy-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-3);
+  margin: 0 0 var(--lumen-space-4);
+  font-size: 13px;
+}
+
+/* Design Kit — live public CFP preview depth */
+.design-kit__preview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lumen-space-2);
+  margin-bottom: var(--lumen-space-3);
+}
+
+.design-kit__preview-public {
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  overflow: hidden;
+  background: var(--lumen-surface);
+}
+
+.design-kit__preview-hero {
+  padding: var(--lumen-space-5);
+  background: var(--lumen-brand-soft, var(--lumen-surface-muted));
+  border-bottom: 1px solid var(--lumen-border);
+}
+
+.design-kit__preview-event {
+  margin: var(--lumen-space-1) 0 0;
+  font-size: var(--lumen-text-meta);
+  color: var(--lumen-text-secondary);
+}
+
+.design-kit__preview-status {
+  margin: var(--lumen-space-2) 0 0;
+  font-size: var(--lumen-text-meta);
+  color: var(--lumen-text-secondary);
+}
+
+.design-kit__preview-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+  padding: var(--lumen-space-5);
+}
+
+.design-kit__preview-section {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-text);
+}
+
+.design-kit__preview-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-text-secondary);
+}
+
+.design-kit__preview-input,
+.design-kit__preview-abstract {
+  display: block;
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface);
+  color: var(--lumen-text);
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.design-kit__preview-abstract {
+  min-height: 4rem;
+  color: var(--lumen-text-secondary);
+}
+
+/* Brand scope: event tokens apply only inside this subtree (inline --lumen-brand*). */
+.l2-brand-scope .design-kit__preview-btn {
+  /* Primary CTA already uses --lumen-brand / --lumen-brand-fg from scoped vars */
+  box-shadow: none;
+}
+
+@media (max-width: 834px) {
+  .settings-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-shell__nav {
+    position: static;
+  }
+
+  .settings-shell__nav-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: var(--lumen-space-1);
+  }
+
+  .settings-shell__nav-desc {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-shell__nav-list {
+    grid-template-columns: 1fr;
+  }
+}

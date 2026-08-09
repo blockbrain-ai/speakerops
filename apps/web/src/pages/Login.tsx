@@ -1,14 +1,15 @@
 /**
- * Magic-link login — section 2.1 + 10.4 honest dogfood copy.
+ * Magic-link login — section 2.1 + 10.4 honest dogfood copy
+ * + 11.7 session-expired recovery (S-L2-A11Y).
  *
  * POST /api/auth/magic-link { email, purpose }
  * If ?token= is present, POST /api/auth/exchange and redirect.
  *
- * Lumen tokens only (E6). Inventory: B01 admin login path.
+ * Lumen tokens only (E6). Inventory: B01 admin login path · L2-02 session recovery.
  * Does **not** promise a public /dev outbox on dogfood (AUTH_DEV_OUTBOX is e2e-only).
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   type MagicLinkPurpose,
   RequestMagicLinkResponseSchema,
@@ -17,12 +18,22 @@ import {
   DEFAULT_BOOTSTRAP_EVENT_ID,
 } from "@speakerops/shared";
 import { landingPathForPurpose } from "../auth/sessionLanding.js";
+import { SessionExpiredPanel } from "../components/ui/SessionExpiredPanel.js";
 
 type FormState = "idle" | "sending" | "sent" | "exchanging" | "error";
+
+type LoginLocationState = {
+  from?: string;
+  sessionExpired?: boolean;
+} | null;
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = (location.state as LoginLocationState) ?? null;
+  const sessionExpired = Boolean(locationState?.sessionExpired);
+  const returnFrom = locationState?.from;
   const tokenFromUrl = searchParams.get("token");
   const purposeParam = searchParams.get("purpose");
   const eventIdFromUrl = searchParams.get("eventId");
@@ -138,15 +149,27 @@ export function LoginPage() {
   }
 
   return (
-    <div className="login-page" data-testid="login-page" data-section="2.1">
+    <div
+      className="login-page"
+      data-testid="login-page"
+      data-section="11.7"
+      data-session-expired={sessionExpired ? "true" : "false"}
+    >
       <div className="login-card" data-testid="login-card">
         <p className="login-card__overline">SpeakerOps</p>
         <h1 className="login-card__title" data-testid="login-title">
-          Sign in
+          {sessionExpired ? "Sign in again" : "Sign in"}
         </h1>
         <p className="login-card__subtitle">
           Magic link — no password. We email a single-use link.
         </p>
+
+        {sessionExpired ? (
+          <SessionExpiredPanel
+            from={returnFrom}
+            data-testid="session-expired-panel"
+          />
+        ) : null}
 
         {tokenFromUrl && state === "exchanging" ? (
           <p data-testid="login-exchanging" className="login-card__status">
