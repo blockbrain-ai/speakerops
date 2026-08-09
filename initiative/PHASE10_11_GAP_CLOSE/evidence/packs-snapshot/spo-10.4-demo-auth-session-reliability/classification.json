@@ -1,0 +1,22 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "fullstack",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 10,
+  "section": "10.4",
+  "dependencies": [
+    "10.3",
+    "2.1"
+  ],
+  "files": [
+    "playwright/e2e/auth_roles_dogfood.spec.ts",
+    "apps/api/src/modules/auth/**",
+    "apps/web/src/pages/Login.tsx",
+    "apps/web/src/auth/**",
+    "docs/OPERATIONS.md"
+  ],
+  "notes": "phase10-11 10.4 demo-auth-session-reliability"
+}

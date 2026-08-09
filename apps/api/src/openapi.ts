@@ -770,7 +770,10 @@ export const DECISION_OPENAPI_PATHS = {
     get: {
       operationId: "Submission.List",
       summary: "Submission.List",
-      description: "Admin list with status/category filters",
+      description:
+        "Admin list with server-side status/category filters and page window " +
+        "(limit default 25 max 100, offset default 0). Response: " +
+        "{ submissions, total, limit, offset, categories } (AC-10.1-E / S-SUB-LIST).",
       tags: ["Decision"],
       parameters: [
         {
@@ -791,9 +794,25 @@ export const DECISION_OPENAPI_PATHS = {
           required: false,
           schema: { type: "string" },
         },
+        {
+          name: "limit",
+          in: "query",
+          required: false,
+          schema: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+        },
+        {
+          name: "offset",
+          in: "query",
+          required: false,
+          schema: { type: "integer", minimum: 0, default: 0 },
+        },
       ],
       responses: {
-        "200": { description: "Submission list" },
+        "200": {
+          description:
+            "{ submissions[], total, limit, offset, categories[] } page window",
+        },
+        "400": { description: "Invalid query (E4 VALIDATION_ERROR)" },
         "401": { description: "Unauthenticated" },
         "403": { description: "Forbidden role" },
         "404": { description: "Event not found" },

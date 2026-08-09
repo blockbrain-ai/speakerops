@@ -32,11 +32,28 @@ async function loadCreateAppWithAuth() {
 
 const createAppWithAuth = await loadCreateAppWithAuth();
 
-// In-memory auth + dev outbox for e2e (shared process state)
+// In-memory auth + dev outbox for e2e (shared process state).
+// Permissive CFP rate limiter so dogfood-shaped fixtures (150+ submissions)
+// can seed via public Submission.Create without 429 walls (section 10.1).
+const e2eCfpRateLimiter = {
+  max: 100_000,
+  windowMs: 60_000,
+  check() {
+    return {
+      allowed: true,
+      limit: 100_000,
+      remaining: 99_999,
+      retryAfterSec: 1,
+    };
+  },
+  reset() {},
+};
+
 const { app } = createAppWithAuth({
   enableDevOutbox: true,
   // Secure cookie flag still set; Chromium accepts Secure on localhost
   cookieSecure: true,
+  rateLimiter: e2eCfpRateLimiter,
 });
 
 /** Minimal Worker bindings for health (names only — no secrets). */

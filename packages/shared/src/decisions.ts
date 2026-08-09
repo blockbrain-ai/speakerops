@@ -127,10 +127,33 @@ export const DirectSessionResponseSchema = z.object({
 });
 export type DirectSessionResponse = z.infer<typeof DirectSessionResponseSchema>;
 
-/** Submission.List filters — GET /api/events/:eventId/submissions */
+/**
+ * Submission.List default page size (COMMANDS.md output: page).
+ * Aligns with Speakers L05 window; keeps dogfood 150+ under 5s.
+ */
+export const SUBMISSION_LIST_DEFAULT_LIMIT = 25 as const;
+/** Hard cap for limit query param (anti-unbounded payload). */
+export const SUBMISSION_LIST_MAX_LIMIT = 100 as const;
+
+/**
+ * Submission.List filters + page window — GET /api/events/:eventId/submissions
+ *
+ * Contract (AC-10.1-E):
+ * - `status`, `category` applied **server-side** before slicing the page
+ * - `limit` default 25, max 100; `offset` default 0
+ * - Response includes `total` (filtered count), `limit`, `offset` so SPA pager
+ *   does not drop filters when changing pages
+ */
 export const SubmissionListQuerySchema = z.object({
   status: SubmissionStatusSchema.optional(),
   category: z.string().min(1).max(128).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(SUBMISSION_LIST_MAX_LIMIT)
+    .optional(),
+  offset: z.coerce.number().int().min(0).optional(),
 });
 export type SubmissionListQuery = z.infer<typeof SubmissionListQuerySchema>;
 
@@ -150,6 +173,15 @@ export type SubmissionListItem = z.infer<typeof SubmissionListItemSchema>;
 
 export const SubmissionListResponseSchema = z.object({
   submissions: z.array(SubmissionListItemSchema),
+  /** Filtered row count (server-side status/category), independent of page window. */
+  total: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  offset: z.number().int().nonnegative(),
+  /**
+   * Distinct non-null categories for the event (status filter applied when set).
+   * Lets SPA keep the category dropdown complete without fetching every page.
+   */
+  categories: z.array(z.string()).default([]),
 });
 export type SubmissionListResponse = z.infer<
   typeof SubmissionListResponseSchema

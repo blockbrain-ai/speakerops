@@ -5,7 +5,7 @@
  * D1SubmissionsStore wraps the Worker DB binding for production (E1 SoR).
  * Event-scoped queries take eventId (E2).
  */
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import {
   createDb,
@@ -65,6 +65,14 @@ export type SubmissionsStore = {
   listSubmissionsForEvent(eventId: string): Promise<SubmissionRow[]>;
   listAnswers(submissionId: string): Promise<SubmissionAnswerRow[]>;
   listSpeakers(submissionId: string): Promise<SubmissionSpeakerRow[]>;
+  /**
+   * Batch primary speaker display names for a page of submissions (section 10.1).
+   * Avoids N+1 listSpeakers + findPersonById per row on dogfood 150+.
+   * Missing speaker → null value for that submission id.
+   */
+  listPrimarySpeakerNames(
+    submissionIds: string[],
+  ): Promise<Map<string, string | null>>;
   /**
    * Optimistic status update (E1): WHERE id AND version = expectedVersion.
    * Returns null on version conflict.
@@ -180,6 +188,25 @@ export class MemorySubmissionsStore implements SubmissionsStore {
 
   async listSpeakers(submissionId: string): Promise<SubmissionSpeakerRow[]> {
     return (this.speakers.get(submissionId) ?? []).map((r) => ({ ...r }));
+  }
+
+  async listPrimarySpeakerNames(
+    submissionIds: string[],
+  ): Promise<Map<string, string | null>> {
+    const out = new Map<string, string | null>();
+    for (const submissionId of submissionIds) {
+      const speakers = this.speakers.get(submissionId) ?? [];
+      const primary =
+        speakers.find((s) => s.isPrimary) ??
+        speakers.slice().sort((a, b) => a.sortOrder - b.sortOrder)[0];
+      if (!primary) {
+        out.set(submissionId, null);
+        continue;
+      }
+      const person = this.people.get(primary.personId);
+      out.set(submissionId, person?.name ?? null);
+    }
+    return out;
   }
 
   async updateSubmission(
@@ -392,6 +419,58 @@ export class D1SubmissionsStore implements SubmissionsStore {
       isPrimary: r.isPrimary === 1,
       sortOrder: r.sortOrder,
     }));
+  }
+
+  async listPrimarySpeakerNames(
+    submissionIds: string[],
+  ): Promise<Map<string, string | null>> {
+    const out = new Map<string, string | null>();
+    if (submissionIds.length === 0) return out;
+    for (const id of submissionIds) out.set(id, null);
+
+    const speakerRows = await this.db
+      .select()
+      .from(submissionSpeakers)
+      .where(inArray(submissionSpeakers.submissionId, submissionIds));
+
+    // Prefer is_primary=1; otherwise lowest sort_order per submission.
+    const best = new Map<
+      string,
+      { personId: string; isPrimary: boolean; sortOrder: number }
+    >();
+    for (const r of speakerRows) {
+      const candidate = {
+        personId: r.personId,
+        isPrimary: r.isPrimary === 1,
+        sortOrder: r.sortOrder,
+      };
+      const prev = best.get(r.submissionId);
+      if (!prev) {
+        best.set(r.submissionId, candidate);
+        continue;
+      }
+      if (candidate.isPrimary && !prev.isPrimary) {
+        best.set(r.submissionId, candidate);
+        continue;
+      }
+      if (candidate.isPrimary === prev.isPrimary && candidate.sortOrder < prev.sortOrder) {
+        best.set(r.submissionId, candidate);
+      }
+    }
+
+    const personIds = [...new Set([...best.values()].map((b) => b.personId))];
+    if (personIds.length === 0) return out;
+
+    const personRows = await this.db
+      .select({ id: people.id, name: people.name })
+      .from(people)
+      .where(inArray(people.id, personIds));
+    const nameById = new Map(personRows.map((p) => [p.id, p.name]));
+
+    for (const [submissionId, b] of best) {
+      out.set(submissionId, nameById.get(b.personId) ?? null);
+    }
+    return out;
   }
 
   async updateSubmission(

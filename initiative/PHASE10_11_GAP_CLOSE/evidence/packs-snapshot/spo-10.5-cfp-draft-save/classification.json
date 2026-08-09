@@ -1,0 +1,23 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "fullstack",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 10,
+  "section": "10.5",
+  "dependencies": [
+    "10.3",
+    "10.4"
+  ],
+  "files": [
+    "playwright/e2e/cfp_draft.spec.ts",
+    "apps/api/src/modules/publicCfp/**",
+    "apps/api/src/modules/decisions/**",
+    "packages/db/**",
+    "apps/web/src/pages/PublicCfp.tsx",
+    "packages/shared/**"
+  ],
+  "notes": "phase10-11 10.5 cfp-draft-save"
+}

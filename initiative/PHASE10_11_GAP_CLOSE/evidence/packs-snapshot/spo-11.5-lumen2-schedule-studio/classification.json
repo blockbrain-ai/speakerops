@@ -1,0 +1,20 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "frontend",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 11,
+  "section": "11.5",
+  "dependencies": [
+    "11.0",
+    "6.2",
+    "10.6"
+  ],
+  "files": [
+    "playwright/e2e/schedule_lumen2.spec.ts",
+    "apps/web/src/pages/schedule/**"
+  ],
+  "notes": "phase10-11 11.5 lumen2-schedule-studio"
+}

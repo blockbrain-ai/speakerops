@@ -16,10 +16,12 @@ import {
   DirectSessionBodySchema,
   DirectSessionResponseSchema,
   SubmissionListResponseSchema,
+  SubmissionListQuerySchema,
   SubmissionDetailResponseSchema,
   BulkDecisionPreviewBodySchema,
   BulkDecisionPreviewResponseSchema,
   SubmissionStatusSchema,
+  SUBMISSION_LIST_DEFAULT_LIMIT,
   errorEnvelope,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
@@ -103,7 +105,8 @@ export function createEventDecisionRoutes(
 
   /**
    * GET /:eventId/submissions — Submission.List (admin)
-   * Query: status?, category?
+   * Query: status?, category?, limit? (default 25, max 100), offset? (default 0)
+   * Response: { submissions, total, limit, offset, categories } — page contract AC-10.1-E
    */
   app.get(
     "/:eventId/submissions",
@@ -111,9 +114,26 @@ export function createEventDecisionRoutes(
     async (c) => {
       const eventId = c.req.param("eventId");
       const statusRaw = c.req.query("status");
-      const category = c.req.query("category") ?? undefined;
+      const categoryRaw = c.req.query("category");
+      const limitRaw = c.req.query("limit");
+      const offsetRaw = c.req.query("offset");
 
-      let status: ReturnType<typeof SubmissionStatusSchema.parse> | undefined;
+      const queryParsed = SubmissionListQuerySchema.safeParse({
+        status: statusRaw || undefined,
+        category: categoryRaw || undefined,
+        limit: limitRaw ?? undefined,
+        offset: offsetRaw ?? undefined,
+      });
+      if (!queryParsed.success) {
+        return c.json(
+          errorEnvelope("Invalid list query", VALIDATION_ERROR, {
+            issues: queryParsed.error.flatten(),
+          }),
+          400,
+        );
+      }
+
+      // Keep explicit status validation message for invalid enums (existing tests)
       if (statusRaw) {
         const parsedStatus = SubmissionStatusSchema.safeParse(statusRaw);
         if (!parsedStatus.success) {
@@ -124,13 +144,14 @@ export function createEventDecisionRoutes(
             400,
           );
         }
-        status = parsedStatus.data;
       }
 
       const result = await listSubmissions(deps, {
         eventId,
-        status,
-        category,
+        status: queryParsed.data.status,
+        category: queryParsed.data.category,
+        limit: queryParsed.data.limit ?? SUBMISSION_LIST_DEFAULT_LIMIT,
+        offset: queryParsed.data.offset ?? 0,
       });
       if (!result.ok) {
         return commandError(c, result);

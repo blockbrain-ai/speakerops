@@ -8,6 +8,9 @@
  */
 import {
   uuidv7,
+  SUBMISSION_LIST_DEFAULT_LIMIT,
+  SUBMISSION_LIST_MAX_LIMIT,
+  SubmissionStatusSchema,
   type DecisionRecordBody,
   type DecisionValue,
   type DecisionDto,
@@ -888,9 +891,14 @@ export async function createDirectSession(
 }
 
 /**
- * Submission.List — admin filters by status/category (E01).
+ * Submission.List — admin filters by status/category (E01) + page window (10.1).
  * Event row may be absent for synthetic bootstrap memberships (evt_dogfood);
  * list is still event-scoped by id (empty when no rows).
+ *
+ * Reliability (S-SUB-LIST / AC-10.1-A/E):
+ * - Server-side filters before slice; response carries total/limit/offset
+ * - Batch primary-speaker names (no N+1) so dogfood 150+ stays under 5s
+ * - Skip corrupt status/title rows instead of failing the whole list (500)
  */
 export async function listSubmissions(
   deps: DecisionCommandDeps,
@@ -898,47 +906,86 @@ export async function listSubmissions(
     eventId: string;
     status?: SubmissionStatus;
     category?: string;
+    limit?: number;
+    offset?: number;
   },
-): Promise<CommandOk<{ submissions: SubmissionListItem[] }> | CommandErr> {
+): Promise<
+  CommandOk<{
+    submissions: SubmissionListItem[];
+    total: number;
+    limit: number;
+    offset: number;
+    categories: string[];
+  }> | CommandErr
+> {
   // Prefer real event; bootstrap-only memberships have no row — still list by id.
   void (await deps.events.findEventById(input.eventId));
+
+  const limit = Math.min(
+    Math.max(1, input.limit ?? SUBMISSION_LIST_DEFAULT_LIMIT),
+    SUBMISSION_LIST_MAX_LIMIT,
+  );
+  const offset = Math.max(0, input.offset ?? 0);
 
   let rows = await deps.submissions.listSubmissionsForEvent(input.eventId);
   if (input.status) {
     rows = rows.filter((r) => r.status === input.status);
   }
+
+  // Distinct categories after status filter (before category filter) for SPA dropdown.
+  const categorySet = new Set<string>();
+  for (const r of rows) {
+    if (r.category) categorySet.add(r.category);
+  }
+  const categories = [...categorySet].sort();
+
   if (input.category) {
     rows = rows.filter((r) => r.category === input.category);
   }
 
+  // Stable order: newest submitted first (tie-break by id for determinism)
+  rows.sort((a, b) => {
+    if (a.submittedAt < b.submittedAt) return 1;
+    if (a.submittedAt > b.submittedAt) return -1;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
+
+  const total = rows.length;
+  const pageRows = rows.slice(offset, offset + limit);
+
+  const nameBySubmission = await deps.submissions.listPrimarySpeakerNames(
+    pageRows.map((r) => r.id),
+  );
+
   const items: SubmissionListItem[] = [];
-  for (const r of rows) {
-    const speakers = await deps.submissions.listSpeakers(r.id);
-    const primary =
-      speakers.find((s) => s.isPrimary) ??
-      speakers.slice().sort((a, b) => a.sortOrder - b.sortOrder)[0];
-    let primarySpeakerName: string | null = null;
-    if (primary) {
-      const person = await deps.submissions.findPersonById(primary.personId);
-      primarySpeakerName = person?.name ?? null;
-    }
+  for (const r of pageRows) {
+    // Harden against corrupt SoR rows — skip rather than 500 the whole list.
+    const statusParsed = SubmissionStatusSchema.safeParse(r.status);
+    if (!statusParsed.success) continue;
+    const title = (r.title ?? "").trim() || "(untitled)";
+    const formVersionId = (r.formVersionId ?? "").trim() || "unknown";
+    const submittedAt =
+      (r.submittedAt ?? "").trim() || "1970-01-01T00:00:00.000Z";
+    const version =
+      typeof r.version === "number" && r.version >= 1 ? r.version : 1;
+
     items.push({
       id: r.id,
       eventId: r.eventId,
-      formVersionId: r.formVersionId,
-      title: r.title,
+      formVersionId,
+      title,
       category: r.category,
-      status: r.status as SubmissionStatus,
-      submittedAt: r.submittedAt,
-      version: r.version,
-      primarySpeakerName,
+      status: statusParsed.data,
+      submittedAt,
+      version,
+      primarySpeakerName: nameBySubmission.get(r.id) ?? null,
     });
   }
 
-  // Stable order: newest submitted first
-  items.sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
-
-  return { ok: true, value: { submissions: items } };
+  return {
+    ok: true,
+    value: { submissions: items, total, limit, offset, categories },
+  };
 }
 
 /**

@@ -1,0 +1,21 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "frontend",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 11,
+  "section": "11.6",
+  "dependencies": [
+    "11.0",
+    "4.3"
+  ],
+  "files": [
+    "playwright/e2e/portal_lumen2.spec.ts",
+    "apps/web/src/pages/Speakers.tsx",
+    "apps/web/src/pages/portal/**",
+    "apps/web/src/pages/PortalHome.tsx"
+  ],
+  "notes": "phase10-11 11.6 lumen2-speakers-portal"
+}

@@ -1,0 +1,238 @@
+{
+  "version": "1.0.0",
+  "decisionDate": "2026-08-09",
+  "navigationModel": {
+    "admin": "persistent event-scoped rail with route destinations",
+    "evaluator": "focused queue shell with no admin module rail",
+    "speaker": "mobile-first home with Tasks, Profile, and My sessions subviews",
+    "public": "event header with Sessions, Speakers, Agenda, and Itinerary"
+  },
+  "labelDecisions": [
+    {
+      "current": "CFP / Forms",
+      "recommended": "Call for proposals",
+      "reason": "names the user outcome and removes slash-language",
+      "governance": "requires a label-only amendment to the ratified Lumen IA before implementation"
+    },
+    {
+      "current": "Comms",
+      "recommended": "Communications",
+      "reason": "clearer for new operators and more consistent with the route purpose",
+      "governance": "requires a label-only amendment to the ratified Lumen IA before implementation"
+    },
+    {
+      "current": "Design Kit",
+      "recommended": "Event brand",
+      "reason": "describes the admin task while retaining Lumen as an internal system name",
+      "governance": "display-copy change only; route stays /admin/settings/design"
+    }
+  ],
+  "pages": [
+    {
+      "role": "admin",
+      "route": "/admin",
+      "navLabel": "Overview",
+      "purpose": "Answer whether the active program is on track and what needs action now.",
+      "defaultView": "readiness dashboard with four outcome metrics and a ranked attention queue",
+      "detailBehavior": "attention items deep-link to the owning route",
+      "mobile": "single-column attention-first summary"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/cfp",
+      "navLabel": "Call for proposals",
+      "currentLabel": "CFP / Forms",
+      "purpose": "Build, preview, publish, and share the event proposal form.",
+      "defaultView": "outline + direct-manipulation form canvas + contextual inspector",
+      "viewOptions": ["Build", "Public preview", "Version/publish summary"],
+      "detailBehavior": "select a field to edit it in the inspector; preview uses the real public renderer",
+      "mobile": "canvas with outline and inspector as full-height sheets"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/submissions",
+      "navLabel": "Submissions",
+      "purpose": "Find, compare, assign, and decide proposal records.",
+      "defaultView": "filterable table with master-detail pane",
+      "viewOptions": ["All", "Unassigned", "In review", "Decision needed", "Accepted", "Waitlist"],
+      "detailBehavior": "desktop side pane; mobile full-screen detail preserving list state",
+      "mobile": "record list with title, speaker, status, score, and filter sheet"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/evaluations",
+      "navLabel": "Evaluations",
+      "purpose": "Understand evaluation coverage, bottlenecks, and assignment risk.",
+      "defaultView": "coverage table grouped by submission",
+      "viewOptions": ["By submission", "By evaluator", "Overdue", "Conflicts"],
+      "detailBehavior": "side pane with assignment progress and reassignment actions",
+      "mobile": "summary cards followed by compact grouped list"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/speakers",
+      "navLabel": "Speakers",
+      "purpose": "Move accepted participants from invitation to program-ready.",
+      "defaultView": "lifecycle table over event participations, not a portrait gallery",
+      "viewOptions": ["Needs action", "All speakers", "Unconfirmed", "Profile incomplete", "Travel/tasks"],
+      "detailBehavior": "side pane with contact, sessions, tasks, files, and communication history",
+      "mobile": "priority list with readiness indicators and full-screen detail"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/schedule",
+      "navLabel": "Schedule",
+      "purpose": "Place sessions, resolve constraints, and publish a valid program.",
+      "defaultView": "day-by-room studio with unscheduled tray",
+      "viewOptions": ["Day", "Week", "List", "Track", "Room"],
+      "detailBehavior": "select a tile for timing, room, speaker, and conflict details",
+      "mobile": "day agenda editor with explicit Place/Move actions instead of a compressed grid"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/comms",
+      "navLabel": "Communications",
+      "currentLabel": "Comms",
+      "purpose": "Create, verify, send, and audit event communication campaigns.",
+      "defaultView": "campaign index grouped by Draft, Scheduled, Sending, and Sent",
+      "viewOptions": ["Campaigns", "Templates", "Delivery issues"],
+      "detailBehavior": "new/edit campaign uses Audience → Message → Review → Send sequence",
+      "mobile": "campaign list; builder steps become separate full-width screens"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/settings",
+      "navLabel": "Settings",
+      "purpose": "Configure the active event and controlled workspace capabilities.",
+      "defaultView": "two-pane settings shell with Event selected",
+      "viewOptions": ["Event", "Evaluation rubric", "Task templates", "Event brand", "API keys", "Airtable"],
+      "detailBehavior": "one save region per settings page with dirty-state protection",
+      "mobile": "settings index followed by a dedicated detail route"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/settings/design",
+      "navLabel": "Event brand",
+      "currentLabel": "Design Kit",
+      "purpose": "Safely prepare and publish the public event identity.",
+      "defaultView": "token controls beside a scoped live public preview",
+      "viewOptions": ["Draft", "Published comparison"],
+      "detailBehavior": "publish is blocked on contrast or unsafe asset failure",
+      "mobile": "controls first, preview second, sticky draft/publish status"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/settings/rubric",
+      "navLabel": "Evaluation rubric",
+      "purpose": "Define the criteria evaluators use consistently.",
+      "defaultView": "ordered criteria editor with live evaluator preview",
+      "detailBehavior": "inline criterion editing with keyboard reorder",
+      "mobile": "one criterion card at a time with move controls"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/settings/task-templates",
+      "navLabel": "Task templates",
+      "purpose": "Define repeatable speaker-readiness tasks.",
+      "defaultView": "ordered template list with detail editor",
+      "detailBehavior": "select template for due rule, required state, and instructions",
+      "mobile": "template list then full-screen editor"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/settings/api-keys",
+      "navLabel": "API keys",
+      "purpose": "Create, inspect, and revoke scoped machine credentials.",
+      "defaultView": "active-key table with Create key action",
+      "viewOptions": ["Active", "Revoked"],
+      "detailBehavior": "secret shown once; high-risk scopes separated and default-denied",
+      "mobile": "stacked key records with scope summary and explicit revoke flow"
+    },
+    {
+      "role": "admin",
+      "route": "/admin/settings/airtable",
+      "navLabel": "Airtable",
+      "purpose": "Understand one-way projection health and recover failures.",
+      "defaultView": "health summary followed by failed/stale projection records",
+      "viewOptions": ["Needs attention", "Recent activity"],
+      "detailBehavior": "failure detail explains impact, last attempt, and safe retry",
+      "mobile": "status summary and actionable failure list"
+    },
+    {
+      "role": "evaluator",
+      "route": "/eval",
+      "navLabel": "My queue",
+      "purpose": "Complete assigned evaluations with minimal context switching.",
+      "defaultView": "assignment queue plus focused proposal/rubric workspace",
+      "viewOptions": ["To do", "Completed", "Conflict"],
+      "detailBehavior": "desktop split view; autosaved rubric and private notes",
+      "mobile": "queue list opens a full-screen review with Back to queue"
+    },
+    {
+      "role": "speaker",
+      "route": "/portal",
+      "navLabel": "Home",
+      "purpose": "Show participation state and the single most important next action.",
+      "defaultView": "next-action dashboard with profile progress and session record",
+      "viewOptions": ["Home", "Tasks", "Profile", "My sessions"],
+      "detailBehavior": "subviews use the same existing portal data and commands",
+      "mobile": "bottom navigation; desktop uses a compact top/sub navigation"
+    },
+    {
+      "role": "public",
+      "route": "/cfp/:slug",
+      "navLabel": "Submit a proposal",
+      "purpose": "Help a prospective speaker understand the opportunity and submit a strong proposal.",
+      "defaultView": "event introduction followed by a four-step guided form",
+      "viewOptions": ["About you", "Your session", "Experience", "Agreement"],
+      "detailBehavior": "save and return later; completion explains next steps",
+      "mobile": "single-column form with progress and reachable save/continue actions"
+    },
+    {
+      "role": "public",
+      "route": "/public/:eventSlug/sessions",
+      "navLabel": "Sessions",
+      "purpose": "Browse the published program by topic and track.",
+      "defaultView": "searchable vertical session-card list sorted by day and time",
+      "viewOptions": ["All tracks", "Track filters", "Search"],
+      "detailBehavior": "expand or link speaker names; do not expose internal submission data",
+      "mobile": "full-width compact cards with sticky day/track filters"
+    },
+    {
+      "role": "public",
+      "route": "/public/:eventSlug/speakers",
+      "navLabel": "Speakers",
+      "purpose": "Discover the people appearing in the public program.",
+      "defaultView": "searchable responsive portrait directory with text-first fallback",
+      "detailBehavior": "dedicated /speakers/:speakerId detail with bio and public sessions",
+      "mobile": "two-column compact directory or one-column when names/bios are long"
+    },
+    {
+      "role": "public",
+      "route": "/public/:eventSlug/agenda",
+      "navLabel": "Agenda",
+      "purpose": "Compare concurrent sessions across rooms for a selected day.",
+      "defaultView": "day tabs with room columns and time-aligned sessions",
+      "detailBehavior": "session cards expose time, track, speakers, and room",
+      "mobile": "day tabs plus room filter; chronological list for the selected room"
+    },
+    {
+      "role": "public",
+      "route": "/public/:eventSlug/itinerary",
+      "navLabel": "Itinerary",
+      "purpose": "Follow the complete event in one chronological stream; this is not a personal agenda.",
+      "defaultView": "day-grouped ordered timeline across all rooms",
+      "detailBehavior": "clear room changes and simultaneous-session grouping",
+      "mobile": "single vertical timeline optimized for what happens next"
+    },
+    {
+      "role": "public",
+      "route": "/login",
+      "navLabel": "Sign in",
+      "purpose": "Request or exchange a secure sign-in link without product distraction.",
+      "defaultView": "single centered authentication card",
+      "detailBehavior": "confirmation replaces the form and states delivery/retry behavior",
+      "mobile": "full-width card with no admin navigation"
+    }
+  ]
+}

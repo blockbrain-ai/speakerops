@@ -1,18 +1,19 @@
 /**
- * Admin submissions + decisions UI (section 3.5 / S-EVAL).
+ * Admin submissions + decisions UI (section 3.5 / S-EVAL + 10.1 reliability).
  *
  * Inventory: E01 list filters · E02 detail · E03 assign · E04 accept
  * · E05 reject · E06 waitlist · E07 direct session · E08 bulk preview
+ * · L02/L03 empty/error/loading · S-SUB-LIST page window
  *
  * Wired to real APIs:
- * GET  /api/events/:eventId/submissions
+ * GET  /api/events/:eventId/submissions  (?status&category&limit&offset)
  * GET  /api/submissions/:id
  * POST /api/submissions/:id/decision
  * POST /api/submissions/:id/assign
  * POST /api/events/:eventId/sessions/direct
  * POST /api/events/:eventId/submissions/bulk-preview
  */
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   SubmissionListResponseSchema,
   SubmissionDetailResponseSchema,
@@ -21,6 +22,7 @@ import {
   BulkDecisionPreviewResponseSchema,
   SubmissionAssignResponseSchema,
   ErrorEnvelopeSchema,
+  SUBMISSION_LIST_DEFAULT_LIMIT,
   type SubmissionListItem,
   type SubmissionDetailResponse,
   type BulkDecisionPreviewItem,
@@ -41,13 +43,23 @@ const STATUS_OPTIONS = [
   "draft",
 ] as const;
 
+/** Abort hung list fetches so Loading never sticks forever (AC-10.1-B). */
+const LIST_FETCH_TIMEOUT_MS = 12_000;
+
 export function SubmissionsPage() {
   const { activeEventId } = useEventContext();
   const [rows, setRows] = useState<SubmissionListItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [listLimit, setListLimit] = useState<number>(
+    SUBMISSION_LIST_DEFAULT_LIMIT,
+  );
+  const [listOffset, setListOffset] = useState(0);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detail, setDetail] = useState<SubmissionDetailResponse | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -55,6 +67,7 @@ export function SubmissionsPage() {
   const [reason, setReason] = useState("");
   const [assignUserId, setAssignUserId] = useState("");
   const [busy, setBusy] = useState(false);
+  const loadGen = useRef(0);
 
   // Direct session form (E07)
   const [directOpen, setDirectOpen] = useState(false);
@@ -69,61 +82,98 @@ export function SubmissionsPage() {
     items: BulkDecisionPreviewItem[];
   } | null>(null);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of rows) {
-      if (r.category) set.add(r.category);
-    }
-    return [...set].sort();
-  }, [rows]);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(total / Math.max(1, listLimit)) || 1),
+    [total, listLimit],
+  );
 
   const loadList = useCallback(
-    async (eventId: string) => {
+    async (eventId: string, pageNum: number) => {
+      const gen = ++loadGen.current;
       setLoading(true);
       setLoadError(null);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), LIST_FETCH_TIMEOUT_MS);
       try {
+        const offset = Math.max(0, (pageNum - 1) * SUBMISSION_LIST_DEFAULT_LIMIT);
         const params = new URLSearchParams();
         if (statusFilter) params.set("status", statusFilter);
         if (categoryFilter) params.set("category", categoryFilter);
+        params.set("limit", String(SUBMISSION_LIST_DEFAULT_LIMIT));
+        params.set("offset", String(offset));
         const qs = params.toString();
-        const url = `/api/events/${encodeURIComponent(eventId)}/submissions${
-          qs ? `?${qs}` : ""
-        }`;
+        const url = `/api/events/${encodeURIComponent(eventId)}/submissions?${qs}`;
         const res = await fetch(url, {
           credentials: "include",
           headers: { accept: "application/json" },
+          signal: controller.signal,
         });
+        if (gen !== loadGen.current) return;
         if (!res.ok) {
           const raw: unknown = await res.json().catch(() => null);
           const env = ErrorEnvelopeSchema.safeParse(raw);
-          setLoadError(env.success ? env.data.error : `Failed (${res.status})`);
+          setLoadError(
+            env.success
+              ? env.data.error
+              : res.status === 401
+                ? "Session expired — sign in again"
+                : `Failed (${res.status})`,
+          );
           setRows([]);
-          setLoading(false);
+          setTotal(0);
           return;
         }
         const raw: unknown = await res.json();
         const parsed = SubmissionListResponseSchema.safeParse(raw);
         if (!parsed.success) {
-          setLoadError("Unexpected list response");
+          setLoadError(
+            "Unexpected list response — could not display submissions. Retry or contact support.",
+          );
           setRows([]);
-          setLoading(false);
+          setTotal(0);
           return;
         }
         setRows(parsed.data.submissions);
-      } catch {
-        setLoadError("Network error");
+        setTotal(parsed.data.total);
+        setListLimit(parsed.data.limit);
+        setListOffset(parsed.data.offset);
+        setCategories(parsed.data.categories ?? []);
+      } catch (err) {
+        if (gen !== loadGen.current) return;
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setLoadError(
+            "Submissions list timed out. Check your connection and retry.",
+          );
+        } else {
+          setLoadError("Network error — could not load submissions.");
+        }
+        setRows([]);
+        setTotal(0);
       } finally {
-        setLoading(false);
+        clearTimeout(timer);
+        if (gen === loadGen.current) {
+          setLoading(false);
+        }
       }
     },
     [statusFilter, categoryFilter],
   );
 
+  // Reset to page 1 when filters or event change (keep filters when paging)
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, categoryFilter, activeEventId]);
+
   useEffect(() => {
     if (activeEventId) {
-      void loadList(activeEventId);
+      void loadList(activeEventId, page);
+    } else {
+      setRows([]);
+      setTotal(0);
+      setLoadError(null);
+      setLoading(false);
     }
-  }, [activeEventId, loadList]);
+  }, [activeEventId, loadList, page]);
 
   async function openDetail(id: string, opts?: { clearStatus?: boolean }) {
     setDetailId(id);
@@ -206,7 +256,7 @@ export function SubmissionsPage() {
         text: `${decision} recorded${taskNote}${parsed.data.idempotent ? " (idempotent)" : ""}`,
       });
       await openDetail(detail.submission.id, { clearStatus: false });
-      if (activeEventId) await loadList(activeEventId);
+      if (activeEventId) await loadList(activeEventId, page);
     } catch {
       setStatus({ kind: "error", text: "Network error" });
     } finally {
@@ -464,6 +514,10 @@ export function SubmissionsPage() {
                   {c}
                 </option>
               ))}
+              {/* Keep current filter selectable even if categories reload empty */}
+              {categoryFilter && !categories.includes(categoryFilter) ? (
+                <option value={categoryFilter}>{categoryFilter}</option>
+              ) : null}
             </select>
           </label>
         </div>
@@ -630,7 +684,7 @@ export function SubmissionsPage() {
             className="event-settings__btn lumen-focusable"
             data-testid="submissions-error-retry"
             onClick={() => {
-              if (activeEventId) void loadList(activeEventId);
+              if (activeEventId) void loadList(activeEventId, page);
             }}
           >
             Retry
@@ -639,7 +693,7 @@ export function SubmissionsPage() {
       ) : null}
 
       <div className="eval-queue__layout">
-        {/* List E01 · empty CTA L01 */}
+        {/* List E01 · empty CTA L01 · page window 10.1 */}
         <section data-testid="submissions-list-section">
           {activeEventId && !loading && !loadError && rows.length === 0 ? (
             <div
@@ -672,75 +726,128 @@ export function SubmissionsPage() {
             </div>
           ) : null}
           {rows.length > 0 ? (
-            <table
-              className="eval-queue__table"
-              data-testid="submissions-table"
-            >
-              <thead>
-                <tr>
-                  <th scope="col">
-                    <input
-                      type="checkbox"
-                      data-testid="submissions-select-all"
-                      aria-label="Select all"
-                      checked={
-                        rows.length > 0 && selected.size === rows.length
-                      }
-                      onChange={toggleSelectAll}
-                    />
-                  </th>
-                  <th scope="col">Title</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Category</th>
-                  <th scope="col">Speaker</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    data-testid={`submission-row-${row.id}`}
-                    data-status={row.status}
-                    data-category={row.category ?? ""}
-                    className={
-                      detailId === row.id
-                        ? "submissions-page__row--active"
-                        : undefined
-                    }
-                  >
-                    <td>
+            <>
+              <div
+                className="submissions-page__meta"
+                data-testid="submissions-list-meta"
+                data-total={total}
+                data-page={page}
+                data-page-size={listLimit}
+                data-offset={listOffset}
+                data-visible={rows.length}
+              >
+                <span className="eval-queue__muted">
+                  {total} submission{total === 1 ? "" : "s"}
+                  {totalPages > 1
+                    ? ` · page ${page} of ${totalPages}`
+                    : ""}
+                </span>
+              </div>
+              <table
+                className="eval-queue__table"
+                data-testid="submissions-table"
+                data-total={total}
+                data-visible={rows.length}
+              >
+                <thead>
+                  <tr>
+                    <th scope="col">
                       <input
                         type="checkbox"
-                        data-testid={`submission-select-${row.id}`}
-                        aria-label={`Select ${row.title}`}
-                        checked={selected.has(row.id)}
-                        onChange={() => toggleSelect(row.id)}
+                        data-testid="submissions-select-all"
+                        aria-label="Select all on page"
+                        checked={
+                          rows.length > 0 && selected.size === rows.length
+                        }
+                        onChange={toggleSelectAll}
                       />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="eval-queue__link lumen-focusable"
-                        data-testid={`submission-open-${row.id}`}
-                        onClick={() => void openDetail(row.id)}
-                      >
-                        {row.title}
-                      </button>
-                    </td>
-                    <td data-testid={`submission-status-${row.id}`}>
-                      <span
-                        className="submissions-page__badge"
-                        data-testid={`submission-status-badge-${row.id}`}
-                      >
-                        {row.status}
-                      </span>
-                    </td>
-                    <td>{row.category ?? "—"}</td>
-                    <td>{row.primarySpeakerName ?? "—"}</td>
+                    </th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Category</th>
+                    <th scope="col">Speaker</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      data-testid={`submission-row-${row.id}`}
+                      data-status={row.status}
+                      data-category={row.category ?? ""}
+                      className={
+                        detailId === row.id
+                          ? "submissions-page__row--active"
+                          : undefined
+                      }
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          data-testid={`submission-select-${row.id}`}
+                          aria-label={`Select ${row.title}`}
+                          checked={selected.has(row.id)}
+                          onChange={() => toggleSelect(row.id)}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="eval-queue__link lumen-focusable"
+                          data-testid={`submission-open-${row.id}`}
+                          onClick={() => void openDetail(row.id)}
+                        >
+                          {row.title}
+                        </button>
+                      </td>
+                      <td data-testid={`submission-status-${row.id}`}>
+                        <span
+                          className="submissions-page__badge"
+                          data-testid={`submission-status-badge-${row.id}`}
+                        >
+                          {row.status}
+                        </span>
+                      </td>
+                      <td>{row.category ?? "—"}</td>
+                      <td>{row.primarySpeakerName ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {totalPages > 1 ? (
+                <div
+                  className="submissions-page__pager"
+                  data-testid="submissions-pager"
+                >
+                  <button
+                    type="button"
+                    className="event-settings__btn lumen-focusable"
+                    data-testid="submissions-page-prev"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <span
+                    className="eval-queue__muted"
+                    data-testid="submissions-page-label"
+                  >
+                    Page {page} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="event-settings__btn lumen-focusable"
+                    data-testid="submissions-page-next"
+                    disabled={page >= totalPages || loading}
+                    onClick={() =>
+                      setPage((p) => Math.min(totalPages, p + 1))
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : null}
         </section>
 

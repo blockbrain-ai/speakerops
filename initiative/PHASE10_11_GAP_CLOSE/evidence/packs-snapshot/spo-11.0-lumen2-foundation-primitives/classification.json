@@ -1,0 +1,22 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "frontend",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 11,
+  "section": "11.0",
+  "dependencies": [
+    "10.7",
+    "1.4"
+  ],
+  "files": [
+    "apps/web/src/components/ui/**",
+    "apps/web/src/styles/components.css",
+    "apps/web/src/styles/lumen.css",
+    "apps/web/src/styles/shell.css",
+    "apps/web/package.json"
+  ],
+  "notes": "phase10-11 11.0 lumen2-foundation-primitives"
+}

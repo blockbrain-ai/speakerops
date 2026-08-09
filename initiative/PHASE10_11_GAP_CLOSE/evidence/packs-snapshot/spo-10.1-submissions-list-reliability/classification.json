@@ -1,0 +1,23 @@
+{
+  "task_type": "implementation",
+  "complexity": "high",
+  "risk_level": "high",
+  "domain": "fullstack",
+  "estimated_effort": "L",
+  "requires_human_review": true,
+  "wave": 10,
+  "section": "10.1",
+  "dependencies": [
+    "3.5",
+    "8.4"
+  ],
+  "files": [
+    "playwright/e2e/submissions_list_reliability.spec.ts",
+    "apps/api/src/modules/decisions/list.test.ts",
+    "apps/api/src/modules/decisions/**",
+    "apps/web/src/pages/Submissions.tsx",
+    "packages/shared/**",
+    "KMS-competition/initiative/BROWSER_E2E_INVENTORY.md"
+  ],
+  "notes": "phase10-11 10.1 submissions-list-reliability"
+}
