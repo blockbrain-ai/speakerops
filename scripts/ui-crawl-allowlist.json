@@ -38,6 +38,22 @@
       "reason": "Hidden event label chrome"
     },
     {
+      "testid": "admin-nav-toggle",
+      "reason": "Mobile/tablet drawer chrome (section 11.1); opens navigation landmark only"
+    },
+    {
+      "testid": "admin-nav-backdrop",
+      "reason": "Drawer dismiss chrome (section 11.1); non-domain dismiss control"
+    },
+    {
+      "testid": "admin-sign-out",
+      "reason": "Shell account chrome (section 11.1); session end maps to B03 logout path"
+    },
+    {
+      "testid": "admin-account",
+      "reason": "Account/help region chrome container (section 11.1)"
+    },
+    {
       "testid": "design-preview-button",
       "reason": "Decorative brand preview sample — not a product action"
     },
