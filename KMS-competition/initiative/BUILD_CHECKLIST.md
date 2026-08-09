@@ -17,8 +17,8 @@
 | BC10 | S-CF | CF dogfood URL healthy | smoke URL note | DONE_WITH_EVIDENCE | initiative/evidence/cf-dogfood.txt | Live redacted workers.dev URL + GET /health 200 recorded via deploy-dogfood.sh |
 | BC11 | S-E2E-INV | Inventory complete | BROWSER_E2E_INVENTORY.md | OPEN | initiative/BROWSER_E2E_INVENTORY.md | predeclared |
 | BC12 | S-E2E-RUN | Full browser suite green | playwright HTML report | OPEN | | |
-| BC13 | S-ONB-HUMAN | Onboarding doc walkthrough | docs/ONBOARDING.md + HTML | OPEN | | Phase 9 |
-| BC14 | S-ONB-AGENT | Agent setup path | docs/AGENT_SETUP.md | OPEN | | Phase 9 |
-| BC15 | S-DOCS | HTML reports + tree | reports/*.html | OPEN | | Phase 9 |
+| BC13 | S-ONB-HUMAN | Onboarding doc walkthrough | docs/ONBOARDING.md + HTML | DONE_WITH_EVIDENCE | initiative/evidence/onboarding-proof/human-dry-run.txt | 9.6 keystone; checklist initiative/evidence/onboarding-proof/README.md |
+| BC14 | S-ONB-AGENT | Agent setup path | docs/AGENT_SETUP.md | DONE_WITH_EVIDENCE | initiative/evidence/onboarding-proof/agent-dry-run.txt | 9.6 keystone; deny-scope + readiness/design path |
+| BC15 | S-DOCS | HTML reports + tree | reports/*.html | DONE_WITH_EVIDENCE | initiative/evidence/onboarding-proof/docs-reports.txt | 9.6 keystone; linkcheck 0 + reports/index.html portal |
 
 **End-check before CLAIM_PROVEN:** all rows DONE_WITH_EVIDENCE or OWNER_AMEND; no OPEN/IN_PROGRESS/NEED_*.

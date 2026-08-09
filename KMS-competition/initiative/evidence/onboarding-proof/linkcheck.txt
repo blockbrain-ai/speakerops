@@ -1,0 +1,21 @@
+# Linkcheck report — onboarding proof (section 9.6)
+
+Workspace: speakerops-build
+Date (UTC): 2026-08-09T01:20:20.461Z
+Status: PASS
+Broken internal links: 0
+
+## Scope
+
+- README.md (workspace root)
+- docs/**/*.md (recursive)
+
+External http(s), mailto, tel, and pure fragment (#) links are ignored.
+
+## Result
+
+linkcheck 0 — no broken internal markdown links in scope.
+
+Checker: scripts/check-onboarding-proof.ts
+Soul: S-DOCS
+AC: linkcheck 0

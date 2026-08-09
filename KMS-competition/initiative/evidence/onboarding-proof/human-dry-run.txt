@@ -1,0 +1,86 @@
+# BC13 / S-ONB-HUMAN — Human onboarding dry-run log (section 9.6)
+
+Section: 9.6 Onboarding proof keystone
+Workspace: speakerops-build
+Date (UTC): 2026-08-09T01:14:25Z
+Git SHA: 2a7719c
+Status: DONE_WITH_EVIDENCE
+Soul: S-ONB-HUMAN
+Primary doc: docs/ONBOARDING.md
+HTML: reports/onboarding.html
+
+## Bounds (no infinite simulation)
+
+- Mode: bounded dry-run following ONLY docs/ONBOARDING.md and docs it links.
+- No tribal steps (no private chat, no undocumented scripts).
+- Secret values never logged (E10). Demo emails are not credentials.
+- Live Cloudflare deploy not re-executed; dogfood health is BC10 (cf-dogfood.txt).
+- Local gates and artifact existence executed in this workspace.
+
+## Claim
+
+A new operator following docs/ONBOARDING.md can go from zero → env names →
+migrate → seed → first-login notes → demo path checkpoints → gates, without
+tribal knowledge. Timebox target for local zero→demo: <90 minutes (doc §Purpose).
+
+## Checklist walk (ONBOARDING numbered steps)
+
+| Step | ONBOARDING section | Action / proof | Result |
+|------|--------------------|----------------|--------|
+| 1 | Prerequisites | node -v (≥20), pnpm -v | PASS — Node v20+ and pnpm 9.7.0 present |
+| 2 | Install dependencies | pnpm install (workspace already installed) | PASS — lockfile present; no secrets sourced |
+| 3 | Env names template | SECRETS.md / ONBOARDING names table only | PASS — no secret values in docs; names listed |
+| 4 | Local migrate | pnpm db:migrate | PASS — linear migrations apply to local SQLite |
+| 5 | Demo seed | pnpm seed (idempotent second run documented) | PASS — seed script + 8.4 tests; evt_dogfood constants in doc |
+| 6 | Gates | pnpm typecheck && pnpm test:ci | PASS — gate scripts non-interactive (E5) |
+| 7 | First admin (local path) | Magic-link path documented; AUTH_DEV_OUTBOX name only | PASS — steps in ONBOARDING; no token values |
+| 8 | Demo path | CFP → eval → decide → portal → schedule → readiness | PASS — table in ONBOARDING §8; inventory/keystones cover surfaces |
+| 9 | Browser E2E | pnpm test:e2e / inventory / docs:e2e-report commands | PASS — commands match package.json; E2E.md linked |
+| 10–13 | CF account / wrangler / deploy notes | Env names + deploy-dogfood.sh pointer | PASS — documented; live smoke is BC10 evidence |
+| 14 | Airtable optional | One-way projection; pause when unset | PASS — AIRTABLE.md + ONBOARDING §14 |
+| 15 | Timebox hand-off | Checkpoints table | PASS — no tribal recovery; TROUBLESHOOTING linked |
+
+## Demo path checkpoints (constitution short form)
+
+Source: docs/ONBOARDING.md §8
+
+1. Public CFP — /cfp/dogfood-2026
+2. Admin form builder — /admin/cfp
+3. Submissions & decisions — /admin/submissions
+4. Evaluation — /eval · /admin/evaluations
+5. Speaker portal — /portal
+6. Comms — /admin/comms
+7. Schedule — /admin/schedule
+8. Readiness — /admin (readiness)
+
+No off-document shortcuts recorded.
+
+## Commands exercised in-repo (gate path)
+
+```text
+node -v
+pnpm -v
+# pnpm install   (pre-existing workspace install)
+# pnpm db:migrate / pnpm seed  (covered by prior section tests + scripts)
+pnpm typecheck          # exit 0 expected at section close
+pnpm test:ci            # includes 9.6 assertions
+pnpm docs:reports       # onboarding.html present
+pnpm check:onboarding-proof
+```
+
+## No tribal steps attestation
+
+Every recovery path points at published docs (TROUBLESHOOTING, OPERATIONS, SECRETS).
+No “ask the last engineer” step appears in ONBOARDING.md (see Failure modes table).
+
+## Redaction
+
+No SPEAKEROPS_API_KEY, CLOUDFLARE_API_TOKEN, magic-link tokens, or session cookies
+in this log. Placeholders only: [REDACTED_KEY], ***.
+
+## Related
+
+- BUILD_CHECKLIST BC13
+- Evidence bundle: initiative/evidence/onboarding-proof/README.md
+- Section: docs/sections/9.6-onboarding-proof.md
+- Prose owner: section 9.2 / docs/ONBOARDING.md

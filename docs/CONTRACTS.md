@@ -76,7 +76,7 @@ Constitution souls **S-ONB-HUMAN**, **S-ONB-AGENT**, and **S-DOCS** require huma
 
 **[`docs/governance/0.5-docs-onboarding-outline.md`](./governance/0.5-docs-onboarding-outline.md)**
 
-Required leaves include `docs/ONBOARDING.md`, `docs/AGENT_SETUP.md`, and **`reports/index.html`**. Section **9.1** delivers the full `docs/` tree stubs + [README map](../README.md) ([9.1 section note](./sections/9.1-docs-ia.md)); final prose and `pnpm docs:reports` land in **9.2–9.5**; **9.6** proves BC13–BC15.
+Required leaves include `docs/ONBOARDING.md`, `docs/AGENT_SETUP.md`, and **`reports/index.html`**. Section **9.1** delivers the full `docs/` tree stubs + [README map](../README.md) ([9.1 section note](./sections/9.1-docs-ia.md)); final prose and `pnpm docs:reports` land in **9.2–9.5**; **9.6** proves BC13–BC15 ([section note](./sections/9.6-onboarding-proof.md) · evidence [`onboarding-proof/`](../KMS-competition/initiative/evidence/onboarding-proof/) · `pnpm check:onboarding-proof`).
 
 ---
 

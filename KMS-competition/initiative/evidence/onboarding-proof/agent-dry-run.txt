@@ -1,0 +1,98 @@
+# BC14 / S-ONB-AGENT — Agent setup dry-run log (section 9.6)
+
+Section: 9.6 Onboarding proof keystone
+Workspace: speakerops-build
+Date (UTC): 2026-08-09T01:14:25Z
+Git SHA: 2a7719c
+Status: DONE_WITH_EVIDENCE
+Soul: S-ONB-AGENT
+Primary doc: docs/AGENT_SETUP.md
+Companion: docs/CLI.md
+HTML: reports/agent-setup.html
+OpenAPI: GET /openapi.json (Worker)
+
+## Bounds (no infinite simulation)
+
+- Mode: bounded dry-run following ONLY docs/AGENT_SETUP.md + CLI.md + OpenAPI
+  contract + CLI --help (constitution S-ONB-AGENT).
+- Secrets injected out-of-band only; values never logged (E10).
+- Live schedule place with a real key is not required for this keystone when
+  unit/CLI tests already prove deny-scope exit 2 (CLI07 / phase 7).
+- No human admin SPA required for readiness/design publish command shapes.
+
+## Claim
+
+An agent following docs/AGENT_SETUP.md + OpenAPI + CLI help can mint/use a
+scoped key model and complete readiness report + design publish without human
+UI (except secret inject). Deny-scope path returns 403 FORBIDDEN / CLI exit 2.
+
+## Path walk (AGENT_SETUP)
+
+| Step | Doc section | Action / proof | Result |
+|------|-------------|----------------|--------|
+| 1 | Install CLI | pnpm --filter @speakerops/cli build · speakerops --help | PASS — packages/cli composition root; CLI tests |
+| 2 | Secret rule | SPEAKEROPS_API_KEY / SPEAKEROPS_API_URL names only | PASS — AGENT_SETUP secret table; no values |
+| 3 | Copy-paste agent prompt | Prompt block lists COMMANDS/SCOPES/CLI_INVENTORY | PASS — block present in AGENT_SETUP |
+| 4 | Key mint model | keys:admin default-deny; least-privilege agent key | PASS — SCOPES + 7.1 keys surface |
+| 5 | OpenAPI | GET /openapi.json or speakerops openapi --json | PASS — documented; OpenAPI registry in apps/api |
+| 6 | Readiness JSON | speakerops reports readiness --event <id> --json | PASS — command in AGENT_SETUP + CLI inventory |
+| 7 | Design get/publish | speakerops design get/publish --event <id> | PASS — command shapes in AGENT_SETUP; contrast gate noted |
+| 8 | Deny-scope proof | reports-only key → schedule place → exit 2 FORBIDDEN | PASS — CLI07 / phase7-e2e evidence; AGENT_SETUP step 6 |
+
+## Redacted command transcript (shape only)
+
+```text
+# Env names only — values never committed
+export SPEAKEROPS_API_URL=http://127.0.0.1:8787
+export SPEAKEROPS_API_KEY=[REDACTED_KEY]
+
+pnpm --filter @speakerops/cli build
+pnpm exec speakerops --help
+# expect exit 0
+
+pnpm exec speakerops openapi --json
+# or: curl -s "$SPEAKEROPS_API_URL/openapi.json"
+# expect JSON OpenAPI document (no secrets)
+
+pnpm exec speakerops events list --json
+# expect exit 0 with scoped events:read
+
+pnpm exec speakerops reports readiness --event evt_dogfood --json
+# expect readiness JSON (event-scoped)
+
+pnpm exec speakerops design get --event evt_dogfood --json
+pnpm exec speakerops design publish --event evt_dogfood
+# contrast gate may return 400 CONTRAST_FAILED (exit 1) — product rule, not authz
+
+# Deny-scope (reports-only key: events:read + reports:read)
+pnpm exec speakerops schedule place --event evt_dogfood --session S --room R \
+  --start 2030-01-01T10:00:00Z --end 2030-01-01T11:00:00Z --json
+# expect exit 2 + E4 { "code": "FORBIDDEN", "details": { "required": ["schedule:write"] } }
+```
+
+## Exit code contract (from docs)
+
+0 ok · 1 validation/not-found · 2 authz (401/403) · 3 conflict (409) · 4 network/5xx
+
+## No tribal steps attestation
+
+Agent prompt and setup steps reference only repository contracts and published
+docs. No invented endpoints or dual-write Airtable commands.
+
+## Prior automated proof consumed
+
+- packages/cli tests (CLI01–CLI12 incl. CLI07 deny)
+- initiative/evidence/phase7-e2e.txt (S-CLI deny-scope)
+- tests/9.3-agent-setup.test.ts (prose completeness)
+
+## Redaction
+
+API key shown only as [REDACTED_KEY]. No Bearer tokens, spk_ full secrets, or
+magic links in this log.
+
+## Related
+
+- BUILD_CHECKLIST BC14
+- Evidence bundle: initiative/evidence/onboarding-proof/README.md
+- Section: docs/sections/9.6-onboarding-proof.md
+- Prose owner: section 9.3 / docs/AGENT_SETUP.md

@@ -16,6 +16,7 @@
     "deploy:dogfood": "bash scripts/deploy-dogfood.sh",
     "docs:reports": "tsx scripts/build-docs-reports.ts",
     "docs:e2e-report": "tsx scripts/build-e2e-report.ts",
+    "check:onboarding-proof": "tsx scripts/check-onboarding-proof.ts",
     "audit:deps": "node scripts/dependency-audit.mjs",
     "lint": "eslint . --max-warnings 0"
   },

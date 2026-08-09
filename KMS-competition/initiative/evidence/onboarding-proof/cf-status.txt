@@ -1,0 +1,61 @@
+# S-CF / BC10 — Cloudflare evidence status for onboarding proof (section 9.6)
+
+Section: 9.6 Onboarding proof keystone
+Workspace: speakerops-build
+Date (UTC): 2026-08-09T01:14:25Z
+Git SHA: 2a7719c
+
+## Purpose
+
+Programme exit must not claim dogfood_ready / CLAIM_PROVEN on BC13–15 alone
+while S-CF remains unproven. This file records the CF gate choice for the
+onboarding-proof checker.
+
+## Gate choice (exactly one applies)
+
+| Option | Selected | Notes |
+|--------|----------|-------|
+| **CF evidence DONE_WITH_EVIDENCE** | **YES** | See path below |
+| **DEFER / OWNER_AMEND for S-CF / BC10** | no | Not used — live evidence present from section 8.6 |
+
+## Evidence path
+
+Path: KMS-competition/initiative/evidence/cf-dogfood.txt
+Template: KMS-competition/initiative/evidence/cf-dogfood.template.txt
+Owner section: 8.6 Cloudflare dogfood deploy
+Soul: S-CF
+BUILD_CHECKLIST: BC10
+Status in evidence file: DONE_WITH_EVIDENCE
+Smoke: GET /health → 200 (redacted workers.dev URL)
+
+## Reject rule (machine-checked)
+
+scripts/check-onboarding-proof.ts rejects claim without:
+
+1. readable cf-dogfood.txt with DONE_WITH_EVIDENCE (or health 200 + redaction), OR
+2. explicit DEFER / OWNER_AMEND row for S-CF / BC10 in this file or the bundle checklist
+
+## DEFER schema (inactive — documentation only)
+
+Current status is **not** DEFER. Evidence is DONE_WITH_EVIDENCE via cf-dogfood.txt.
+
+If an owner later chooses DEFER, write an active status line (machine-checked):
+
+```text
+BC10 status: DEFER
+S-CF status: DEFER
+# or a table status cell containing DEFER (not a prose mention alone)
+```
+
+Do not treat prose mentions of the word DEFER as an active waiver.
+
+## Redaction
+
+No CLOUDFLARE_API_TOKEN values, account ids, or full workers.dev account
+subdomains in this file. See cf-dogfood.txt redaction rules.
+
+## Related
+
+- docs/OPERATIONS.md
+- docs/sections/8.6-cloudflare-dogfood-deploy.md
+- scripts/deploy-dogfood.sh

@@ -6,7 +6,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 
 ## 5-minute orientation
 
-New here? Pick a path, then skim the map. Human timed checklist is live (**9.2** / **S-ONB-HUMAN**); agent CLI path is live (**9.3** / **S-ONB-AGENT**); deep docs land in **9.4**. The **tree is locked** (section **9.1** / outline **0.5**).
+New here? Pick a path, then skim the map. Human timed checklist is live (**9.2** / **S-ONB-HUMAN**); agent CLI path is live (**9.3** / **S-ONB-AGENT**); deep docs land in **9.4**; HTML portal in **9.5**; onboarding proof keystone in **9.6** (BC13–15). The **tree is locked** (section **9.1** / outline **0.5**).
 
 | You are… | Start | Then |
 |----------|--------|------|
@@ -46,6 +46,8 @@ pnpm typecheck && pnpm test:ci  # non-watch gates (E5)
 | [`docs/sections/9.1-docs-ia.md`](./docs/sections/9.1-docs-ia.md) | This IA section note |
 | [`reports/index.html`](./reports/index.html) | Offline Lumen reports portal (**9.5** · S-DOCS) |
 | [`reports/e2e-coverage.html`](./reports/e2e-coverage.html) | Offline E2E coverage (8.5); linked from portal **9.5** |
+| [`docs/sections/9.6-onboarding-proof.md`](./docs/sections/9.6-onboarding-proof.md) | Onboarding proof keystone (**9.6** · BC13–15) |
+| [`KMS-competition/initiative/evidence/onboarding-proof/`](./KMS-competition/initiative/evidence/onboarding-proof/) | Dry-run evidence bundle (human / agent / docs / CF gate) |
 
 Outline + build order: [`docs/governance/0.5-docs-onboarding-outline.md`](./docs/governance/0.5-docs-onboarding-outline.md).
 
@@ -96,6 +98,7 @@ pnpm db:migrate           # apply packages/db/migrations to local SQLite (1.3+)
 pnpm seed                 # deterministic demo graph (~150 speakers; section 8.4)
 pnpm docs:e2e-report      # offline E2E coverage HTML (section 8.5 · S-E2E-RUN)
 pnpm docs:reports         # Lumen reports portal (section 9.5 · S-DOCS)
+pnpm check:onboarding-proof  # 9.6 evidence bundle · BC13–15 · CF gate · linkcheck 0
 ```
 
 ### Demo seed and role switcher (section 8.4)

@@ -1,0 +1,75 @@
+# BC15 / S-DOCS — HTML reports + docs tree proof (section 9.6)
+
+Section: 9.6 Onboarding proof keystone
+Workspace: speakerops-build
+Date (UTC): 2026-08-09T01:14:25Z
+Git SHA: 2a7719c
+Status: DONE_WITH_EVIDENCE
+Soul: S-DOCS
+
+## Claim
+
+Documentation tree is coherent (README → architecture → ops → CLI → E2E →
+security). Beautiful HTML reports generated for onboarding, E2E coverage, and
+architecture overview via pnpm docs:reports. Portal reports/index.html links
+the report set. No orphan critical procedures for onboarding exit.
+
+## Source paths (must exist)
+
+| Path | Role |
+|------|------|
+| README.md | 5-minute orientation map |
+| docs/ONBOARDING.md | S-ONB-HUMAN |
+| docs/AGENT_SETUP.md | S-ONB-AGENT |
+| docs/ARCHITECTURE.md | deep |
+| docs/SECURITY.md | deep |
+| docs/CLI.md | CLI reference |
+| docs/OPERATIONS.md | deploy / migrate / Time Travel |
+| docs/AIRTABLE.md | one-way projection |
+| docs/E2E.md | inventory suite |
+| docs/COMPETITION.md | brief mapping |
+| docs/TROUBLESHOOTING.md | recovery |
+| docs/FIELD_FLOW.md | I16 highlights |
+| docs/CONTRACTS.md | contract index |
+| docs/governance/0.5-docs-onboarding-outline.md | Phase 9 outline |
+
+## HTML report set (must exist offline)
+
+| Path | Generator |
+|------|-----------|
+| reports/index.html | scripts/build-docs-reports.ts (9.5) |
+| reports/onboarding.html | from docs/ONBOARDING.md |
+| reports/agent-setup.html | from docs/AGENT_SETUP.md |
+| reports/architecture.html | from docs/ARCHITECTURE.md |
+| reports/cli-reference.html | from docs/CLI.md |
+| reports/design-lumen.html | from docs/governance/0.2-lumen-lock.md |
+| reports/e2e-coverage.html | scripts/build-e2e-report.ts (8.5) |
+
+## Portal links (index.html)
+
+reports/index.html must link:
+
+- onboarding.html
+- agent-setup.html
+- architecture.html
+- cli-reference.html
+- design-lumen.html
+- e2e-coverage.html
+
+## Linkcheck
+
+Broken internal links in README.md + docs/**/*.md: **0**
+See: linkcheck.txt
+
+## Commands
+
+```bash
+pnpm docs:reports
+pnpm check:onboarding-proof
+```
+
+## Related
+
+- BUILD_CHECKLIST BC15
+- Section 9.1 IA · 9.4 deep docs · 9.5 HTML reports
+- Outline: docs/governance/0.5-docs-onboarding-outline.md
