@@ -380,14 +380,18 @@ export type DevRoleSwitchFailure = {
   code: string;
 };
 
-function redirectForRole(role: EventRole): string {
+/**
+ * SPA landing after a demo role mint (section 8.4 + 10.4 S-AUTH-ROLES).
+ * Speaker portal requires eventId query or tasks never load (session looks "lost").
+ */
+function redirectForRole(role: EventRole, eventId: string): string {
   switch (role) {
     case "admin":
       return "/admin";
     case "evaluator":
       return "/eval";
     case "speaker":
-      return "/portal";
+      return `/portal?eventId=${encodeURIComponent(eventId)}`;
     default:
       return "/login";
   }
@@ -476,7 +480,7 @@ export async function devRoleSwitch(
       role: input.role,
       email: user.email,
       eventId,
-      redirectTo: redirectForRole(input.role),
+      redirectTo: redirectForRole(input.role, eventId),
     },
   };
 }

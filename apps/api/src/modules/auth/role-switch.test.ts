@@ -21,6 +21,7 @@ import {
   DevRoleSwitchResponseSchema,
   ErrorEnvelopeSchema,
   DEMO_ROLE_EMAILS,
+  DEFAULT_BOOTSTRAP_EVENT_ID,
   VALIDATION_ERROR,
   UNAUTHORIZED,
   FORBIDDEN,
@@ -159,6 +160,16 @@ describe("8.4 Auth.DevRoleSwitch", () => {
       const body = DevRoleSwitchResponseSchema.parse(await res.json());
       expect(body.role).toBe(role);
       expect(body.email).toBe(DEMO_ROLE_EMAILS[role]);
+      // 10.4: speaker landing must include eventId so portal tasks load
+      if (role === "speaker") {
+        expect(body.redirectTo).toMatch(
+          new RegExp(
+            `^/portal\\?eventId=${encodeURIComponent(DEFAULT_BOOTSTRAP_EVENT_ID)}$`,
+          ),
+        );
+      } else {
+        expect(body.redirectTo).toBe("/eval");
+      }
     }
   });
 

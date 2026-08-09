@@ -1,10 +1,11 @@
 /**
- * Magic-link login — section 2.1.
+ * Magic-link login — section 2.1 + 10.4 honest dogfood copy.
  *
  * POST /api/auth/magic-link { email, purpose }
  * If ?token= is present, POST /api/auth/exchange and redirect.
  *
  * Lumen tokens only (E6). Inventory: B01 admin login path.
+ * Does **not** promise a public /dev outbox on dogfood (AUTH_DEV_OUTBOX is e2e-only).
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -13,7 +14,9 @@ import {
   RequestMagicLinkResponseSchema,
   ExchangeMagicLinkResponseSchema,
   ErrorEnvelopeSchema,
+  DEFAULT_BOOTSTRAP_EVENT_ID,
 } from "@speakerops/shared";
+import { landingPathForPurpose } from "../auth/sessionLanding.js";
 
 type FormState = "idle" | "sending" | "sent" | "exchanging" | "error";
 
@@ -68,18 +71,14 @@ export function LoginPage() {
         }
         setSessionEmail(parsed.data.email);
         setState("idle");
-        // Admin → shell; speaker → portal (preserve eventId for portal home); evaluator → eval
-        if (parsed.data.purpose === "speaker") {
-          const q =
-            eventIdFromUrl && eventIdFromUrl.trim().length > 0
-              ? `?eventId=${encodeURIComponent(eventIdFromUrl.trim())}`
-              : "";
-          navigate(`/portal${q}`, { replace: true });
-        } else if (parsed.data.purpose === "evaluator") {
-          navigate("/eval", { replace: true });
-        } else {
-          navigate("/admin", { replace: true });
-        }
+        // Admin → shell; speaker → portal (eventId required for tasks); evaluator → queue
+        const eventId =
+          eventIdFromUrl && eventIdFromUrl.trim().length > 0
+            ? eventIdFromUrl.trim()
+            : DEFAULT_BOOTSTRAP_EVENT_ID;
+        navigate(landingPathForPurpose(parsed.data.purpose, eventId), {
+          replace: true,
+        });
       } catch {
         setError("Network error during exchange");
         setState("error");
@@ -162,7 +161,8 @@ export function LoginPage() {
             role="status"
           >
             If that address can receive mail, a magic link is on its way.
-            Check your inbox (dev: use test outbox).
+            Check your inbox — there is no in-product mail inbox or public
+            outbox on dogfood.
           </div>
         ) : null}
 
@@ -227,6 +227,17 @@ export function LoginPage() {
                   onChange={() => setPurpose("speaker")}
                 />
                 Speaker
+              </label>
+              <label className="login-form__radio">
+                <input
+                  type="radio"
+                  name="purpose"
+                  value="evaluator"
+                  data-testid="login-purpose-evaluator"
+                  checked={purpose === "evaluator"}
+                  onChange={() => setPurpose("evaluator")}
+                />
+                Evaluator
               </label>
             </fieldset>
 

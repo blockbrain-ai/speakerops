@@ -15,6 +15,7 @@ import {
   RequestMagicLinkResponseSchema,
   ExchangeMagicLinkResponseSchema,
   SESSION_COOKIE_NAME,
+  SESSION_TTL_DAYS,
   UNAUTHORIZED,
   VALIDATION_ERROR,
   NOT_FOUND,
@@ -22,9 +23,82 @@ import {
 import { createAppWithAuth } from "../../index.js";
 import { hashToken } from "./crypto.js";
 import { assertNoPlaintextTokenInStore } from "./commands.js";
-import { buildSessionSetCookie, buildClearSessionCookie } from "./cookies.js";
+import {
+  buildSessionSetCookie,
+  buildClearSessionCookie,
+  SESSION_COOKIE_MAX_AGE_SECONDS,
+} from "./cookies.js";
 
 const env = { APP_VERSION: "0.1.0" };
+
+describe("10.4 session cookie options (dogfood / www.speakerops.org)", () => {
+  it("buildSessionSetCookie sets Path=/ HttpOnly SameSite=Lax Secure Max-Age and no Domain", () => {
+    const built = buildSessionSetCookie("session-token-value", { secure: true });
+    expect(built).toMatch(new RegExp(`^${SESSION_COOKIE_NAME}=session-token-value;`));
+    expect(built).toMatch(/Path=\//);
+    expect(built.toLowerCase()).toContain("httponly");
+    expect(built.toLowerCase()).toMatch(/samesite=lax/);
+    expect(built.toLowerCase()).toContain("secure");
+    expect(built).toMatch(
+      new RegExp(`Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`),
+    );
+    // Host-only: must not set Domain= (shares / leaks across sibling hosts)
+    expect(built.toLowerCase()).not.toMatch(/;\s*domain=/);
+    expect(SESSION_COOKIE_MAX_AGE_SECONDS).toBe(SESSION_TTL_DAYS * 24 * 60 * 60);
+  });
+
+  it("buildSessionSetCookie can disable Secure only when explicitly opted out (tests)", () => {
+    const built = buildSessionSetCookie("tok", { secure: false });
+    expect(built.toLowerCase()).not.toMatch(/(?:^|;\s*)secure(?:;|$)/);
+    expect(built).toMatch(/Path=\//);
+    expect(built.toLowerCase()).toContain("httponly");
+  });
+
+  it("buildClearSessionCookie clears with Max-Age=0 and matching Path/SameSite", () => {
+    const clear = buildClearSessionCookie({ secure: true });
+    expect(clear).toMatch(new RegExp(`${SESSION_COOKIE_NAME}=;`));
+    expect(clear).toMatch(/Max-Age=0/);
+    expect(clear).toMatch(/Path=\//);
+    expect(clear.toLowerCase()).toMatch(/samesite=lax/);
+    expect(clear.toLowerCase()).toContain("httponly");
+    expect(clear.toLowerCase()).toContain("secure");
+    expect(clear.toLowerCase()).not.toMatch(/;\s*domain=/);
+  });
+
+  it("exchange Set-Cookie uses full dogfood-safe attributes including Max-Age", async () => {
+    const { app, outbox } = createAppWithAuth({ cookieSecure: true });
+    const email = "cookie-attrs@example.com";
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, purpose: "admin" }),
+      },
+      env,
+    );
+    const token = outbox.lastForEmail(email)!.token;
+    const res = await app.request(
+      "http://localhost/api/auth/exchange",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toMatch(/Path=\//);
+    expect(setCookie.toLowerCase()).toContain("httponly");
+    expect(setCookie.toLowerCase()).toMatch(/samesite=lax/);
+    expect(setCookie.toLowerCase()).toContain("secure");
+    expect(setCookie).toMatch(
+      new RegExp(`Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`),
+    );
+    expect(setCookie.toLowerCase()).not.toMatch(/;\s*domain=/);
+  });
+});
 
 describe("2.1 session auth magic link", () => {
   it("assert magic link token stored only as hash", async () => {
