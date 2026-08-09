@@ -20,6 +20,18 @@ Implementation journeys:
   - playwright/e2e/event_settings.spec.ts (@inv:C01,C02,C07,C11,O01–O03)
   - playwright/e2e/design_kit.spec.ts (@inv:C03–C06,C08–C10)
 
+## BC01 / S-THEME screenshot (C05 successful state)
+
+Binding evidence_expected: e2e C05 PASS + screenshot.
+
+Successful-state artifact (public CFP after Design Kit publish):
+  KMS-competition/initiative/evidence/phase2-c05-public-cfp.png
+
+Capture: Playwright `@inv:C05` in design_kit.spec.ts with
+  E2E_CAPTURE_BC01_SCREENSHOT=1 (writes the PNG above after brand assertions).
+Note: playwright.config uses screenshot: only-on-failure for failures; this
+success-path capture is explicit BC01 evidence (not failure-only).
+
 ## Notes
 
 - No secrets, API keys, or magic-link tokens in this evidence file.

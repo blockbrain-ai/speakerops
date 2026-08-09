@@ -302,6 +302,131 @@ export function evaluateCfClaimGate(input: {
   };
 }
 
+/** Parsed BUILD_CHECKLIST table row for a BC id. */
+export type BuildChecklistBcRow = {
+  id: string;
+  /** Status token cell (DONE_WITH_EVIDENCE | OWNER_AMEND | OPEN | …). */
+  status?: string;
+  /** Raw evidence_path cell (may list multiple paths). */
+  evidencePath?: string;
+  /** Split non-empty evidence path tokens from evidence_path. */
+  evidencePaths: string[];
+  /** Notes cell (may document OWNER_AMEND rationale). */
+  notes?: string;
+};
+
+/**
+ * Split an evidence_path cell into individual path tokens.
+ * Supports `,` / `;` / ` + ` / ` · ` / newline separators.
+ */
+export function splitEvidencePaths(raw: string | undefined): string[] {
+  if (raw == null) return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  return trimmed
+    .split(/\s*[;,]\s*|\s+\+\s+|\s+·\s+|\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+}
+
+/**
+ * Resolve a BUILD_CHECKLIST evidence_path against the workspace root.
+ * Paths are typically `initiative/…` (under KMS-competition/) or repo-relative.
+ */
+export function resolveBuildChecklistEvidencePath(
+  root: string,
+  evidencePath: string,
+): string {
+  const p = evidencePath.trim();
+  if (!p) return join(root, p);
+  // Already repo-root relative
+  if (
+    p.startsWith("KMS-competition/") ||
+    p.startsWith("docs/") ||
+    p.startsWith("reports/") ||
+    p.startsWith("apps/") ||
+    p.startsWith("packages/") ||
+    p.startsWith("playwright/") ||
+    p.startsWith("scripts/")
+  ) {
+    return join(root, p);
+  }
+  // Canonical BUILD_CHECKLIST form: initiative/…
+  if (p.startsWith("initiative/")) {
+    return join(root, "KMS-competition", p);
+  }
+  // Fallback: try KMS-competition then root
+  const underKms = join(root, "KMS-competition", p);
+  if (existsSync(underKms)) return underKms;
+  return join(root, p);
+}
+
+/**
+ * Parse a full BUILD_CHECKLIST table row for a BC id.
+ * Table columns: id | soul_ref | done_when | evidence_expected | status | evidence_path | notes
+ */
+export function parseBuildChecklistBcRow(
+  checklistBody: string,
+  bcId: string,
+): BuildChecklistBcRow | undefined {
+  const lines = checklistBody.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line.includes("|")) continue;
+    const cells = line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((c) => c.trim().replace(/^\*+|\*+$/g, ""));
+    if (cells.length < 2) continue;
+    if (cells[0] !== bcId) continue;
+
+    // Prefer column layout when present (status=4, evidence_path=5, notes=6)
+    let status: string | undefined;
+    let evidencePath: string | undefined;
+    let notes: string | undefined;
+
+    if (cells.length >= 6) {
+      const statusCell = cells[4] ?? "";
+      const statusMatch = statusCell.match(
+        /\b(DONE_WITH_EVIDENCE|OWNER_AMEND|OPEN|DEFER|IN_PROGRESS|NEED_[A-Z_]+)\b/,
+      );
+      status = statusMatch?.[1];
+      evidencePath = (cells[5] ?? "").trim() || undefined;
+      notes = cells.length >= 7 ? (cells[6] ?? "").trim() || undefined : undefined;
+    } else {
+      // Fallback: scan the row for a status token (legacy / short fixtures)
+      const statusMatch = line.match(
+        /\b(DONE_WITH_EVIDENCE|OWNER_AMEND|OPEN|DEFER|IN_PROGRESS|NEED_[A-Z_]+)\b/,
+      );
+      status = statusMatch?.[1];
+      // When columns are short, treat last non-status cell after id as path if any
+      if (cells.length >= 3) {
+        const tail = cells.slice(1).filter((c) => c && c !== status);
+        if (tail.length > 0) {
+          const maybePath = tail[tail.length - 1];
+          if (
+            maybePath &&
+            !/^(DONE_WITH_EVIDENCE|OWNER_AMEND|OPEN|DEFER|IN_PROGRESS|NEED_[A-Z_]+)$/.test(
+              maybePath,
+            )
+          ) {
+            evidencePath = maybePath;
+          }
+        }
+      }
+    }
+
+    return {
+      id: bcId,
+      status,
+      evidencePath,
+      evidencePaths: splitEvidencePaths(evidencePath),
+      notes,
+    };
+  }
+  return undefined;
+}
+
 /**
  * Parse BUILD_CHECKLIST table status for a BC id.
  * Expects a markdown table row containing the BC id and a status token.
@@ -310,39 +435,40 @@ export function parseBuildChecklistBcStatus(
   checklistBody: string,
   bcId: string,
 ): string | undefined {
-  // Prefer table rows only (ignore prose / end-check prose mentions)
-  const lines = checklistBody.split(/\r?\n/);
-  for (const line of lines) {
-    if (!line.includes("|")) continue;
-    // First data cell should be the BC id (allow bold)
-    const cells = line
-      .replace(/^\|/, "")
-      .replace(/\|$/, "")
-      .split("|")
-      .map((c) => c.trim().replace(/^\*+|\*+$/g, ""));
-    if (cells.length < 2) continue;
-    if (cells[0] !== bcId) continue;
-    const statusMatch = line.match(
-      /\b(DONE_WITH_EVIDENCE|OWNER_AMEND|OPEN|DEFER|IN_PROGRESS|NEED_[A-Z_]+)\b/,
-    );
-    if (statusMatch) return statusMatch[1];
-  }
-  return undefined;
+  return parseBuildChecklistBcRow(checklistBody, bcId)?.status;
+}
+
+/**
+ * Parse BUILD_CHECKLIST evidence_path cell for a BC id.
+ */
+export function parseBuildChecklistBcEvidencePath(
+  checklistBody: string,
+  bcId: string,
+): string | undefined {
+  return parseBuildChecklistBcRow(checklistBody, bcId)?.evidencePath;
 }
 
 /**
  * Canonical BUILD_CHECKLIST end-check before CLAIM_PROVEN:
  * all BC01–BC15 must be DONE_WITH_EVIDENCE or OWNER_AMEND (no OPEN/IN_PROGRESS/NEED_*).
+ * Closed rows must carry a non-empty evidence_path; when `root` is provided and
+ * `skipEvidencePathExistence` is not true, each referenced path must exist on disk.
  */
 export function evaluateBuildChecklistEndCheck(input: {
   buildChecklistBody: string | null;
+  /** Workspace root for evidence_path filesystem checks. */
+  root?: string;
+  /** When true, require non-empty paths but skip existsSync (unit fixtures). */
+  skipEvidencePathExistence?: boolean;
 }): {
   ok: boolean;
   errors: string[];
   statuses: Record<string, string | undefined>;
+  evidencePaths: Record<string, string[]>;
 } {
   const errors: string[] = [];
   const statuses: Record<string, string | undefined> = {};
+  const evidencePaths: Record<string, string[]> = {};
 
   if (input.buildChecklistBody == null || input.buildChecklistBody === "") {
     return {
@@ -351,6 +477,7 @@ export function evaluateBuildChecklistEndCheck(input: {
         `BUILD_CHECKLIST end-check failed: missing ${BUILD_CHECKLIST_REL}`,
       ],
       statuses,
+      evidencePaths,
     };
   }
 
@@ -362,8 +489,11 @@ export function evaluateBuildChecklistEndCheck(input: {
   }
 
   for (const id of BUILD_CHECKLIST_BC_IDS) {
-    const status = parseBuildChecklistBcStatus(body, id);
+    const row = parseBuildChecklistBcRow(body, id);
+    const status = row?.status;
     statuses[id] = status;
+    evidencePaths[id] = row?.evidencePaths ?? [];
+
     if (!status) {
       errors.push(`BUILD_CHECKLIST missing ${id} row or status`);
       continue;
@@ -374,10 +504,41 @@ export function evaluateBuildChecklistEndCheck(input: {
       errors.push(
         `${id} status must be DONE_WITH_EVIDENCE or OWNER_AMEND before CLAIM_PROVEN (found: ${status})`,
       );
+      continue;
+    }
+
+    // Closed rows: evidence_path required (status-only edits are not claim-safe)
+    const paths = row?.evidencePaths ?? [];
+    if (paths.length === 0) {
+      if (status === "DONE_WITH_EVIDENCE") {
+        errors.push(
+          `${id} DONE_WITH_EVIDENCE requires non-empty evidence_path (status-only close is not claim-safe)`,
+        );
+      } else if (status === "OWNER_AMEND") {
+        // OWNER_AMEND may document rationale in notes when no artifact path applies
+        const notes = (row?.notes ?? "").trim();
+        if (!notes) {
+          errors.push(
+            `${id} OWNER_AMEND requires non-empty evidence_path or notes recording the amendment`,
+          );
+        }
+      }
+      continue;
+    }
+
+    if (input.root && !input.skipEvidencePathExistence) {
+      for (const rel of paths) {
+        const abs = resolveBuildChecklistEvidencePath(input.root, rel);
+        if (!existsSync(abs)) {
+          errors.push(
+            `${id} evidence_path missing on disk: ${rel} (resolved ${relative(input.root, abs)})`,
+          );
+        }
+      }
     }
   }
 
-  return { ok: errors.length === 0, errors, statuses };
+  return { ok: errors.length === 0, errors, statuses, evidencePaths };
 }
 
 /**
@@ -602,7 +763,12 @@ export function checkOnboardingProof(options: CheckOptions = {}): CheckResult {
         ? readFileSync(bcPath, "utf8")
         : null;
     }
-    const endCheck = evaluateBuildChecklistEndCheck({ buildChecklistBody });
+    const endCheck = evaluateBuildChecklistEndCheck({
+      buildChecklistBody,
+      root,
+      // Fixture mode may skip fs existence but still requires non-empty paths
+      skipEvidencePathExistence: options.skipArtifactExistence === true,
+    });
     for (const msg of endCheck.errors) {
       errors.push({
         code: "BUILD_CHECKLIST_END_CHECK",

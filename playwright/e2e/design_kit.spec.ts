@@ -228,6 +228,16 @@ test("@inv:C05 e2e/admin/design-publish publish; public CFP shows brand", async 
     { timeout: 10_000 },
   );
   await expect(page.getByTestId("public-cfp-title")).toContainText("C05 Summit");
+
+  // BC01 / S-THEME binding evidence: successful-state public CFP screenshot.
+  // Set E2E_CAPTURE_BC01_SCREENSHOT=1 to regenerate the committed artifact.
+  // Path: KMS-competition/initiative/evidence/phase2-c05-public-cfp.png
+  if (process.env.E2E_CAPTURE_BC01_SCREENSHOT === "1") {
+    await page.screenshot({
+      path: "KMS-competition/initiative/evidence/phase2-c05-public-cfp.png",
+      fullPage: true,
+    });
+  }
 });
 
 test("@inv:C06 e2e/admin/design-no-css freeform CSS control absent", async ({

@@ -5,7 +5,7 @@
 
 | id | soul_ref | done_when | evidence_expected | status | evidence_path | notes |
 |----|----------|-----------|-------------------|--------|---------------|-------|
-| BC01 | S-THEME | Design Kit publish reflects on public CFP | e2e C05 PASS + screenshot | DONE_WITH_EVIDENCE | initiative/evidence/phase2-e2e.txt | 2.5 keystone · C03–C10 Design Kit + publish → public brand |
+| BC01 | S-THEME | Design Kit publish reflects on public CFP | e2e C05 PASS + screenshot | DONE_WITH_EVIDENCE | initiative/evidence/phase2-e2e.txt; initiative/evidence/phase2-c05-public-cfp.png | 2.5 keystone · C03–C10 Design Kit + publish → public brand · C05 success screenshot |
 | BC02 | S-CFP | Conditional multi-speaker submit works | inventory A* PASS | DONE_WITH_EVIDENCE | initiative/evidence/phase3-e2e.txt | 3.6 keystone · A01–A11 public CFP |
 | BC03 | S-EVAL | Score + accept audited | E/F inventory PASS | DONE_WITH_EVIDENCE | initiative/evidence/phase3-e2e.txt | 3.6 keystone · E01–E08 + F01–F04 |
 | BC04 | S-PORTAL | Magic link + files + tasks | G* PASS | DONE_WITH_EVIDENCE | initiative/evidence/phase4-e2e.txt | 4.4 keystone · G01–G08 |

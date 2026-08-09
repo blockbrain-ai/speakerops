@@ -131,9 +131,27 @@ if (bad.exitCode !== 2) {
 }
 // OPEN BC fails end-check
 const openEnd = evaluateBuildChecklistEndCheck({
-  buildChecklistBody: "| BC01 | S-THEME | x | y | OPEN | | |\\n**End-check before CLAIM_PROVEN**",
+  buildChecklistBody: "| BC01 | S-THEME | x | y | OPEN | initiative/evidence/x.txt | |\\n**End-check before CLAIM_PROVEN**",
+  skipEvidencePathExistence: true,
 });
 if (openEnd.ok) { console.error("expected open end-check fail"); process.exit(1); }
+// DONE_WITH_EVIDENCE with empty evidence_path is not claim-safe
+const emptyPath = evaluateBuildChecklistEndCheck({
+  buildChecklistBody: [
+    "**End-check before CLAIM_PROVEN**",
+    "| id | soul_ref | done_when | evidence_expected | status | evidence_path | notes |",
+    "|----|----------|-----------|-------------------|--------|---------------|-------|",
+    ...["BC01","BC02","BC03","BC04","BC05","BC06","BC07","BC08","BC09","BC10","BC11","BC12","BC13","BC14","BC15"].map(
+      (id) => "| " + id + " | S-X | x | y | DONE_WITH_EVIDENCE | | |"
+    ),
+  ].join("\\n"),
+  skipEvidencePathExistence: true,
+});
+if (emptyPath.ok) { console.error("expected empty evidence_path fail"); process.exit(1); }
+if (!emptyPath.errors.some((e) => /evidence_path/.test(e))) {
+  console.error("expected evidence_path errors", emptyPath.errors);
+  process.exit(1);
+}
 console.log("cf-gate-ok");
 `,
       ],

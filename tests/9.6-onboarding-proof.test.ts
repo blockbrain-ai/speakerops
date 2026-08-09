@@ -199,23 +199,56 @@ describe("9.6 Onboarding proof keystone", () => {
       "|----|----------|-----------|-------------------|--------|---------------|-------|",
       ...BUILD_CHECKLIST_BC_IDS.map(
         (id) =>
-          `| ${id} | S-X | x | y | ${id === "BC01" ? "OPEN" : "DONE_WITH_EVIDENCE"} | | |`,
+          `| ${id} | S-X | x | y | ${id === "BC01" ? "OPEN" : "DONE_WITH_EVIDENCE"} | initiative/evidence/${id.toLowerCase()}.txt | |`,
       ),
     ].join("\n");
     const open = evaluateBuildChecklistEndCheck({
       buildChecklistBody: openBody,
+      skipEvidencePathExistence: true,
     });
     expect(open.ok).toBe(false);
     expect(open.errors.some((e) => /BC01/.test(e))).toBe(true);
     expect(parseBuildChecklistBcStatus(openBody, "BC01")).toBe("OPEN");
 
+    const allDoneBody = openBody.replace(
+      "| BC01 | S-X | x | y | OPEN | initiative/evidence/bc01.txt | |",
+      "| BC01 | S-X | x | y | DONE_WITH_EVIDENCE | initiative/evidence/bc01.txt | |",
+    );
     const allDone = evaluateBuildChecklistEndCheck({
-      buildChecklistBody: openBody.replace(
-        "| BC01 | S-X | x | y | OPEN | | |",
-        "| BC01 | S-X | x | y | DONE_WITH_EVIDENCE | | |",
-      ),
+      buildChecklistBody: allDoneBody,
+      skipEvidencePathExistence: true,
     });
     expect(allDone.ok).toBe(true);
+
+    // Empty evidence_path with DONE_WITH_EVIDENCE is NOT claim-safe
+    const emptyPathsBody = [
+      "# BUILD_CHECKLIST",
+      "",
+      "**End-check before CLAIM_PROVEN:** all rows DONE_WITH_EVIDENCE or OWNER_AMEND.",
+      "",
+      "| id | soul_ref | done_when | evidence_expected | status | evidence_path | notes |",
+      "|----|----------|-----------|-------------------|--------|---------------|-------|",
+      ...BUILD_CHECKLIST_BC_IDS.map(
+        (id) =>
+          `| ${id} | S-X | x | y | DONE_WITH_EVIDENCE | | |`,
+      ),
+    ].join("\n");
+    const emptyPaths = evaluateBuildChecklistEndCheck({
+      buildChecklistBody: emptyPathsBody,
+      skipEvidencePathExistence: true,
+    });
+    expect(emptyPaths.ok).toBe(false);
+    expect(
+      emptyPaths.errors.some((e) =>
+        /BC01.*evidence_path|evidence_path.*BC01|BC01 DONE_WITH_EVIDENCE requires non-empty evidence_path/.test(
+          e,
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      emptyPaths.errors.filter((e) => /requires non-empty evidence_path/.test(e))
+        .length,
+    ).toBe(BUILD_CHECKLIST_BC_IDS.length);
 
     // Checker surfaces OPEN rows (not claim-safe)
     const result = checkOnboardingProof({
