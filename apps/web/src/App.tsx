@@ -12,6 +12,7 @@
  * + API keys mint/revoke K01–K04 (section 7.1 / S-CLI).
  * + Airtable projection status O06 (section 7.3 / S-AIRTABLE).
  * + Dogfood role switcher (section 8.4 — dev / VITE_ROLE_SWITCHER only).
+ * + Lumen 2 state sheet (section 11.0 — S-L2-SYSTEM / @inv:L2-01).
  * Composition root mounts this from main.tsx.
  */
 import {
@@ -42,6 +43,7 @@ import { ScheduleStudioPage } from "./pages/schedule/ScheduleStudio.js";
 import { ReadinessPage } from "./pages/Readiness.js";
 import { ApiKeysPage } from "./pages/ApiKeys.js";
 import { AirtableStatusPage } from "./pages/AirtableStatus.js";
+import { L2StateSheetPage } from "./pages/L2StateSheet.js";
 import {
   BareLayout,
   NotFoundPage,
@@ -213,6 +215,14 @@ export function AppRoutes() {
         element={
           <AdminGuard>
             <AirtableStatusPage />
+          </AdminGuard>
+        }
+      />
+      <Route
+        path="/admin/settings/l2-state-sheet"
+        element={
+          <AdminGuard>
+            <L2StateSheetPage />
           </AdminGuard>
         }
       />

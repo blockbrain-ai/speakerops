@@ -8,6 +8,7 @@ import { StrictMode } from "react";
 import { HEALTH_OK } from "@speakerops/shared";
 import { App } from "./App.js";
 import "./styles/lumen.css";
+import "./styles/components.css";
 import "./styles/shell.css";
 
 // Shared DTO import proves web → shared wiring (no duplicate types).

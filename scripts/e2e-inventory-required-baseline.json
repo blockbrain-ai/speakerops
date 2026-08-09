@@ -112,7 +112,8 @@
     "O03",
     "O04",
     "O05",
-    "O06"
+    "O06",
+    "L2-01"
   ],
   "fingerprints": {
     "A01": {
@@ -554,6 +555,10 @@
     "A17": {
       "test_id": "e2e/public/cfp-draft",
       "journey": "Save as draft (title-only); resume restores fields; disabled when closed"
+    },
+    "L2-01": {
+      "test_id": "e2e/lumen2/state-sheet",
+      "journey": "Review primitives + state anatomy (`data-testid=l2-state-sheet`)"
     }
   }
 }

@@ -138,7 +138,7 @@ export function normalizeCell(s: string | undefined | null): string {
  */
 export function parseInventoryMarkdown(md: string): InventoryJourneyRow[] {
   const rowRe =
-    /^\| ([A-Z]\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \|([^|]*)\|/gm;
+    /^\| ([A-Z]\d{2}|L2-\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \|([^|]*)\|/gm;
   const journeys: InventoryJourneyRow[] = [];
   let m: RegExpExecArray | null;
   while ((m = rowRe.exec(md)) !== null) {
@@ -448,7 +448,7 @@ export type CrawlOptions = {
   label?: string;
 };
 
-const INV_ID_RE = /^[A-Z]\d{2}$/;
+const INV_ID_RE = /^(?:[A-Z]\d{2}|L2-\d{2})$/;
 
 /** Normalize template-literal / dynamic segments to glob `*`. */
 export function normalizeTestIdPattern(raw: string): string {
@@ -539,7 +539,7 @@ export function parsePrimaryControlsFromHtml(
     const testidMatch =
       attrs.match(/\bdata-testid\s*=\s*["']([^"']+)["']/i) ||
       attrs.match(/\bdata-testid\s*=\s*\{\s*[`'"]([^`'"]+)[`'"]\s*\}/i);
-    const invMatch = attrs.match(/\bdata-inv\s*=\s*["']([A-Z]\d{2})["']/i);
+    const invMatch = attrs.match(/\bdata-inv\s*=\s*["']([A-Z]\d{2}|L2-\d{2})["']/i);
 
     const testid = normalizeTestIdPattern(testidMatch?.[1] ?? "");
     const dataInv = (invMatch?.[1] ?? "").toUpperCase();
@@ -938,9 +938,9 @@ export const DEFAULT_ADMIN_CRAWL_GLOBS = [
   "apps/web/src/components",
 ] as const;
 
-/** Paths under admin roots to skip (non-admin surfaces). */
+/** Paths under admin roots to skip (non-admin surfaces + design-system primitives). */
 const ADMIN_CRAWL_SKIP_RE =
-  /\/(portal|PublicCfp|Login|login)\b|pages\/portal\b|PublicCfp\.tsx|Login\.tsx/;
+  /\/(portal|PublicCfp|Login|login)\b|pages\/portal\b|PublicCfp\.tsx|Login\.tsx|components\/ui\b|L2StateSheet\.tsx/;
 
 /**
  * Collect TSX sources for admin crawl under workspace root.

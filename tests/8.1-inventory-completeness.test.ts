@@ -92,7 +92,7 @@ describe("8.1 inventory completeness audit", () => {
       expect(c.reason.trim().length).toBeGreaterThan(0);
     }
     for (const m of allowlist.controlMap) {
-      expect(m.inv).toMatch(/^[A-Z]\d{2}$/);
+      expect(m.inv).toMatch(/^(?:[A-Z]\d{2}|L2-\d{2})$/);
     }
   });
 

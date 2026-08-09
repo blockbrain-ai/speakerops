@@ -77,7 +77,7 @@ const SECRET_PATTERNS = [
 
 function parseRequiredStatuses(md) {
   const rowRe =
-    /^\| ([A-Z]\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \|([^|]*)\|/gm;
+    /^\| ([A-Z]\d{2}|L2-\d{2}) \|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\| (REQUIRED|OPTIONAL) \|([^|]*)\|/gm;
   const rows = [];
   let m;
   while ((m = rowRe.exec(md)) !== null) {
@@ -194,15 +194,15 @@ process.exit(0);
     );
     const text = `${diff.stdout ?? ""}\n${diff.stderr ?? ""}`;
     // Removed lines that look like inventory ID rows are forbidden
-    const removedIdRows = (text.match(/^-\| [A-Z]\d{2} \|/gm) ?? []).filter(
-      (line) => !/^\+\| [A-Z]\d{2} \|/.test(line),
+    const removedIdRows = (text.match(/^-\| (?:[A-Z]\d{2}|L2-\d{2}) \|/gm) ?? []).filter(
+      (line) => !/^\+\| (?:[A-Z]\d{2}|L2-\d{2}) \|/.test(line),
     );
     // Allow status-only changes: if a line was removed, a same-ID line must be added
-    const removedIds = (text.match(/^-\| ([A-Z]\d{2}) \|/gm) ?? []).map((l) =>
-      l.replace(/^-\| ([A-Z]\d{2}) \|.*/, "$1"),
+    const removedIds = (text.match(/^-\| ([A-Z]\d{2}|L2-\d{2}) \|/gm) ?? []).map((l) =>
+      l.replace(/^-\| ([A-Z]\d{2}|L2-\d{2}) \|.*/, "$1"),
     );
-    const addedIds = (text.match(/^\+\| ([A-Z]\d{2}) \|/gm) ?? []).map((l) =>
-      l.replace(/^\+\| ([A-Z]\d{2}) \|.*/, "$1"),
+    const addedIds = (text.match(/^\+\| ([A-Z]\d{2}|L2-\d{2}) \|/gm) ?? []).map((l) =>
+      l.replace(/^\+\| ([A-Z]\d{2}|L2-\d{2}) \|.*/, "$1"),
     );
     for (const id of removedIds) {
       assert.ok(

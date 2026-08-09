@@ -208,6 +208,14 @@
 
 ---
 
+## L2 — Lumen 2 foundation (S-L2-SYSTEM)
+
+| ID | Role | Surface | Journey | test_id | Negative | Required | Status |
+|----|------|---------|---------|---------|----------|--------|
+| L2-01 | admin | Lumen 2 state sheet | Review primitives + state anatomy (`data-testid=l2-state-sheet`) | e2e/lumen2/state-sheet | Unauth cannot open sheet | REQUIRED | PASS |
+
+---
+
 ## N — Admin Speakers list/detail
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |

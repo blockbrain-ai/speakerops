@@ -99,7 +99,7 @@ export type BuildE2eReportResult = {
   suiteSource: string | null;
 };
 
-const INV_RE = /@inv:([A-Z]\d{2})\b/;
+const INV_RE = /@inv:([A-Z]\d{2}|L2-\d{2})\b/;
 
 /** Escape text for HTML text/attr contexts. */
 export function escapeHtml(s: string): string {

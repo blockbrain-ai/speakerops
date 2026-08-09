@@ -49,6 +49,8 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
 
 function titleForPath(pathname: string): string {
   if (pathname.startsWith("/admin/settings/design")) return "Design Kit";
+  if (pathname.startsWith("/admin/settings/l2-state-sheet"))
+    return "Lumen 2 state sheet";
   if (pathname.startsWith("/admin/settings/rubric")) return "Eval rubric";
   if (pathname.startsWith("/admin/settings/task-templates")) return "Task templates";
   if (pathname.startsWith("/admin/settings/api-keys")) return "API keys";

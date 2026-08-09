@@ -26,5 +26,6 @@ test("harness: Playwright wiring smoke (no inventory ownership claim)", async ({
   const ready = await page.evaluate(() => document.readyState);
   expect(ready).toBe("complete");
   // Convention lock: inventory IDs are letter + two digits (e.g. A01).
-  expect("A01").toMatch(/^[A-Z]\d{2}$/);
+  expect("A01").toMatch(/^(?:[A-Z]\d{2}|L2-\d{2})$/);
+  expect("L2-01").toMatch(/^(?:[A-Z]\d{2}|L2-\d{2})$/);
 });
