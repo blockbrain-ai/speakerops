@@ -5,7 +5,7 @@
 **Deploy revision:** see `deploy.md` (git SHA + APP_VERSION)  
 **Keystone suite:** `playwright/e2e/phase11_handover_keystone.spec.ts`  
 **Keystone run report:** `phase11-keystone-run.json`  
-**Report SHA-256:** `bc4d72448a46c4859dc32a43f86fdafbb1d5422a5cc4f189ef2a2c8b662c7fa4`  
+**Report SHA-256:** `0af373ac6cf2c09edf901ac0d4bbe5cbb1dfa4c50c0a224c709c26235dbf94f4`  
 **Gate commands:** `scripts/with-secrets.sh bash scripts/deploy-dogfood.sh` · `scripts/with-secrets.sh pnpm test:e2e:phase11-keystone` · `pnpm test:e2e:inventory`
 
 > Constitution Article II: all **18** soul IDs must be non-skipped D on dogfood.  
@@ -17,10 +17,10 @@
 |-------|-------|
 | Binding URL | https://www.speakerops.org |
 | Worker | `speakerops-demo` (`wrangler.toml` `[env.dogfood]`) |
-| GET /health | **200** `{"ok":true,"version":"0.1.0-demo+70b3d4b"}` |
+| GET /health | **200** `{"ok":true,"version":"0.1.0-demo+6d70915"}` |
 | Deploy evidence | `initiative/PHASE10_11_GAP_CLOSE/evidence/deploy.md` |
 | BC10 evidence | `KMS-competition/initiative/evidence/cf-dogfood.txt` |
-| Keystone result | **19 passed** (all D rows + must-not + meta) |
+| Keystone result | **19 passed** (all D rows + must-not + meta; S-L2-COMMS ≥150 + J05 job row) |
 | Report hash file | `initiative/PHASE10_11_GAP_CLOSE/evidence/phase11-keystone-run.SHA256` |
 
 ## Per-soul D matrix (all 18)
@@ -29,7 +29,7 @@ Every row: named test title · inventory family (ownership stays on implementati
 
 | Soul | Named test title | @inv family (documented) | Deploy rev | Report hash path | Result |
 |------|------------------|--------------------------|------------|------------------|--------|
-| **S-SUB-LIST** | `D: S-SUB-LIST submissions list on dogfood ≤5s` | E01, L05 | `0.1.0-demo+70b3d4b` | `evidence/phase11-keystone-run.SHA256` | **PASS** |
+| **S-SUB-LIST** | `D: S-SUB-LIST submissions list on dogfood ≤5s` | E01, L05 | `0.1.0-demo+6d70915` | `evidence/phase11-keystone-run.SHA256` | **PASS** |
 | **S-EVAL-UI** | `D: S-EVAL-UI evaluations progress on dogfood` | F01 | same | same | **PASS** |
 | **S-CFP-SUBMIT** | `D: S-CFP-SUBMIT public CFP DEMO submit on dogfood` | A06 | same | same | **PASS** |
 | **S-CFP-CLOSED** | `D: S-CFP-CLOSED closed window on dogfood` | A07 | same | same | **PASS** |
@@ -39,7 +39,7 @@ Every row: named test title · inventory family (ownership stays on implementati
 | **S-EVAL-EXPORT** | `D: S-EVAL-EXPORT export/sort or absence proof on dogfood` | F05 | same | same | **PASS** |
 | **S-L2-SYSTEM** | `D: S-L2-SYSTEM state sheet still present post-deploy` | L2-01 | same | same | **PASS** |
 | **S-L2-SHELL** | `D: S-L2-SHELL overview attention on dogfood` | H01–H05 | same | same | **PASS** |
-| **S-L2-COMMS** | `D: S-L2-COMMS campaign surface + scale chrome on dogfood` | J01–J10 | same | same | **PASS** |
+| **S-L2-COMMS** | `D: S-L2-COMMS J01–J10 + scale + preview/send + idempotency on dogfood` | J01–J10 | same | same | **PASS** |
 | **S-L2-CFP** | `D: S-L2-CFP builder + public on dogfood` | A01–A16 | same | same | **PASS** |
 | **S-L2-SUB** | `D: S-L2-SUB submissions UI on dogfood` | E01–E08 | same | same | **PASS** |
 | **S-L2-SCHED** | `D: S-SCHED-CHROME + S-L2-SCHED schedule on dogfood` | I01–I16 | same | same | **PASS** |
