@@ -7,6 +7,7 @@
  * - Controlled (production dogfood): unauthenticated → 401 (no open admin mint)
  * - Controlled + non-admin session → 403 (no privilege escalation)
  * - Controlled + admin session → 200
+ * - Controlled chained admin→evaluator→admin (judge-origin cookie preserves auth)
  * - Missing demo user without allowCreate → 404 (when admin session present)
  * - No plaintext token in audit afterJson
  */
@@ -23,15 +24,64 @@ import {
   UNAUTHORIZED,
   FORBIDDEN,
   SESSION_COOKIE_NAME,
+  JUDGE_SESSION_COOKIE_NAME,
 } from "@speakerops/shared";
 
+/** All Set-Cookie header values from a response (multi-cookie safe). */
+function setCookieValues(res: Response): string[] {
+  const headers = res.headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+  if (typeof headers.getSetCookie === "function") {
+    return headers.getSetCookie();
+  }
+  const single = res.headers.get("set-cookie");
+  return single ? [single] : [];
+}
+
+function cookieValueFromSetCookies(
+  setCookies: string[],
+  name: string,
+): string | null {
+  for (const sc of setCookies) {
+    const match = sc.match(new RegExp(`(?:^|,\\s*)${name}=([^;]+)`));
+    if (match?.[1]) return match[1];
+  }
+  // Fallback: name may appear without leading boundary when joined
+  for (const sc of setCookies) {
+    const match = sc.match(new RegExp(`${name}=([^;]+)`));
+    if (match?.[1] && match[1].length > 0) return match[1];
+  }
+  return null;
+}
+
 function sessionCookieFromResponse(res: Response): string {
-  const setCookie = res.headers.get("set-cookie") ?? "";
-  const match = setCookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  if (!match?.[1]) {
+  const value = cookieValueFromSetCookies(
+    setCookieValues(res),
+    SESSION_COOKIE_NAME,
+  );
+  if (!value) {
     throw new Error("expected session Set-Cookie on response");
   }
-  return `${SESSION_COOKIE_NAME}=${match[1]}`;
+  return `${SESSION_COOKIE_NAME}=${value}`;
+}
+
+/** Cookie header carrying both product session and judge-origin (when present). */
+function allAuthCookiesFromResponse(res: Response): string {
+  const setCookies = setCookieValues(res);
+  const session = cookieValueFromSetCookies(setCookies, SESSION_COOKIE_NAME);
+  if (!session) {
+    throw new Error("expected session Set-Cookie on response");
+  }
+  const parts = [`${SESSION_COOKIE_NAME}=${session}`];
+  const judge = cookieValueFromSetCookies(
+    setCookies,
+    JUDGE_SESSION_COOKIE_NAME,
+  );
+  if (judge) {
+    parts.push(`${JUDGE_SESSION_COOKIE_NAME}=${judge}`);
+  }
+  return parts.join("; ");
 }
 
 describe("8.4 Auth.DevRoleSwitch", () => {
@@ -312,6 +362,13 @@ describe("8.4 Auth.DevRoleSwitch", () => {
     expect(evalBody.role).toBe("evaluator");
     expect(evalBody.email).toBe(DEMO_ROLE_EMAILS.evaluator);
 
+    // Judge-origin cookie must be set so the switcher stays usable after
+    // the product session is replaced with a non-admin demo role.
+    const evalSetCookies = setCookieValues(toEval);
+    expect(
+      cookieValueFromSetCookies(evalSetCookies, JUDGE_SESSION_COOKIE_NAME),
+    ).toBeTruthy();
+
     // Fresh admin session again, then switch to admin demo account.
     const adminRes2 = await seedApp.request(
       "http://localhost/api/auth/dev/role-switch",
@@ -337,6 +394,133 @@ describe("8.4 Auth.DevRoleSwitch", () => {
     const adminBody = DevRoleSwitchResponseSchema.parse(await toAdmin.json());
     expect(adminBody.role).toBe("admin");
     expect(adminBody.email).toBe(DEMO_ROLE_EMAILS.admin);
+  });
+
+  it("controlled mode supports chained admin→evaluator→admin via judge-origin cookie", async () => {
+    // Phase-audit: role switch must not be one-way. After admin impersonates
+    // evaluator, the preserved judge-origin cookie authorizes switching back
+    // to admin without re-login (switcher stays functional on /eval).
+    const { store } = createAppWithAuth({ enableRoleSwitcher: true });
+    const seedApp = createApp({
+      authStore: store,
+      enableRoleSwitcher: true,
+      bootstrapPolicy: "open",
+      enableDevOutbox: true,
+    });
+    for (const role of ["admin", "evaluator", "speaker"] as const) {
+      const r = await seedApp.request(
+        "http://localhost/api/auth/dev/role-switch",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ role }),
+        },
+      );
+      expect(r.status).toBe(200);
+    }
+    const adminRes = await seedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(adminRes.status).toBe(200);
+    const adminCookie = sessionCookieFromResponse(adminRes);
+
+    const gatedApp = createApp({
+      authStore: store,
+      enableRoleSwitcher: true,
+      bootstrapPolicy: "controlled",
+      enableDevOutbox: false,
+    });
+
+    const toEval = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: adminCookie,
+          "x-correlation-id": "corr_chain_to_eval",
+        },
+        body: JSON.stringify({ role: "evaluator" }),
+      },
+    );
+    expect(toEval.status).toBe(200);
+    expect(DevRoleSwitchResponseSchema.parse(await toEval.json()).role).toBe(
+      "evaluator",
+    );
+
+    // Browser would send both cookies; session alone (evaluator) would 403.
+    const evalOnlySession = sessionCookieFromResponse(toEval);
+    const deniedWithoutJudge = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: evalOnlySession,
+        },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(deniedWithoutJudge.status).toBe(403);
+
+    const chainedCookies = allAuthCookiesFromResponse(toEval);
+    expect(chainedCookies).toContain(JUDGE_SESSION_COOKIE_NAME);
+
+    const backToAdmin = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: chainedCookies,
+          "x-correlation-id": "corr_chain_back_admin",
+        },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(backToAdmin.status).toBe(200);
+    const adminBody = DevRoleSwitchResponseSchema.parse(
+      await backToAdmin.json(),
+    );
+    expect(adminBody.role).toBe("admin");
+    expect(adminBody.email).toBe(DEMO_ROLE_EMAILS.admin);
+    expect(sessionCookieFromResponse(backToAdmin)).toMatch(
+      new RegExp(`${SESSION_COOKIE_NAME}=`),
+    );
+
+    // Another hop: admin → speaker → admin still works with preserved origin.
+    const toSpeaker = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: allAuthCookiesFromResponse(backToAdmin),
+        },
+        body: JSON.stringify({ role: "speaker" }),
+      },
+    );
+    expect(toSpeaker.status).toBe(200);
+    const againAdmin = await gatedApp.request(
+      "http://localhost/api/auth/dev/role-switch",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: allAuthCookiesFromResponse(toSpeaker),
+        },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
+    expect(againAdmin.status).toBe(200);
+    expect(
+      DevRoleSwitchResponseSchema.parse(await againAdmin.json()).role,
+    ).toBe("admin");
   });
 
   it("missing demo user without create returns 404 when admin authenticated", async () => {

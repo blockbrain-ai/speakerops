@@ -86,6 +86,16 @@ export const DEMO_ROLE_EMAILS = {
 /** Session cookie name (HttpOnly Secure SameSite=Lax). */
 export const SESSION_COOKIE_NAME = "speakerops_session" as const;
 
+/**
+ * Dogfood role-switch origin cookie (section 8.4).
+ * Holds the original judge (event-admin) session token while the active
+ * `speakerops_session` cookie is swapped to a demo evaluator/speaker.
+ * HttpOnly Secure SameSite=Lax — used only to authorize further role-switch
+ * requests so judges can return to admin without re-login. Never used as the
+ * primary auth cookie for product APIs.
+ */
+export const JUDGE_SESSION_COOKIE_NAME = "speakerops_judge_session" as const;
+
 /** Magic-link TTL (minutes). */
 export const MAGIC_LINK_TTL_MINUTES = 30 as const;
 

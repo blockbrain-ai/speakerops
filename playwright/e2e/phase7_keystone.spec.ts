@@ -157,11 +157,23 @@ async function mintKey(
   return body;
 }
 
+/**
+ * Select active event when the shell switcher is present.
+ * AdminShell briefly renders a fallback <div data-testid="event-context">
+ * while events load; calling selectOption on that div races and fails with
+ * "Element is not a <select> element". Wait for a real <select> before acting.
+ */
 async function selectEventIfPresent(page: Page, eventId: string) {
-  const switcher = page.getByTestId("event-context");
-  if (await switcher.isVisible().catch(() => false)) {
-    await switcher.selectOption(eventId);
-  }
+  // Target the select explicitly — not the loading placeholder div.
+  const switcher = page.locator('select[data-testid="event-context"]');
+  const visible = await switcher
+    .isVisible({ timeout: 15_000 })
+    .catch(() => false);
+  if (!visible) return;
+  await expect(switcher.locator(`option[value="${eventId}"]`)).toHaveCount(1, {
+    timeout: 10_000,
+  });
+  await switcher.selectOption({ value: eventId });
 }
 
 test.describe("7.4 phase7 keystone (I12 K* + CLI deny + airtable pause)", () => {

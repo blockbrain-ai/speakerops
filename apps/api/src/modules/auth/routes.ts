@@ -26,6 +26,7 @@ import {
   NOT_FOUND,
   INTERNAL_ERROR,
   SESSION_COOKIE_NAME,
+  JUDGE_SESSION_COOKIE_NAME,
   DEFAULT_BOOTSTRAP_EVENT_ID,
 } from "@speakerops/shared";
 import type { ApiEnv } from "../../env.js";
@@ -43,6 +44,26 @@ import {
   getSessionTokenFromCookieHeader,
 } from "./cookies.js";
 import { hashToken, isExpired } from "./crypto.js";
+
+/**
+ * Resolve a session cookie to an event-admin user id when the session is
+ * valid and holds admin membership on `eventId`. Returns null otherwise.
+ */
+async function resolveAdminActorForEvent(
+  store: AuthStore,
+  sessionToken: string | null,
+  eventId: string,
+): Promise<{ userId: string; sessionToken: string } | null> {
+  if (!sessionToken) return null;
+  const tokenHash = await hashToken(sessionToken);
+  const session = await store.findSessionByTokenHash(tokenHash);
+  if (!session || isExpired(session.expiresAt)) return null;
+  const actor = await store.findUserById(session.userId);
+  if (!actor) return null;
+  const membership = await store.findMembership(eventId, actor.id);
+  if (!membership || membership.role !== "admin") return null;
+  return { userId: actor.id, sessionToken };
+}
 
 export type AuthRouteOptions = {
   store: AuthStore;
@@ -186,7 +207,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
   });
 
   /**
-   * POST /api/auth/logout → 204 + clear cookie
+   * POST /api/auth/logout → 204 + clear session (+ judge origin) cookies
    */
   auth.post("/logout", async (c) => {
     const correlationId = c.get("correlationId");
@@ -198,6 +219,16 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
     c.header(
       "Set-Cookie",
       buildClearSessionCookie({ secure: cookieSecure }),
+      { append: true },
+    );
+    // Clear dogfood judge-origin cookie so impersonation cannot outlive logout.
+    c.header(
+      "Set-Cookie",
+      buildClearSessionCookie({
+        secure: cookieSecure,
+        name: JUDGE_SESSION_COOKIE_NAME,
+      }),
+      { append: true },
     );
     return c.body(null, 204);
   });
@@ -246,10 +277,17 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
    *
    * Security (E10 / phase audit): workers.dev is not private by itself.
    * Controlled/production dogfood requires:
-   *   1) an existing valid session cookie (no anonymous mint), and
-   *   2) the actor holds **admin** membership on the **exact** target event
-   *      (E2 multi-event isolation — admin on A cannot mint sessions for B;
-   *      speakers/evaluators cannot escalate to admin).
+   *   1) an existing valid session cookie **or** a preserved judge-origin
+   *      cookie from a prior authorized switch (no anonymous mint), and
+   *   2) the authorizing actor holds **admin** membership on the **exact**
+   *      target event (E2 multi-event isolation — admin on A cannot mint
+   *      sessions for B; bare speakers/evaluators cannot escalate to admin).
+   *
+   * When an event admin switches into evaluator/speaker, the original admin
+   * session token is preserved in `speakerops_judge_session` so the switcher
+   * remains usable (admin→evaluator→admin) without re-login. The judge cookie
+   * is never accepted as the primary product session.
+   *
    * Local e2e (open bootstrap) may allow unauthenticated switch for harness.
    */
   if (options.enableRoleSwitcher) {
@@ -260,46 +298,15 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         (options.roleSwitcherAllowUnauthenticated !== false &&
           bootstrap === "open");
 
-      /** Actor user id when session gate applies; null when open/unauthenticated. */
-      let actorUserId: string | null = null;
-
-      if (!allowUnauthenticated) {
-        const sessionToken = getSessionTokenFromCookieHeader(
-          c.req.header("cookie"),
-          SESSION_COOKIE_NAME,
-        );
-        if (!sessionToken) {
-          return c.json(
-            errorEnvelope(
-              "Authentication required for role switch",
-              UNAUTHORIZED,
-            ),
-            401,
-          );
-        }
-        const tokenHash = await hashToken(sessionToken);
-        const session = await options.store.findSessionByTokenHash(tokenHash);
-        if (!session || isExpired(session.expiresAt)) {
-          return c.json(
-            errorEnvelope(
-              "Authentication required for role switch",
-              UNAUTHORIZED,
-            ),
-            401,
-          );
-        }
-        const actor = await options.store.findUserById(session.userId);
-        if (!actor) {
-          return c.json(
-            errorEnvelope(
-              "Authentication required for role switch",
-              UNAUTHORIZED,
-            ),
-            401,
-          );
-        }
-        actorUserId = actor.id;
-      }
+      const cookieHeader = c.req.header("cookie");
+      const sessionToken = getSessionTokenFromCookieHeader(
+        cookieHeader,
+        SESSION_COOKIE_NAME,
+      );
+      const judgeCookieToken = getSessionTokenFromCookieHeader(
+        cookieHeader,
+        JUDGE_SESSION_COOKIE_NAME,
+      );
 
       let raw: unknown;
       try {
@@ -320,18 +327,51 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         );
       }
 
-      // Controlled/production: only event admins (judges) may mint demo roles.
-      // Authorization is **event-scoped** (E2): admin membership is required
-      // on the exact target event — admin on event A must not mint sessions
-      // for event B. Speakers/evaluators must not escalate to admin.
-      if (actorUserId) {
-        const targetEventId =
-          parsed.data.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
-        const membership = await options.store.findMembership(
+      const targetEventId =
+        parsed.data.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
+
+      /**
+       * Judge session token to preserve across impersonation (controlled path).
+       * Prefer the active session when it is event-admin; otherwise the
+       * existing judge-origin cookie when it still authorizes as admin.
+       */
+      let preserveJudgeToken: string | null = null;
+
+      // Controlled/production: only event admins (judges) — or a preserved
+      // judge-origin cookie from a prior authorized switch — may mint demo roles.
+      // Authorization is **event-scoped** (E2). Bare evaluators/speakers without
+      // a judge-origin cookie must not escalate to admin.
+      if (!allowUnauthenticated) {
+        if (!sessionToken && !judgeCookieToken) {
+          return c.json(
+            errorEnvelope(
+              "Authentication required for role switch",
+              UNAUTHORIZED,
+            ),
+            401,
+          );
+        }
+
+        const fromSession = await resolveAdminActorForEvent(
+          options.store,
+          sessionToken,
           targetEventId,
-          actorUserId,
         );
-        if (!membership || membership.role !== "admin") {
+        if (fromSession) {
+          preserveJudgeToken = fromSession.sessionToken;
+        } else {
+          const fromJudge = await resolveAdminActorForEvent(
+            options.store,
+            judgeCookieToken,
+            targetEventId,
+          );
+          if (fromJudge) {
+            preserveJudgeToken = fromJudge.sessionToken;
+          }
+        }
+
+        if (!preserveJudgeToken) {
+          // Present but non-admin (or expired) credentials → forbid escalation.
           return c.json(
             errorEnvelope(
               "Admin role required for role switch on target event",
@@ -339,6 +379,26 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
             ),
             403,
           );
+        }
+      } else {
+        // Open bootstrap: still preserve judge origin when the active session
+        // is event-admin so chained switches work if the Worker later gates.
+        const fromSession = await resolveAdminActorForEvent(
+          options.store,
+          sessionToken,
+          targetEventId,
+        );
+        if (fromSession) {
+          preserveJudgeToken = fromSession.sessionToken;
+        } else if (judgeCookieToken) {
+          const fromJudge = await resolveAdminActorForEvent(
+            options.store,
+            judgeCookieToken,
+            targetEventId,
+          );
+          if (fromJudge) {
+            preserveJudgeToken = fromJudge.sessionToken;
+          }
         }
       }
 
@@ -371,10 +431,24 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         );
       }
 
+      // Active product session → demo role user.
       c.header(
         "Set-Cookie",
         buildSessionSetCookie(result.sessionToken, { secure: cookieSecure }),
+        { append: true },
       );
+      // Preserve original judge authorization across impersonation so the
+      // switcher remains functional after admin → evaluator/speaker.
+      if (preserveJudgeToken) {
+        c.header(
+          "Set-Cookie",
+          buildSessionSetCookie(preserveJudgeToken, {
+            secure: cookieSecure,
+            name: JUDGE_SESSION_COOKIE_NAME,
+          }),
+          { append: true },
+        );
+      }
       return c.json(out.data, 200);
     });
   }
