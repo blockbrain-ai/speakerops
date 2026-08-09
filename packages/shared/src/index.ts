@@ -314,6 +314,7 @@ export {
   EvalAdminRollupResponseSchema,
   type EvalAdminRollupResponse,
   computeWeightedAggregate,
+  coerceFiniteNumber,
 } from "./eval.js";
 
 export {

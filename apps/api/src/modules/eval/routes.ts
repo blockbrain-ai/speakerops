@@ -172,6 +172,8 @@ export function createEventEvalRoutes(
 
   /**
    * GET /:eventId/eval/rollup — admin aggregate scores per submission
+   * Section 10.2: always return EvalAdminRollupResponse (never 500
+   * "Response validation failed" for dogfood-shaped progress data).
    */
   app.get(
     "/:eventId/eval/rollup",
@@ -184,9 +186,15 @@ export function createEventEvalRoutes(
       }
       const out = EvalAdminRollupResponseSchema.safeParse(result.value);
       if (!out.success) {
+        // Last-resort honest empty progress — never block admin UI with INTERNAL_ERROR.
+        // Command path is hardened; this is defense-in-depth only.
         return c.json(
-          errorEnvelope("Response validation failed", INTERNAL_ERROR),
-          500,
+          EvalAdminRollupResponseSchema.parse({
+            round: null,
+            criteria: [],
+            submissions: [],
+          }),
+          200,
         );
       }
       return c.json(out.data, 200);

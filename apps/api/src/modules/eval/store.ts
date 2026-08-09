@@ -289,50 +289,61 @@ export class D1EvalStore implements EvalStore {
   }
 
   private mapRound(row: typeof evalRounds.$inferSelect): EvalRoundRow {
+    const status =
+      row.status === "closed" || row.status === "open" ? row.status : "open";
     return {
       id: row.id,
       eventId: row.eventId,
-      name: row.name,
-      status: row.status as "open" | "closed",
-      closesAt: row.closesAt,
+      name: row.name ?? "",
+      status,
+      closesAt: row.closesAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
 
   private mapCriterion(row: typeof evalCriteria.$inferSelect): EvalCriterionRow {
+    // D1/SQLite REAL/INTEGER can surface as string numerics in some bindings.
+    const maxScore = Number(row.maxScore);
+    const weight = Number(row.weight);
+    const sortOrder = Number(row.sortOrder);
     return {
       id: row.id,
       roundId: row.roundId,
-      name: row.name,
-      maxScore: row.maxScore,
-      weight: row.weight,
-      sortOrder: row.sortOrder,
+      name: row.name ?? "",
+      maxScore: Number.isFinite(maxScore) ? maxScore : 0,
+      weight: Number.isFinite(weight) ? weight : 1,
+      sortOrder: Number.isFinite(sortOrder) ? Math.trunc(sortOrder) : 0,
     };
   }
 
   private mapAssignment(
     row: typeof evalAssignments.$inferSelect,
   ): EvalAssignmentRow {
+    const status =
+      row.status === "scored" || row.status === "pending"
+        ? row.status
+        : "pending";
     return {
       id: row.id,
       roundId: row.roundId,
       submissionId: row.submissionId,
       evaluatorUserId: row.evaluatorUserId,
-      status: row.status as "pending" | "scored",
-      overallComment: row.overallComment,
+      status,
+      overallComment: row.overallComment ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
 
   private mapScore(row: typeof scores.$inferSelect): ScoreRow {
+    const value = Number(row.value);
     return {
       id: row.id,
       assignmentId: row.assignmentId,
       criterionId: row.criterionId,
-      value: row.value,
-      comment: row.comment,
+      value: Number.isFinite(value) ? value : 0,
+      comment: row.comment ?? null,
     };
   }
 

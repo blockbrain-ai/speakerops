@@ -1,5 +1,5 @@
 /**
- * Section 3.4 — Evaluation scoring (Vitest).
+ * Section 3.4 — Evaluation scoring (Vitest) + section 10.2 progress contract.
  *
  * Named assertions from spec:
  * - assert unassigned submission absent from evaluator queue
@@ -7,6 +7,12 @@
  * - assert evaluator UI has no accept button (UI e2e; API has no Decision for evaluator)
  *
  * Plus: Zod 400, authz 401/403, audit_events + correlationId, aggregate rollup.
+ *
+ * 10.2 (S-EVAL-UI):
+ * - eval progress response schema accepts production-shaped rows
+ * - rollup never returns "Response validation failed"
+ * - empty progress (no rubric) is honest empty 200
+ * - unauthenticated / non-admin denied
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -594,10 +600,126 @@ describe("3.4 evaluation scoring", () => {
       env,
     );
     expect(rollupRes.status).toBe(200);
-    const rollup = EvalAdminRollupResponseSchema.parse(await rollupRes.json());
+    const rollupBody = await rollupRes.json();
+    // Must never surface the pre-10.2 product wall
+    expect(
+      JSON.stringify(rollupBody).toLowerCase(),
+    ).not.toContain("response validation failed");
+    const rollup = EvalAdminRollupResponseSchema.parse(rollupBody);
     const row = rollup.submissions.find((s) => s.submissionId === submissionId);
     expect(row).toBeTruthy();
     expect(row!.aggregateScore).toBe(7);
+    expect(row!.assignments).toHaveLength(1);
+    expect(row!.assignments[0]!.status).toBe("scored");
+  });
+
+  it("10.2: unit progress schema accepts production-shaped empty + scored", () => {
+    const empty = EvalAdminRollupResponseSchema.parse({
+      round: null,
+      criteria: [],
+      submissions: [],
+    });
+    expect(empty.round).toBeNull();
+
+    const scored = EvalAdminRollupResponseSchema.parse({
+      round: {
+        id: "r1",
+        eventId: "evt_dogfood",
+        name: "Main",
+        status: "open",
+        closesAt: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      criteria: [
+        {
+          id: "c1",
+          roundId: "r1",
+          name: "Clarity",
+          maxScore: "5",
+          weight: "1",
+          sortOrder: "0",
+        },
+      ],
+      submissions: [
+        {
+          submissionId: "sub1",
+          title: "Talk",
+          category: null,
+          status: "submitted",
+          aggregateScore: 4,
+          assignments: [
+            {
+              id: "a1",
+              evaluatorUserId: "u1",
+              status: "scored",
+              aggregateScore: 4,
+            },
+          ],
+        },
+      ],
+    });
+    expect(scored.criteria[0]!.maxScore).toBe(5);
+    expect(scored.submissions[0]!.aggregateScore).toBe(4);
+  });
+
+  it("10.2: rollup with no rubric returns honest empty (not validation failed)", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "eval-admin-empty-rollup@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Empty Rollup");
+    const res = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rollup`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(JSON.stringify(body).toLowerCase()).not.toContain(
+      "response validation failed",
+    );
+    const rollup = EvalAdminRollupResponseSchema.parse(body);
+    expect(rollup.round).toBeNull();
+    expect(rollup.criteria).toEqual([]);
+    expect(rollup.submissions).toEqual([]);
+  });
+
+  it("10.2: unauthenticated rollup returns 401 (must-not leak progress)", async () => {
+    const { app } = createAppWithAuth({ cookieSecure: true });
+    const res = await app.request(
+      "http://localhost/api/events/evt_x/eval/rollup",
+      { method: "GET" },
+      env,
+    );
+    expect(res.status).toBe(401);
+    expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(
+      UNAUTHORIZED,
+    );
+  });
+
+  it("10.2: evaluator cannot read admin rollup (403)", async () => {
+    const shared = createAppWithAuth({ cookieSecure: true });
+    const admin = await magicLinkSession(
+      "admin",
+      "eval-admin-rollup-authz@example.com",
+      undefined,
+      shared,
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Authz Rollup");
+    const evaluator = await magicLinkSession(
+      "evaluator",
+      "eval-evaluator-rollup-authz@example.com",
+      event.id,
+      shared,
+    );
+    const res = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rollup`,
+      { headers: { cookie: evaluator.cookie } },
+      env,
+    );
+    expect(res.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(FORBIDDEN);
   });
 
   it("speaker cannot access eval queue (403)", async () => {
