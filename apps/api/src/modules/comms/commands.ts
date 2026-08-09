@@ -676,12 +676,28 @@ export async function sendComms(
   const now = new Date().toISOString();
   const nextVersion = job.version + 1;
 
-  // Build recipient rows from preview snapshot before any write (I16: to_email).
+  // AC-11.2 field-flow / J08: never enqueue a zero-recipient campaign.
+  // Preview may intentionally materialize an empty audience (explicit [] or
+  // zero search matches); UI blocks send, and the API must too so CLI/API
+  // callers cannot create empty outbox jobs.
   const existingRecipients = await deps.comms.listRecipientsForJob(job.id);
   const recipientRows =
     existingRecipients.length > 0
       ? []
       : buildRecipientRows(job, now);
+  const effectiveRecipientCount =
+    existingRecipients.length > 0
+      ? existingRecipients.length
+      : recipientRows.length;
+  if (effectiveRecipientCount === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Cannot send to an empty audience",
+      code: "VALIDATION_ERROR",
+      details: { recipientCount: 0, previewId: job.id },
+    };
+  }
 
   // Provisional DTO for idempotency response payload (status after enqueue).
   const provisionalJob: MessageJobRow = {

@@ -230,6 +230,7 @@ describe("8.3 security headers middleware", () => {
       CONTENT_SECURITY_POLICY,
     );
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("CSP present on 404 envelope", async () => {

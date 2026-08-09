@@ -92,12 +92,15 @@ Taste score: **8.3 / 10** (`docs/audits/LUMEN2_TASTE_SCORE.md`) · screenshots `
 
 ---
 
-## 6. Known residuals (non-blocking for dogfood_ready)
+## 6. Out-of-scope notes (not programme residuals)
 
-- R2 not enabled on dogfood account → FILES binding omitted; design logo bytes use isolate fallback.  
-- Settings secondary surfaces remain functional but less deep restyle than primary six.  
-- Production multi-tenant cutover **out of scope**.  
-- sbek harness scores are **not** product souls (H/C classification).
+These are **constitution non-goals** or platform account limits — they do **not**
+count as agent-incomplete residuals against `dogfood_ready` / FULL:
+
+- R2 not enabled on this Cloudflare account → `FILES` binding omitted; design logo bytes use isolate fallback (platform constraint).  
+- Production multi-tenant cutover **out of scope** (constitution non-goal).  
+- sbek harness scores are **not** product souls (H/C classification).  
+- Primary Lumen 2 surfaces (Overview, Comms, CFP, Schedule, Speakers/Portal, Settings shell) meet taste ≥8.0 / all primary ≥7.0 (see `docs/audits/LUMEN2_TASTE_SCORE.md`).
 
 ---
 

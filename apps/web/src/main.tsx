@@ -1,6 +1,6 @@
 /**
  * Web composition root — React + Vite SPA (section 1.4).
- * Lumen tokens + admin chrome shell + router placeholders.
+ * Lumen tokens + admin chrome shell + App routes.
  * E6: Lumen CSS variables only — no freeform palette.
  */
 import { createRoot } from "react-dom/client";

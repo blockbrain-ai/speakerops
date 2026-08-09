@@ -68,6 +68,9 @@ export const SECURITY_HEADERS = {
   "Permissions-Policy":
     "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
   "Cross-Origin-Opener-Policy": "same-origin",
+  // Phase 10/11: session cookies, draft PII, and API JSON must not be
+  // shared-cache stored. Route handlers may still set no-store explicitly.
+  "Cache-Control": "no-store",
 } as const;
 
 /** Dev/E2E Vite server headers — companion headers + CONTENT_SECURITY_POLICY_DEV. */
