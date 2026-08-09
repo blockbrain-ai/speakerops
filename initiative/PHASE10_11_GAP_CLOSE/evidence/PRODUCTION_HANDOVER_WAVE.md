@@ -30,8 +30,9 @@ This appendix closes the Phase 10–11 FULL wave for owner G7. It does **not** a
 | SPA | Workers Assets from `apps/web/dist` |
 | D1 | `speakerops-demo` |
 | DEMO | `DEMO_MODE=1` + host allowlist (www.speakerops.org, …) |
-| Health | **200** · version `0.1.0-demo+…` |
-| Evidence | `evidence/deploy.md` · BC10 `KMS-competition/initiative/evidence/cf-dogfood.txt` |
+| Health | **200** · version `0.1.0-demo+3421b4f` |
+| Deploy revision | `3421b4f` (postbuild residual close; empty-audience send 400 + global `Cache-Control: no-store`) |
+| Evidence | `evidence/deploy.md` · BC10 `KMS-competition/initiative/evidence/cf-dogfood.txt` · `postbuild-eval/SYNTHESIS_POSTBUILD.md` |
 
 ### Operator deploy
 
@@ -75,6 +76,8 @@ Taste score: **8.3 / 10** (`docs/audits/LUMEN2_TASTE_SCORE.md`) · screenshots `
 | 7 | Rollback path documented | **PASS** | §5 below |
 | 8 | Phase 9 onboarding docs still valid | **PASS** | `docs/ONBOARDING.md` · `docs/OPERATIONS.md` |
 | 9 | Adversarial must-not (unauth / closed CFP) | **PASS** | keystone negatives |
+| 10 | Independent dual postbuild eval + residual close | **PASS** | `postbuild-eval/SYNTHESIS_POSTBUILD.md` · CLAIM_PROVEN |
+| 11 | Keystone 19/19 @ deploy rev | **PASS** | `phase11-keystone-run.json` · SHA256 sidecar |
 
 ---
 

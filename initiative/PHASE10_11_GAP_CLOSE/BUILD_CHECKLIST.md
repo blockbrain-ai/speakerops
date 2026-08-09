@@ -22,8 +22,8 @@
 | BC-14 | S-L2-A11Y | a11y + session recovery | e2e + checklist | DONE_WITH_EVIDENCE | 11.7 · docs/audits/LUMEN2_QA_EVIDENCE.md · 11.9 D:S-L2-A11Y | |
 | BC-15 | S-L2-SCORE | ≥8.0 / no primary &lt;7 | taste score doc | DONE_WITH_EVIDENCE | 11.8 · docs/audits/LUMEN2_TASTE_SCORE.md (8.3) · visual-lumen2/ · 11.9 D:S-L2-SCORE | |
 | BC-16 | S-DOGFOOD | Deploy + keystone on www.speakerops.org | deploy log + e2e | DONE_WITH_EVIDENCE | evidence/deploy.md · SOUL_EVIDENCE_TABLE.md · phase11-keystone-run.SHA256 | binding URL only |
-| BC-17 | S-SCHED-CHROME | Schedule day chrome fixed or absence proven | e2e or absence note | DONE_WITH_EVIDENCE | 10.6 + 11.9 D:S-SCHED-CHROME | residual #7 |
-| BC-18 | S-EVAL-EXPORT | Export/sort fixed or absence proven | e2e or absence note | DONE_WITH_EVIDENCE | 10.6 + 11.9 D:S-EVAL-EXPORT | residual #8 |
+| BC-17 | S-SCHED-CHROME | Schedule day chrome fixed or absence proven | e2e or absence note | DONE_WITH_EVIDENCE | 10.6 + 11.9 D:S-SCHED-CHROME | closed in-wave |
+| BC-18 | S-EVAL-EXPORT | Export/sort fixed or absence proven | e2e or absence note | DONE_WITH_EVIDENCE | 10.6 + 11.9 D:S-EVAL-EXPORT | closed in-wave |
 | BC-19 | Inventory gate | `pnpm test:e2e:inventory` green after 11.x | CI log | DONE_WITH_EVIDENCE | 11.9 gate | anti-shrinkage |
 | BC-20 | Lockfile | No unapproved new runtime deps | package.json+lock hash diff | DONE_WITH_EVIDENCE | 11.9 zero new UI kits | zero-deps |
 
@@ -35,4 +35,4 @@
 | Soul table | `evidence/SOUL_EVIDENCE_TABLE.md` |
 | Deploy | `evidence/deploy.md` |
 | Keystone | `playwright/e2e/phase11_handover_keystone.spec.ts` |
-| Claim readiness | **dogfood_ready** — all BC rows DONE_WITH_EVIDENCE |
+| Claim readiness | **dogfood_ready** / **CLAIM_PROVEN** — all BC rows DONE_WITH_EVIDENCE · dogfood `0.1.0-demo+3421b4f` · postbuild dual-eval closed (`evidence/postbuild-eval/SYNTHESIS_POSTBUILD.md`) |
