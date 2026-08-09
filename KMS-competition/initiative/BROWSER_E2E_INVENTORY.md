@@ -94,7 +94,7 @@
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |
 |----|------|---------|---------|---------|----------|--------|
-| E01 | admin | Submissions | List filters by status/category; page window (limit/offset) at scale (S-SUB-LIST 10.1) | e2e/admin/sub-list | — | REQUIRED | PASS |
+| E01 | admin | Submissions | List filters by status/category | e2e/admin/sub-list | — | REQUIRED | PASS |
 | E02 | admin | Submissions | Open detail; answers; speakers | e2e/admin/sub-detail | — | REQUIRED | PASS |
 | E03 | admin | Submissions | Assign to evaluator | e2e/admin/sub-assign | — | REQUIRED | PASS |
 | E04 | admin | Submissions | Accept creates session + tasks | e2e/admin/sub-accept | Accept without authz denied | REQUIRED | PASS |
