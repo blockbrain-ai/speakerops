@@ -381,19 +381,24 @@ export class D1SubmissionsStore implements SubmissionsStore {
     const out = new Map<string, PersonRow>();
     if (personIds.length === 0) return out;
     const unique = [...new Set(personIds)];
-    const rows = await this.db
-      .select()
-      .from(people)
-      .where(inArray(people.id, unique));
-    for (const row of rows) {
-      out.set(row.id, {
-        id: row.id,
-        orgId: row.orgId,
-        email: row.email,
-        name: row.name,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      });
+    // D1 bound-parameter limit is 100 per query — chunk IN lists (dogfood 150+).
+    const CHUNK = 90;
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const slice = unique.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select()
+        .from(people)
+        .where(inArray(people.id, slice));
+      for (const row of rows) {
+        out.set(row.id, {
+          id: row.id,
+          orgId: row.orgId,
+          email: row.email,
+          name: row.name,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        });
+      }
     }
     return out;
   }
