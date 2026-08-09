@@ -239,3 +239,125 @@ export function computeWeightedAggregate(
   const out = num / den;
   return Number.isFinite(out) ? out : null;
 }
+
+/**
+ * Single-round admin eval sort keys (section 10.6 / S-EVAL-EXPORT / ABS-13-class).
+ * Default score_desc puts highest aggregates first; unscored (null) last.
+ */
+export const EvalScoreSortSchema = z.enum([
+  "score_desc",
+  "score_asc",
+  "title",
+]);
+export type EvalScoreSort = z.infer<typeof EvalScoreSortSchema>;
+
+export type EvalSortableSubmission = {
+  submissionId: string;
+  title: string;
+  aggregateScore: number | null;
+};
+
+/**
+ * Sort rollup rows by aggregate score or title.
+ * - score_desc: highest first; null aggregates last; stable by title then id
+ * - score_asc: lowest first; null aggregates last
+ * - title: case-insensitive title, then submissionId
+ */
+export function sortEvalSubmissionsByScore<T extends EvalSortableSubmission>(
+  rows: readonly T[],
+  sort: EvalScoreSort = "score_desc",
+): T[] {
+  const copy = [...rows];
+  const titleCmp = (a: T, b: T) => {
+    const t = a.title.localeCompare(b.title, undefined, {
+      sensitivity: "base",
+    });
+    if (t !== 0) return t;
+    return a.submissionId.localeCompare(b.submissionId);
+  };
+  if (sort === "title") {
+    copy.sort(titleCmp);
+    return copy;
+  }
+  const desc = sort === "score_desc";
+  copy.sort((a, b) => {
+    const aNull = a.aggregateScore == null || !Number.isFinite(a.aggregateScore);
+    const bNull = b.aggregateScore == null || !Number.isFinite(b.aggregateScore);
+    if (aNull && bNull) return titleCmp(a, b);
+    if (aNull) return 1;
+    if (bNull) return -1;
+    const av = a.aggregateScore as number;
+    const bv = b.aggregateScore as number;
+    if (av !== bv) return desc ? bv - av : av - bv;
+    return titleCmp(a, b);
+  });
+  return copy;
+}
+
+/** Escape one CSV field (RFC 4180-ish: quote when needed). */
+export function csvEscapeField(value: string): string {
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+export type EvalCsvRow = {
+  submissionId: string;
+  title: string;
+  status: string;
+  category?: string | null;
+  aggregateScore: number | null;
+  assignments: readonly { status: string }[];
+};
+
+/**
+ * Build CSV of scores/status for an event (single-round admin export).
+ * Columns: submissionId,title,status,category,aggregateScore,assignmentCount,scoredCount
+ */
+export function evalRollupToCsv(
+  rows: readonly EvalCsvRow[],
+  options?: { sort?: EvalScoreSort },
+): string {
+  const sorted = sortEvalSubmissionsByScore(
+    rows.map((r) => ({
+      submissionId: r.submissionId,
+      title: r.title,
+      aggregateScore: r.aggregateScore,
+    })),
+    options?.sort ?? "score_desc",
+  );
+  const byId = new Map(rows.map((r) => [r.submissionId, r]));
+  const header = [
+    "submissionId",
+    "title",
+    "status",
+    "category",
+    "aggregateScore",
+    "assignmentCount",
+    "scoredCount",
+  ].join(",");
+  const lines = [header];
+  for (const key of sorted) {
+    const r = byId.get(key.submissionId);
+    if (!r) continue;
+    const scoredCount = r.assignments.filter((a) => a.status === "scored")
+      .length;
+    const score =
+      r.aggregateScore != null && Number.isFinite(r.aggregateScore)
+        ? String(r.aggregateScore)
+        : "";
+    lines.push(
+      [
+        csvEscapeField(r.submissionId),
+        csvEscapeField(r.title),
+        csvEscapeField(r.status),
+        csvEscapeField(r.category ?? ""),
+        score,
+        String(r.assignments.length),
+        String(scoredCount),
+      ].join(","),
+    );
+  }
+  return `${lines.join("\r\n")}\r\n`;
+}

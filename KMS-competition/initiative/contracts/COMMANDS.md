@@ -47,6 +47,7 @@ Auth: session cookie **or** API key with scopes.
 |---------|-------|-------|--------|
 | `Eval.UpsertRubric` | admin | roundId, criteria[] | rubric |
 | `Eval.Score` | evaluator | assignmentId, scores[], comment | assignment |
+| `Eval.ExportScores` | admin | eventId, sort? | CSV (scores/status) |
 | `Decision.Record` | decisions:write | submissionId, decision, reason | decision (+ side effects on accept; dematerialize on leave-accept) |
 | `Session.CreateDirect` | admin / decisions:write | eventId, title, description?, trackId?, speakers[] | session + participations + on_accept tasks |
 
@@ -140,7 +141,8 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/events/:eventId/submissions/bulk-preview | Submission.BulkPreview |
 | PUT | /api/events/:eventId/eval/rubric | Eval.UpsertRubric |
 | GET | /api/events/:eventId/eval/rubric | Eval.GetRubric (read active round) |
-| GET | /api/events/:eventId/eval/rollup | Eval.AdminRollup (aggregate scores) |
+| GET | /api/events/:eventId/eval/rollup | Eval.AdminRollup (aggregate scores; ?sort=score_desc\|score_asc\|title) |
+| GET | /api/events/:eventId/eval/export | Eval.ExportScores (CSV; ?sort=score_desc\|score_asc\|title) |
 | POST | /api/assignments/:assignmentId/scores | Eval.Score |
 | GET | /api/me/eval-queue | Eval.GetQueue (assigned only) |
 | POST | /api/submissions/:submissionId/decision | Decision.Record |

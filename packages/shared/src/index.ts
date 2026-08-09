@@ -323,6 +323,13 @@ export {
   type EvalAdminRollupResponse,
   computeWeightedAggregate,
   coerceFiniteNumber,
+  EvalScoreSortSchema,
+  type EvalScoreSort,
+  type EvalSortableSubmission,
+  sortEvalSubmissionsByScore,
+  csvEscapeField,
+  type EvalCsvRow,
+  evalRollupToCsv,
 } from "./eval.js";
 
 export {

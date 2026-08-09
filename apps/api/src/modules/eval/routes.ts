@@ -4,6 +4,7 @@
  * PUT  /api/events/:eventId/eval/rubric          → Eval.UpsertRubric
  * GET  /api/events/:eventId/eval/rubric          → get rubric
  * GET  /api/events/:eventId/eval/rollup          → admin aggregates
+ * GET  /api/events/:eventId/eval/export          → Eval.ExportScores (CSV)
  * POST /api/assignments/:assignmentId/scores     → Eval.Score
  * GET  /api/me/eval-queue                        → assigned queue only
  * POST /api/submissions/:submissionId/assign     → Submission.AssignEvaluators
@@ -20,6 +21,8 @@ import {
   SubmissionAssignBodySchema,
   SubmissionAssignResponseSchema,
   EvalAdminRollupResponseSchema,
+  EvalScoreSortSchema,
+  sortEvalSubmissionsByScore,
   errorEnvelope,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
@@ -41,6 +44,7 @@ import {
   assignEvaluators,
   getEvalQueue,
   getAdminEvalRollup,
+  exportAdminEvalCsv,
 } from "./commands.js";
 
 export type EvalRouteOptions = {
@@ -72,7 +76,7 @@ function commandError(
 
 /**
  * Event-scoped eval routes mounted under /api/events
- * Paths: /:eventId/eval/rubric, /:eventId/eval/rollup
+ * Paths: /:eventId/eval/rubric, /:eventId/eval/rollup, /:eventId/eval/export
  */
 export function createEventEvalRoutes(
   options: EvalRouteOptions,
@@ -174,17 +178,43 @@ export function createEventEvalRoutes(
    * GET /:eventId/eval/rollup — admin aggregate scores per submission
    * Section 10.2: always return EvalAdminRollupResponse (never 500
    * "Response validation failed" for dogfood-shaped progress data).
+   * Section 10.6: optional ?sort=score_desc|score_asc|title orders submissions.
    */
   app.get(
     "/:eventId/eval/rollup",
     requireRole(store, ["admin"], { eventIdFrom: "param" }),
     async (c) => {
       const eventId = c.req.param("eventId");
+      const sortRaw = c.req.query("sort");
+      let sort: ReturnType<typeof EvalScoreSortSchema.parse> | undefined;
+      if (sortRaw != null && sortRaw !== "") {
+        const parsedSort = EvalScoreSortSchema.safeParse(sortRaw);
+        if (!parsedSort.success) {
+          return c.json(
+            errorEnvelope("Invalid sort", VALIDATION_ERROR, {
+              sort: sortRaw,
+              allowed: EvalScoreSortSchema.options,
+            }),
+            400,
+          );
+        }
+        sort = parsedSort.data;
+      }
       const result = await getAdminEvalRollup(deps, eventId);
       if (!result.ok) {
         return commandError(c, result);
       }
-      const out = EvalAdminRollupResponseSchema.safeParse(result.value);
+      const value =
+        sort != null
+          ? {
+              ...result.value,
+              submissions: sortEvalSubmissionsByScore(
+                result.value.submissions,
+                sort,
+              ),
+            }
+          : result.value;
+      const out = EvalAdminRollupResponseSchema.safeParse(value);
       if (!out.success) {
         // Last-resort honest empty progress — never block admin UI with INTERNAL_ERROR.
         // Command path is hardened; this is defense-in-depth only.
@@ -198,6 +228,40 @@ export function createEventEvalRoutes(
         );
       }
       return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * GET /:eventId/eval/export — Eval.ExportScores (admin CSV download)
+   * Section 10.6 / S-EVAL-EXPORT. Query: sort? = score_desc|score_asc|title
+   */
+  app.get(
+    "/:eventId/eval/export",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const sortRaw = c.req.query("sort") ?? "score_desc";
+      const parsedSort = EvalScoreSortSchema.safeParse(sortRaw);
+      if (!parsedSort.success) {
+        return c.json(
+          errorEnvelope("Invalid sort", VALIDATION_ERROR, {
+            sort: sortRaw,
+            allowed: EvalScoreSortSchema.options,
+          }),
+          400,
+        );
+      }
+      const result = await exportAdminEvalCsv(deps, eventId, parsedSort.data);
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      c.header("Content-Type", "text/csv; charset=utf-8");
+      c.header(
+        "Content-Disposition",
+        `attachment; filename="${result.value.filename}"`,
+      );
+      c.header("Cache-Control", "no-store");
+      return c.body(result.value.csv, 200);
     },
   );
 

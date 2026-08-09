@@ -114,6 +114,7 @@
 | F02 | evaluator | Score | Score criteria + comment; save | e2e/eval/score | Out-of-range rejected | REQUIRED | PASS |
 | F03 | evaluator | Score | Cannot accept/reject | e2e/eval/no-decide | Control absent/403 | REQUIRED | PASS |
 | F04 | evaluator | Score | Keyboard-only complete score | e2e/eval/a11y-keyboard | — | REQUIRED | PASS |
+| F05 | admin | Evaluations | Sort by aggregate score; export CSV of scores/status | e2e/eval/export | Unauth 401; evaluator 403 | REQUIRED | PASS |
 
 ---
 
