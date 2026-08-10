@@ -270,6 +270,8 @@ export type CommsStore = {
       processedAt: string;
       attempts: number;
       lastError: string | null;
+      /** Optional payload rewrite (e.g. redact encrypted magic-link after send). */
+      payloadJson?: string;
     },
   ): Promise<OutboxEventRow | null>;
 
@@ -622,6 +624,7 @@ export class MemoryCommsStore implements CommsStore {
       processedAt: string;
       attempts: number;
       lastError: string | null;
+      payloadJson?: string;
     },
   ): Promise<OutboxEventRow | null> {
     const idx = this.outbox.findIndex((r) => r.id === id);
@@ -631,6 +634,9 @@ export class MemoryCommsStore implements CommsStore {
       processedAt: patch.processedAt,
       attempts: patch.attempts,
       lastError: patch.lastError,
+      ...(patch.payloadJson !== undefined
+        ? { payloadJson: patch.payloadJson }
+        : {}),
     };
     this.outbox[idx] = next;
     return { ...next };
@@ -1281,6 +1287,7 @@ export class D1CommsStore implements CommsStore {
       processedAt: string;
       attempts: number;
       lastError: string | null;
+      payloadJson?: string;
     },
   ): Promise<OutboxEventRow | null> {
     const result = await this.db
@@ -1289,6 +1296,9 @@ export class D1CommsStore implements CommsStore {
         processedAt: patch.processedAt,
         attempts: patch.attempts,
         lastError: patch.lastError,
+        ...(patch.payloadJson !== undefined
+          ? { payloadJson: patch.payloadJson }
+          : {}),
       })
       .where(eq(outboxEvents.id, id));
     if (d1Changes(result) === 0) return null;

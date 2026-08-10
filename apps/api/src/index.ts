@@ -150,6 +150,11 @@ import {
   processAirtableOutbox,
   type ProcessAirtableOutboxResult,
 } from "./workers/airtableConsumer.js";
+import {
+  processAuthMagicLinkOutbox,
+  type ProcessAuthOutboxResult,
+} from "./workers/authEmailConsumer.js";
+import type { MagicLinkMailDeps } from "./modules/auth/commands.js";
 import { registerOpenApiRoute } from "./openapi.js";
 
 export type { ApiEnv, WorkerBindings } from "./env.js";
@@ -232,6 +237,11 @@ export type CreateAppOptions = {
    * createAppWithAuth (e2e/tests): "open".
    */
   bootstrapPolicy?: BootstrapPolicy;
+  /**
+   * Durable magic-link email (encrypt + outbox). Production: from env.
+   * Tests may inject MemoryCommsStore + encryption key.
+   */
+  magicLinkMail?: MagicLinkMailDeps | null;
 };
 
 /**
@@ -306,7 +316,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     return c.json(parsed.data, 200);
   });
 
-  // Section 2.1 — magic-link session auth
+  // Section 2.1 — magic-link session auth (+ optional durable email outbox)
   // Section 8.4 — optional Auth.DevRoleSwitch when enableRoleSwitcher
   app.route(
     "/api/auth",
@@ -320,6 +330,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       roleSwitcherAllowUnauthenticated:
         options.roleSwitcherAllowUnauthenticated,
       bootstrapPolicy,
+      magicLinkMail: options.magicLinkMail ?? null,
     }),
   );
 
@@ -722,6 +733,24 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
   const roleSwitcherEnabled =
     typeof env.ROLE_SWITCHER_ENABLED === "string" &&
     env.ROLE_SWITCHER_ENABLED.trim() === "1";
+
+  // Durable magic-link email when encryption key is present (dogfood secrets).
+  const authLinkKey =
+    typeof env.AUTH_LINK_ENCRYPTION_KEY === "string"
+      ? env.AUTH_LINK_ENCRYPTION_KEY.trim()
+      : "";
+  const magicLinkMail: MagicLinkMailDeps | null =
+    authLinkKey.length > 0
+      ? {
+          comms: new D1CommsStore(d1),
+          authLinkEncryptionKey: authLinkKey,
+          queueKick:
+            env.JOBS_QUEUE && typeof env.JOBS_QUEUE.send === "function"
+              ? env.JOBS_QUEUE
+              : null,
+        }
+      : null;
+
   return createApp({
     authStore: new D1AuthStore(d1),
     eventsStore: new D1EventsStore(d1),
@@ -744,6 +773,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     bootstrapPolicy: "controlled",
     // E10 / 8.3 — production session cookies always Secure + HttpOnly + SameSite=Lax
     cookieSecure: true,
+    magicLinkMail,
   });
 }
 
@@ -780,6 +810,56 @@ export async function drainCommsOutboxFromEnv(
  * When AIRTABLE_API_KEY unset, pauses without crash (S-AIRTABLE).
  * Never on the request path (E7).
  */
+/**
+ * Drain `auth.magic_link` outbox — decrypt + send login email (E7).
+ * Requires APP_PUBLIC_BASE_URL + AUTH_LINK_ENCRYPTION_KEY.
+ */
+export async function drainAuthMagicLinkOutboxFromEnv(
+  env: WorkerBindings,
+  options: { limit?: number } = {},
+): Promise<ProcessAuthOutboxResult> {
+  if (!env.DB) {
+    throw new Error(
+      "Worker binding DB is required to drain auth magic-link outbox (E1).",
+    );
+  }
+  const key =
+    typeof env.AUTH_LINK_ENCRYPTION_KEY === "string"
+      ? env.AUTH_LINK_ENCRYPTION_KEY.trim()
+      : "";
+  const base =
+    typeof env.APP_PUBLIC_BASE_URL === "string"
+      ? env.APP_PUBLIC_BASE_URL.trim()
+      : "";
+  if (!key || !base) {
+    return { processed: 0, failed: 0, skipped: 0 };
+  }
+  const d1 = env.DB as D1DatabaseLike;
+  const from =
+    (typeof env.AUTH_EMAIL_FROM === "string" && env.AUTH_EMAIL_FROM.trim()) ||
+    (typeof env.EMAIL_FROM === "string" && env.EMAIL_FROM.trim()) ||
+    "SpeakerOps <noreply@speakerops.org>";
+  return processAuthMagicLinkOutbox(
+    {
+      comms: new D1CommsStore(d1),
+      appPublicBaseUrl: base,
+      authLinkEncryptionKey: key,
+      authEmailProvider:
+        typeof env.AUTH_EMAIL_PROVIDER === "string"
+          ? env.AUTH_EMAIL_PROVIDER
+          : typeof env.EMAIL_PROVIDER === "string"
+            ? env.EMAIL_PROVIDER
+            : "cloudflare",
+      authEmailFrom: from,
+      cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
+      cloudflareEmailApiToken: env.CLOUDFLARE_EMAIL_API_TOKEN,
+      authResendApiKey: env.RESEND_API_KEY,
+      cloudflareEmail: env.EMAIL,
+    },
+    options,
+  );
+}
+
 export async function drainAirtableOutboxFromEnv(
   env: WorkerBindings,
   options: { correlationId?: string; limit?: number } = {},
@@ -877,6 +957,8 @@ export default {
   ): Promise<void> {
     const correlationId = `queue:${batch.messages[0]?.id ?? "batch"}`;
     await drainCommsOutboxFromEnv(env, { correlationId });
+    // Auth magic-link email (encrypted outbox → Cloudflare Email / Resend)
+    await drainAuthMagicLinkOutboxFromEnv(env);
     // S-AIRTABLE: drain projection outbox (pauses safely when key unset)
     await drainAirtableOutboxFromEnv(env, { correlationId });
     for (const msg of batch.messages) {
@@ -891,6 +973,7 @@ export default {
   ): Promise<void> {
     const correlationId = `cron:${new Date().toISOString()}`;
     await drainCommsOutboxFromEnv(env, { correlationId });
+    await drainAuthMagicLinkOutboxFromEnv(env);
     await drainAirtableOutboxFromEnv(env, { correlationId });
   },
 };

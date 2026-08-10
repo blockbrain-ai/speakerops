@@ -59,7 +59,11 @@ name = "speakerops-demo"
 # DEMO_MODE forces test Turnstile site key + DEV_PASS under host allowlist.
 # See docs/DEMO_HOST.md and docs/OPERATIONS.md.
 # APP_VERSION overridden at deploy time with git short SHA (section 11.9 revision).
-vars = { APP_VERSION = "0.1.0-demo", DEMO_MODE = "1", DEMO_ALLOWLIST_ENABLED = "1", DEMO_ALLOWLIST_HOSTS = "www.speakerops.org,speakerops.org,localhost,127.0.0.1" }
+# Magic-link email: AUTH_EMAIL_PROVIDER=cloudflare + secrets APP_PUBLIC_BASE_URL,
+# AUTH_LINK_ENCRYPTION_KEY, CLOUDFLARE_EMAIL_API_TOKEN (or EMAIL binding).
+# MAGIC_LINK_ALLOWLIST = comma-separated tester emails (not a secret).
+# CLOUDFLARE_ACCOUNT_ID is public account id (same as demo local toml) — not a secret token.
+vars = { APP_VERSION = "0.1.0-demo", DEMO_MODE = "1", DEMO_ALLOWLIST_ENABLED = "1", DEMO_ALLOWLIST_HOSTS = "www.speakerops.org,speakerops.org,localhost,127.0.0.1", AUTH_EMAIL_PROVIDER = "cloudflare", EMAIL_PROVIDER = "cloudflare", AUTH_EMAIL_FROM = "SpeakerOps <noreply@speakerops.org>", EMAIL_FROM = "SpeakerOps <noreply@speakerops.org>", MAGIC_LINK_ALLOWLIST = "chris@noodco.com.au", CLOUDFLARE_ACCOUNT_ID = "29b7ea7447cbd053f101773302abccf8" }
 
 # SPA static assets (Workers Assets) — Vite build output.
 # run_worker_first=true (wrangler 3 boolean): Worker handles /api + /health, then
@@ -77,6 +81,10 @@ database_name = "speakerops-demo"
 database_id = "f01cd279-e505-4e4e-92b2-56ff2661b74a"
 migrations_dir = "packages/db/migrations"
 
+# Cloudflare Email Sending binding (domain must be enabled for speakerops.org).
+[[env.dogfood.send_email]]
+name = "EMAIL"
+
 # R2 omitted on dogfood: account may not have R2 enabled; design store falls back
 # to isolate-local blobs. Enable FILES later via dashboard + re-add binding.
 
@@ -89,3 +97,7 @@ queue = "speakerops-demo-jobs"
 max_batch_size = 10
 max_batch_timeout = 5
 max_retries = 5
+
+# Minute backup drain for auth.magic_link + comms outbox if queue kick is missed.
+[env.dogfood.triggers]
+crons = ["* * * * *"]

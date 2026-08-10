@@ -116,6 +116,44 @@ export type WorkerBindings = {
    */
   EMAIL_FROM?: string;
   /**
+   * Public app origin for magic-link URLs (e.g. https://www.speakerops.org).
+   * Env **name** only. Required for durable auth email delivery.
+   */
+  APP_PUBLIC_BASE_URL?: string;
+  /**
+   * AES key material for encrypting magic-link plaintext in outbox (E10).
+   * Env **name** only — never commit values.
+   */
+  AUTH_LINK_ENCRYPTION_KEY?: string;
+  /**
+   * Auth email provider mode: cloudflare (default for dogfood) | resend.
+   * Env **name** only.
+   */
+  AUTH_EMAIL_PROVIDER?: string;
+  /**
+   * From: address for magic-link emails (falls back to EMAIL_FROM).
+   */
+  AUTH_EMAIL_FROM?: string;
+  /**
+   * Cloudflare API token for Email Sending REST (when not using EMAIL binding).
+   * Env **name** only.
+   */
+  CLOUDFLARE_EMAIL_API_TOKEN?: string;
+  /**
+   * Cloudflare account id for Email Sending REST. Env **name** only.
+   */
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  /**
+   * Comma-separated emails allowed to receive magic links (dogfood testers).
+   * When set, only listed emails get links + email under controlled policy.
+   * Env **name** only — not a secret.
+   */
+  MAGIC_LINK_ALLOWLIST?: string;
+  /**
+   * Cloudflare Email Sending binding (wrangler send_email name = EMAIL).
+   */
+  EMAIL?: { send: (msg: unknown) => Promise<unknown> };
+  /**
    * Airtable personal access token / API key (section 7.3 / S-AIRTABLE).
    * Env **name** only — never commit values (E10).
    * When unset, projection drain pauses; product mutations still succeed (outbox lags).

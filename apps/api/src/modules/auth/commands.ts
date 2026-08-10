@@ -19,6 +19,7 @@ import {
   SESSION_TTL_DAYS,
   DEFAULT_BOOTSTRAP_EVENT_ID,
   DEMO_ROLE_EMAILS,
+  AUTH_MAGIC_LINK_OUTBOX_TOPIC,
   type EventRole,
   type MagicLinkPurpose,
   type RequestMagicLinkResponse,
@@ -39,6 +40,8 @@ import type {
   UserRow,
 } from "./store.js";
 import { normalizeEmail } from "./store.js";
+import { encryptMagicLinkToken } from "./link-crypto.js";
+import type { CommsStore } from "../comms/store.js";
 
 /** Map magic-link purpose → event_memberships.role (section 2.2). */
 export function purposeToRole(purpose: MagicLinkPurpose): EventRole {
@@ -61,6 +64,12 @@ export type RequestMagicLinkInput = {
    * (from BOOTSTRAP_ADMIN_EMAIL env name — never a secret value in repo).
    */
   bootstrapAdminEmail?: string | null;
+  /**
+   * Comma-separated emails allowed to receive magic links (dogfood testers).
+   * When non-empty under controlled policy: only listed emails get links + email.
+   * Empty/undefined: existing-user / bootstrap rules only.
+   */
+  magicLinkAllowlist?: string[] | null;
 };
 
 export type ExchangeMagicLinkInput = {
@@ -90,12 +99,43 @@ export type ExchangeFailure = {
   reason: "invalid" | "used" | "expired";
 };
 
+/** Durable magic-link email delivery (optional — dogfood/production). */
+export type MagicLinkMailDeps = {
+  comms: CommsStore;
+  /** AUTH_LINK_ENCRYPTION_KEY — encrypt plaintext before outbox. */
+  authLinkEncryptionKey: string;
+  /** Queue kick after enqueue (JOBS_QUEUE). */
+  queueKick?: { send: (body: unknown) => Promise<void> } | null;
+};
+
 export type AuthCommandDeps = {
   store: AuthStore;
   outbox: MagicLinkTestOutbox;
   /** Default "controlled". Tests/e2e pass "open". */
   bootstrapPolicy?: BootstrapPolicy;
+  /** When set, enqueue encrypted auth.magic_link outbox for email delivery. */
+  magicLinkMail?: MagicLinkMailDeps | null;
 };
+
+/** Normalize allowlist entries (lowercase). */
+export function parseMagicLinkAllowlist(
+  raw: string | string[] | null | undefined,
+): string[] {
+  if (!raw) return [];
+  const parts = Array.isArray(raw) ? raw : raw.split(",");
+  return parts
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0 && s.includes("@"));
+}
+
+export function isEmailOnMagicLinkAllowlist(
+  email: string,
+  allowlist: string[] | null | undefined,
+): boolean {
+  if (!allowlist || allowlist.length === 0) return false;
+  const e = normalizeEmail(email);
+  return allowlist.some((a) => a === e);
+}
 
 /**
  * Decide whether an unknown email may be created + granted membership.
@@ -134,6 +174,8 @@ export async function requestMagicLink(
   const email = normalizeEmail(input.email);
   const response: RequestMagicLinkResponse = { sent: true };
   const policy = deps.bootstrapPolicy ?? "controlled";
+  const allowlist = parseMagicLinkAllowlist(input.magicLinkAllowlist ?? null);
+  const onAllowlist = isEmailOnMagicLinkAllowlist(email, allowlist);
 
   let user: UserRow | null = await deps.store.findUserByEmail(email);
   let grantedMembershipId: string | null = null;
@@ -141,21 +183,49 @@ export async function requestMagicLink(
   let isBootstrapCreate = false;
 
   if (!user) {
-    const allowed = await isAllowedBootstrap(
-      deps.store,
-      {
-        email,
-        purpose: input.purpose,
-        bootstrapAdminEmail: input.bootstrapAdminEmail,
-      },
-      policy,
-    );
-    if (!allowed) {
-      // No enumeration: identical response, no user / link / membership side effects
-      return response;
+    // Controlled + allowlist: testers may self-register only when listed.
+    if (policy === "controlled" && allowlist.length > 0) {
+      if (!onAllowlist) {
+        return response;
+      }
+      user = await deps.store.createUser({ email });
+      isBootstrapCreate = true;
+    } else {
+      const allowed = await isAllowedBootstrap(
+        deps.store,
+        {
+          email,
+          purpose: input.purpose,
+          bootstrapAdminEmail: input.bootstrapAdminEmail,
+        },
+        policy,
+      );
+      if (!allowed) {
+        // No enumeration: identical response, no user / link / membership side effects
+        return response;
+      }
+      user = await deps.store.createUser({ email });
+      isBootstrapCreate = true;
     }
-    user = await deps.store.createUser({ email });
-    isBootstrapCreate = true;
+  } else if (
+    policy === "controlled" &&
+    allowlist.length > 0 &&
+    !onAllowlist
+  ) {
+    // Existing user but not on dogfood tester allowlist — silent no-op.
+    return response;
+  }
+
+  // Allowlisted existing users: ensure membership for requested purpose.
+  if (user && onAllowlist && policy === "controlled") {
+    const role = purposeToRole(input.purpose);
+    const membership = await deps.store.upsertMembership({
+      eventId: input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID,
+      userId: user.id,
+      role,
+    });
+    grantedMembershipId = membership.id;
+    grantedRole = role;
   }
 
   const plaintext = generateToken(32);
@@ -178,8 +248,18 @@ export async function requestMagicLink(
 
   // Membership grants:
   // - open: purpose → role upsert (e2e dogfood)
+  // - controlled + allowlist create: grant purpose role for tester walk
   // - controlled: only on first-admin bootstrap create; never elevate existing users
   if (policy === "open") {
+    const role = purposeToRole(input.purpose);
+    const membership = await deps.store.upsertMembership({
+      eventId: membershipEventId,
+      userId: user.id,
+      role,
+    });
+    grantedMembershipId = membership.id;
+    grantedRole = role;
+  } else if (isBootstrapCreate && onAllowlist) {
     const role = purposeToRole(input.purpose);
     const membership = await deps.store.upsertMembership({
       eventId: membershipEventId,
@@ -210,6 +290,46 @@ export async function requestMagicLink(
   // Dev transport: capture for tests / local e2e — never log token
   deps.outbox.capture(captured);
 
+  // Durable email delivery (E7): encrypt token into outbox; consumer sends.
+  let mailEnqueued = false;
+  if (deps.magicLinkMail?.authLinkEncryptionKey?.trim()) {
+    try {
+      const enc = await encryptMagicLinkToken(
+        plaintext,
+        deps.magicLinkMail.authLinkEncryptionKey,
+      );
+      await deps.magicLinkMail.comms.insertOutbox({
+        id: uuidv7(),
+        topic: AUTH_MAGIC_LINK_OUTBOX_TOPIC,
+        payloadJson: JSON.stringify({
+          magicLinkId: magicId,
+          email,
+          enc,
+        }),
+        createdAt,
+        processedAt: null,
+        attempts: 0,
+        lastError: null,
+      });
+      mailEnqueued = true;
+      const kick = deps.magicLinkMail.queueKick;
+      if (kick && typeof kick.send === "function") {
+        try {
+          await kick.send({
+            kind: "auth.magic_link",
+            outboxTopic: AUTH_MAGIC_LINK_OUTBOX_TOPIC,
+          });
+        } catch {
+          // Cron backup drains if queue kick fails.
+        }
+      }
+    } catch {
+      // Fail closed on encrypt/enqueue: still return sent:true (no enumeration).
+      // Link remains in DB; operator can re-request or mint.
+      mailEnqueued = false;
+    }
+  }
+
   await deps.store.insertAudit({
     id: uuidv7(),
     eventId: membershipEventId,
@@ -227,6 +347,8 @@ export async function requestMagicLink(
       role: grantedRole,
       bootstrapPolicy: policy,
       bootstrapCreate: isBootstrapCreate,
+      mailEnqueued,
+      allowlistActive: allowlist.length > 0,
     }),
     correlationId: input.correlationId,
     createdAt,

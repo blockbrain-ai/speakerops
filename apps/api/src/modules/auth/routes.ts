@@ -35,7 +35,9 @@ import {
   exchangeMagicLink,
   logoutSession,
   devRoleSwitch,
+  parseMagicLinkAllowlist,
   type BootstrapPolicy,
+  type MagicLinkMailDeps,
 } from "./commands.js";
 import type { AuthStore, MagicLinkTestOutbox } from "./store.js";
 import {
@@ -92,6 +94,8 @@ export type AuthRouteOptions = {
   roleSwitcherAllowUnauthenticated?: boolean;
   /** Production: "controlled". Tests/e2e: "open". */
   bootstrapPolicy?: BootstrapPolicy;
+  /** Durable magic-link email (encrypt + outbox). Optional. */
+  magicLinkMail?: MagicLinkMailDeps | null;
 };
 
 export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
@@ -100,6 +104,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
     store: options.store,
     outbox: options.outbox,
     bootstrapPolicy: options.bootstrapPolicy ?? "controlled",
+    magicLinkMail: options.magicLinkMail ?? null,
   };
   const cookieSecure = options.cookieSecure !== false;
 
@@ -133,12 +138,18 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
       typeof c.env?.BOOTSTRAP_ADMIN_EMAIL === "string"
         ? c.env.BOOTSTRAP_ADMIN_EMAIL
         : null;
+    const magicLinkAllowlist = parseMagicLinkAllowlist(
+      typeof c.env?.MAGIC_LINK_ALLOWLIST === "string"
+        ? c.env.MAGIC_LINK_ALLOWLIST
+        : null,
+    );
     const result = await requestMagicLink(deps, {
       email: parsed.data.email,
       purpose: parsed.data.purpose,
       eventId: parsed.data.eventId,
       correlationId,
       bootstrapAdminEmail,
+      magicLinkAllowlist,
     });
 
     const out = RequestMagicLinkResponseSchema.safeParse(result);

@@ -38,6 +38,7 @@ export {
   type RequestMagicLinkBody,
   RequestMagicLinkResponseSchema,
   type RequestMagicLinkResponse,
+  AUTH_MAGIC_LINK_OUTBOX_TOPIC,
   ExchangeMagicLinkBodySchema,
   type ExchangeMagicLinkBody,
   ExchangeMagicLinkResponseSchema,

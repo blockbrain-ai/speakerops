@@ -9,8 +9,8 @@
 
 import { uuidv7 } from "@speakerops/shared";
 
-/** Provider identity recorded on delivery_events. */
-export type EmailProviderName = "sandbox" | "resend";
+/** Provider identity recorded on delivery_events / auth delivery. */
+export type EmailProviderName = "sandbox" | "resend" | "cloudflare";
 
 export type EmailAttachment = {
   filename: string;
@@ -46,26 +46,49 @@ export type EmailProvider = {
 };
 
 export type EmailProviderEnv = {
-  /** "sandbox" (default) | "resend" — live only when RESEND_API_KEY also set. */
+  /**
+   * "sandbox" (default) | "resend" | "cloudflare".
+   * resend requires RESEND_API_KEY; cloudflare requires token+account or EMAIL binding.
+   */
   EMAIL_PROVIDER?: string;
   /** Env name only — never commit values (E10). */
   RESEND_API_KEY?: string;
   /** Default From: address for provider sends. */
   EMAIL_FROM?: string;
+  /** Cloudflare account id for Email Sending REST API (env name only). */
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  /** Cloudflare API token with Email Sending permission (env name only). */
+  CLOUDFLARE_EMAIL_API_TOKEN?: string;
 };
 
 /**
- * Resolve provider mode. **Sandbox is the default** unless EMAIL_PROVIDER=resend
- * and RESEND_API_KEY is non-empty.
+ * Resolve provider mode.
+ * - resend when EMAIL_PROVIDER=resend and RESEND_API_KEY set
+ * - cloudflare when EMAIL_PROVIDER=cloudflare (binding or REST token)
+ * - else sandbox
  */
 export function resolveEmailProviderMode(
   env: EmailProviderEnv = {},
+  options: { preferCloudflareBinding?: boolean } = {},
 ): EmailProviderName {
   const mode = (env.EMAIL_PROVIDER ?? "sandbox").trim().toLowerCase();
-  const key =
-    typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY.trim() : "";
-  if (mode === "resend" && key.length > 0) {
-    return "resend";
+  if (mode === "resend") {
+    const key =
+      typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY.trim() : "";
+    if (key.length > 0) return "resend";
+  }
+  if (mode === "cloudflare") {
+    const token =
+      typeof env.CLOUDFLARE_EMAIL_API_TOKEN === "string"
+        ? env.CLOUDFLARE_EMAIL_API_TOKEN.trim()
+        : "";
+    const account =
+      typeof env.CLOUDFLARE_ACCOUNT_ID === "string"
+        ? env.CLOUDFLARE_ACCOUNT_ID.trim()
+        : "";
+    if (options.preferCloudflareBinding || (token.length > 0 && account.length > 0)) {
+      return "cloudflare";
+    }
   }
   return "sandbox";
 }
@@ -160,18 +183,150 @@ export class ResendEmailProvider implements EmailProvider {
 }
 
 /**
+ * Cloudflare Email Sending — Workers binding (`env.EMAIL.send`) or REST API.
+ * Used for auth magic-link delivery on dogfood (AUTH_EMAIL_PROVIDER=cloudflare).
+ */
+export class CloudflareEmailProvider implements EmailProvider {
+  readonly name = "cloudflare" as const;
+  private readonly defaultFrom: string;
+  private readonly accountId: string | null;
+  private readonly apiToken: string | null;
+  private readonly fetchImpl: typeof fetch;
+  /** Optional Workers send_email binding. */
+  private readonly binding: { send?: (msg: unknown) => Promise<unknown> } | null;
+
+  constructor(
+    options: {
+      from?: string;
+      accountId?: string;
+      apiToken?: string;
+      fetchImpl?: typeof fetch;
+      cloudflareEmail?: unknown;
+    } = {},
+  ) {
+    this.defaultFrom = options.from ?? "SpeakerOps <noreply@speakerops.org>";
+    this.accountId = options.accountId?.trim() || null;
+    this.apiToken = options.apiToken?.trim() || null;
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    this.binding =
+      options.cloudflareEmail &&
+      typeof (options.cloudflareEmail as { send?: unknown }).send === "function"
+        ? (options.cloudflareEmail as { send: (msg: unknown) => Promise<unknown> })
+        : null;
+  }
+
+  async send(message: EmailMessage): Promise<EmailSendResult> {
+    const fromRaw = message.from ?? this.defaultFrom;
+    try {
+      if (this.binding?.send) {
+        // Workers binding form: from.email (not address).
+        const parsed = parseFromAddress(fromRaw);
+        await this.binding.send({
+          to: message.to,
+          from: { email: parsed.address, name: parsed.name },
+          subject: message.subject,
+          text: message.body,
+        });
+        return {
+          ok: true,
+          provider: "cloudflare",
+          providerMessageId: null,
+          status: "sent",
+        };
+      }
+      if (!this.accountId || !this.apiToken) {
+        return {
+          ok: false,
+          provider: "cloudflare",
+          providerMessageId: null,
+          status: "failed",
+          error: "cloudflare_email_missing_creds",
+        };
+      }
+      // REST API: from.address
+      const parsed = parseFromAddress(fromRaw);
+      const res = await this.fetchImpl(
+        `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/email/sending/send`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: message.to,
+            from: { address: parsed.address, name: parsed.name },
+            subject: message.subject,
+            text: message.body,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        return {
+          ok: false,
+          provider: "cloudflare",
+          providerMessageId: null,
+          status: "failed",
+          error: `cloudflare_http_${res.status}:${text.slice(0, 200)}`,
+        };
+      }
+      return {
+        ok: true,
+        provider: "cloudflare",
+        providerMessageId: null,
+        status: "sent",
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        provider: "cloudflare",
+        providerMessageId: null,
+        status: "failed",
+        error: err instanceof Error ? err.message : "cloudflare_error",
+      };
+    }
+  }
+}
+
+function parseFromAddress(from: string): { address: string; name?: string } {
+  // "Name <addr@host>" or bare addr
+  const m = from.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  if (m) {
+    const name = m[1]!.replace(/^["']|["']$/g, "").trim();
+    return { address: m[2]!.trim(), name: name || undefined };
+  }
+  return { address: from.trim() };
+}
+
+/**
  * Factory — sandbox default (section 5.2 AC).
  */
 export function createEmailProvider(
   env: EmailProviderEnv = {},
-  options: { fetchImpl?: typeof fetch; sandbox?: SandboxEmailProvider } = {},
+  options: {
+    fetchImpl?: typeof fetch;
+    sandbox?: SandboxEmailProvider;
+    cloudflareEmail?: unknown;
+  } = {},
 ): EmailProvider {
-  const mode = resolveEmailProviderMode(env);
+  const mode = resolveEmailProviderMode(env, {
+    preferCloudflareBinding: Boolean(options.cloudflareEmail),
+  });
   if (mode === "resend") {
     const key = env.RESEND_API_KEY!.trim();
     return new ResendEmailProvider(key, {
       from: env.EMAIL_FROM,
       fetchImpl: options.fetchImpl,
+    });
+  }
+  if (mode === "cloudflare") {
+    return new CloudflareEmailProvider({
+      from: env.EMAIL_FROM,
+      accountId: env.CLOUDFLARE_ACCOUNT_ID,
+      apiToken: env.CLOUDFLARE_EMAIL_API_TOKEN,
+      fetchImpl: options.fetchImpl,
+      cloudflareEmail: options.cloudflareEmail,
     });
   }
   return options.sandbox ?? new SandboxEmailProvider();

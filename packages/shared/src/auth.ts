@@ -36,6 +36,12 @@ export type RequestMagicLinkResponse = z.infer<
   typeof RequestMagicLinkResponseSchema
 >;
 
+/**
+ * Durable outbox topic for magic-link email delivery (E7).
+ * Request path inserts encrypted payload; queue/cron consumer decrypts + sends.
+ */
+export const AUTH_MAGIC_LINK_OUTBOX_TOPIC = "auth.magic_link" as const;
+
 /** Auth.ExchangeMagicLink input */
 export const ExchangeMagicLinkBodySchema = z.object({
   token: z.string().min(16).max(512),

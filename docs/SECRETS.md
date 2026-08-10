@@ -54,6 +54,13 @@
 - `EMAIL_PROVIDER` — provider mode for outbox drain (`sandbox` default | `resend`). Sandbox never makes network calls.
 - `RESEND_API_KEY` — Resend API key for live send. **Ignored** unless `EMAIL_PROVIDER=resend`. Never commit values; never log the key.
 - `EMAIL_FROM` — optional default From: address for provider sends (not a secret token).
+- `AUTH_EMAIL_FROM` — optional From: for magic-link emails (falls back to `EMAIL_FROM`).
+- `AUTH_EMAIL_PROVIDER` — `cloudflare` (dogfood) or `resend` for magic-link delivery.
+- `APP_PUBLIC_BASE_URL` — public origin for magic-link URLs (e.g. `https://www.speakerops.org`). Required for durable auth email.
+- `AUTH_LINK_ENCRYPTION_KEY` — encrypts magic-link plaintext in outbox (AES-GCM). Env **name** only; never commit values.
+- `CLOUDFLARE_EMAIL_API_TOKEN` — Cloudflare API token with Email Sending permission when not using Workers `EMAIL` binding.
+- `CLOUDFLARE_ACCOUNT_ID` — account id for Email Sending REST (public id; may be a wrangler var).
+- `MAGIC_LINK_ALLOWLIST` — comma-separated emails allowed to request magic links under controlled dogfood (not a secret).
 - Comms.Send request path never uses these bindings; only `emailConsumer` / queue drain does (E7).
 - Queue binding name: `JOBS_QUEUE` (wrangler.toml) — producer (kick after Comms.Send) + consumer; Worker `queue` / `scheduled` handlers drain `outbox_events` topic `comms.send` via `processCommsOutbox`.
 
