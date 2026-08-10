@@ -11,11 +11,10 @@
  * - G07 own session status only
  * - G08 mobile bio + task
  *
- * Lumen 2 (page-atlas /portal):
- * - Branded welcome + participation state
- * - Progress model (profile + tasks)
- * - Dominant next-task card
- * - Mobile-first; bottom nav on narrow viewports
+ * Onboarding workflow (product rule):
+ * - Incomplete speakers get an exclusive one-step wizard (not CTA + full form dump)
+ * - Skip defers a step to the end; Save draft persists partial work
+ * - Full multi-section layout only after onboarding is complete (or review mode)
  *
  * APIs: Portal.GetHome · Participation.UpdateProfile · Task.Complete
  *       File.PresignUpload · File.Upload · File.CompleteUpload
@@ -48,6 +47,10 @@ import {
 import { RoleShell } from "../../layout/RoleShell.js";
 import { PortalFileField } from "../../components/portal/PortalFileField.js";
 import {
+  OnboardingWizard,
+  OnboardingPausedCard,
+} from "./OnboardingWizard.js";
+import {
   sanitizeBioText,
   bioIsPlainText,
   taskDisplayStatus,
@@ -63,6 +66,15 @@ import {
   taskProgress,
   overallPortalProgress,
   participationStateLabel,
+  buildOnboardingSteps,
+  onboardingNeedsWork,
+  pickWizardStepIndex,
+  wizardProgress,
+  loadOnboardingDraft,
+  saveOnboardingDraft,
+  isIncompleteTask,
+  type OnboardingDraftState,
+  type OnboardingStep,
   type TaskOptimisticSnapshot,
 } from "./portal-utils.js";
 
@@ -117,6 +129,20 @@ export function PortalHomePage() {
 
   // Task complete busy set
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+
+  // Onboarding wizard — exclusive one-step flow while incomplete
+  const [draftState, setDraftState] = useState<OnboardingDraftState>({
+    skippedIds: [],
+    freeformDrafts: {},
+    paused: false,
+  });
+  const [wizardStepIndex, setWizardStepIndex] = useState(0);
+  const [wizardSaving, setWizardSaving] = useState(false);
+  const [wizardStatus, setWizardStatus] = useState<string | null>(null);
+  const [wizardStatusOk, setWizardStatusOk] = useState(true);
+  /** After onboarding completes, allow multi-section review without re-forcing wizard. */
+  const [forceReview, setForceReview] = useState(false);
+  const draftHydratedFor = useRef<string | null>(null);
 
   const headshotPreviewRef = useRef<string | null>(null);
   useEffect(() => {
@@ -244,6 +270,65 @@ export function PortalHomePage() {
     return overallPortalProgress(participation, tasks);
   }, [home, participation, tasks]);
 
+  const onboardingSteps = useMemo(
+    () => buildOnboardingSteps(participation, tasks, portalFiles),
+    [participation, tasks, portalFiles],
+  );
+  const needsOnboarding = useMemo(
+    () => Boolean(participation) && onboardingNeedsWork(onboardingSteps),
+    [participation, onboardingSteps],
+  );
+  const wizardProg = useMemo(
+    () => wizardProgress(onboardingSteps),
+    [onboardingSteps],
+  );
+
+  // Hydrate draft / skipped state once per participation
+  useEffect(() => {
+    if (!participation?.id) return;
+    if (draftHydratedFor.current === participation.id) return;
+    draftHydratedFor.current = participation.id;
+    const loaded = loadOnboardingDraft(participation.id);
+    setDraftState(loaded);
+    setForceReview(false);
+    setWizardStepIndex(
+      pickWizardStepIndex(
+        buildOnboardingSteps(participation, tasks, portalFiles),
+        loaded.skippedIds,
+      ),
+    );
+  }, [participation, tasks, portalFiles]);
+
+  // Keep step index in bounds only — do not auto-skip completed steps
+  // (upload can mark headshot done; user still clicks Continue to advance).
+  useEffect(() => {
+    if (!needsOnboarding) return;
+    setWizardStepIndex((idx) => {
+      if (onboardingSteps.length === 0) return 0;
+      if (idx >= onboardingSteps.length) {
+        return Math.max(0, onboardingSteps.length - 1);
+      }
+      return idx;
+    });
+  }, [needsOnboarding, onboardingSteps.length]);
+
+  const persistDraft = useCallback(
+    (next: OnboardingDraftState) => {
+      setDraftState(next);
+      if (participation?.id) saveOnboardingDraft(participation.id, next);
+    },
+    [participation?.id],
+  );
+
+  /** In-wizard exclusive mode vs paused resume card vs full review layout. */
+  const portalMode: "wizard" | "paused" | "review" = !needsOnboarding
+    ? "review"
+    : forceReview
+      ? "review"
+      : draftState.paused
+        ? "paused"
+        : "wizard";
+
   /** Published design tokens only (portal brand blast radius). */
   const portalStyle = useMemo((): CSSProperties => {
     const style: CSSProperties = {};
@@ -331,16 +416,35 @@ export function PortalHomePage() {
     return () => obs.disconnect();
   }, [loadState, home]);
 
-  async function onSaveProfile(e: FormEvent) {
-    e.preventDefault();
-    if (!participation || !eventId) return;
-    setProfileSaving(true);
-    setProfileStatus(null);
-    const cleanBio = sanitizeBioText(bio);
-    if (!bioIsPlainText(cleanBio)) {
-      setProfileStatus("Bio must be plain text only");
-      setProfileSaving(false);
-      return;
+  async function patchProfileFields(fields: {
+    bio?: string | null;
+    company?: string | null;
+    title?: string | null;
+  }): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!participation || !eventId) {
+      return { ok: false, error: "No speaker record linked" };
+    }
+    const body: Record<string, unknown> = {
+      expectedVersion: participation.version,
+    };
+    if (fields.bio !== undefined) {
+      const cleanBio = sanitizeBioText(fields.bio ?? "");
+      if (!bioIsPlainText(cleanBio)) {
+        return { ok: false, error: "Bio must be plain text only" };
+      }
+      body.bio = cleanBio;
+    }
+    if (fields.company !== undefined) {
+      body.company =
+        fields.company === null || fields.company.trim() === ""
+          ? null
+          : fields.company.trim();
+    }
+    if (fields.title !== undefined) {
+      body.title =
+        fields.title === null || fields.title.trim() === ""
+          ? null
+          : fields.title.trim();
     }
     try {
       const res = await fetch(
@@ -349,48 +453,303 @@ export function PortalHomePage() {
           method: "PATCH",
           credentials: "include",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            bio: cleanBio,
-            company: company.trim() || null,
-            title: title.trim() || null,
-            expectedVersion: participation.version,
-          }),
+          body: JSON.stringify(body),
         },
       );
       const raw: unknown = await res.json().catch(() => null);
       if (!res.ok) {
         const env = ErrorEnvelopeSchema.safeParse(raw);
-        setProfileStatus(
-          env.success ? env.data.error : `Save failed (${res.status})`,
-        );
-        setProfileSaving(false);
-        return;
+        return {
+          ok: false,
+          error: env.success ? env.data.error : `Save failed (${res.status})`,
+        };
       }
       const parsed = ParticipationUpdateProfileResponseSchema.safeParse(raw);
       if (!parsed.success) {
-        setProfileStatus("Unexpected profile response");
-        setProfileSaving(false);
-        return;
+        return { ok: false, error: "Unexpected profile response" };
       }
-      // Re-bind local form from server (sanitized text)
       const p = parsed.data.participation;
       setBio(p.bio ?? "");
       setCompany(p.company ?? "");
       setTitle(p.title ?? "");
-      setProfileStatus("Saved");
-      showToast("Profile saved");
-      // Soft refresh keeps form mounted so Save never "disappears"
-      await loadHome(eventId, { soft: true });
+      setHome((prev) =>
+        prev
+          ? {
+              ...prev,
+              participations: prev.participations.map((x) =>
+                x.id === p.id ? p : x,
+              ),
+            }
+          : prev,
+      );
+      return { ok: true };
     } catch {
-      setProfileStatus("Network error");
-    } finally {
-      setProfileSaving(false);
+      return { ok: false, error: "Network error" };
     }
   }
 
-  async function completeTask(task: PortalTaskDto) {
-    if (!home) return;
-    if (completingIds.has(task.id)) return;
+  async function onSaveProfile(e: FormEvent) {
+    e.preventDefault();
+    if (!participation || !eventId) return;
+    setProfileSaving(true);
+    setProfileStatus(null);
+    const result = await patchProfileFields({
+      bio,
+      company,
+      title,
+    });
+    if (!result.ok) {
+      setProfileStatus(result.error);
+      setProfileSaving(false);
+      return;
+    }
+    setProfileStatus("Saved");
+    showToast("Profile saved");
+    await loadHome(eventId, { soft: true });
+    setProfileSaving(false);
+  }
+
+  async function completeTaskById(
+    taskId: string,
+    expectedVersion: number,
+  ): Promise<boolean> {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return false;
+    return completeTask({ ...task, version: expectedVersion });
+  }
+
+  function advanceWizardAfter(step: OnboardingStep) {
+    // Clear skip flag for this step once completed
+    if (draftState.skippedIds.includes(step.id)) {
+      persistDraft({
+        ...draftState,
+        skippedIds: draftState.skippedIds.filter((id) => id !== step.id),
+      });
+    }
+    const nextSteps = onboardingSteps.map((s) =>
+      s.id === step.id ? { ...s, done: true } : s,
+    );
+    const nextIdx = pickWizardStepIndex(
+      nextSteps,
+      draftState.skippedIds.filter((id) => id !== step.id),
+    );
+    // If everything done, leave wizard
+    if (!onboardingNeedsWork(nextSteps)) {
+      setForceReview(false);
+      showToast("Onboarding complete");
+    } else {
+      setWizardStepIndex(nextIdx);
+    }
+  }
+
+  async function wizardSaveCurrent(opts: {
+    complete: boolean;
+  }): Promise<boolean> {
+    const step = onboardingSteps[wizardStepIndex];
+    if (!step || !participation) return false;
+    setWizardSaving(true);
+    setWizardStatus(null);
+    setWizardStatusOk(true);
+
+    try {
+      if (step.kind === "bio") {
+        const result = await patchProfileFields({ bio });
+        if (!result.ok) {
+          setWizardStatusOk(false);
+          setWizardStatus(result.error);
+          return false;
+        }
+        if (opts.complete && !bio.trim()) {
+          setWizardStatusOk(false);
+          setWizardStatus("Add a bio, or Skip for now");
+          return false;
+        }
+        if (opts.complete && step.taskId && step.taskVersion != null) {
+          const ok = await completeTaskById(step.taskId, step.taskVersion);
+          if (!ok) {
+            setWizardStatusOk(false);
+            setWizardStatus("Profile saved, but linked task failed");
+            return false;
+          }
+        }
+      } else if (step.kind === "company") {
+        const result = await patchProfileFields({ company });
+        if (!result.ok) {
+          setWizardStatusOk(false);
+          setWizardStatus(result.error);
+          return false;
+        }
+        if (opts.complete && !company.trim()) {
+          setWizardStatusOk(false);
+          setWizardStatus("Add a company, or Skip for now");
+          return false;
+        }
+        if (opts.complete && step.taskId && step.taskVersion != null) {
+          const ok = await completeTaskById(step.taskId, step.taskVersion);
+          if (!ok) {
+            setWizardStatusOk(false);
+            setWizardStatus("Saved, but linked task failed");
+            return false;
+          }
+        }
+      } else if (step.kind === "title") {
+        const result = await patchProfileFields({ title });
+        if (!result.ok) {
+          setWizardStatusOk(false);
+          setWizardStatus(result.error);
+          return false;
+        }
+        if (opts.complete && !title.trim()) {
+          setWizardStatusOk(false);
+          setWizardStatus("Add a title, or Skip for now");
+          return false;
+        }
+        if (opts.complete && step.taskId && step.taskVersion != null) {
+          const ok = await completeTaskById(step.taskId, step.taskVersion);
+          if (!ok) {
+            setWizardStatusOk(false);
+            setWizardStatus("Saved, but linked task failed");
+            return false;
+          }
+        }
+      } else if (step.kind === "headshot") {
+        if (opts.complete && !participation.headshotFileId && !headshotPreview) {
+          setWizardStatusOk(false);
+          setWizardStatus("Upload a headshot, or Skip for now");
+          return false;
+        }
+        if (
+          opts.complete &&
+          (participation.headshotFileId || headshotPreview) &&
+          step.taskId
+        ) {
+          // Prefer live task version from home (upload/soft refresh may bump it)
+          const live = tasks.find((t) => t.id === step.taskId) ?? null;
+          if (live && isIncompleteTask(live)) {
+            const ok = await completeTaskById(live.id, live.version);
+            if (!ok) {
+              setWizardStatusOk(false);
+              setWizardStatus("Headshot ready, but linked task failed");
+              return false;
+            }
+          }
+        }
+      } else if (step.kind === "slides") {
+        if (opts.complete && !slidesFile) {
+          setWizardStatusOk(false);
+          setWizardStatus("Upload slides, or Skip for now");
+          return false;
+        }
+        if (opts.complete && slidesFile && step.taskId && step.taskVersion != null) {
+          const ok = await completeTaskById(step.taskId, step.taskVersion);
+          if (!ok) {
+            setWizardStatusOk(false);
+            setWizardStatus("Slides ready, but linked task failed");
+            return false;
+          }
+        }
+      } else if (step.kind === "task_text") {
+        const text = (draftState.freeformDrafts[step.id] ?? "").trim();
+        persistDraft(draftState);
+        if (opts.complete) {
+          if (!text) {
+            setWizardStatusOk(false);
+            setWizardStatus("Add a response, or Skip for now");
+            return false;
+          }
+          if (step.taskId && step.taskVersion != null) {
+            const ok = await completeTaskById(step.taskId, step.taskVersion);
+            if (!ok) {
+              setWizardStatusOk(false);
+              setWizardStatus("Could not complete this task");
+              return false;
+            }
+          }
+        }
+      } else if (step.kind === "task_confirm") {
+        if (opts.complete && step.taskId && step.taskVersion != null) {
+          const ok = await completeTaskById(step.taskId, step.taskVersion);
+          if (!ok) {
+            setWizardStatusOk(false);
+            setWizardStatus("Could not complete this task");
+            return false;
+          }
+        }
+      }
+
+      if (eventId) await loadHome(eventId, { soft: true });
+      setWizardStatus(opts.complete ? "Saved" : "Draft saved");
+      setWizardStatusOk(true);
+      showToast(opts.complete ? "Step saved" : "Draft saved");
+      if (opts.complete) {
+        advanceWizardAfter(step);
+      }
+      return true;
+    } finally {
+      setWizardSaving(false);
+    }
+  }
+
+  function onWizardSkip() {
+    const step = onboardingSteps[wizardStepIndex];
+    if (!step) return;
+    const skippedIds = draftState.skippedIds.includes(step.id)
+      ? draftState.skippedIds
+      : [...draftState.skippedIds, step.id];
+    const next = { ...draftState, skippedIds, paused: false };
+    persistDraft(next);
+    const nextIdx = pickWizardStepIndex(
+      onboardingSteps,
+      skippedIds,
+      // Prefer first open after current
+    );
+    // Move past current if still pointing at it
+    if (
+      nextIdx === wizardStepIndex &&
+      wizardStepIndex < onboardingSteps.length - 1
+    ) {
+      // Find next incomplete after current, else first skipped
+      let found = -1;
+      for (let i = wizardStepIndex + 1; i < onboardingSteps.length; i++) {
+        if (!onboardingSteps[i]!.done) {
+          found = i;
+          break;
+        }
+      }
+      if (found < 0) {
+        for (let i = 0; i < onboardingSteps.length; i++) {
+          if (!onboardingSteps[i]!.done && i !== wizardStepIndex) {
+            found = i;
+            break;
+          }
+        }
+      }
+      setWizardStepIndex(found >= 0 ? found : wizardStepIndex);
+    } else {
+      setWizardStepIndex(nextIdx);
+    }
+    setWizardStatus("Skipped — we'll bring you back to this step later");
+    setWizardStatusOk(true);
+    showToast("Step skipped");
+  }
+
+  function onWizardFinishLater() {
+    void wizardSaveCurrent({ complete: false }).then(() => {
+      persistDraft({ ...draftState, paused: true });
+      showToast("Draft saved — continue anytime");
+    });
+  }
+
+  function onWizardResume() {
+    persistDraft({ ...draftState, paused: false });
+    setWizardStepIndex(
+      pickWizardStepIndex(onboardingSteps, draftState.skippedIds),
+    );
+  }
+
+  async function completeTask(task: PortalTaskDto): Promise<boolean> {
+    if (!home) return false;
+    if (completingIds.has(task.id)) return false;
     const snap: TaskOptimisticSnapshot = {
       taskId: task.id,
       previous: task,
@@ -433,7 +792,7 @@ export function PortalHomePage() {
         showToast(
           env.success ? env.data.error : `Complete failed (${res.status})`,
         );
-        return;
+        return false;
       }
       const parsed = TaskCompleteResponseSchema.safeParse(raw);
       if (!parsed.success) {
@@ -446,7 +805,7 @@ export function PortalHomePage() {
           };
         });
         showToast("Unexpected complete response");
-        return;
+        return false;
       }
       // Reconcile with server task (version / completedAt)
       setHome((prev) => {
@@ -469,6 +828,7 @@ export function PortalHomePage() {
       });
       showToast("Task completed");
       if (eventId) await loadHome(eventId, { soft: true });
+      return true;
     } catch {
       setHome((prev) => {
         if (!prev) return prev;
@@ -479,6 +839,7 @@ export function PortalHomePage() {
         };
       });
       showToast("Network error completing task");
+      return false;
     } finally {
       setCompletingIds((s) => {
         const n = new Set(s);
@@ -716,6 +1077,8 @@ export function PortalHomePage() {
 
   const speakerName = participation?.personName ?? "Speaker";
   const stateLabel = participationStateLabel(participation?.status);
+  const inExclusiveOnboarding =
+    portalMode === "wizard" || portalMode === "paused";
 
   return (
     <RoleShell
@@ -725,14 +1088,15 @@ export function PortalHomePage() {
       sections={[...PORTAL_SECTIONS]}
       activeSectionId={activeSection}
       onSectionSelect={selectSection}
-      hideSectionNav={false}
+      hideSectionNav={inExclusiveOnboarding}
     >
     <div
       className="portal-page portal-page--l2"
       data-testid="portal-home"
       data-section="11.6"
       data-event-id={eventId}
-      data-layout="next-task-first"
+      data-layout={inExclusiveOnboarding ? "onboarding-wizard" : "next-task-first"}
+      data-portal-mode={portalMode}
       data-active-section={activeSection}
       style={portalStyle}
     >
@@ -778,7 +1142,85 @@ export function PortalHomePage() {
         </p>
       ) : null}
 
-      {loadState === "ready" && home ? (
+      {loadState === "ready" && home && portalMode === "wizard" ? (
+        <div className="portal-home-stack" data-testid="portal-onboarding-stack">
+          <OnboardingWizard
+            steps={onboardingSteps}
+            stepIndex={wizardStepIndex}
+            skippedIds={draftState.skippedIds}
+            freeformDrafts={draftState.freeformDrafts}
+            speakerName={speakerName}
+            eventName={home.eventName}
+            currentTaskDueAt={
+              onboardingSteps[wizardStepIndex]?.taskId
+                ? tasks.find(
+                    (t) => t.id === onboardingSteps[wizardStepIndex]?.taskId,
+                  )?.dueAt ?? null
+                : null
+            }
+            currentTaskStatus={
+              onboardingSteps[wizardStepIndex]?.taskId
+                ? tasks.find(
+                    (t) => t.id === onboardingSteps[wizardStepIndex]?.taskId,
+                  )?.status ?? null
+                : null
+            }
+            bio={bio}
+            company={company}
+            title={title}
+            onBioChange={setBio}
+            onCompanyChange={setCompany}
+            onTitleChange={setTitle}
+            onFreeformChange={(stepId, v) => {
+              persistDraft({
+                ...draftState,
+                freeformDrafts: {
+                  ...draftState.freeformDrafts,
+                  [stepId]: v,
+                },
+              });
+            }}
+            headshotPreview={headshotPreview}
+            hasHeadshot={Boolean(
+              headshotPreview || participation?.headshotFileId,
+            )}
+            hasSlides={Boolean(slidesFile)}
+            headshotStatus={headshotStatus}
+            slidesStatus={slidesStatus}
+            slidesFileName={slidesFile?.filename ?? null}
+            fileBusyPurpose={fileBusyPurpose}
+            saving={wizardSaving || profileSaving}
+            statusMessage={wizardStatus ?? profileStatus}
+            statusOk={wizardStatusOk && profileStatus !== "Bio must be plain text only"}
+            onUploadHeadshot={(f) => void uploadFile(f, "headshot")}
+            onUploadSlides={(f) => void uploadFile(f, "slides")}
+            onSaveDraft={() => void wizardSaveCurrent({ complete: false })}
+            onContinue={() => void wizardSaveCurrent({ complete: true })}
+            onSkip={onWizardSkip}
+            onBack={() =>
+              setWizardStepIndex((i) => Math.max(0, i - 1))
+            }
+            onFinishLater={onWizardFinishLater}
+            onJumpToStep={(i) => setWizardStepIndex(i)}
+          />
+        </div>
+      ) : null}
+
+      {loadState === "ready" && home && portalMode === "paused" ? (
+        <div className="portal-home-stack" data-testid="portal-paused-stack">
+          <OnboardingPausedCard
+            speakerName={speakerName}
+            eventName={home.eventName}
+            percent={wizardProg.percent}
+            done={wizardProg.done}
+            total={wizardProg.total}
+            skippedCount={draftState.skippedIds.length}
+            onContinue={onWizardResume}
+          />
+        </div>
+      ) : null}
+
+      {loadState === "ready" && home && portalMode === "review" ? (
         <div className="portal-home-stack">
           {/* Home: welcome + progress + next action */}
           <section
@@ -803,6 +1245,42 @@ export function PortalHomePage() {
                 : ""}
             </p>
           </div>
+
+          {needsOnboarding ? (
+            <section
+              className="portal-card portal-card--highlight"
+              data-testid="portal-resume-onboarding"
+            >
+              <p className="portal-next-kicker">Setup incomplete</p>
+              <h2 className="portal-heading portal-heading--next">
+                Finish remaining steps
+              </h2>
+              <p className="portal-muted">
+                {wizardProg.done} of {wizardProg.total} steps done
+                {draftState.skippedIds.length > 0
+                  ? ` · ${draftState.skippedIds.length} skipped`
+                  : ""}
+                .
+              </p>
+              <button
+                type="button"
+                className="portal-btn portal-btn--dominant lumen-focusable"
+                data-testid="portal-wizard-resume"
+                onClick={() => {
+                  setForceReview(false);
+                  persistDraft({ ...draftState, paused: false });
+                  setWizardStepIndex(
+                    pickWizardStepIndex(
+                      onboardingSteps,
+                      draftState.skippedIds,
+                    ),
+                  );
+                }}
+              >
+                Continue setup
+              </button>
+            </section>
+          ) : null}
 
           {/* Progress model */}
           <section
@@ -862,7 +1340,7 @@ export function PortalHomePage() {
             </ul>
           </section>
 
-          {/* G01 — next action from single readiness contract */}
+          {/* G01 — next action from single readiness contract (review mode only) */}
           <section
             className={
               nextTask && (home?.readiness?.profileComplete ?? true)
@@ -942,14 +1420,17 @@ export function PortalHomePage() {
                   {home?.readiness?.detail ??
                     "Complete your profile to continue."}
                 </p>
-                {!(home?.readiness?.profileComplete ?? false) ? (
+                {needsOnboarding ? (
                   <button
                     type="button"
                     className="portal-btn lumen-focusable"
                     data-testid="portal-next-profile-cta"
-                    onClick={() => selectSection("portal-profile")}
+                    onClick={() => {
+                      setForceReview(false);
+                      persistDraft({ ...draftState, paused: false });
+                    }}
                   >
-                    Update profile
+                    Continue setup
                   </button>
                 ) : null}
               </div>
@@ -957,7 +1438,7 @@ export function PortalHomePage() {
           </section>
           </section>{/* end #portal-home */}
 
-          {/* Profile + files (headshot & slides) */}
+          {/* Profile + files (headshot & slides) — review mode only */}
           <section
             className={`portal-card portal-section${sectionFlash === "portal-profile" ? " portal-section--flash" : ""}`}
             id="portal-profile"
@@ -1260,27 +1741,29 @@ export function PortalHomePage() {
         </div>
       ) : null}
 
-      {/* Mobile bottom navigation */}
-      <nav
-        className="portal-bottom-nav"
-        aria-label="Portal primary"
-        data-testid="portal-bottom-nav"
-      >
-        {PORTAL_SECTIONS.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className={`portal-bottom-nav__link lumen-focusable${
-              activeSection === s.id ? " portal-bottom-nav__link--active" : ""
-            }`}
-            data-testid={`portal-bottom-${s.id.replace("portal-", "")}`}
-            aria-current={activeSection === s.id ? "true" : undefined}
-            onClick={() => selectSection(s.id)}
-          >
-            {s.label}
-          </button>
-        ))}
-      </nav>
+      {/* Mobile bottom navigation — hidden during exclusive onboarding */}
+      {!inExclusiveOnboarding ? (
+        <nav
+          className="portal-bottom-nav"
+          aria-label="Portal primary"
+          data-testid="portal-bottom-nav"
+        >
+          {PORTAL_SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className={`portal-bottom-nav__link lumen-focusable${
+                activeSection === s.id ? " portal-bottom-nav__link--active" : ""
+              }`}
+              data-testid={`portal-bottom-${s.id.replace("portal-", "")}`}
+              aria-current={activeSection === s.id ? "true" : undefined}
+              onClick={() => selectSection(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
     </div>
     </RoleShell>
   );

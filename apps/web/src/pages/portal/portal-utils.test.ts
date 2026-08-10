@@ -20,6 +20,11 @@ import {
   taskProgress,
   overallPortalProgress,
   participationStateLabel,
+  classifyTaskTitle,
+  buildOnboardingSteps,
+  onboardingNeedsWork,
+  pickWizardStepIndex,
+  wizardProgress,
   type TaskOptimisticSnapshot,
 } from "./portal-utils.js";
 import type { PortalTaskDto, ParticipationProfileDto } from "@speakerops/shared";
@@ -152,5 +157,82 @@ describe("4.3 portal-utils", () => {
     expect(overall.percent).toBeLessThan(100);
 
     expect(participationStateLabel("accepted")).toBe("Accepted speaker");
+  });
+
+  it("classifies task titles into wizard field kinds", () => {
+    expect(classifyTaskTitle("Finalize speaker bio")).toBe("bio");
+    expect(classifyTaskTitle("Upload headshot")).toBe("headshot");
+    expect(classifyTaskTitle("Upload slides")).toBe("slides");
+    expect(classifyTaskTitle("Finalize talk description")).toBe("task_text");
+    expect(classifyTaskTitle("AV consent")).toBe("task_confirm");
+    expect(classifyTaskTitle("Confirm hotel details")).toBe("task_confirm");
+  });
+
+  it("builds ordered onboarding steps — one profile field then tasks", () => {
+    const part: ParticipationProfileDto = {
+      id: "p1",
+      eventId: "e1",
+      personId: "per1",
+      userId: "u1",
+      roleLabel: "speaker",
+      status: "accepted",
+      version: 1,
+      bio: null,
+      company: null,
+      title: null,
+      headshotFileId: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const steps = buildOnboardingSteps(part, [
+      task({ id: "t-bio", status: "pending", title: "Finalize speaker bio" }),
+      task({
+        id: "t-talk",
+        status: "pending",
+        title: "Finalize talk description",
+      }),
+      task({ id: "t-av", status: "pending", title: "AV consent" }),
+    ]);
+    expect(steps[0]!.kind).toBe("bio");
+    expect(steps[0]!.taskId).toBe("t-bio");
+    expect(steps.some((s) => s.kind === "company")).toBe(true);
+    expect(steps.some((s) => s.kind === "headshot")).toBe(true);
+    // Talk description is freeform — never a bare complete-only orphan
+    const talk = steps.find((s) => s.taskId === "t-talk");
+    expect(talk?.kind).toBe("task_text");
+    expect(onboardingNeedsWork(steps)).toBe(true);
+
+    const prog = wizardProgress(steps);
+    expect(prog.done).toBe(0);
+    expect(prog.total).toBeGreaterThanOrEqual(5);
+
+    // Skip bio → pick company first (non-skipped incomplete)
+    const idx = pickWizardStepIndex(steps, ["profile:bio"]);
+    expect(steps[idx]!.id).not.toBe("profile:bio");
+    expect(steps[idx]!.done).toBe(false);
+  });
+
+  it("pickWizardStepIndex resurfaces skipped when only skipped remain", () => {
+    const steps = buildOnboardingSteps(
+      {
+        id: "p1",
+        eventId: "e1",
+        personId: "per1",
+        userId: "u1",
+        roleLabel: "speaker",
+        status: "accepted",
+        version: 1,
+        bio: "done",
+        company: "Co",
+        title: "Eng",
+        headshotFileId: "f1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      [task({ id: "t1", status: "pending", title: "Finalize talk description" })],
+    );
+    const talk = steps.find((s) => s.taskId === "t1")!;
+    const idx = pickWizardStepIndex(steps, [talk.id]);
+    expect(steps[idx]!.id).toBe(talk.id);
   });
 });

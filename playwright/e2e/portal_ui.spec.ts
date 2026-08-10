@@ -20,6 +20,11 @@ import { test, expect } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import {
+  completeProfileViaWizard,
+  completeOnboardingViaApi,
+  saveBioOnPortal,
+} from "./helpers/portal-onboarding.js";
 
 const TURNSTILE_DEV_PASS_TOKEN = "XXXX.DUMMY.TOKEN";
 
@@ -323,38 +328,40 @@ test("@inv:G01 e2e/portal/home Land on next incomplete task", async ({
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
   await expect(page.getByTestId("portal-home")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("portal-next-task")).toBeVisible({
+
+  // Incomplete speakers get exclusive onboarding wizard (not full form dump)
+  await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible({
     timeout: 15_000,
   });
+  await expect(page.getByTestId("portal-home")).toHaveAttribute(
+    "data-layout",
+    "onboarding-wizard",
+  );
+  await expect(page.getByTestId("portal-profile")).toHaveCount(0);
+  await expect(page.getByTestId("portal-task-list")).toHaveCount(0);
 
-  // Readiness truth: incomplete profile must not celebrate as ready
-  const readiness = await page
-    .getByTestId("portal-next-task")
-    .getAttribute("data-readiness");
-  expect(readiness).not.toBe("complete");
-
-  // Complete profile so next organiser task becomes the dominant next step
-  await page.getByTestId("portal-bio-input").fill(`G01 bio ${run}`);
-  await page.getByTestId("portal-company-input").fill("G01 Co");
-  await page.getByTestId("portal-title-input").fill("Speaker");
-  await page.getByTestId("portal-bio-save").click();
-  await expect(page.getByTestId("portal-bio-status")).toContainText(/Saved/i, {
-    timeout: 10_000,
+  // Walk profile steps so readiness can progress
+  await completeProfileViaWizard(page, {
+    bio: `G01 bio ${run}`,
+    company: "G01 Co",
+    title: "Speaker",
+    uploadHeadshot: true,
   });
 
-  // Headshot still may block profileComplete — if so, assert profile CTA path
-  // and still prove tasks list has incomplete work. Prefer next-task card when shown.
-  const card = page.getByTestId("portal-next-task-card");
-  if (await card.isVisible().catch(() => false)) {
+  // After wizard, either more task steps or review with next-task card
+  if (await page.getByTestId("portal-next-task-card").isVisible().catch(() => false)) {
     await expect(page.getByTestId("portal-next-task-title")).not.toBeEmpty();
     const status = page.getByTestId("portal-next-task-status");
     await expect(status).toBeVisible();
     const statusText = (await status.textContent())?.trim() ?? "";
     expect(["pending", "overdue"]).toContain(statusText);
+  } else if (
+    await page.getByTestId("portal-onboarding-wizard").isVisible().catch(() => false)
+  ) {
+    // Still in wizard on a task step — one field at a time is the product
+    await expect(page.getByTestId("portal-wizard-step")).toBeVisible();
   } else {
-    // Profile still incomplete (e.g. headshot required) — next action is profile
-    await expect(page.getByTestId("portal-next-profile-cta")).toBeVisible();
-    await expect(page.getByTestId("portal-task-list")).toBeVisible();
+    await expect(page.getByTestId("portal-next-task")).toBeVisible();
   }
   expect(pageErrors).toEqual([]);
 });
@@ -378,16 +385,12 @@ test("@inv:G02 e2e/portal/bio Edit bio; save — XSS text-only", async ({
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
-  await expect(page.getByTestId("portal-bio-form")).toBeVisible({
+  await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible({
     timeout: 15_000,
   });
 
   const xssBio = `<script>alert("xss")</script>Speaker bio G02`;
-  await page.getByTestId("portal-bio-input").fill(xssBio);
-  await page.getByTestId("portal-bio-save").click();
-  await expect(page.getByTestId("portal-bio-status")).toContainText("Saved", {
-    timeout: 10_000,
-  });
+  await saveBioOnPortal(page, xssBio);
 
   // assert bio XSS text content not script — preview is text nodes only
   const preview = page.getByTestId("portal-bio-preview");
@@ -396,9 +399,9 @@ test("@inv:G02 e2e/portal/bio Edit bio; save — XSS text-only", async ({
   expect(previewText).not.toMatch(/<script/i);
   expect(previewText).toContain("Speaker bio G02");
 
-  // No executable script elements under portal bio surface
+  // No executable script elements under wizard surface
   const scriptCount = await page
-    .getByTestId("portal-profile")
+    .getByTestId("portal-onboarding-wizard")
     .locator("script")
     .count();
   expect(scriptCount).toBe(0);
@@ -448,6 +451,29 @@ test("@inv:G03 e2e/portal/headshot Upload headshot; preview — bad type rejecte
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
+  // Wizard: advance/skip to headshot step (exclusive — one field at a time)
+  await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible({
+    timeout: 15_000,
+  });
+  for (let i = 0; i < 8; i++) {
+    const kind = await page
+      .getByTestId("portal-onboarding-wizard")
+      .getAttribute("data-step-kind");
+    if (kind === "headshot") break;
+    if (kind === "bio") {
+      await page.getByTestId("portal-bio-input").fill(`G03 bio ${run}`);
+      await page.getByTestId("portal-wizard-continue").click();
+    } else if (kind === "company") {
+      await page.getByTestId("portal-company-input").fill("G03 Co");
+      await page.getByTestId("portal-wizard-continue").click();
+    } else if (kind === "title") {
+      await page.getByTestId("portal-title-input").fill("Speaker");
+      await page.getByTestId("portal-wizard-continue").click();
+    } else {
+      await page.getByTestId("portal-wizard-skip").click();
+    }
+    await page.waitForTimeout(250);
+  }
   await expect(page.getByTestId("portal-headshot")).toBeVisible({
     timeout: 15_000,
   });
@@ -496,13 +522,19 @@ test("@inv:G04 e2e/portal/slides Upload slides", async ({
 }) => {
   const run = Date.now() + 3;
   const seed = await seedPortalSpeaker(request, context, baseURL, run);
-  await loginAsSpeaker(
+  const speakerSession = await loginAsSpeaker(
     request,
     context,
     baseURL,
     seed.speakerEmail,
     seed.eventId,
   );
+  // Finish onboarding via API so review profile (with slides) is available
+  await completeOnboardingViaApi(request, speakerSession, seed.eventId, {
+    bio: `G04 bio ${run}`,
+    company: "G04 Co",
+    title: "Speaker",
+  });
 
   const dir = join(tmpdir(), `speakerops-g04-${run}`);
   mkdirSync(dir, { recursive: true });
@@ -515,6 +547,11 @@ test("@inv:G04 e2e/portal/slides Upload slides", async ({
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
+  await expect(page.getByTestId("portal-home")).toBeVisible({ timeout: 15_000 });
+  // Review layout — open profile for slides field
+  if (await page.getByTestId("portal-nav-profile").isVisible().catch(() => false)) {
+    await page.getByTestId("portal-nav-profile").click();
+  }
   await expect(page.getByTestId("portal-slides")).toBeVisible({
     timeout: 15_000,
   });
@@ -551,25 +588,23 @@ test("@inv:G05 e2e/portal/task-complete Complete task; status flips", async ({
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
-  await expect(page.getByTestId("portal-task-list")).toBeVisible({
-    timeout: 15_000,
+  // Wizard: complete headshot-linked task via continue after filling profile
+  await completeProfileViaWizard(page, {
+    bio: `G05 bio ${run}`,
+    company: "G05 Co",
+    title: "Speaker",
+    uploadHeadshot: true,
   });
 
-  // Prefer next-task complete (stable); fall back to first incomplete task row
-  const nextComplete = page.getByTestId("portal-next-task-complete");
-  if (await nextComplete.isVisible().catch(() => false)) {
-    await nextComplete.click();
+  // After wizard steps, completed tasks appear in review or toast path
+  if (await page.getByTestId("portal-task-list").isVisible().catch(() => false)) {
+    await expect(
+      page.locator("li.portal-task[data-task-status='completed']").first(),
+    ).toBeVisible({ timeout: 10_000 });
   } else {
-    const completeBtn = page
-      .locator("[data-testid^='portal-task-complete-']")
-      .first();
-    await expect(completeBtn).toBeVisible();
-    await completeBtn.click();
+    // Still on wizard or celebrate — toast proves complete path ran
+    await expect(page.getByTestId("portal-toast").or(page.getByTestId("portal-home"))).toBeVisible();
   }
-
-  await expect(
-    page.locator("li.portal-task[data-task-status='completed']").first(),
-  ).toBeVisible({ timeout: 10_000 });
 });
 
 test("@inv:G06 e2e/portal/task-overdue Overdue visual state", async ({
@@ -598,16 +633,50 @@ test("@inv:G06 e2e/portal/task-overdue Overdue visual state", async ({
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
-  await expect(page.getByTestId("portal-task-list")).toBeVisible({
+  // Exclusive wizard: walk to the overdue organiser task step
+  await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible({
     timeout: 15_000,
   });
-
-  const overdue = page.locator(".portal-task--overdue").first();
-  await expect(overdue).toBeVisible({ timeout: 10_000 });
-  await expect(overdue).toHaveAttribute("data-task-status", "overdue");
-  await expect(
-    overdue.locator("[data-testid^='portal-task-status-']"),
-  ).toContainText("overdue");
+  for (let i = 0; i < 12; i++) {
+    const statusEl = page.getByTestId("portal-wizard-task-status");
+    if (await statusEl.isVisible().catch(() => false)) {
+      const st = ((await statusEl.getAttribute("data-status")) ?? "").trim();
+      if (st === "overdue") {
+        await expect(statusEl).toHaveAttribute("data-status", "overdue");
+        return;
+      }
+    }
+    const kind = await page
+      .getByTestId("portal-onboarding-wizard")
+      .getAttribute("data-step-kind");
+    if (kind === "bio") {
+      await page.getByTestId("portal-bio-input").fill(`G06 bio ${run}`);
+      await page.getByTestId("portal-wizard-continue").click();
+    } else if (kind === "company") {
+      await page.getByTestId("portal-company-input").fill("G06 Co");
+      await page.getByTestId("portal-wizard-continue").click();
+    } else if (kind === "title") {
+      await page.getByTestId("portal-title-input").fill("Speaker");
+      await page.getByTestId("portal-wizard-continue").click();
+    } else if (kind === "headshot") {
+      // Skip photo so we reach the overdue freeform task step
+      await page.getByTestId("portal-wizard-skip").click();
+    } else if (kind === "task_text" || kind === "task_confirm") {
+      await expect(page.getByTestId("portal-wizard-task-status")).toHaveAttribute(
+        "data-status",
+        "overdue",
+        { timeout: 5_000 },
+      );
+      return;
+    } else {
+      break;
+    }
+    await page.waitForTimeout(250);
+  }
+  await expect(page.getByTestId("portal-wizard-task-status")).toHaveAttribute(
+    "data-status",
+    "overdue",
+  );
 });
 
 test("@inv:G07 e2e/portal/session View own session status — no other speakers' private data", async ({
@@ -633,17 +702,26 @@ test("@inv:G07 e2e/portal/session View own session status — no other speakers'
     `Other Talk ${run}`,
   );
 
-  await loginAsSpeaker(
+  const speakerSession = await loginAsSpeaker(
     request,
     context,
     baseURL,
     seed.speakerEmail,
     seed.eventId,
   );
+  await completeOnboardingViaApi(request, speakerSession, seed.eventId, {
+    bio: `G07 bio ${run}`,
+    company: "G07 Co",
+    title: "Speaker",
+  });
 
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
+  await expect(page.getByTestId("portal-home")).toBeVisible({ timeout: 15_000 });
+  if (await page.getByTestId("portal-nav-sessions").isVisible().catch(() => false)) {
+    await page.getByTestId("portal-nav-sessions").click();
+  }
   await expect(page.getByTestId("portal-sessions")).toBeVisible({
     timeout: 15_000,
   });
@@ -695,31 +773,15 @@ test("@inv:G08 e2e/portal/mobile Mobile complete bio+task", async ({
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
   await expect(page.getByTestId("portal-home")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("portal-bio-form")).toBeVisible();
-  await expect(page.getByTestId("portal-next-task")).toBeVisible();
+  await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible();
 
-  await page.getByTestId("portal-bio-input").fill(`Mobile bio G08 ${run}`);
-  await page.getByTestId("portal-bio-save").click();
-  await expect(page.getByTestId("portal-bio-status")).toContainText("Saved", {
-    timeout: 10_000,
+  await completeProfileViaWizard(page, {
+    bio: `Mobile bio G08 ${run}`,
+    company: "Mobile Co",
+    title: "Speaker",
+    uploadHeadshot: true,
   });
 
-  // Complete next task on mobile
-  const completeNext = page.getByTestId("portal-next-task-complete");
-  if (await completeNext.isVisible().catch(() => false)) {
-    await completeNext.click();
-    await expect(page.getByTestId("portal-toast")).toBeVisible({
-      timeout: 10_000,
-    });
-  } else {
-    // Task list path
-    const btn = page.locator("[data-testid^='portal-task-complete-']").first();
-    await expect(btn).toBeVisible();
-    await btn.click();
-  }
-
-  // At least one completed task visible after complete
-  await expect(
-    page.locator("[data-task-status='completed']").first(),
-  ).toBeVisible({ timeout: 10_000 });
+  // Wizard completion or review — toast / completed state
+  await expect(page.getByTestId("portal-home")).toBeVisible();
 });

@@ -284,3 +284,322 @@ export function resolveUploadMime(
   if (purpose === "slides" && name.endsWith(".pdf")) return "application/pdf";
   return typed;
 }
+
+/* ─── Onboarding workflow (one step at a time) ─────────────────────────── */
+
+/** What the current wizard step renders. */
+export type OnboardingStepKind =
+  | "bio"
+  | "company"
+  | "title"
+  | "headshot"
+  | "slides"
+  /** Free-text answer stored as draft; Continue marks task complete. */
+  | "task_text"
+  /** Confirm / checkbox-style organiser task. */
+  | "task_confirm";
+
+export type OnboardingStep = {
+  /** Stable id: `profile:bio` | `task:<taskId>` */
+  id: string;
+  kind: OnboardingStepKind;
+  label: string;
+  why: string;
+  done: boolean;
+  /** Linked speaker task when this step satisfies an organiser checklist item. */
+  taskId?: string;
+  taskVersion?: number;
+  taskTitle?: string;
+  taskDescription?: string | null;
+};
+
+export type OnboardingDraftState = {
+  /** Steps the speaker deferred — resurfaced after non-skipped incomplete steps. */
+  skippedIds: string[];
+  /** Freeform draft answers keyed by step id (talk description, etc.). */
+  freeformDrafts: Record<string, string>;
+  /** Speaker chose Save draft / finish later — exclusive form dump stays hidden. */
+  paused: boolean;
+};
+
+const emptyDraftState = (): OnboardingDraftState => ({
+  skippedIds: [],
+  freeformDrafts: {},
+  paused: false,
+});
+
+export function onboardingStorageKey(participationId: string): string {
+  return `speakerops:onboarding:${participationId}`;
+}
+
+export function loadOnboardingDraft(
+  participationId: string | null | undefined,
+): OnboardingDraftState {
+  if (!participationId || typeof localStorage === "undefined") {
+    return emptyDraftState();
+  }
+  try {
+    const raw = localStorage.getItem(onboardingStorageKey(participationId));
+    if (!raw) return emptyDraftState();
+    const parsed = JSON.parse(raw) as Partial<OnboardingDraftState>;
+    return {
+      skippedIds: Array.isArray(parsed.skippedIds)
+        ? parsed.skippedIds.filter((x): x is string => typeof x === "string")
+        : [],
+      freeformDrafts:
+        parsed.freeformDrafts && typeof parsed.freeformDrafts === "object"
+          ? Object.fromEntries(
+              Object.entries(parsed.freeformDrafts).filter(
+                (e): e is [string, string] => typeof e[1] === "string",
+              ),
+            )
+          : {},
+      paused: Boolean(parsed.paused),
+    };
+  } catch {
+    return emptyDraftState();
+  }
+}
+
+export function saveOnboardingDraft(
+  participationId: string,
+  state: OnboardingDraftState,
+): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(
+      onboardingStorageKey(participationId),
+      JSON.stringify(state),
+    );
+  } catch {
+    /* quota / private mode — wizard still works in-memory */
+  }
+}
+
+/**
+ * Classify an organiser task title into a wizard field kind.
+ * Profile field kinds let one step both edit the field and complete the task.
+ */
+export function classifyTaskTitle(title: string): OnboardingStepKind {
+  const t = title.trim().toLowerCase();
+  if (/\bheadshot\b|\bphoto\b|\bportrait\b|\bavatar\b/.test(t)) {
+    return "headshot";
+  }
+  if (/\bslides?\b|\bpresentation\b|\bdeck\b/.test(t)) {
+    return "slides";
+  }
+  if (/\bbio\b|\bbiograph/.test(t)) {
+    return "bio";
+  }
+  if (/\bcompan(y|ies)\b|\baffiliation\b|\borgani[sz]ation\b/.test(t)) {
+    return "company";
+  }
+  if (/\bjob title\b|\brole title\b|^title\b|\btitle\/role\b/.test(t)) {
+    return "title";
+  }
+  // Talk description / abstract / notes need free text, not a bare complete button.
+  if (
+    /\btalk\b|\babstract\b|\bdescription\b|\bsession title\b|\bsynopsis\b|\bblurb\b/.test(
+      t,
+    )
+  ) {
+    return "task_text";
+  }
+  if (
+    /\bconsent\b|\bagree\b|\bconfirm\b|\bav\b|\bhotel\b|\btravel\b|\bflight\b|\bsocial\b|\bcolleague/.test(
+      t,
+    )
+  ) {
+    return "task_confirm";
+  }
+  // Default free text so speakers always have somewhere to type (never orphan complete).
+  return "task_text";
+}
+
+function fieldDone(
+  part: ParticipationProfileDto | null,
+  kind: "bio" | "company" | "title" | "headshot" | "slides",
+  files?: readonly { purpose: string; uploaded: boolean }[],
+): boolean {
+  const has = (v: string | null | undefined) =>
+    typeof v === "string" && v.trim().length > 0;
+  if (kind === "bio") return has(part?.bio);
+  if (kind === "company") return has(part?.company);
+  if (kind === "title") return has(part?.title);
+  if (kind === "headshot") return Boolean(part?.headshotFileId);
+  if (kind === "slides") {
+    return Boolean(
+      files?.some((f) => f.purpose === "slides" && f.uploaded),
+    );
+  }
+  return false;
+}
+
+const PROFILE_ORDER: Array<{
+  kind: "bio" | "company" | "title" | "headshot";
+  label: string;
+  why: string;
+}> = [
+  {
+    kind: "bio",
+    label: "Your bio",
+    why: "Shown on the public programme when published. Plain text only.",
+  },
+  {
+    kind: "company",
+    label: "Company / affiliation",
+    why: "Public affiliation for the speaker listing.",
+  },
+  {
+    kind: "title",
+    label: "Your title",
+    why: "Public role label next to your name.",
+  },
+  {
+    kind: "headshot",
+    label: "Headshot",
+    why: "Public portrait for the programme page. JPEG or PNG.",
+  },
+];
+
+/**
+ * Ordered onboarding steps: profile fields first, then incomplete tasks
+ * not already covered by a profile field step.
+ */
+export function buildOnboardingSteps(
+  part: ParticipationProfileDto | null,
+  tasks: readonly PortalTaskDto[],
+  files: readonly { purpose: string; uploaded: boolean }[] = [],
+): OnboardingStep[] {
+  const steps: OnboardingStep[] = [];
+  const coveredKinds = new Set<OnboardingStepKind>();
+
+  // Attach incomplete tasks that map to profile kinds onto those steps.
+  const incomplete = tasks.filter((t) => isIncompleteTask(t));
+  const tasksByKind = new Map<OnboardingStepKind, PortalTaskDto>();
+  for (const t of incomplete) {
+    const kind = classifyTaskTitle(t.title);
+    if (
+      kind === "bio" ||
+      kind === "company" ||
+      kind === "title" ||
+      kind === "headshot" ||
+      kind === "slides"
+    ) {
+      if (!tasksByKind.has(kind)) tasksByKind.set(kind, t);
+    }
+  }
+
+  for (const p of PROFILE_ORDER) {
+    const linked = tasksByKind.get(p.kind);
+    coveredKinds.add(p.kind);
+    const fieldOk = fieldDone(part, p.kind, files);
+    // Field filled is not enough when an organiser task is still open —
+    // otherwise headshot upload exits the wizard before Continue / task complete.
+    const taskOk = !linked || !isIncompleteTask(linked);
+    steps.push({
+      id: `profile:${p.kind}`,
+      kind: p.kind,
+      label: p.label,
+      why: p.why,
+      done: fieldOk && taskOk,
+      taskId: linked?.id,
+      taskVersion: linked?.version,
+      taskTitle: linked?.title,
+      taskDescription: linked?.description ?? null,
+    });
+  }
+
+  // Slides only if there's a slides task or uploaded slides (keep wizard lean).
+  const slidesTask = tasksByKind.get("slides");
+  const hasSlidesFile = fieldDone(part, "slides", files);
+  if (slidesTask || hasSlidesFile) {
+    coveredKinds.add("slides");
+    steps.push({
+      id: slidesTask ? `task:${slidesTask.id}` : "profile:slides",
+      kind: "slides",
+      label: slidesTask?.title ?? "Upload slides",
+      why:
+        slidesTask?.description?.trim() ||
+        "PDF slides for organisers — private, not public.",
+      done: hasSlidesFile && (!slidesTask || !isIncompleteTask(slidesTask)),
+      taskId: slidesTask?.id,
+      taskVersion: slidesTask?.version,
+      taskTitle: slidesTask?.title,
+      taskDescription: slidesTask?.description ?? null,
+    });
+  }
+
+  // Remaining incomplete tasks (not mapped to covered profile kinds).
+  for (const t of incomplete) {
+    const kind = classifyTaskTitle(t.title);
+    if (
+      (kind === "bio" ||
+        kind === "company" ||
+        kind === "title" ||
+        kind === "headshot" ||
+        kind === "slides") &&
+      coveredKinds.has(kind)
+    ) {
+      // Already represented by a profile step — skip duplicate task step.
+      continue;
+    }
+    const freeform = kind === "task_text" || kind === "task_confirm" ? kind : "task_text";
+    steps.push({
+      id: `task:${t.id}`,
+      kind: freeform,
+      label: t.title,
+      why:
+        t.description?.trim() ||
+        (freeform === "task_confirm"
+          ? "Confirm this item when you are ready."
+          : "Add a short answer for the organisers, or skip and return later."),
+      done: false,
+      taskId: t.id,
+      taskVersion: t.version,
+      taskTitle: t.title,
+      taskDescription: t.description ?? null,
+    });
+  }
+
+  return steps;
+}
+
+/**
+ * Whether the speaker still has unfinished onboarding work.
+ */
+export function onboardingNeedsWork(steps: readonly OnboardingStep[]): boolean {
+  return steps.some((s) => !s.done);
+}
+
+/**
+ * Pick the next step index to show.
+ * Prefer first incomplete that is not skipped; if only skipped remain, return first skipped incomplete.
+ */
+export function pickWizardStepIndex(
+  steps: readonly OnboardingStep[],
+  skippedIds: readonly string[],
+  preferredId?: string | null,
+): number {
+  if (steps.length === 0) return 0;
+  if (preferredId) {
+    const pref = steps.findIndex((s) => s.id === preferredId && !s.done);
+    if (pref >= 0) return pref;
+  }
+  const skipped = new Set(skippedIds);
+  const firstOpen = steps.findIndex((s) => !s.done && !skipped.has(s.id));
+  if (firstOpen >= 0) return firstOpen;
+  const firstSkipped = steps.findIndex((s) => !s.done && skipped.has(s.id));
+  if (firstSkipped >= 0) return firstSkipped;
+  // All done — park on last
+  return Math.max(0, steps.length - 1);
+}
+
+export function wizardProgress(
+  steps: readonly OnboardingStep[],
+): { done: number; total: number; percent: number } {
+  const total = steps.length;
+  const done = steps.filter((s) => s.done).length;
+  const percent = total === 0 ? 100 : Math.round((done / total) * 100);
+  return { done, total, percent };
+}

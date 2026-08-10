@@ -1,6 +1,7 @@
 /**
- * Full human path: Update profile CTA → fill fields → Save → choose headshot.
- * Catches regressions where Save unmounts the form or Choose file is inert.
+ * Full human path: onboarding wizard one step at a time → Save draft / Continue
+ * → headshot choose. Exclusive wizard — never CTA + full form dump together.
+ * Catches regressions where Save unmounts or Choose file is inert.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -57,7 +58,7 @@ async function session(
   return m![1]!;
 }
 
-test("speaker profile: Update profile focuses bio, Save persists, Choose file works", async ({
+test("speaker onboarding wizard: one step at a time, draft save, headshot choose", async ({
   page,
   request,
   context,
@@ -180,34 +181,50 @@ test("speaker profile: Update profile focuses bio, Save persists, Choose file wo
   );
   await expect(page.getByTestId("portal-home")).toBeVisible({ timeout: 15_000 });
 
-  // Update profile CTA → profile + focus bio (not just silent scroll)
-  const cta = page.getByTestId("portal-next-profile-cta");
-  if (await cta.isVisible().catch(() => false)) {
-    await cta.click();
-  } else {
-    await page.getByTestId("portal-nav-profile").click();
-  }
-  await expect(page.getByTestId("portal-profile")).toBeVisible();
-  await expect(page.getByTestId("portal-bio-input")).toBeFocused({
-    timeout: 5_000,
-  });
-
-  // Save must stay mounted and show Saved
-  await page.getByTestId("portal-bio-input").fill(`Bio complete ${run}`);
-  await page.getByTestId("portal-company-input").fill("Acme Co");
-  await page.getByTestId("portal-title-input").fill("Engineer");
-
-  const save = page.getByTestId("portal-bio-save");
-  await expect(save).toBeEnabled();
-  await save.click();
-
-  // Form must still be visible (soft refresh — no full unmount)
-  await expect(page.getByTestId("portal-bio-form")).toBeVisible();
-  await expect(page.getByTestId("portal-bio-status")).toContainText(/Saved/i, {
+  // Exclusive wizard — not CTA over a full form dump
+  await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible({
     timeout: 15_000,
   });
+  await expect(page.getByTestId("portal-home")).toHaveAttribute(
+    "data-layout",
+    "onboarding-wizard",
+  );
+  // Full multi-field profile section must not render alongside wizard
+  await expect(page.getByTestId("portal-profile")).toHaveCount(0);
+  await expect(page.getByTestId("portal-task-list")).toHaveCount(0);
 
-  // Choose file: button must open filechooser (human path)
+  // Step 1: bio only
+  await expect(page.getByTestId("portal-bio-input")).toBeVisible();
+  await expect(page.getByTestId("portal-company-input")).toHaveCount(0);
+  await page.getByTestId("portal-bio-input").fill(`Bio complete ${run}`);
+  await page.getByTestId("portal-wizard-save-draft").click();
+  await expect(page.getByTestId("portal-bio-status")).toContainText(
+    /Draft saved|Saved/i,
+    { timeout: 15_000 },
+  );
+  // Wizard stays mounted after draft save
+  await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible();
+  await page.getByTestId("portal-wizard-continue").click();
+
+  // Step 2: company
+  await expect(page.getByTestId("portal-company-input")).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByTestId("portal-bio-input")).toHaveCount(0);
+  await page.getByTestId("portal-company-input").fill("Acme Co");
+  await page.getByTestId("portal-wizard-continue").click();
+
+  // Step 3: title
+  await expect(page.getByTestId("portal-title-input")).toBeVisible({
+    timeout: 10_000,
+  });
+  await page.getByTestId("portal-title-input").fill("Engineer");
+  await page.getByTestId("portal-wizard-continue").click();
+
+  // Step 4: headshot — Choose file must open filechooser
+  await expect(page.getByTestId("portal-headshot-choose")).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(page.getByTestId("portal-headshot-choose")).toBeEnabled();
   const chooserPromise = page.waitForEvent("filechooser");
   await page.getByTestId("portal-headshot-choose").click();
@@ -226,14 +243,25 @@ test("speaker profile: Update profile focuses bio, Save persists, Choose file wo
   await expect(page.getByTestId("portal-headshot-preview")).toBeVisible({
     timeout: 10_000,
   });
+  await page.getByTestId("portal-wizard-continue").click();
 
-  // Reload: bio still present (durable)
+  // Reload: still durable — may be wizard (remaining tasks) or review
   await page.reload();
   await expect(page.getByTestId("portal-home")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId("portal-nav-profile").click();
-  await expect(page.getByTestId("portal-bio-input")).toHaveValue(
-    new RegExp(`Bio complete ${run}`),
-  );
+  // Bio still present either in wizard step jump or review profile
+  const bioInWizard = page.getByTestId("portal-bio-input");
+  if (await page.getByTestId("portal-onboarding-wizard").isVisible().catch(() => false)) {
+    // Jump to bio via first done dot or continue until bio review
+    await page.getByTestId("portal-wizard-dot-0").click();
+    await expect(bioInWizard).toHaveValue(new RegExp(`Bio complete ${run}`), {
+      timeout: 5_000,
+    });
+  } else {
+    await page.getByTestId("portal-nav-profile").click();
+    await expect(page.getByTestId("portal-bio-input")).toHaveValue(
+      new RegExp(`Bio complete ${run}`),
+    );
+  }
 
   g.assertClean();
 });

@@ -224,46 +224,40 @@ test.describe("11.6 portal + speakers lumen2", () => {
       "data-section",
       "11.6",
     );
+    // Incomplete speakers: exclusive onboarding wizard (not form dump under CTA)
     await expect(page.getByTestId("portal-home")).toHaveAttribute(
       "data-layout",
-      "next-task-first",
+      "onboarding-wizard",
     );
+    await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible();
+    await expect(page.getByTestId("portal-wizard-progress")).toBeVisible();
+    await expect(page.getByTestId("portal-wizard-step-label")).toBeVisible();
+    await expect(page.getByTestId("portal-wizard-continue")).toBeVisible();
+    await expect(page.getByTestId("portal-wizard-skip")).toBeVisible();
+    await expect(page.getByTestId("portal-wizard-save-draft")).toBeVisible();
+    // Full form dump must not render under the wizard
+    await expect(page.getByTestId("portal-profile")).toHaveCount(0);
+    await expect(page.getByTestId("portal-task-list")).toHaveCount(0);
 
-    // Branded welcome
-    await expect(page.getByTestId("portal-welcome")).toBeVisible();
-    await expect(page.getByTestId("portal-welcome-name")).toContainText(
+    // Greeting uses speaker name
+    await expect(page.getByTestId("portal-wizard-greeting")).toContainText(
       seed.speakerName,
     );
-    await expect(page.getByTestId("portal-participation-state")).toBeVisible();
 
-    // Progress model
-    await expect(page.getByTestId("portal-progress")).toBeVisible();
-    await expect(page.getByTestId("portal-progress-bar")).toBeVisible();
-    await expect(page.getByTestId("portal-progress-percent")).toBeVisible();
-    await expect(page.getByTestId("portal-profile-steps")).toBeVisible();
-    await expect(page.getByTestId("portal-profile-step-bio")).toHaveAttribute(
-      "data-done",
-      "false",
+    // Progress starts incomplete
+    await expect(page.getByTestId("portal-wizard-percent")).toBeVisible();
+    const pctText =
+      (await page.getByTestId("portal-wizard-percent").textContent()) ?? "";
+    expect(pctText).not.toMatch(/^100%/);
+
+    // Save draft path works without unmounting wizard
+    await page.getByTestId("portal-bio-input").fill(`L2 bio ${RUN}`);
+    await page.getByTestId("portal-wizard-save-draft").click();
+    await expect(page.getByTestId("portal-bio-status")).toContainText(
+      /Draft saved|Saved/i,
+      { timeout: 10_000 },
     );
-
-    // Next task dominant (G01 surface preserved)
-    const next = page.getByTestId("portal-next-task");
-    await expect(next).toBeVisible();
-    await expect(page.getByTestId("portal-next-kicker")).toContainText(
-      /next step/i,
-    );
-    await expect(page.getByTestId("portal-next-task-card")).toBeVisible();
-    await expect(page.getByTestId("portal-next-task-title")).not.toBeEmpty();
-    await expect(page.getByTestId("portal-next-task-complete")).toBeVisible();
-
-    // Next-task card is the highlight / dominant composition
-    await expect(next).toHaveClass(/portal-card--next-dominant|portal-card--highlight/);
-
-    // Complete next task updates progress path (real API)
-    await page.getByTestId("portal-next-task-complete").click();
-    await expect(page.getByTestId("portal-toast")).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible();
   });
 
   test("AC-11.6-PORTAL-MOBILE 390px usable next-task + bottom nav", async ({
@@ -289,17 +283,14 @@ test.describe("11.6 portal + speakers lumen2", () => {
       timeout: 15_000,
     });
 
-    await expect(page.getByTestId("portal-welcome")).toBeVisible();
-    await expect(page.getByTestId("portal-next-task")).toBeVisible();
-    await expect(page.getByTestId("portal-bottom-nav")).toBeVisible();
-    await expect(page.getByTestId("portal-bottom-home")).toBeVisible();
-    await expect(page.getByTestId("portal-bottom-profile")).toBeVisible();
-    await expect(page.getByTestId("portal-bottom-profile")).toBeVisible();
+    // Mobile exclusive wizard — bottom nav hidden until onboarding done
+    await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible();
+    await expect(page.getByTestId("portal-bottom-nav")).toHaveCount(0);
 
-    // Primary complete action reachable without horizontal overflow
-    const complete = page.getByTestId("portal-next-task-complete");
-    await expect(complete).toBeVisible();
-    const box = await complete.boundingBox();
+    // Primary continue action reachable without horizontal overflow
+    const continueBtn = page.getByTestId("portal-wizard-continue");
+    await expect(continueBtn).toBeVisible();
+    const box = await continueBtn.boundingBox();
     expect(box).toBeTruthy();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(40);
@@ -308,10 +299,12 @@ test.describe("11.6 portal + speakers lumen2", () => {
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
 
-    await complete.click();
-    await expect(page.getByTestId("portal-toast")).toBeVisible({
-      timeout: 10_000,
-    });
+    await page.getByTestId("portal-bio-input").fill(`L2 mobile bio ${RUN}`);
+    await page.getByTestId("portal-wizard-save-draft").click();
+    await expect(page.getByTestId("portal-bio-status")).toContainText(
+      /Draft saved|Saved/i,
+      { timeout: 10_000 },
+    );
   });
 
   test("AC-11.6-SPEAKERS-LIFE lifecycle table + readiness indicators", async ({
@@ -477,20 +470,15 @@ test.describe("11.6 portal + speakers lumen2", () => {
   }) => {
     const seed = await seedPortalSpeaker(request, context, baseURL, `${RUN}-z`);
 
-    // Unauthenticated portal → sign-in recovery (fail-closed)
+    // Unauthenticated portal → RequireRole redirects to login (fail-closed)
     await context.clearCookies();
     await page.goto(
       `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
     );
-    await expect(page.getByTestId("portal-home")).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.getByTestId("portal-unauthenticated")).toBeVisible({
-      timeout: 10_000,
-    });
-    await expect(page.getByTestId("portal-login-link")).toBeVisible();
-    // Must not leak task titles without session
+    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
+    // Must not leak wizard or task titles without session
     await expect(page.getByTestId("portal-next-task-card")).toHaveCount(0);
+    await expect(page.getByTestId("portal-onboarding-wizard")).toHaveCount(0);
 
     // Speaker session cannot read admin speakers list
     await loginAsSpeaker(

@@ -5,6 +5,7 @@
  * including short-content visibility (section flash + aria-current).
  */
 import { test, expect, type Page } from "@playwright/test";
+import { completeOnboardingViaApi } from "./helpers/portal-onboarding.js";
 
 const TURNSTILE_DEV_PASS_TOKEN = "XXXX.DUMMY.TOKEN";
 
@@ -70,7 +71,7 @@ async function seedSpeakerWithContent(
   context: import("@playwright/test").BrowserContext,
   baseURL: string | undefined,
   run: number,
-): Promise<{ eventId: string; speakerEmail: string }> {
+): Promise<{ eventId: string; speakerEmail: string; session: string }> {
   const adminEmail = `e2e-nav-admin-${run}@example.com`;
   const speakerEmail = `e2e-nav-speaker-${run}@example.com`;
 
@@ -182,7 +183,14 @@ async function seedSpeakerWithContent(
     },
   ]);
 
-  return { eventId, speakerEmail };
+  // Complete profile + tasks so exclusive wizard exits → full section nav
+  await completeOnboardingViaApi(request, session, eventId, {
+    bio: `Nav bio ${run}`,
+    company: "Nav Co",
+    title: "Speaker",
+  });
+
+  return { eventId, speakerEmail, session };
 }
 
 test("@inv:G11 e2e/portal/section-nav speaker section nav changes active state and focuses section", async ({
