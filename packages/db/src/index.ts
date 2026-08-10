@@ -20,6 +20,7 @@ export {
   designTokenDrafts,
   designTokenPublished,
   fileAssets,
+  fileBlobs,
   forms,
   formVersions,
   formFields,

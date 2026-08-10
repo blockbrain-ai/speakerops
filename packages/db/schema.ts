@@ -317,11 +317,29 @@ export const fileAssets = sqliteTable(
   (t) => [index("idx_file_assets_event_id").on(t.eventId)],
 );
 
+/**
+ * file_blobs — optional durable body storage when R2 is not bound (dogfood).
+ * Prefer R2 FILES in production; D1 holds small base64 blobs only.
+ */
+export const fileBlobs = sqliteTable(
+  "file_blobs",
+  {
+    fileId: text("file_id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    bytesB64: text("bytes_b64").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("idx_file_blobs_event_id").on(t.eventId)],
+);
+
 /** Design Kit tables owned by section 2.4. */
 export const designTables = {
   designTokenDrafts,
   designTokenPublished,
   fileAssets,
+  fileBlobs,
 } as const;
 
 /**

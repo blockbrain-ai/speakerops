@@ -123,6 +123,17 @@ export function SpeakersPage() {
     return `/api/files/${encodeURIComponent(fileId)}`;
   }
 
+  /** Deterministic pastel circle when file bytes missing (no R2 / load error). */
+  function placeholderAvatarDataUrl(seed: string): string {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) {
+      h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    const hue = h % 360;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="hsl(${hue} 55% 55%)"/></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  }
+
   const loadList = useCallback(
     async (eventId: string, search: string) => {
       setLoadError(null);
@@ -318,6 +329,7 @@ export function SpeakersPage() {
             row.participation.personName ?? row.participation.personId;
           const email = row.participation.personEmail ?? "—";
           const photo = headshotUrl(row.participation.headshotFileId);
+          const fallback = placeholderAvatarDataUrl(row.participation.id);
           return (
             <div className="speakers-page__list-speaker">
               <span
@@ -325,17 +337,15 @@ export function SpeakersPage() {
                 data-testid={`speakers-avatar-${row.participation.id}`}
                 data-has-photo={photo ? "true" : "false"}
               >
-                {photo ? (
-                  <img
-                    src={photo}
-                    alt=""
-                    className="speakers-page__list-avatar-img"
-                  />
-                ) : (
-                  <span className="speakers-page__list-avatar-fallback" aria-hidden>
-                    {(name || "?").trim().charAt(0).toUpperCase()}
-                  </span>
-                )}
+                <img
+                  src={photo ?? fallback}
+                  alt=""
+                  className="speakers-page__list-avatar-img"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (img.src !== fallback) img.src = fallback;
+                  }}
+                />
               </span>
               <div className="speakers-page__list-speaker-text">
                 <button
@@ -713,14 +723,24 @@ export function SpeakersPage() {
                     >
                       {detail.participation.headshotFileId ? (
                         <img
-                          src={headshotUrl(detail.participation.headshotFileId)!}
+                          src={
+                            headshotUrl(detail.participation.headshotFileId) ??
+                            placeholderAvatarDataUrl(detail.participation.id)
+                          }
+                          alt=""
+                          className="speakers-page__headshot-img"
+                          onError={(e) => {
+                            e.currentTarget.src = placeholderAvatarDataUrl(
+                              detail.participation.id,
+                            );
+                          }}
+                        />
+                      ) : (
+                        <img
+                          src={placeholderAvatarDataUrl(detail.participation.id)}
                           alt=""
                           className="speakers-page__headshot-img"
                         />
-                      ) : (
-                        <span className="speakers-page__headshot-empty">
-                          No photo
-                        </span>
                       )}
                     </div>
                     <div className="speakers-page__profile-fields">

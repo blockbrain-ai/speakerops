@@ -24,6 +24,7 @@ import {
   designTokenDrafts,
   designTokenPublished,
   fileAssets,
+  fileBlobs,
 } from "@speakerops/db";
 import type { R2BucketLike } from "../../env.js";
 import { d1Changes } from "../auth/store.js";
@@ -728,9 +729,39 @@ export class D1DesignStore implements DesignStore {
       await this.r2.put(key, blob.bytes, {
         httpMetadata: { contentType: blob.mime },
       });
-    } else {
-      this.localBlobs.set(this.blobKey(eventId, fileId), blob);
+      return;
     }
+    // Dogfood / no-R2: durable D1 base64 body (isolate Map is not durable).
+    const bytesB64 = arrayBufferToBase64(blob.bytes);
+    const now = new Date().toISOString();
+    const existing = await this.db
+      .select()
+      .from(fileBlobs)
+      .where(eq(fileBlobs.fileId, fileId))
+      .limit(1);
+    if (existing[0]) {
+      await this.db
+        .update(fileBlobs)
+        .set({
+          eventId,
+          mime: blob.mime,
+          size: blob.bytes.byteLength,
+          bytesB64,
+          createdAt: now,
+        })
+        .where(eq(fileBlobs.fileId, fileId));
+    } else {
+      await this.db.insert(fileBlobs).values({
+        fileId,
+        eventId,
+        mime: blob.mime,
+        size: blob.bytes.byteLength,
+        bytesB64,
+        createdAt: now,
+      });
+    }
+    // Keep isolate map as hot cache for the same request chain.
+    this.localBlobs.set(this.blobKey(eventId, fileId), blob);
   }
 
   async getFileBytes(
@@ -748,8 +779,43 @@ export class D1DesignStore implements DesignStore {
         mime: obj.httpMetadata?.contentType ?? meta.mime,
       };
     }
-    return this.localBlobs.get(this.blobKey(eventId, fileId)) ?? null;
+    const cached = this.localBlobs.get(this.blobKey(eventId, fileId));
+    if (cached) return cached;
+    const rows = await this.db
+      .select()
+      .from(fileBlobs)
+      .where(eq(fileBlobs.fileId, fileId))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    const bytes = base64ToArrayBuffer(row.bytesB64);
+    const blob: FileBlob = {
+      bytes,
+      mime: row.mime || meta.mime,
+    };
+    this.localBlobs.set(this.blobKey(eventId, fileId), blob);
+    return blob;
   }
+}
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  // Chunked to avoid call-stack limits on large files (headshots stay small).
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
 }
 
 export function newFileId(): string {

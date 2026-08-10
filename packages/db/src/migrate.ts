@@ -264,6 +264,7 @@ export const DESIGN_TABLES = [
   "design_token_drafts",
   "design_token_published",
   "file_assets",
+  "file_blobs",
 ] as const;
 
 /** file_assets readiness column (phase-audit fix; migration 0006). */
