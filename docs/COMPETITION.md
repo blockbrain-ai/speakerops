@@ -50,16 +50,25 @@ Each row is a judged workflow. Production bar is “operate a multi-day tech con
 
 ---
 
-## 3. Struck items (do not implement / do not expect)
+## 3. Full brief coverage — the honest 9-row matrix
 
-The following are **struck** from the competition brief, synthesis, or programme non-goals. Builders must **not** invent them; judges should **not** score their absence as a gap.
+The brief names nine primary feature areas. Six are implemented end-to-end; three are not built, each with the extension point that exists today. We prioritized making the core CFP→readiness loop production-hard over breadth — the judgment call was fewer surfaces, each one correct, tested, and operable.
 
-### Struck brief / product surface
+| # | Brief feature | Status | Where / extension point |
+|---|---------------|--------|--------------------------|
+| 1 | CFP forms (conditional logic, category routing) | **Implemented** | §2 row 1 |
+| 2 | Speaker portal | **Implemented** | §2 row 2 |
+| 3 | Templated comms + calendar invites | **Implemented** — templates, preview-required idempotent send, delivery log, ICS UID/SEQUENCE, speaker portal `.ics` download. Hosted demo email sends via Cloudflare Email (no attachments); the Resend adapter ships for attachment delivery when configured | §2 row 3 · [portal ICS](../KMS-competition/initiative/contracts/COMMANDS.md) |
+| 4 | Evaluation & scoring (human) | **Implemented** — proposal panel, rubric, peer reviews, deliberation, bulk decisions | §2 row 4 |
+| 5 | Drag-drop schedule + conflict detection (5 views) | **Implemented** | §2 row 5 |
+| 6 | Real-time readiness dashboard | **Implemented** | §2 row 6 |
+| 7 | Accelevents one-way integration | **Not built** — the outbox/projection pattern (see Airtable, 7.3) is the designed extension point for a second one-way target | [AIRTABLE.md](./AIRTABLE.md) |
+| 8 | Portal wiki / HTML embeds | **Not built** — portal is token-themed React; a sanitized rich-text block would slot into the portal home sections | — |
+| 9 | Embeddable mobile-friendly gallery/schedule | **Not built** — the public CFP page shows the public-surface pattern (SPA route + published tokens); a read-only schedule route would reuse it | — |
+| — | AI-assisted multi-round review (brief: optional) | **Not built** (human single-round evaluation is complete; scoped API keys + CLI give an agent everything needed to draft reviews externally) | [CLI.md](./CLI.md) |
 
-- **Accelevents** integration  
-- Portal **wiki / embeds**  
-- **Embeddable gallery**  
-- **AI-assisted multi-round review** (human single-round evaluation is in; multi-agent AI review is out)  
+### Deliberate scope exclusions (product judgment, not brief items)
+
 - Full **Sessionboard CRM / Marketing / CMS / media** suite  
 - **Ticketing**, travel booking, expo floorplans, badge printing, payments, attendee app  
 - **In-product multi-agent fleet** / MCP product theatre / agent control-plane UI  

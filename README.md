@@ -4,6 +4,16 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 
 **Exit claim:** `dogfood_ready` (see constitution).
 
+## Judges — start here
+
+**Live demo:** <https://www.speakerops.org> · **Entry:** open [`/judge`](https://www.speakerops.org/judge) and use the access code from the competition submission (not in this repo) to explore as **admin**, **evaluator**, or **speaker** on the seeded ~150-speaker demo event. The role switcher (top of every shell) moves between roles without re-entering the code. Sessions last ~4 hours; the demo is shared and reset periodically; demo sessions cannot mint API keys.
+
+**10-minute happy path:** publish a CFP form (`Admin → CFP/Forms`) → submit it from [`/cfp/dogfood-2026`](https://www.speakerops.org/cfp/dogfood-2026) (or your own form's public link) → assign an evaluator (`Submissions → detail → Assign`) → score it with the proposal panel (`/eval`) → accept (`Submissions → decision`) → speaker portal onboarding (`/portal`) → place the session by drag-and-drop (`Schedule`) → download the `.ics` from the portal → watch `Overview` readiness update. Full feature map: [`docs/COMPETITION.md`](./docs/COMPETITION.md).
+
+**Real-entrant loop:** submit the public CFP with your own email; on accept, membership-aware magic-link login gets you into the portal with that identity (no allowlist needed for provisioned members).
+
+**Requirements to run locally:** Node **20–24** (`engines` enforced), pnpm 9.
+
 ## 5-minute orientation
 
 New here? Pick a path, then skim the map. Human timed checklist is live (**9.2** / **S-ONB-HUMAN**); agent CLI path is live (**9.3** / **S-ONB-AGENT**); deep docs land in **9.4**; HTML portal in **9.5**; onboarding proof keystone in **9.6** (BC13–15). The **tree is locked** (section **9.1** / outline **0.5**).
