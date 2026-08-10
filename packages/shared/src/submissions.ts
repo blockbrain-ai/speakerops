@@ -173,6 +173,14 @@ export const SubmissionAnswerDtoSchema = z.object({
    * Clients must not show raw fieldKey as the primary heading when label is set.
    */
   label: z.string().min(1).max(256).optional(),
+  /**
+   * Choice options from the pinned form version (select / multiselect).
+   * Clients resolve stored option VALUES to their human labels; unknown
+   * values fall back to the raw stored value so data is never hidden.
+   */
+  options: z
+    .array(z.object({ value: z.string(), label: z.string() }))
+    .optional(),
 });
 export type SubmissionAnswerDto = z.infer<typeof SubmissionAnswerDtoSchema>;
 

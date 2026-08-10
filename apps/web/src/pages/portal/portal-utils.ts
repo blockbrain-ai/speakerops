@@ -31,6 +31,24 @@ export function taskDisplayStatus(
 }
 
 /** True when task still needs speaker action. */
+/**
+ * Human due timestamp for task cards — "17 Aug 2026, 14:30".
+ * Minute precision (no seconds), never raw ISO; falls back to the input when
+ * unparseable so data is never hidden.
+ */
+export function formatTaskDue(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(d);
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 export function isIncompleteTask(task: Pick<PortalTaskDto, "status">): boolean {
   const s = (task.status ?? "").toLowerCase();
   return s === "pending" || s === "overdue";

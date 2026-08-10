@@ -65,7 +65,15 @@ import {
   decisionIneligibleReason,
 } from "./submissions-eligibility.js";
 
-type StatusMsg = { kind: "ok" | "error"; text: string } | null;
+type StatusMsg = {
+  kind: "ok" | "error";
+  text: string;
+  /**
+   * Programme session behind an accept — surfaced as a "View in Schedule"
+   * link (+ data-session-id), never as a raw id in the copy (polish veto #3).
+   */
+  sessionId?: string | null;
+} | null;
 
 const STATUS_CHIP_OPTIONS = [
   { value: "", label: "All" },
@@ -98,18 +106,39 @@ function statusTone(status: string): BadgeTone {
   }
 }
 
-function formatAnswerValue(value: unknown): string {
+type AnswerOption = { value: string; label: string };
+
+/**
+ * Resolve a stored option VALUE ("agents") to its human label
+ * ("Agents & Tooling") via the pinned form version's field options.
+ * Unknown values fall back to the raw stored value so data is never hidden.
+ */
+function resolveOptionLabel(
+  value: string,
+  options: AnswerOption[] | undefined,
+): string {
+  const match = options?.find((o) => o.value === value);
+  return match?.label?.trim() ? match.label : value;
+}
+
+export function formatAnswerValue(
+  value: unknown,
+  options?: AnswerOption[],
+): string {
   if (value == null) return "—";
   if (typeof value === "string") {
     // File answers are stored as file:<id>
     if (value.startsWith("file:")) return "File attached";
-    return value;
+    return resolveOptionLabel(value, options);
   }
-  if (typeof value === "number" || typeof value === "boolean") {
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (typeof value === "number") {
     return String(value);
   }
   if (Array.isArray(value)) {
-    return value.map((v) => formatAnswerValue(v)).join(", ");
+    return value.map((v) => formatAnswerValue(v, options)).join(", ");
   }
   try {
     return JSON.stringify(value);
@@ -122,7 +151,7 @@ function formatAnswerValue(value: unknown): string {
  * Answer value as ReactNode — `file:<id>` answers render as a working
  * "Uploaded file" link via the files module (admin session authorized).
  */
-function renderAnswerValue(value: unknown): ReactNode {
+function renderAnswerValue(value: unknown, options?: AnswerOption[]): ReactNode {
   if (typeof value === "string" && value.startsWith("file:")) {
     const fileId = value.slice("file:".length);
     return (
@@ -138,7 +167,7 @@ function renderAnswerValue(value: unknown): ReactNode {
       </a>
     );
   }
-  return formatAnswerValue(value);
+  return formatAnswerValue(value, options);
 }
 
 /** Human heading when API omits label — never show raw track_pref as the primary UI. */
@@ -492,13 +521,28 @@ export function SubmissionsPage() {
         setBusy(false);
         return;
       }
-      const taskNote =
-        decision === "accept"
-          ? ` · session ${parsed.data.session?.id ?? "—"} · ${parsed.data.tasks.length} task(s)`
-          : "";
+      // Human decision copy — no raw ids, no "(idempotent)" jargon (veto #3).
+      const pastTense: Record<DecisionValue, string> = {
+        accept: "accepted",
+        reject: "rejected",
+        waitlist: "waitlisted",
+      };
+      const sessionId = parsed.data.session?.id ?? null;
+      let text: string;
+      if (parsed.data.idempotent) {
+        text = `Already ${pastTense[decision]} — nothing changed.`;
+      } else if (decision === "accept") {
+        const taskCount = parsed.data.tasks.length;
+        text = `Accepted — session created with ${taskCount} speaker task${taskCount === 1 ? "" : "s"}.`;
+      } else if (decision === "reject") {
+        text = "Rejected.";
+      } else {
+        text = "Waitlisted.";
+      }
       setStatus({
         kind: "ok",
-        text: `${decision} recorded${taskNote}${parsed.data.idempotent ? " (idempotent)" : ""}`,
+        text,
+        sessionId: decision === "accept" ? sessionId : null,
       });
       setLastDecision({ decision, submissionIds: [detail.submission.id] });
       await openDetail(detail.submission.id, { clearStatus: false });
@@ -594,7 +638,7 @@ export function SubmissionsPage() {
       }
       setStatus({
         kind: "ok",
-        text: `Assigned ${parsed.data.assignments.length} evaluator(s)`,
+        text: `Assigned ${parsed.data.assignments.length} evaluator${parsed.data.assignments.length === 1 ? "" : "s"}.`,
       });
       setAssignUserIds(new Set());
     } catch {
@@ -622,7 +666,7 @@ export function SubmissionsPage() {
       if (result.failed === 0) {
         setStatus({
           kind: "ok",
-          text: `Assigned evaluators to ${result.ok} submission(s)`,
+          text: `Assigned evaluators to ${result.ok} submission${result.ok === 1 ? "" : "s"}.`,
         });
       } else {
         setStatus({
@@ -692,7 +736,7 @@ export function SubmissionsPage() {
       });
       setStatus({
         kind: "ok",
-        text: `Preview: ${parsed.data.count} submission(s) → ${parsed.data.decision}`,
+        text: `Preview ready — ${parsed.data.count} submission${parsed.data.count === 1 ? "" : "s"} would be ${decisionAudienceLabel[parsed.data.decision as DecisionValue]}.`,
       });
     } catch {
       setStatus({ kind: "error", text: "Network error" });
@@ -754,7 +798,7 @@ export function SubmissionsPage() {
       if (failedItems.length === 0) {
         setStatus({
           kind: "ok",
-          text: `Applied ${parsed.data.applied} ${parsed.data.decision} decision(s)`,
+          text: `Applied ${parsed.data.applied} ${parsed.data.decision} decision${parsed.data.applied === 1 ? "" : "s"}.`,
         });
       } else {
         const names = failedItems
@@ -823,9 +867,11 @@ export function SubmissionsPage() {
         parsed.data.participations.length > 0
           ? ` · ${parsed.data.participations.length} speaker${parsed.data.participations.length === 1 ? "" : "s"}`
           : "";
+      // Session id stays off the copy — the schedule link carries it (veto #3).
       setStatus({
         kind: "ok",
-        text: `Direct session created: ${parsed.data.session.title} (${parsed.data.session.id})${speakerNote}`,
+        text: `Direct session created: ${parsed.data.session.title}${speakerNote}`,
+        sessionId: parsed.data.session.id,
       });
       setDirectTitle("");
       setDirectDesc("");
@@ -1027,8 +1073,22 @@ export function SubmissionsPage() {
         <Alert
           tone={status.kind === "ok" ? "success" : "danger"}
           data-testid="submissions-status"
+          data-session-id={status.sessionId ?? undefined}
         >
           {status.text}
+          {status.sessionId ? (
+            <>
+              {" "}
+              <a
+                href="/admin/schedule"
+                className="eval-queue__link lumen-focusable"
+                data-testid="submissions-status-schedule-link"
+                title={`Session ${status.sessionId}`}
+              >
+                View in Schedule
+              </a>
+            </>
+          ) : null}
         </Alert>
       ) : null}
 
@@ -1375,7 +1435,7 @@ export function SubmissionsPage() {
       {/* Bulk preview E08 */}
       {bulkPreview ? (
         <Card
-          title={`Bulk preview → ${bulkPreview.decision}`}
+          title={`Bulk preview — ${statusDisplayLabel(bulkPreview.decision)}`}
           data-testid="submissions-bulk-preview"
         >
           <ul
@@ -1389,7 +1449,8 @@ export function SubmissionsPage() {
               >
                 <strong>{item.title}</strong>{" "}
                 <span className="eval-queue__muted">
-                  {item.currentStatus} → {item.nextStatus}
+                  {statusDisplayLabel(item.currentStatus)} →{" "}
+                  {statusDisplayLabel(item.nextStatus)}
                 </span>
               </li>
             ))}
@@ -1673,19 +1734,6 @@ export function SubmissionsPage() {
                     </Badge>
                   ) : null}
                 </div>
-                <p
-                  className="submissions-page__detail-meta"
-                  data-testid="submission-detail-meta"
-                >
-                  Status:{" "}
-                  <span>{statusDisplayLabel(detail.submission.status)}</span>
-                  {detail.submission.category
-                    ? ` · ${detail.submission.category}`
-                    : ""}
-                  {detail.decision
-                    ? ` · Decision: ${statusDisplayLabel(detail.decision.decision)}`
-                    : ""}
-                </p>
               </header>
 
               <section
@@ -1816,7 +1864,7 @@ export function SubmissionsPage() {
                           {answerHeading(a)}
                         </dt>
                         <dd className="submissions-page__answer-value">
-                          {renderAnswerValue(a.value)}
+                          {renderAnswerValue(a.value, a.options)}
                         </dd>
                       </div>
                     ))}

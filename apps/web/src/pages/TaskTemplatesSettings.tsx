@@ -13,10 +13,15 @@ import {
   TASK_LINK_URL_MAX_LENGTH,
   type TaskTemplateDto,
 } from "@speakerops/shared";
-import { Badge } from "../components/ui/index.js";
+import { Badge, Button } from "../components/ui/index.js";
 import { useEventContext } from "../events/EventContext.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
+
+/** Human trigger label — raw values (on_accept/manual) stay in data-* only. */
+function triggerLabel(trigger: TaskTemplateDto["trigger"]): string {
+  return trigger === "on_accept" ? "When speaker is accepted" : "Manual";
+}
 
 export function TaskTemplatesSettingsPage() {
   const { activeEventId } = useEventContext();
@@ -81,7 +86,10 @@ export function TaskTemplatesSettingsPage() {
     setLinkError(null);
     const days = Number.parseInt(dueOffsetDays, 10);
     if (Number.isNaN(days) || days < 0) {
-      setStatus({ kind: "error", text: "dueOffsetDays must be a non-negative integer" });
+      setStatus({
+        kind: "error",
+        text: "Due offset must be a whole number of days (0 or more)",
+      });
       setSaving(false);
       return;
     }
@@ -190,8 +198,8 @@ export function TaskTemplatesSettingsPage() {
       <p className="page-stub__overline">Settings</p>
       <h2 className="page-stub__title">Task templates</h2>
       <p className="page-stub__body">
-        Templates with trigger <code>on_accept</code> create speaker tasks when a
-        submission is accepted.{" "}
+        Templates create the tasks each speaker sees in their portal — either
+        automatically when their submission is accepted, or added by hand.{" "}
         <a
           href="/admin/settings"
           className="design-kit__link lumen-focusable"
@@ -239,59 +247,66 @@ export function TaskTemplatesSettingsPage() {
               </p>
             ) : (
               <ul
-                className="event-settings__list"
+                className="task-template-cards"
                 data-testid="task-templates-list"
               >
                 {templates.map((t) => (
                   <li
                     key={t.id}
-                    className="event-settings__list-item"
+                    className="task-template-card"
                     data-testid={`task-template-row-${t.id}`}
                     data-template-id={t.id}
+                    data-trigger={t.trigger}
                   >
-                    <strong data-testid={`task-template-title-${t.id}`}>
-                      {t.title}
-                    </strong>
-                    {t.required ? (
-                      <>
-                        {" "}
-                        <Badge
-                          tone="warn"
-                          showDot
-                          data-testid={`task-template-required-${t.id}`}
-                        >
-                          Required
-                        </Badge>
-                      </>
-                    ) : null}
-                    <span className="eval-queue__muted">
-                      {" "}
-                      · {t.trigger} · due +{t.dueOffsetDays}d
-                    </span>
-                    {t.description ? (
-                      <p className="page-stub__body">{t.description}</p>
-                    ) : null}
-                    {t.linkUrl ? (
-                      <p className="page-stub__body">
-                        <a
-                          className="eval-queue__link lumen-focusable"
-                          data-testid={`task-template-link-${t.id}`}
-                          href={t.linkUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Task resource link
-                        </a>
+                    <div className="task-template-card__main">
+                      <div className="task-template-card__title-row">
+                        <strong data-testid={`task-template-title-${t.id}`}>
+                          {t.title}
+                        </strong>
+                        {t.required ? (
+                          <Badge
+                            tone="warn"
+                            showDot
+                            data-testid={`task-template-required-${t.id}`}
+                          >
+                            Required
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p className="task-template-card__meta">
+                        {triggerLabel(t.trigger)} · due {t.dueOffsetDays} day
+                        {t.dueOffsetDays === 1 ? "" : "s"} after{" "}
+                        {t.trigger === "on_accept" ? "accept" : "assignment"}
                       </p>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="eval-queue__link lumen-focusable"
-                      data-testid={`task-template-delete-${t.id}`}
-                      onClick={() => void onDelete(t)}
-                    >
-                      Delete
-                    </button>
+                      {t.description ? (
+                        <p className="task-template-card__desc">
+                          {t.description}
+                        </p>
+                      ) : null}
+                      {t.linkUrl ? (
+                        <p className="task-template-card__desc">
+                          <a
+                            className="eval-queue__link lumen-focusable"
+                            data-testid={`task-template-link-${t.id}`}
+                            href={t.linkUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Task resource link
+                          </a>
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="task-template-card__actions">
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        data-testid={`task-template-delete-${t.id}`}
+                        onClick={() => void onDelete(t)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -350,8 +365,10 @@ export function TaskTemplatesSettingsPage() {
                 className="event-settings__label"
                 htmlFor="task-template-trigger"
               >
-                Trigger
+                When is the task created?
               </label>
+              {/* Display labels are human; option VALUES keep the raw
+                  on_accept/manual contract for the API + tests. */}
               <select
                 id="task-template-trigger"
                 className="event-settings__input lumen-focusable"
@@ -361,8 +378,8 @@ export function TaskTemplatesSettingsPage() {
                   setTrigger(ev.target.value as "on_accept" | "manual")
                 }
               >
-                <option value="on_accept">on_accept</option>
-                <option value="manual">manual</option>
+                <option value="on_accept">When speaker is accepted</option>
+                <option value="manual">Manual</option>
               </select>
 
               <label

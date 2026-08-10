@@ -54,6 +54,7 @@ import {
   sanitizeBioText,
   bioIsPlainText,
   taskDisplayStatus,
+  formatTaskDue,
   applyOptimisticComplete,
   revertOptimisticComplete,
   pickNextIncomplete,
@@ -1414,7 +1415,7 @@ export function PortalHomePage() {
                       className="portal-muted"
                       data-testid="portal-next-task-due"
                     >
-                      Due {new Date(nextTask.dueAt).toLocaleDateString()}
+                      Due {formatTaskDue(nextTask.dueAt)}
                     </span>
                   ) : null}
                 </div>
@@ -1676,7 +1677,7 @@ export function PortalHomePage() {
                       </div>
                       {t.dueAt ? (
                         <p className="portal-muted portal-task__due">
-                          Due {new Date(t.dueAt).toLocaleString()}
+                          Due {formatTaskDue(t.dueAt)}
                         </p>
                       ) : null}
                       {t.linkUrl ? (

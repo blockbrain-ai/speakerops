@@ -50,6 +50,7 @@ import {
 import { useEventContext } from "../events/EventContext.js";
 import { Button } from "../components/ui/Button.js";
 import { Badge } from "../components/ui/Badge.js";
+import { EmptyState } from "../components/ui/EmptyState.js";
 import { PageHeader } from "../components/ui/PageHeader.js";
 import {
   isSendEnabled,
@@ -1873,12 +1874,12 @@ export function CommsPage() {
             aria-labelledby="comms-ics-heading"
           >
             <h3 id="comms-ics-heading" className="event-settings__heading">
-              ICS attach (scheduled session)
+              Calendar invites
             </h3>
             <p className="page-stub__body">
               Pick a scheduled session — the invite uses its real time and
-              room. Rescheduling then regenerating updates the same invite
-              (same UID, next SEQUENCE).
+              room. Rescheduling updates the speaker&rsquo;s existing invite
+              instead of sending a duplicate.
             </p>
             {icsPlacements.length === 0 ? (
               <p
@@ -1919,7 +1920,10 @@ export function CommsPage() {
                   </option>
                 ))}
               </select>
-              <div className="eval-queue__row">
+              {/* Button hierarchy (polish veto #8): one primary at natural
+                  width, cancel as a subtle destructive secondary, refresh
+                  quiet. */}
+              <div className="comms-campaign__ics-actions">
                 <Button
                   type="submit"
                   variant="primary"
@@ -1927,11 +1931,12 @@ export function CommsPage() {
                   pending={icsBusy}
                   disabled={icsBusy || !icsSelectedPlacementId}
                 >
-                  {icsBusy ? "Saving…" : "Generate / update ICS"}
+                  {icsBusy ? "Saving…" : "Generate / update invite"}
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
+                  className="comms-campaign__ics-cancel"
                   data-testid="comms-ics-cancel"
                   disabled={icsBusy || !icsSelectedPlacementId}
                   onClick={(e) => void onIcsSubmit(e, { cancel: true })}
@@ -1966,12 +1971,12 @@ export function CommsPage() {
               </p>
             ) : null}
             {invites.length === 0 ? (
-              <p
-                className="event-settings__list-empty"
+              <EmptyState
+                title="No calendar invites yet"
+                description="Generate an invite from a scheduled session and it will appear here, ready to attach to a send."
+                icon="calendar"
                 data-testid="comms-ics-empty"
-              >
-                No calendar invites yet.
-              </p>
+              />
             ) : (
               <ul
                 className="comms-campaign__invite-list"
@@ -1989,10 +1994,17 @@ export function CommsPage() {
                     data-ends-at={inv.endsAt ?? ""}
                   >
                     <p className="comms-campaign__invite-line">
-                      <strong>{inv.summary ?? inv.placementId}</strong>{" "}
-                      <span className="eval-queue__muted">
-                        UID {inv.uid.slice(0, 8)}… · SEQUENCE {inv.sequence} ·{" "}
-                        {inv.method}
+                      <strong>{inv.summary ?? "Scheduled session"}</strong>{" "}
+                      {/* UID/SEQUENCE stay machine-readable in data-* + title */}
+                      <span
+                        className="eval-queue__muted"
+                        title={`UID ${inv.uid} · SEQUENCE ${inv.sequence}`}
+                      >
+                        {inv.method === "CANCEL"
+                          ? "Cancelled"
+                          : inv.sequence === 0
+                            ? "Active"
+                            : `Active · updated ${inv.sequence} time${inv.sequence === 1 ? "" : "s"}`}
                       </span>
                     </p>
                     <details className="comms-campaign__invite-details">

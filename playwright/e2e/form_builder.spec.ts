@@ -317,7 +317,9 @@ test("@inv:D04 e2e/admin/form-routing category field + routing target", async ({
   });
 
   // API proof: draft carries rule
-  const formId = await page.getByTestId("form-id").innerText();
+  // Polish veto #2: raw form id moved off the visible copy → data-form-id.
+  const formId = await page.getByTestId("form-id").getAttribute("data-form-id");
+  expect(formId).toBeTruthy();
   const draftRes = await request.put(`/api/forms/${formId}/draft`, {
     headers: sessionHeaders(session),
     data: {
@@ -377,7 +379,9 @@ test("@inv:D05 e2e/admin/form-required required flags + validation", async ({
     timeout: 10_000,
   });
 
-  const formId = await page.getByTestId("form-id").innerText();
+  // Polish veto #2: raw form id moved off the visible copy → data-form-id.
+  const formId = await page.getByTestId("form-id").getAttribute("data-form-id");
+  expect(formId).toBeTruthy();
   // Re-save via API to read required flag from response
   const res = await request.put(`/api/forms/${formId}/draft`, {
     headers: sessionHeaders(session),
@@ -489,7 +493,13 @@ test("@inv:D08 e2e/admin/form-publish-version publish version; edit creates new 
     /Published version 1/i,
     { timeout: 15_000 },
   );
-  await expect(page.getByTestId("form-status")).toHaveText("published");
+  // Tightened for polish veto #2: the visible text is now the human label
+  // ("Published"); the machine value is asserted via data-status.
+  await expect(page.getByTestId("form-status")).toHaveAttribute(
+    "data-status",
+    "published",
+  );
+  await expect(page.getByTestId("form-status")).toHaveText("Published");
   await expect(page.getByTestId("form-published-version")).toHaveText("1");
 
   // Edit draft after publish and publish again → version 2
@@ -526,12 +536,16 @@ test("@inv:D09 e2e/admin/form-limits open/close + submission limit", async ({
   await createFormUi(page, "D09 CFP");
 
   await page.getByTestId("palette-text").click();
-  await page
-    .getByTestId("form-opens-at")
-    .fill("2026-01-01T00:00:00.000Z");
-  await page
-    .getByTestId("form-closes-at")
-    .fill("2026-12-31T23:59:59.000Z");
+  // Polish veto #1: open/close are datetime-local controls (minute precision,
+  // local wall-clock). The published version must still store ISO instants —
+  // expected values are computed with the same local→ISO conversion the
+  // browser applies (test runner and browser share the machine timezone).
+  const OPENS_LOCAL = "2026-01-01T00:00";
+  const CLOSES_LOCAL = "2026-12-31T23:59";
+  const OPENS_ISO = new Date(OPENS_LOCAL).toISOString();
+  const CLOSES_ISO = new Date(CLOSES_LOCAL).toISOString();
+  await page.getByTestId("form-opens-at").fill(OPENS_LOCAL);
+  await page.getByTestId("form-closes-at").fill(CLOSES_LOCAL);
   await page.getByTestId("form-submission-limit").fill("100");
 
   await page.getByTestId("form-publish").click();
@@ -543,8 +557,8 @@ test("@inv:D09 e2e/admin/form-limits open/close + submission limit", async ({
   const pub = await request.get(`/api/public/cfp/${event.slug}`);
   expect(pub.status()).toBe(200);
   const body = await pub.json();
-  expect(body.formVersion?.opensAt).toBe("2026-01-01T00:00:00.000Z");
-  expect(body.formVersion?.closesAt).toBe("2026-12-31T23:59:59.000Z");
+  expect(body.formVersion?.opensAt).toBe(OPENS_ISO);
+  expect(body.formVersion?.closesAt).toBe(CLOSES_ISO);
   expect(body.formVersion?.submissionLimit).toBe(100);
   // Over-limit reject is public submit (3.3); limit is stored on published version (D09).
 });
@@ -620,7 +634,11 @@ test("form picker opens an older form; publish shows live-CFP consequence copy",
   await expect(page.getByTestId("form-builder-picker")).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByTestId("form-id")).not.toBeEmpty();
+  // Polish veto #2: the id lives in data-form-id (visible text is the name).
+  await expect(page.getByTestId("form-id")).toHaveAttribute(
+    "data-form-id",
+    /.+/,
+  );
   await expect(
     page.getByTestId(`form-builder-picker-option-${olderId}`),
   ).toHaveCount(1);
@@ -630,9 +648,12 @@ test("form picker opens an older form; publish shows live-CFP consequence copy",
 
   // Pick the older form — builder reloads it (deep link ?form=)
   await page.getByTestId("form-builder-picker").selectOption(olderId);
-  await expect(page.getByTestId("form-id")).toHaveText(olderId, {
-    timeout: 15_000,
-  });
+  // Polish veto #2: assert the machine id via data-form-id, not visible copy.
+  await expect(page.getByTestId("form-id")).toHaveAttribute(
+    "data-form-id",
+    olderId,
+    { timeout: 15_000 },
+  );
   await expect(page.getByTestId("form-load-status")).toContainText(
     /Older CFP/i,
   );

@@ -690,12 +690,13 @@ export function EvaluatorQueuePage() {
                   <span className="eval-queue__item-title">
                     {item.submission.title}
                   </span>
-                  <span className="eval-queue__item-meta">
-                    {item.assignment.status}
-                    {item.assignment.aggregateScore != null
-                      ? ` · ${item.assignment.aggregateScore.toFixed(1)}`
-                      : ""}
-                  </span>
+                  {/* Status vocabulary lives on the chip below — no duplicate
+                      raw lowercase status text (polish P2). */}
+                  {item.assignment.aggregateScore != null ? (
+                    <span className="eval-queue__item-meta">
+                      Score {item.assignment.aggregateScore.toFixed(1)}
+                    </span>
+                  ) : null}
                   {item.assignment.status === "abstained" ? (
                     <Badge tone="neutral" showDot>
                       Abstained

@@ -226,8 +226,10 @@ test.describe("11.4 submissions + evaluations lumen2", () => {
     await expect(page.getByTestId("submissions-bulk-preview")).toBeVisible({
       timeout: 10_000,
     });
+    // Tightened for polish veto #3: preview shows display labels, not raw
+    // status values ("Submitted → Waitlist").
     await expect(page.getByTestId("bulk-preview-list")).toContainText(
-      "waitlist",
+      "Waitlist",
     );
 
     await page.getByTestId("submissions-bulk-clear").click();

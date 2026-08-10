@@ -5581,3 +5581,283 @@ a.event-settings__btn {
   margin: 0;
   flex: 1 1 20rem;
 }
+
+/* ————————————————————————————————————————————————————————————————
+   Polish pass — visual-review veto closes (fieldsets, bulk-assign
+   wizard, task-template cards, rubric sub-card, comms ICS card)
+   ———————————————————————————————————————————————————————————————— */
+
+/* P2 — native fieldsets styled like the Wave-1 evaluator-picker card
+   (no browser legend-in-border chrome, quiet card surface) */
+.form-builder__fieldset,
+.submissions-page__direct-speakers {
+  margin: var(--lumen-space-3) 0 0;
+  min-width: 0;
+  padding: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface-muted);
+}
+
+.form-builder__fieldset > legend,
+.submissions-page__direct-speakers > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 var(--lumen-space-2);
+}
+
+.form-builder__fieldset > .form-builder__check-row,
+.submissions-page__direct-speakers > * {
+  clear: both;
+}
+
+/* Veto #4 — bulk-assign wizard: card-styled evaluator picker */
+.eval-bulk__picker {
+  margin: var(--lumen-space-3) 0;
+  min-width: 0;
+  padding: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface-muted);
+}
+
+.eval-bulk__picker > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 var(--lumen-space-2);
+}
+
+.eval-bulk__picker-list {
+  clear: both;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.eval-bulk__picker-option {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  font-size: 14px;
+  color: var(--lumen-text);
+  cursor: pointer;
+}
+
+/* Veto #4 — numeric knobs: label above a comfortably sized input so the
+   "No cap" placeholder never clips */
+.eval-bulk__knob {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+}
+
+.eval-bulk__num {
+  width: 9rem;
+  margin-bottom: 0;
+}
+
+/* Veto #4 — plan preview: counts prominent, reason chips, summary table */
+.eval-bulk__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+  margin-top: var(--lumen-space-3);
+  padding: var(--lumen-space-4);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-surface-muted);
+}
+
+.eval-bulk__preview-headline {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-text-secondary);
+}
+
+.eval-bulk__counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--lumen-space-3);
+  margin: 0;
+  max-width: 480px;
+}
+
+.eval-bulk__count {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  padding: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface);
+}
+
+.eval-bulk__count-num {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--lumen-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.eval-bulk__count--additions .eval-bulk__count-num {
+  color: var(--lumen-success);
+}
+
+.eval-bulk__count--removals .eval-bulk__count-num {
+  color: var(--lumen-danger);
+}
+
+.eval-bulk__count-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lumen-text-secondary);
+}
+
+.eval-bulk__skips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+}
+
+.eval-bulk__skip-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--lumen-space-3);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: 999px;
+  background: var(--lumen-warn-soft);
+  color: var(--lumen-text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.eval-bulk__preview-empty {
+  margin: 0;
+}
+
+.eval-bulk__table-wrap {
+  background: var(--lumen-surface);
+}
+
+/* Veto #5 — task-template list: card rows instead of raw ul/li */
+.task-template-cards {
+  list-style: none;
+  margin: 0 0 var(--lumen-space-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+}
+
+.task-template-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lumen-space-3);
+  padding: var(--lumen-space-4);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-surface-muted);
+}
+
+.task-template-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+  min-width: 0;
+}
+
+.task-template-card__title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  font-size: 15px;
+  color: var(--lumen-text);
+}
+
+.task-template-card__meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lumen-text-secondary);
+}
+
+.task-template-card__desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lumen-text);
+  max-width: var(--lumen-measure-prose, 60ch);
+}
+
+.task-template-card__actions {
+  flex-shrink: 0;
+}
+
+/* Veto #6 — rubric: round-settings sub-card heading + criterion grid */
+.rubric-settings__subheading {
+  margin: 0 0 var(--lumen-space-1);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--lumen-text);
+}
+
+.rubric-settings__criterion {
+  gap: var(--lumen-space-2);
+}
+
+.rubric-settings__criterion-nums {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--lumen-space-3);
+  max-width: 420px;
+}
+
+/* Veto #8 — comms ICS card: natural-width action row + subtle
+   destructive secondary for "Cancel invite" */
+.comms-campaign__ics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  margin-top: var(--lumen-space-2);
+}
+
+.comms-campaign__ics-actions > .l2-btn {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.comms-campaign__ics-cancel {
+  color: var(--lumen-danger);
+}
+
+.comms-campaign__ics-cancel .l2-btn__label {
+  color: var(--lumen-danger);
+}
+
+.comms-campaign__ics-cancel:hover:not(:disabled):not(.is-disabled) {
+  border-color: var(--lumen-danger);
+  background: var(--lumen-danger-soft);
+}
+
+/* Direct-speakers fieldset joins the block-flow legend pattern (the grid
+   display from its Wave-2 rule would defeat the floated legend). */
+.submissions-page__direct-speakers {
+  display: block;
+}
+
+.submissions-page__direct-speakers > .eval-queue__row,
+.submissions-page__direct-speakers > .l2-btn {
+  margin-top: var(--lumen-space-2);
+}

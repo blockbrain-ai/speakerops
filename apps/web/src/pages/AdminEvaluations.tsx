@@ -33,6 +33,20 @@ import {
 
 const ROLLUP_FETCH_TIMEOUT_MS = 12_000;
 
+/** Human submission-status label (raw value stays in data-status). */
+function rollupStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    submitted: "Submitted",
+    in_review: "In review",
+    accepted: "Accepted",
+    rejected: "Rejected",
+    waitlist: "Waitlist",
+    withdrawn: "Withdrawn",
+    draft: "Draft",
+  };
+  return map[status] ?? status;
+}
+
 function assignmentCoverage(row: EvalAdminSubmissionRollup): {
   total: number;
   scored: number;
@@ -312,8 +326,12 @@ export function AdminEvaluationsPage() {
       id: "status",
       header: "Status",
       cell: (row) => (
-        <Badge tone="neutral" data-testid={`eval-rollup-status-${row.submissionId}`}>
-          {row.status}
+        <Badge
+          tone="neutral"
+          data-testid={`eval-rollup-status-${row.submissionId}`}
+          data-status={row.status}
+        >
+          {rollupStatusLabel(row.status)}
         </Badge>
       ),
     },
@@ -1016,46 +1034,51 @@ function BulkAssignWizard({
         />
       </div>
 
-      {/* Step b — who reviews */}
-      <p className="event-settings__label">Evaluators</p>
-      {rosterLoading ? (
-        <div data-testid="eval-bulk-roster-loading" aria-busy="true">
-          <Skeleton variant="row" />
-        </div>
-      ) : null}
-      {rosterError ? (
-        <Alert tone="danger" data-testid="eval-bulk-roster-error">
-          {rosterError}
-        </Alert>
-      ) : null}
-      {!rosterLoading && !rosterError && evaluators.length === 0 ? (
-        <p className="eval-queue__muted" data-testid="eval-bulk-roster-empty">
-          No evaluators on this event yet — invite them first.
-        </p>
-      ) : null}
-      {!rosterLoading && evaluators.length > 0 ? (
-        <ul className="eval-reviews-list" data-testid="eval-bulk-roster">
-          {evaluators.map((m) => (
-            <li key={m.userId} className="eval-reviews-list__item">
-              <label className="eval-queue__muted">
-                <input
-                  type="checkbox"
-                  className="lumen-focusable"
-                  data-testid={`eval-bulk-evaluator-${m.userId}`}
-                  checked={selected.has(m.userId)}
-                  onChange={() => toggleEvaluator(m.userId)}
-                />{" "}
-                {m.email}
-                <span className="l2-table__secondary">
-                  {" "}
-                  · {m.assignmentCount} current assignment
-                  {m.assignmentCount === 1 ? "" : "s"}
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {/* Step b — who reviews (card-styled picker; matches the Wave-1
+          evaluator-picker fieldset on submission detail) */}
+      <fieldset className="eval-bulk__picker">
+        <legend className="event-settings__label">Evaluators</legend>
+        {rosterLoading ? (
+          <div data-testid="eval-bulk-roster-loading" aria-busy="true">
+            <Skeleton variant="row" />
+          </div>
+        ) : null}
+        {rosterError ? (
+          <Alert tone="danger" data-testid="eval-bulk-roster-error">
+            {rosterError}
+          </Alert>
+        ) : null}
+        {!rosterLoading && !rosterError && evaluators.length === 0 ? (
+          <p className="eval-queue__muted" data-testid="eval-bulk-roster-empty">
+            No evaluators on this event yet — invite them first.
+          </p>
+        ) : null}
+        {!rosterLoading && evaluators.length > 0 ? (
+          <ul className="eval-bulk__picker-list" data-testid="eval-bulk-roster">
+            {evaluators.map((m) => (
+              <li key={m.userId}>
+                <label className="eval-bulk__picker-option lumen-focusable">
+                  <input
+                    type="checkbox"
+                    className="lumen-focusable"
+                    data-testid={`eval-bulk-evaluator-${m.userId}`}
+                    checked={selected.has(m.userId)}
+                    onChange={() => toggleEvaluator(m.userId)}
+                  />
+                  <span>
+                    {m.email}
+                    <span className="eval-queue__muted">
+                      {" "}
+                      · {m.assignmentCount} current assignment
+                      {m.assignmentCount === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </fieldset>
 
       {/* Step c — how to spread the work */}
       <div
@@ -1093,11 +1116,13 @@ function BulkAssignWizard({
           Share out round-robin
         </label>
         {mode === "round_robin" ? (
-          <label className="event-settings__label" htmlFor="eval-bulk-rps">
-            Reviewers per submission{" "}
+          <div className="eval-bulk__knob">
+            <label className="event-settings__label" htmlFor="eval-bulk-rps">
+              Reviewers per submission
+            </label>
             <input
               id="eval-bulk-rps"
-              className="event-settings__input lumen-focusable"
+              className="event-settings__input eval-bulk__num lumen-focusable"
               data-testid="eval-bulk-reviewers-per-submission"
               type="number"
               min={1}
@@ -1108,13 +1133,15 @@ function BulkAssignWizard({
                 invalidatePreview();
               }}
             />
-          </label>
+          </div>
         ) : null}
-        <label className="event-settings__label" htmlFor="eval-bulk-cap">
-          Max per evaluator{" "}
+        <div className="eval-bulk__knob">
+          <label className="event-settings__label" htmlFor="eval-bulk-cap">
+            Max per evaluator
+          </label>
           <input
             id="eval-bulk-cap"
-            className="event-settings__input lumen-focusable"
+            className="event-settings__input eval-bulk__num lumen-focusable"
             data-testid="eval-bulk-max-per-evaluator"
             type="number"
             min={1}
@@ -1126,7 +1153,7 @@ function BulkAssignWizard({
               invalidatePreview();
             }}
           />
-        </label>
+        </div>
       </div>
       <div
         className="submissions-page__toolbar eval-admin-page__toolbar"
@@ -1211,46 +1238,85 @@ function BulkAssignWizard({
 
       {preview ? (
         <div
-          className="eval-admin-page__bulk-preview"
+          className="eval-bulk__preview"
           data-testid="eval-bulk-preview-table"
           data-matched={preview.matchedSubmissionCount}
           data-additions={preview.counts.additions}
           data-removals={preview.counts.removals}
           data-skipped={preview.counts.skipped}
         >
-          <p className="eval-coverage__summary-label">
+          <p className="eval-bulk__preview-headline">
             {preview.matchedSubmissionCount} submission
-            {preview.matchedSubmissionCount === 1 ? "" : "s"} matched ·{" "}
-            {preview.counts.additions} to add · {preview.counts.removals} to
-            remove · {preview.counts.skipped} skipped
+            {preview.matchedSubmissionCount === 1 ? "" : "s"} matched
           </p>
-          <ul className="eval-reviews-list">
-            {preview.perEvaluator.map((e) => (
-              <li
-                key={e.userId}
-                className="eval-reviews-list__item"
-                data-testid={`eval-bulk-preview-evaluator-${e.userId}`}
-                data-current={e.current}
-                data-planned={e.planned}
-              >
-                <strong>{e.email}</strong>{" "}
-                <span className="eval-queue__muted">
-                  {e.current} now → {e.planned} after this plan
-                </span>
-              </li>
-            ))}
-          </ul>
+          {/* Plan summary — counts prominent, skip reasons as chips */}
+          <dl className="eval-bulk__counts">
+            <div className="eval-bulk__count eval-bulk__count--additions">
+              <dt className="eval-bulk__count-label">Additions</dt>
+              <dd className="eval-bulk__count-num">
+                {preview.counts.additions}
+              </dd>
+            </div>
+            <div className="eval-bulk__count eval-bulk__count--removals">
+              <dt className="eval-bulk__count-label">Removals</dt>
+              <dd className="eval-bulk__count-num">
+                {preview.counts.removals}
+              </dd>
+            </div>
+            <div className="eval-bulk__count eval-bulk__count--skipped">
+              <dt className="eval-bulk__count-label">Skipped</dt>
+              <dd className="eval-bulk__count-num">{preview.counts.skipped}</dd>
+            </div>
+          </dl>
           {skipGroups.length > 0 ? (
-            <ul
-              className="eval-reviews-list"
+            <div
+              className="eval-bulk__skips"
               data-testid="eval-bulk-preview-skips"
             >
               {skipGroups.map((g) => (
-                <li key={g.reason} className="eval-queue__muted">
-                  Skipped {g.count}: {g.reason}
-                </li>
+                <span key={g.reason} className="eval-bulk__skip-chip">
+                  {g.count} skipped — {g.reason}
+                </span>
               ))}
-            </ul>
+            </div>
+          ) : null}
+          {preview.matchedSubmissionCount === 0 ? (
+            <p
+              className="eval-queue__muted eval-bulk__preview-empty"
+              data-testid="eval-bulk-preview-no-matches"
+            >
+              No submissions match these filters — widen the status or
+              category filter and preview again.
+            </p>
+          ) : null}
+          {preview.perEvaluator.length > 0 ? (
+            <div className="l2-table-wrap eval-bulk__table-wrap">
+              <table className="l2-table l2-table--compact">
+                <thead>
+                  <tr>
+                    <th scope="col">Evaluator</th>
+                    <th scope="col">Now</th>
+                    <th scope="col">After this plan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.perEvaluator.map((e) => (
+                    <tr
+                      key={e.userId}
+                      data-testid={`eval-bulk-preview-evaluator-${e.userId}`}
+                      data-current={e.current}
+                      data-planned={e.planned}
+                    >
+                      <td>{e.email}</td>
+                      <td>{e.current}</td>
+                      <td>
+                        <strong>{e.planned}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : null}
           {preview.capacityFailures.length > 0 ? (
             <Alert tone="warn" data-testid="eval-bulk-capacity-warning">

@@ -1184,23 +1184,39 @@ export async function getSubmission(
 
   const answerRows = await deps.submissions.listAnswers(submissionId);
   // Prefer published form field labels over raw field_key (track_pref → "Track preference").
+  // Choice options ride along so the SPA can resolve stored option VALUES
+  // ("agents") to their human labels ("Agents & Tooling") — polish veto #7.
   const labelByKey = new Map<string, string>();
+  const optionsByKey = new Map<
+    string,
+    Array<{ value: string; label: string }>
+  >();
   if (deps.forms) {
     try {
       const fields = await deps.forms.listFields(submission.formVersionId);
       for (const f of fields) {
         if (f.label?.trim()) labelByKey.set(f.fieldKey, f.label.trim());
+        if (f.options && f.options.length > 0) {
+          optionsByKey.set(f.fieldKey, f.options);
+        }
       }
       // Snapshot fallback when listFields empty (frozen publish snapshot)
       if (labelByKey.size === 0) {
         const ver = await deps.forms.findVersionById(submission.formVersionId);
         if (ver?.snapshotJson) {
           const snap = JSON.parse(ver.snapshotJson) as {
-            fields?: Array<{ fieldKey?: string; label?: string }>;
+            fields?: Array<{
+              fieldKey?: string;
+              label?: string;
+              options?: Array<{ value: string; label: string }> | null;
+            }>;
           };
           for (const f of snap.fields ?? []) {
             if (f.fieldKey && f.label?.trim()) {
               labelByKey.set(f.fieldKey, f.label.trim());
+            }
+            if (f.fieldKey && f.options && f.options.length > 0) {
+              optionsByKey.set(f.fieldKey, f.options);
             }
           }
         }
@@ -1217,9 +1233,13 @@ export async function getSubmission(
       value = a.valueJson;
     }
     const label = labelByKey.get(a.fieldKey);
-    return label
-      ? { fieldKey: a.fieldKey, value, label }
-      : { fieldKey: a.fieldKey, value };
+    const options = optionsByKey.get(a.fieldKey);
+    return {
+      fieldKey: a.fieldKey,
+      value,
+      ...(label ? { label } : {}),
+      ...(options ? { options } : {}),
+    };
   });
 
   const speakerRows = await deps.submissions.listSpeakers(submissionId);

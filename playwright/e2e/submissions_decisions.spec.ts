@@ -158,6 +158,27 @@ async function setupCfpAndSubmissions(
           required: true,
           sortOrder: 0,
         },
+        // Polish veto #7 fixtures: a select (stored VALUE ≠ display label)
+        // and a checkbox (stored boolean) to prove the admin detail resolves
+        // machine values to human copy.
+        {
+          fieldKey: "track_pref",
+          type: "select",
+          label: "Track preference",
+          required: false,
+          sortOrder: 1,
+          options: [
+            { value: "agents", label: "Agents & Tooling" },
+            { value: "evals", label: "Evals & Observability" },
+          ],
+        },
+        {
+          fieldKey: "needs_travel",
+          type: "checkbox",
+          label: "Needs travel support",
+          required: false,
+          sortOrder: 2,
+        },
       ],
       rules: [
         {
@@ -188,7 +209,11 @@ async function setupCfpAndSubmissions(
       data: {
         formVersionId,
         title,
-        answers: [{ fieldKey: "talk_title", value: title }],
+        answers: [
+          { fieldKey: "talk_title", value: title },
+          { fieldKey: "track_pref", value: "agents" },
+          { fieldKey: "needs_travel", value: true },
+        ],
         speakers: [{ name: "Speaker", email, isPrimary: true }],
         turnstileToken: "XXXX.DUMMY.TOKEN",
       },
@@ -282,6 +307,18 @@ test.describe("3.5 submissions decisions", () => {
     await expect(page.getByTestId("answer-talk_title")).toContainText(
       "Keynote A",
     );
+    // Polish veto #7: option VALUES resolve to their labels and booleans
+    // render Yes/No — raw machine values must not leak into the detail.
+    await expect(page.getByTestId("answer-track_pref")).toContainText(
+      "Agents & Tooling",
+    );
+    await expect(page.getByTestId("answer-track_pref")).not.toContainText(
+      /\bagents\b/,
+    );
+    await expect(page.getByTestId("answer-needs_travel")).toContainText("Yes");
+    await expect(page.getByTestId("answer-needs_travel")).not.toContainText(
+      "true",
+    );
     await expect(page.getByTestId("submission-detail-speakers")).toBeVisible();
     await expect(page.getByTestId("submission-detail-speakers")).toContainText(
       "Speaker",
@@ -368,10 +405,15 @@ test.describe("3.5 submissions decisions", () => {
     await selectEvent(page, event.id);
     await page.getByTestId(`submission-open-${idA}`).click();
     await page.getByTestId("submission-accept").click();
+    // Tightened for polish veto #3: human copy with the real task count and a
+    // schedule link — never "accept recorded · session <id> · N task(s)".
     await expect(page.getByTestId("submissions-status")).toContainText(
-      "accept recorded",
+      /Accepted — session created with \d+ speaker task/,
       { timeout: 10_000 },
     );
+    await expect(
+      page.getByTestId("submissions-status-schedule-link"),
+    ).toHaveAttribute("href", "/admin/schedule");
     await expect(page.getByTestId("submission-detail-status")).toHaveAttribute(
       "data-status",
       "accepted",
@@ -439,8 +481,9 @@ test.describe("3.5 submissions decisions", () => {
       .getByTestId("submission-decision-reason")
       .fill("Not a fit for programme");
     await page.getByTestId("submission-reject").click();
+    // Tightened for polish veto #3: human decision copy.
     await expect(page.getByTestId("submissions-status")).toContainText(
-      "reject recorded",
+      "Rejected",
     );
     await expect(page.getByTestId("submission-detail-status")).toHaveAttribute(
       "data-status",
@@ -476,8 +519,9 @@ test.describe("3.5 submissions decisions", () => {
       page.getByTestId("submission-assign-ineligible"),
     ).toHaveCount(0);
     await page.getByTestId("submission-waitlist").click();
+    // Tightened for polish veto #3: human decision copy.
     await expect(page.getByTestId("submissions-status")).toContainText(
-      "waitlist recorded",
+      "Waitlisted",
     );
     await expect(page.getByTestId("submission-detail-status")).toHaveAttribute(
       "data-status",
@@ -564,8 +608,10 @@ test.describe("3.5 submissions decisions", () => {
     await page.getByTestId(`submission-select-${idB}`).check();
     await page.getByTestId("submissions-bulk-preview-waitlist").click();
     await expect(page.getByTestId("submissions-bulk-preview")).toBeVisible();
+    // Tightened for polish veto #3: preview shows display labels, not raw
+    // status values ("Submitted → Waitlist").
     await expect(page.getByTestId("bulk-preview-list")).toContainText(
-      "waitlist",
+      "Waitlist",
     );
   });
 });

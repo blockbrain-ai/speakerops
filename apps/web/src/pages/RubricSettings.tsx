@@ -12,28 +12,12 @@ import {
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
 import { Alert, Field } from "../components/ui/index.js";
+import { datetimeLocalToIso, isoToDatetimeLocal } from "./datetime-utils.js";
+
+// Re-exported for existing imports/tests — canonical home is datetime-utils.
+export { datetimeLocalToIso, isoToDatetimeLocal };
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
-
-/** ISO-8601 → datetime-local input value (local time, minute precision). */
-export function isoToDatetimeLocal(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
-}
-
-/** datetime-local input value → ISO-8601 (null when empty/invalid). */
-export function datetimeLocalToIso(value: string): string | null {
-  const t = value.trim();
-  if (!t) return null;
-  const d = new Date(t);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
 
 type CriterionDraft = {
   localId: string;
@@ -184,12 +168,12 @@ export function RubricSettingsPage() {
         return;
       }
       if (!(maxScore > 0) || Number.isNaN(maxScore)) {
-        setStatus({ kind: "error", text: "maxScore must be a positive number" });
+        setStatus({ kind: "error", text: "Max score must be a positive number" });
         setSaving(false);
         return;
       }
       if (!(weight > 0) || Number.isNaN(weight)) {
-        setStatus({ kind: "error", text: "weight must be a positive number" });
+        setStatus({ kind: "error", text: "Weight must be a positive number" });
         setSaving(false);
         return;
       }
@@ -320,11 +304,20 @@ export function RubricSettingsPage() {
               maxLength={200}
             />
 
-            {/* Post-11.9 depth — review deadline + evaluator guidance */}
-            <div
+            {/* Post-11.9 depth — review deadline + evaluator guidance.
+                Titled sub-card so round-level knobs read as their own group
+                (polish veto #6), consistent with the criteria card. */}
+            <section
               className="rubric-settings__round-knobs"
               data-testid="rubric-round-knobs"
+              aria-labelledby="rubric-round-settings-heading"
             >
+              <h4
+                id="rubric-round-settings-heading"
+                className="rubric-settings__subheading"
+              >
+                Review round settings
+              </h4>
               <Field
                 id="rubric-closes-at"
                 label="Review deadline"
@@ -383,78 +376,59 @@ export function RubricSettingsPage() {
                   scores or abstain. Move the deadline forward to reopen.
                 </Alert>
               ) : null}
-            </div>
+            </section>
 
             {criteria.map((c, index) => (
               <div
                 key={c.localId}
-                className="eval-queue__criterion"
+                className="eval-queue__criterion rubric-settings__criterion"
                 data-testid={`rubric-criterion-row-${index}`}
               >
-                <label
-                  className="event-settings__label"
-                  htmlFor={`rubric-name-${c.localId}`}
-                >
-                  Criterion {index + 1} name
-                </label>
-                <input
+                <Field
                   id={`rubric-name-${c.localId}`}
-                  className="event-settings__input lumen-focusable"
-                  data-testid={`rubric-criterion-name-${index}`}
-                  value={c.name}
-                  onChange={(ev) =>
-                    updateCriterion(c.localId, { name: ev.target.value })
-                  }
+                  label={`Criterion ${index + 1} name`}
                   required
-                  maxLength={200}
+                  inputProps={{
+                    value: c.name,
+                    maxLength: 200,
+                    onChange: (ev) =>
+                      updateCriterion(c.localId, { name: ev.target.value }),
+                    "data-testid": `rubric-criterion-name-${index}`,
+                  }}
                 />
-                <div className="eval-queue__row">
-                  <div>
-                    <label
-                      className="event-settings__label"
-                      htmlFor={`rubric-max-${c.localId}`}
-                    >
-                      Max score
-                    </label>
-                    <input
-                      id={`rubric-max-${c.localId}`}
-                      type="number"
-                      min={0.01}
-                      step="any"
-                      className="event-settings__input lumen-focusable"
-                      data-testid={`rubric-criterion-max-${index}`}
-                      value={c.maxScore}
-                      onChange={(ev) =>
+                <div className="rubric-settings__criterion-nums">
+                  <Field
+                    id={`rubric-max-${c.localId}`}
+                    label="Max score"
+                    required
+                    inputProps={{
+                      type: "number",
+                      min: 0.01,
+                      step: "any",
+                      value: c.maxScore,
+                      onChange: (ev) =>
                         updateCriterion(c.localId, {
                           maxScore: ev.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="event-settings__label"
-                      htmlFor={`rubric-weight-${c.localId}`}
-                    >
-                      Weight
-                    </label>
-                    <input
-                      id={`rubric-weight-${c.localId}`}
-                      type="number"
-                      min={0.01}
-                      step="any"
-                      className="event-settings__input lumen-focusable"
-                      data-testid={`rubric-criterion-weight-${index}`}
-                      value={c.weight}
-                      onChange={(ev) =>
+                        }),
+                      "data-testid": `rubric-criterion-max-${index}`,
+                    }}
+                  />
+                  <Field
+                    id={`rubric-weight-${c.localId}`}
+                    label="Weight"
+                    required
+                    inputProps={{
+                      type: "number",
+                      min: 0.01,
+                      step: "any",
+                      value: c.weight,
+                      onChange: (ev) =>
                         updateCriterion(c.localId, {
                           weight: ev.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </div>
+                        }),
+                      "data-testid": `rubric-criterion-weight-${index}`,
+                    }}
+                  />
                 </div>
                 {criteria.length > 1 ? (
                   <button

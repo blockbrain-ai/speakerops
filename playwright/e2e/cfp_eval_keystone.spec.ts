@@ -124,7 +124,12 @@ test.describe("3.6 cfp eval keystone (I12)", () => {
       /Published version 1/i,
       { timeout: 15_000 },
     );
-    await expect(page.getByTestId("form-status")).toHaveText("published");
+    // Tightened for polish veto #2: human label visible, raw value in data-*.
+    await expect(page.getByTestId("form-status")).toHaveAttribute(
+      "data-status",
+      "published",
+    );
+    await expect(page.getByTestId("form-status")).toHaveText("Published");
 
     // Public surface has published snapshot (no multi-second blank — skeleton allowed)
     const pubApi = await request.get(`/api/public/cfp/${event.slug}`);
@@ -281,8 +286,10 @@ test.describe("3.6 cfp eval keystone (I12)", () => {
     await page.getByTestId(`submission-open-${submissionId}`).click();
     await expect(page.getByTestId("submission-detail-title")).toBeVisible();
     await page.getByTestId("submission-accept").click();
+    // Tightened for polish veto #3: human decision copy replaces
+    // "accept recorded · session <id> · N task(s)".
     await expect(page.getByTestId("submissions-status")).toContainText(
-      /accept recorded/i,
+      /Accepted — session created with \d+ speaker task/,
       { timeout: 10_000 },
     );
     await expect(page.getByTestId("submission-detail-status")).toHaveAttribute(

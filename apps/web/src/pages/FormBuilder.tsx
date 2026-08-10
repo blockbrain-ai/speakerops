@@ -58,6 +58,14 @@ import { Button } from "../components/ui/Button.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Alert } from "../components/ui/Alert.js";
 import { Field } from "../components/ui/Field.js";
+import { datetimeLocalToIso, isoToDatetimeLocal } from "./datetime-utils.js";
+
+/** Human form status for judge-visible copy (raw value stays in data-status). */
+function formStatusLabel(status: string): string {
+  if (status === "published") return "Published";
+  if (status === "draft") return "Draft";
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 
 function draftFieldsToBuilder(fields: FormFieldDto[]): BuilderField[] {
   return [...fields]
@@ -123,6 +131,7 @@ export function FormBuilderPage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [welcomeMd, setWelcomeMd] = useState("");
   const [thankYouMd, setThankYouMd] = useState("");
+  /** Open/close window as datetime-local values (ISO only at the API edge). */
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
   const [submissionLimit, setSubmissionLimit] = useState("");
@@ -166,8 +175,8 @@ export function FormBuilderPage() {
       setRules(draftRulesToBuilder(payload.draft.rules ?? []));
       setWelcomeMd(payload.draft.welcomeMd ?? "");
       setThankYouMd(payload.draft.thankYouMd ?? "");
-      setOpensAt(payload.draft.opensAt ?? "");
-      setClosesAt(payload.draft.closesAt ?? "");
+      setOpensAt(isoToDatetimeLocal(payload.draft.opensAt));
+      setClosesAt(isoToDatetimeLocal(payload.draft.closesAt));
       setSubmissionLimit(
         payload.draft.submissionLimit != null
           ? String(payload.draft.submissionLimit)
@@ -483,7 +492,7 @@ export function FormBuilderPage() {
       setSelectedClientId(null);
       setCreateStatus({
         kind: "ok",
-        text: `Created form “${parsed.data.form.name}” (${parsed.data.form.id})`,
+        text: `Created form “${parsed.data.form.name}”`,
       });
       setPublishStatus(null);
       setSaveStatus(null);
@@ -516,8 +525,9 @@ export function FormBuilderPage() {
       rules,
       welcomeMd,
       thankYouMd,
-      opensAt,
-      closesAt,
+      // datetime-local wall-clock values → ISO instants at the API edge.
+      opensAt: datetimeLocalToIso(opensAt) ?? "",
+      closesAt: datetimeLocalToIso(closesAt) ?? "",
       submissionLimit,
       perSubmitterLimit,
       minSpeakers,
@@ -546,7 +556,7 @@ export function FormBuilderPage() {
     setDraftMeta(parsed.data.formVersion);
     setSaveStatus({
       kind: "ok",
-      text: `Draft saved (${parsed.data.formVersion.fields.length} fields)`,
+      text: `Draft saved · ${parsed.data.formVersion.fields.length} field${parsed.data.formVersion.fields.length === 1 ? "" : "s"}`,
     });
     return parsed.data.formVersion;
   }
@@ -606,7 +616,7 @@ export function FormBuilderPage() {
       setPublishedVersion(parsed.data.formVersion);
       setPublishStatus({
         kind: "ok",
-        text: `Published version ${parsed.data.formVersion.versionNum} (immutable snapshot)`,
+        text: `Published version ${parsed.data.formVersion.versionNum} — this exact form is now live for submitters.`,
       });
       // Stay on current view so palette/canvas remain available for further edits
       // (D08: publish then add fields and re-publish). User can open Publish summary tab.
@@ -797,7 +807,7 @@ export function FormBuilderPage() {
                   value={f.id}
                   data-testid={`form-builder-picker-option-${f.id}`}
                 >
-                  {f.name} · {f.status}
+                  {f.name} · {formStatusLabel(f.status)}
                 </option>
               ))}
             </select>
@@ -850,21 +860,31 @@ export function FormBuilderPage() {
           </p>
         ) : null}
         {form ? (
-          <p className="form-builder__meta" data-testid="form-shell-meta">
-            Form <code data-testid="form-id">{form.id}</code> · status{" "}
+          // Raw form id stays out of the copy — title attr + data-form-id only.
+          <p
+            className="form-builder__meta"
+            data-testid="form-shell-meta"
+            title={`Form ID ${form.id}`}
+          >
+            <span data-testid="form-id" data-form-id={form.id}>
+              {form.name}
+            </span>{" "}
             <Badge
               tone={form.status === "published" ? "success" : "neutral"}
               data-testid="form-status-badge"
             >
-              <span data-testid="form-status">{form.status}</span>
+              <span data-testid="form-status" data-status={form.status}>
+                {formStatusLabel(form.status)}
+              </span>
             </Badge>
             {publishedVersion ? (
               <>
                 {" "}
-                · last published v
+                · version{" "}
                 <span data-testid="form-published-version">
                   {publishedVersion.versionNum}
-                </span>
+                </span>{" "}
+                live
               </>
             ) : null}
           </p>
@@ -1785,51 +1805,55 @@ export function FormBuilderPage() {
                   />
                 </section>
 
-                {/* D09 — open/close + limit */}
+                {/* D09 — open/close + limit (datetime-local; ISO stays at the API edge) */}
                 <section
                   data-testid="limits-editor-section"
                   aria-labelledby="limits-heading"
                 >
                   <h3 id="limits-heading" className="form-builder__heading">
-                    Open / close & total submissions
+                    Submission window & cap
                   </h3>
-                  <label className="form-builder__label" htmlFor="opens-at">
-                    Opens at (ISO-8601)
-                  </label>
-                  <input
-                    id="opens-at"
-                    className="form-builder__input lumen-focusable"
-                    value={opensAt}
-                    onChange={(e) => setOpensAt(e.target.value)}
-                    placeholder="2026-01-01T00:00:00.000Z"
-                    data-testid="form-opens-at"
-                  />
-                  <label className="form-builder__label" htmlFor="closes-at">
-                    Closes at (ISO-8601)
-                  </label>
-                  <input
-                    id="closes-at"
-                    className="form-builder__input lumen-focusable"
-                    value={closesAt}
-                    onChange={(e) => setClosesAt(e.target.value)}
-                    placeholder="2026-12-31T23:59:59.000Z"
-                    data-testid="form-closes-at"
-                  />
-                  <label
-                    className="form-builder__label"
-                    htmlFor="submission-limit"
-                  >
-                    Max total submissions
-                  </label>
-                  <input
-                    id="submission-limit"
-                    type="number"
-                    min={1}
-                    className="form-builder__input lumen-focusable"
-                    value={submissionLimit}
-                    onChange={(e) => setSubmissionLimit(e.target.value)}
-                    data-testid="form-submission-limit"
-                  />
+                  <p className="form-builder__muted">
+                    When the public CFP accepts submissions, and how many in
+                    total. Saved with the draft.
+                  </p>
+                  <div className="form-builder__settings-grid">
+                    <Field
+                      id="opens-at"
+                      label="Opens"
+                      hint="Event timezone. Leave empty to open immediately."
+                      inputProps={{
+                        type: "datetime-local",
+                        value: opensAt,
+                        onChange: (e) => setOpensAt(e.target.value),
+                        "data-testid": "form-opens-at",
+                      }}
+                    />
+                    <Field
+                      id="closes-at"
+                      label="Closes"
+                      hint="Event timezone. Leave empty to keep the form open."
+                      inputProps={{
+                        type: "datetime-local",
+                        value: closesAt,
+                        onChange: (e) => setClosesAt(e.target.value),
+                        "data-testid": "form-closes-at",
+                      }}
+                    />
+                    <Field
+                      id="submission-limit"
+                      label="Max total submissions"
+                      hint="Across every submitter. Leave empty for unlimited."
+                      inputProps={{
+                        type: "number",
+                        min: 1,
+                        inputMode: "numeric",
+                        value: submissionLimit,
+                        onChange: (e) => setSubmissionLimit(e.target.value),
+                        "data-testid": "form-submission-limit",
+                      }}
+                    />
+                  </div>
                 </section>
               </div>
             ) : null}
@@ -1883,11 +1907,16 @@ export function FormBuilderPage() {
               </p>
             ) : null}
             {draftMeta ? (
-              <p className="form-builder__meta" data-testid="form-draft-meta">
-                Draft version id <code>{draftMeta.id}</code>
+              // Human copy only — the draft version id lives in title/data-*.
+              <p
+                className="form-builder__meta"
+                data-testid="form-draft-meta"
+                data-draft-version-id={draftMeta.id}
+                title={`Draft version ${draftMeta.id}`}
+              >
                 {draftMeta.fields.length > 0
-                  ? ` · ${draftMeta.fields.length} server fields`
-                  : ""}
+                  ? `Draft saved · ${draftMeta.fields.length} field${draftMeta.fields.length === 1 ? "" : "s"}`
+                  : "Draft saved · no fields yet"}
               </p>
             ) : null}
           </section>

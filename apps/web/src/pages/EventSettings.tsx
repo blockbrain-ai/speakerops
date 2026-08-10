@@ -772,7 +772,7 @@ export function EventSettingsPage() {
         </h3>
         <p className="event-settings__muted">
           Submitters get a confirmation email after they send a proposal. Edit
-          the wording in Comms under the “submission_confirmation” template.
+          the wording in Comms — it uses the submission confirmation template.
         </p>
         <form
           className="event-settings__form"
