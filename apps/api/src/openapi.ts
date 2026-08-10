@@ -1203,6 +1203,35 @@ export const PORTAL_OPENAPI_PATHS = {
         "404": { description: "Not found" },
       },
     },
+    patch: {
+      operationId: "Speakers.UpdateProfile",
+      summary: "Speakers.UpdateProfile",
+      description:
+        "Admin updates speaker programme profile (bio/company/title/headshot) on their behalf",
+      tags: ["Speakers"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "participationId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Updated participation profile" },
+        "400": { description: "Validation error" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Not found" },
+        "409": { description: "Version conflict" },
+      },
+    },
   },
   "/api/events/{eventId}/task-templates": {
     get: {
@@ -1788,6 +1817,7 @@ export const OPENAPI_COMMANDS = [
   "Task.Complete",
   "Speakers.List",
   "Speakers.Get",
+  "Speakers.UpdateProfile",
   "TaskTemplate.List",
   "TaskTemplate.Create",
   "TaskTemplate.Update",

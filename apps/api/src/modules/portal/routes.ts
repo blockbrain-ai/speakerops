@@ -19,6 +19,8 @@ import {
   PortalHomeResponseSchema,
   ParticipationUpdateProfileBodySchema,
   ParticipationUpdateProfileResponseSchema,
+  SpeakersUpdateProfileBodySchema,
+  SpeakersUpdateProfileResponseSchema,
   TaskCompleteBodySchema,
   TaskCompleteResponseSchema,
   AdminSpeakersListQuerySchema,
@@ -50,6 +52,7 @@ import {
   getPortalHome,
   completeTask,
   updateParticipationProfile,
+  adminUpdateSpeakerProfile,
   listSpeakers,
   getSpeakerDetail,
   listTaskTemplates,
@@ -352,6 +355,65 @@ export function createEventPortalRoutes(
       });
       if (!result.ok) return commandError(c, result);
       const parsed = AdminSpeakerDetailResponseSchema.safeParse(result.value);
+      if (!parsed.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(parsed.data, 200);
+    },
+  );
+
+  /**
+   * PATCH /:eventId/speakers/:participationId — Speakers.UpdateProfile (admin)
+   */
+  app.patch(
+    "/:eventId/speakers/:participationId",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const participationId = c.req.param("participationId");
+      let bodyRaw: unknown;
+      try {
+        bodyRaw = await c.req.json();
+      } catch {
+        return c.json(
+          errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
+          400,
+        );
+      }
+      const body = SpeakersUpdateProfileBodySchema.safeParse(bodyRaw);
+      if (!body.success) {
+        return c.json(
+          errorEnvelope(
+            "Validation failed",
+            VALIDATION_ERROR,
+            body.error.flatten(),
+          ),
+          400,
+        );
+      }
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", UNAUTHORIZED),
+          401,
+        );
+      }
+      const correlationId =
+        c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown";
+      const result = await adminUpdateSpeakerProfile(deps, {
+        eventId,
+        participationId,
+        actorUserId: user.id,
+        body: body.data,
+        correlationId,
+      });
+      if (!result.ok) return commandError(c, result);
+      const parsed = SpeakersUpdateProfileResponseSchema.safeParse(
+        result.value,
+      );
       if (!parsed.success) {
         return c.json(
           errorEnvelope("Response validation failed", INTERNAL_ERROR),

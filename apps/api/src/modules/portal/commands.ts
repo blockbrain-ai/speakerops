@@ -2,7 +2,7 @@
  * Portal + admin speakers + task templates commands (section 4.1 / S-PORTAL).
  *
  * Portal.GetHome · Task.Complete · Participation.UpdateProfile
- * Speakers.List · Speakers.Get
+ * Speakers.List · Speakers.Get · Speakers.UpdateProfile
  * TaskTemplate.List/Create/Update/Delete (O05)
  *
  * Canonical registry: KMS-competition/initiative/contracts/COMMANDS.md
@@ -555,6 +555,143 @@ export async function updateParticipationProfile(
     actorType: "user",
     actorId: input.userId,
     action: "Participation.UpdateProfile",
+    entityType: "event_participation",
+    entityId: part.id,
+    beforeJson: JSON.stringify(before),
+    afterJson: JSON.stringify({
+      bio: updated.bio,
+      company: updated.company,
+      title: updated.title,
+      headshotFileId: updated.headshotFileId,
+      version: updated.version,
+    }),
+    correlationId: input.correlationId,
+    createdAt: now,
+  });
+
+  return {
+    ok: true,
+    value: { participation: await enrichProfile(deps, updated) },
+  };
+}
+
+/**
+ * Speakers.UpdateProfile — event admin updates a speaker's programme profile
+ * (bio / company / title / headshot) on their behalf. Same field rules as
+ * Participation.UpdateProfile; ownership check is admin membership (route).
+ */
+export async function adminUpdateSpeakerProfile(
+  deps: PortalCommandDeps,
+  input: {
+    eventId: string;
+    participationId: string;
+    actorUserId: string;
+    body: ParticipationUpdateProfileBody;
+    correlationId: string;
+  },
+): Promise<CommandOk<ParticipationUpdateProfileResponse> | CommandErr> {
+  const part = await deps.decisions.findParticipationById(
+    input.participationId,
+  );
+  if (!part || part.eventId !== input.eventId) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Participation not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  if (part.version !== input.body.expectedVersion) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Participation version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.body.expectedVersion,
+        version: part.version,
+      },
+    };
+  }
+
+  if (
+    input.body.headshotFileId !== undefined &&
+    input.body.headshotFileId !== null
+  ) {
+    if (!deps.design) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Headshot file store unavailable",
+        code: "VALIDATION_ERROR",
+      };
+    }
+    const file = await deps.design.findFile(
+      part.eventId,
+      input.body.headshotFileId,
+    );
+    const uploadState =
+      typeof file?.uploadState === "number"
+        ? file.uploadState
+        : file?.uploaded
+          ? 1
+          : 0;
+    if (
+      !file ||
+      file.eventId !== part.eventId ||
+      file.ownerParticipationId !== part.id ||
+      file.purpose !== "headshot" ||
+      uploadState !== 1
+    ) {
+      return {
+        ok: false,
+        status: 400,
+        error:
+          "headshotFileId must be an uploaded headshot file owned by this participation",
+        code: "VALIDATION_ERROR",
+        details: {
+          headshotFileId: input.body.headshotFileId,
+          participationId: part.id,
+        },
+      };
+    }
+  }
+
+  const now = new Date().toISOString();
+  const before = {
+    bio: part.bio,
+    company: part.company,
+    title: part.title,
+    headshotFileId: part.headshotFileId,
+    version: part.version,
+  };
+
+  const updated = await deps.decisions.updateParticipation(part.id, {
+    version: part.version + 1,
+    updatedAt: now,
+    ...(input.body.bio !== undefined ? { bio: input.body.bio } : {}),
+    ...(input.body.company !== undefined ? { company: input.body.company } : {}),
+    ...(input.body.title !== undefined ? { title: input.body.title } : {}),
+    ...(input.body.headshotFileId !== undefined
+      ? { headshotFileId: input.body.headshotFileId }
+      : {}),
+  });
+  if (!updated) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Participation version conflict",
+      code: "CONFLICT",
+    };
+  }
+
+  await deps.auth.insertAudit({
+    id: uuidv7(),
+    eventId: part.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "Speakers.UpdateProfile",
     entityType: "event_participation",
     entityId: part.id,
     beforeJson: JSON.stringify(before),

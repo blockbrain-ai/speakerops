@@ -146,6 +146,19 @@ export type AdminSpeakerDetailResponse = z.infer<
   typeof AdminSpeakerDetailResponseSchema
 >;
 
+/**
+ * Speakers.UpdateProfile — admin edits speaker programme profile
+ * (bio / company / title / headshot) on behalf of the speaker.
+ * Same body shape as Participation.UpdateProfile.
+ */
+export const SpeakersUpdateProfileBodySchema =
+  ParticipationUpdateProfileBodySchema;
+export type SpeakersUpdateProfileBody = ParticipationUpdateProfileBody;
+
+export const SpeakersUpdateProfileResponseSchema =
+  ParticipationUpdateProfileResponseSchema;
+export type SpeakersUpdateProfileResponse = ParticipationUpdateProfileResponse;
+
 /** Task template CRUD (O05) */
 export const TaskTemplateCreateBodySchema = z.object({
   title: z.string().min(1).max(200),

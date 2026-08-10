@@ -26,6 +26,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ScheduleListResponseSchema,
   SchedulePlaceResponseSchema,
@@ -105,6 +106,8 @@ type StaleRecovery = {
 
 export function ScheduleStudioPage() {
   const { activeEventId, activeEvent } = useEventContext();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkSessionId = searchParams.get("sessionId");
 
   const loadGenRef = useRef(0);
   const activeEventIdRef = useRef(activeEventId);
@@ -322,6 +325,58 @@ export function ScheduleStudioPage() {
     }
     void loadAll(activeEventId);
   }, [activeEventId, loadAll]);
+
+  // Deep-link from Speakers detail: ?sessionId= → select placement or tray item
+  useEffect(() => {
+    if (!deepLinkSessionId || loading) return;
+    const placement = placements.find(
+      (p) => p.sessionId === deepLinkSessionId,
+    );
+    if (placement) {
+      setSelectedPlacementId(placement.id);
+      setSelectedSessionId(null);
+      setFocusedDayKey(zonedDayKey(placement.startsAt, timezone));
+      setView("day");
+      setToast({
+        kind: "ok",
+        text: `Focused session: ${placement.title ?? placement.sessionId}`,
+      });
+      // Consume query so refresh doesn't re-toast forever
+      const next = new URLSearchParams(searchParams);
+      next.delete("sessionId");
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    const tray = unscheduled.find((s) => s.id === deepLinkSessionId);
+    if (tray) {
+      setSelectedSessionId(tray.id);
+      setSelectedPlacementId(null);
+      setView("day");
+      setToast({
+        kind: "ok",
+        text: `Session is unscheduled: ${tray.title} — select a slot to place.`,
+      });
+      const next = new URLSearchParams(searchParams);
+      next.delete("sessionId");
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    setToast({
+      kind: "error",
+      text: "That session was not found on this event’s schedule.",
+    });
+    const next = new URLSearchParams(searchParams);
+    next.delete("sessionId");
+    setSearchParams(next, { replace: true });
+  }, [
+    deepLinkSessionId,
+    loading,
+    placements,
+    unscheduled,
+    timezone,
+    searchParams,
+    setSearchParams,
+  ]);
 
   const pushUndo = useCallback((action: UndoAction) => {
     setUndoStack((prev) => [...prev, action]);

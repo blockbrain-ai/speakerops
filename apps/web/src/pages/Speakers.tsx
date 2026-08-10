@@ -14,10 +14,11 @@
  * Deep-link from readiness H03: ?participationId=
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   AdminSpeakersListResponseSchema,
   AdminSpeakerDetailResponseSchema,
+  SpeakersUpdateProfileResponseSchema,
   ErrorEnvelopeSchema,
   type AdminSpeakerListItem,
   type AdminSpeakerDetailResponse,
@@ -109,6 +110,12 @@ export function SpeakersPage() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  /** Admin-edit draft of programme profile fields */
+  const [editBio, setEditBio] = useState("");
+  const [editCompany, setEditCompany] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<string | null>(null);
 
   const loadList = useCallback(
     async (eventId: string, search: string) => {
@@ -192,12 +199,85 @@ export function SpeakersPage() {
           return;
         }
         setDetail(parsed.data);
+        const p = parsed.data.participation;
+        setEditBio(p.bio ?? "");
+        setEditCompany(p.company ?? "");
+        setEditTitle(p.title ?? "");
+        setProfileStatus(null);
       } catch {
         setDetailError("Network error");
       }
     },
     [activeEventId],
   );
+
+  const saveAdminProfile = useCallback(async () => {
+    if (!activeEventId || !detail) return;
+    setProfileSaving(true);
+    setProfileStatus(null);
+    try {
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}/speakers/${encodeURIComponent(detail.participation.id)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({
+            bio: editBio.trim() || null,
+            company: editCompany.trim() || null,
+            title: editTitle.trim() || null,
+            expectedVersion: detail.participation.version,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const raw: unknown = await res.json().catch(() => null);
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setProfileStatus(
+          env.success ? env.data.error : `Save failed (${res.status})`,
+        );
+        return;
+      }
+      const raw: unknown = await res.json();
+      const parsed = SpeakersUpdateProfileResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        setProfileStatus("Unexpected save response");
+        return;
+      }
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              participation: {
+                ...prev.participation,
+                ...parsed.data.participation,
+              },
+            }
+          : prev,
+      );
+      setEditBio(parsed.data.participation.bio ?? "");
+      setEditCompany(parsed.data.participation.company ?? "");
+      setEditTitle(parsed.data.participation.title ?? "");
+      setProfileStatus("Saved");
+      // Refresh list readiness chips for this row
+      void loadList(activeEventId, q);
+    } catch {
+      setProfileStatus("Network error");
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [
+    activeEventId,
+    detail,
+    editBio,
+    editCompany,
+    editTitle,
+    loadList,
+    q,
+  ]);
 
   // H03 deep-link from readiness drill
   useEffect(() => {
@@ -602,37 +682,92 @@ export function SpeakersPage() {
                         </span>
                       )}
                     </div>
-                    <dl className="speakers-page__profile-dl">
+                    <div className="speakers-page__profile-dl">
                       <div className="speakers-page__profile-row">
-                        <dt>Email</dt>
-                        <dd data-testid="speakers-detail-email">
+                        <span className="speakers-page__profile-label">
+                          Email
+                        </span>
+                        <span data-testid="speakers-detail-email">
                           {detail.participation.personEmail ?? "—"}
-                        </dd>
+                        </span>
                       </div>
-                      <div className="speakers-page__profile-row">
-                        <dt>Job title</dt>
-                        <dd data-testid="speakers-detail-title">
-                          {detail.participation.title?.trim() || "—"}
-                        </dd>
+                      <label className="speakers-page__profile-row">
+                        <span className="speakers-page__profile-label">
+                          Job title
+                        </span>
+                        <input
+                          className="speakers-page__profile-input lumen-focusable"
+                          data-testid="speakers-detail-title-input"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          maxLength={200}
+                          placeholder="e.g. Staff Engineer"
+                        />
+                      </label>
+                      <label className="speakers-page__profile-row">
+                        <span className="speakers-page__profile-label">
+                          Company / organisation
+                        </span>
+                        <input
+                          className="speakers-page__profile-input lumen-focusable"
+                          data-testid="speakers-detail-company-input"
+                          value={editCompany}
+                          onChange={(e) => setEditCompany(e.target.value)}
+                          maxLength={200}
+                          placeholder="e.g. Acme Labs"
+                        />
+                      </label>
+                      <label className="speakers-page__profile-row speakers-page__profile-row--bio">
+                        <span className="speakers-page__profile-label">Bio</span>
+                        <textarea
+                          className="speakers-page__profile-textarea lumen-focusable"
+                          data-testid="speakers-detail-bio-input"
+                          value={editBio}
+                          onChange={(e) => setEditBio(e.target.value)}
+                          rows={5}
+                          maxLength={8000}
+                          placeholder="Programme bio (plain text)"
+                        />
+                      </label>
+                      {/* Keep read testids for e2e that still query display values */}
+                      <span className="speakers-page__sr-only" data-testid="speakers-detail-title">
+                        {editTitle}
+                      </span>
+                      <span className="speakers-page__sr-only" data-testid="speakers-detail-company">
+                        {editCompany}
+                      </span>
+                      <span className="speakers-page__sr-only" data-testid="speakers-detail-bio">
+                        {editBio}
+                      </span>
+                      <div className="speakers-page__profile-actions">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          data-testid="speakers-detail-profile-save"
+                          disabled={profileSaving}
+                          onClick={() => void saveAdminProfile()}
+                        >
+                          {profileSaving ? "Saving…" : "Save profile"}
+                        </Button>
+                        {profileStatus ? (
+                          <span
+                            className={
+                              profileStatus === "Saved"
+                                ? "eval-queue__muted"
+                                : "event-settings__status event-settings__status--error"
+                            }
+                            data-testid="speakers-detail-profile-status"
+                            role="status"
+                          >
+                            {profileStatus}
+                          </span>
+                        ) : (
+                          <span className="eval-queue__muted">
+                            Admin can edit on the speaker’s behalf.
+                          </span>
+                        )}
                       </div>
-                      <div className="speakers-page__profile-row">
-                        <dt>Company / organisation</dt>
-                        <dd data-testid="speakers-detail-company">
-                          {detail.participation.company?.trim() || "—"}
-                        </dd>
-                      </div>
-                      <div className="speakers-page__profile-row speakers-page__profile-row--bio">
-                        <dt>Bio</dt>
-                        <dd data-testid="speakers-detail-bio">
-                          {detail.participation.bio?.trim() || (
-                            <span className="eval-queue__muted">
-                              No bio yet — speaker can complete this in the
-                              portal.
-                            </span>
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
+                    </div>
                   </div>
                 </Card>
 
@@ -719,7 +854,17 @@ export function SpeakersPage() {
                           data-testid={`speakers-session-${s.id}`}
                           data-session-status={s.status}
                         >
-                          {s.title} · {s.status}
+                          <Link
+                            className="speakers-page__session-link lumen-focusable"
+                            data-testid={`speakers-session-link-${s.id}`}
+                            to={`/admin/schedule?sessionId=${encodeURIComponent(s.id)}`}
+                          >
+                            {s.title}
+                          </Link>
+                          <span className="eval-queue__muted">
+                            {" "}
+                            · {s.status}
+                          </span>
                         </li>
                       ))
                     )}
