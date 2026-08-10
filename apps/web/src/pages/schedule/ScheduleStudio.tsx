@@ -74,6 +74,8 @@ import {
   undoForPlace,
   undoForUnschedule,
   zonedDayKey,
+  zonedWallParts,
+  zonedWallToUtcIso,
 } from "./schedule-utils.js";
 
 type ToastState =
@@ -144,6 +146,11 @@ export function ScheduleStudioPage() {
   const dragPayloadRef = useRef<DragPayload | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
 
+  /** Click-to-reschedule inspector (non-drag path). */
+  const [inspectorRoomId, setInspectorRoomId] = useState("");
+  const [inspectorDay, setInspectorDay] = useState("");
+  const [inspectorTime, setInspectorTime] = useState("09:00");
+
   const setDrag = useCallback((payload: DragPayload | null) => {
     dragPayloadRef.current = payload;
     setDragPayload(payload);
@@ -152,6 +159,22 @@ export function ScheduleStudioPage() {
   const timezone = activeEvent?.timezone ?? "UTC";
   const eventStartsAt = activeEvent?.startsAt ?? null;
   const eventEndsAt = activeEvent?.endsAt ?? null;
+
+  const selectedPlacement = useMemo(
+    () => placements.find((p) => p.id === selectedPlacementId) ?? null,
+    [placements, selectedPlacementId],
+  );
+
+  // Seed inspector fields when selection changes.
+  useEffect(() => {
+    if (!selectedPlacement) return;
+    const wall = zonedWallParts(selectedPlacement.startsAt, timezone);
+    setInspectorRoomId(selectedPlacement.roomId);
+    setInspectorDay(wall.dayKey);
+    setInspectorTime(
+      `${String(wall.hour).padStart(2, "0")}:${String(wall.minute).padStart(2, "0")}`,
+    );
+  }, [selectedPlacement, timezone]);
 
   // Week/day chrome: only event-range days (never pad to Mon–Sun). S-SCHED-CHROME.
   const dayKeys = useMemo(() => {
@@ -361,10 +384,19 @@ export function ScheduleStudioPage() {
       /** When true, do not push undo (used by undo itself). */
       skipUndo?: boolean;
     }) => {
-      if (!activeEventId || busy) return false;
+      if (!activeEventId) return false;
+      if (busy) {
+        setToast({
+          kind: "error",
+          text: "Busy saving another change — wait a moment and try again.",
+        });
+        return false;
+      }
       setBusy(true);
       setPendingSessionId(input.sessionId);
       setToast(null);
+      // Optimistic tray honesty for drag + keyboard place paths.
+      setUnscheduled((prev) => prev.filter((s) => s.id !== input.sessionId));
       try {
         const res = await fetch(
           `/api/events/${encodeURIComponent(activeEventId)}/schedule/place`,
@@ -385,12 +417,14 @@ export function ScheduleStudioPage() {
         );
         if (!res.ok) {
           await handleApiError(res);
+          await loadAll(activeEventId);
           return false;
         }
         const raw: unknown = await res.json();
         const parsed = SchedulePlaceResponseSchema.safeParse(raw);
         if (!parsed.success) {
           setToast({ kind: "error", text: "Invalid place response" });
+          await loadAll(activeEventId);
           return false;
         }
         if (!input.skipUndo) {
@@ -404,6 +438,7 @@ export function ScheduleStudioPage() {
         return true;
       } catch {
         setToast({ kind: "error", text: "Network error on place" });
+        await loadAll(activeEventId);
         return false;
       } finally {
         setBusy(false);
@@ -423,7 +458,14 @@ export function ScheduleStudioPage() {
       previous?: { roomId: string; startsAt: string; endsAt: string };
       skipUndo?: boolean;
     }) => {
-      if (!activeEventId || busy) return false;
+      if (!activeEventId) return false;
+      if (busy) {
+        setToast({
+          kind: "error",
+          text: "Busy saving another change — wait a moment and try again.",
+        });
+        return false;
+      }
       setBusy(true);
       setPendingPlacementId(input.placementId);
       setToast(null);
@@ -487,7 +529,14 @@ export function ScheduleStudioPage() {
       };
       skipUndo?: boolean;
     }) => {
-      if (!activeEventId || busy) return false;
+      if (!activeEventId) return false;
+      if (busy) {
+        setToast({
+          kind: "error",
+          text: "Busy saving another change — wait a moment and try again.",
+        });
+        return false;
+      }
       setBusy(true);
       setPendingPlacementId(input.placementId);
       setToast(null);
@@ -659,21 +708,29 @@ export function ScheduleStudioPage() {
     e: DragEvent,
     session: UnscheduledSessionDto,
   ) => {
+    // stopPropagation: parent list/slot handlers must not cancel the drag.
+    e.stopPropagation();
     const payload: DragPayload = {
       source: "tray",
       sessionId: session.id,
       title: session.title,
     };
+    // Sync ref immediately — setState may not flush before first dragover.
     setDrag(payload);
-    e.dataTransfer.setData("application/json", JSON.stringify(payload));
-    e.dataTransfer.setData("text/plain", session.id);
-    e.dataTransfer.effectAllowed = "copyMove";
+    try {
+      e.dataTransfer.setData("application/json", JSON.stringify(payload));
+      e.dataTransfer.setData("text/plain", session.id);
+      e.dataTransfer.effectAllowed = "copyMove";
+    } catch {
+      /* some browsers throw if setData is called outside dragstart — ignore */
+    }
   };
 
   const onPlacementDragStart = (
     e: DragEvent,
     p: SchedulePlacementDto,
   ) => {
+    e.stopPropagation();
     const payload: DragPayload = {
       source: "placement",
       placementId: p.id,
@@ -686,9 +743,14 @@ export function ScheduleStudioPage() {
     };
     setDrag(payload);
     setSelectedPlacementId(p.id);
-    e.dataTransfer.setData("application/json", JSON.stringify(payload));
-    e.dataTransfer.setData("text/plain", p.id);
-    e.dataTransfer.effectAllowed = "move";
+    setSelectedSessionId(null);
+    try {
+      e.dataTransfer.setData("application/json", JSON.stringify(payload));
+      e.dataTransfer.setData("text/plain", p.id);
+      e.dataTransfer.effectAllowed = "move";
+    } catch {
+      /* ignore */
+    }
   };
 
   const onDragEnd = () => {
@@ -697,7 +759,9 @@ export function ScheduleStudioPage() {
   };
 
   const onSlotDragOver = (e: DragEvent, key: string) => {
+    // Required for drop to fire — including when pointer is over a child tile.
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect =
       dragPayloadRef.current?.source === "tray" ? "copy" : "move";
     setDragOverSlot(key);
@@ -705,6 +769,7 @@ export function ScheduleStudioPage() {
 
   const onSlotDrop = (e: DragEvent, roomId: string, startsAt: string) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOverSlot(null);
     // Prefer dataTransfer; fall back to ref (Playwright / incomplete DnD).
     let payload = dragPayloadRef.current;
@@ -715,6 +780,15 @@ export function ScheduleStudioPage() {
       /* keep ref payload */
     }
     if (!payload) return;
+    // No-op move onto same slot (avoid version churn / toast noise).
+    if (
+      payload.source === "placement" &&
+      payload.roomId === roomId &&
+      payload.startsAt === startsAt
+    ) {
+      setDrag(null);
+      return;
+    }
     setDrag(payload);
     if (payload.source === "tray") {
       const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
@@ -765,9 +839,16 @@ export function ScheduleStudioPage() {
 
   const renderTile = (
     occupant: SchedulePlacementDto,
-    opts?: { compact?: boolean },
+    opts?: {
+      compact?: boolean;
+      /** When set, tile participates in slot drop (nested DnD honesty). */
+      dropRoomId?: string;
+      dropStartsAt?: string;
+    },
   ) => {
     const compact = opts?.compact === true;
+    const dropRoomId = opts?.dropRoomId;
+    const dropStartsAt = opts?.dropStartsAt;
     const isSelected = selectedPlacementId === occupant.id;
     const isConflict = conflictPlacementSet.has(occupant.id);
     const isPending = pendingPlacementId === occupant.id;
@@ -775,6 +856,8 @@ export function ScheduleStudioPage() {
     const style: CSSProperties | undefined = color
       ? ({ ["--schedule-track-color" as string]: color } as CSSProperties)
       : undefined;
+    const slotDropKey =
+      dropRoomId && dropStartsAt ? slotKey(dropRoomId, dropStartsAt) : null;
 
     return (
       <div
@@ -797,18 +880,30 @@ export function ScheduleStudioPage() {
         data-version={occupant.version}
         data-conflict={isConflict ? "true" : undefined}
         data-pending={isPending ? "true" : undefined}
-        draggable={!compact}
+        data-draggable="true"
+        draggable
         tabIndex={0}
-        onDragStart={
-          compact
-            ? undefined
-            : (e) => onPlacementDragStart(e, occupant)
+        // Nested tiles must allow dragover/drop or browser rejects drop when
+        // the pointer is over the filled tile (common move failure mode).
+        // Only claim drop when we know the target slot — bare preventDefault
+        // on list/compact tiles shows a green cursor with a silent no-op.
+        onDragOver={
+          dropRoomId && dropStartsAt && slotDropKey
+            ? (e) => onSlotDragOver(e, slotDropKey)
+            : undefined
         }
-        onDragEnd={compact ? undefined : onDragEnd}
+        onDrop={
+          dropRoomId && dropStartsAt
+            ? (e) => onSlotDrop(e, dropRoomId, dropStartsAt)
+            : undefined
+        }
+        onDragStart={(e) => onPlacementDragStart(e, occupant)}
+        onDragEnd={onDragEnd}
         onClick={(e) => {
           e.stopPropagation();
           setSelectedPlacementId(occupant.id);
           setSelectedSessionId(null);
+          setFocusedDayKey(zonedDayKey(occupant.startsAt, timezone));
         }}
       >
         {!compact ? (
@@ -899,7 +994,12 @@ export function ScheduleStudioPage() {
           {formatTimeLabel(startsAt, timezone)}
         </span>
         {occupants.length > 0 ? (
-          occupants.map((occupant) => renderTile(occupant))
+          occupants.map((occupant) =>
+            renderTile(occupant, {
+              dropRoomId: roomId,
+              dropStartsAt: startsAt,
+            }),
+          )
         ) : (
           <span className="schedule-studio__slot-empty">Empty</span>
         )}
@@ -1340,6 +1440,131 @@ export function ScheduleStudioPage() {
             ))}
           </div>
 
+          {selectedPlacement ? (
+            <section
+              className="schedule-studio__inspector event-settings__card"
+              data-testid="schedule-inspector"
+              aria-label="Reschedule selected session"
+            >
+              <h3
+                className="event-settings__heading"
+                data-testid="schedule-inspector-title"
+              >
+                Reschedule · {selectedPlacement.title ?? selectedPlacement.sessionId}
+              </h3>
+              <p className="eval-queue__muted">
+                Drag the tile to a slot, or set room / day / time and apply.
+                Times use event timezone ({timezone}).
+              </p>
+              <div className="schedule-studio__inspector-fields">
+                <label className="schedule-studio__inspector-field">
+                  <span>Room</span>
+                  <select
+                    className="lumen-focusable"
+                    data-testid="schedule-inspector-room"
+                    value={inspectorRoomId}
+                    onChange={(e) => setInspectorRoomId(e.target.value)}
+                  >
+                    {rooms.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="schedule-studio__inspector-field">
+                  <span>Day</span>
+                  <input
+                    type="date"
+                    className="lumen-focusable"
+                    data-testid="schedule-inspector-day"
+                    value={inspectorDay}
+                    onChange={(e) => setInspectorDay(e.target.value)}
+                  />
+                </label>
+                <label className="schedule-studio__inspector-field">
+                  <span>Start time</span>
+                  <input
+                    type="time"
+                    className="lumen-focusable"
+                    data-testid="schedule-inspector-time"
+                    value={inspectorTime}
+                    onChange={(e) => setInspectorTime(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="schedule-studio__inspector-actions">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  data-testid="schedule-inspector-apply"
+                  disabled={busy || !inspectorRoomId || !inspectorDay}
+                  onClick={() => {
+                    const [hh, mm] = inspectorTime.split(":").map(Number);
+                    const startsAt = zonedWallToUtcIso(
+                      inspectorDay,
+                      hh || 0,
+                      mm || 0,
+                      timezone,
+                    );
+                    const endsAt = addMinutesIso(
+                      startsAt,
+                      durationMinutes(
+                        selectedPlacement.startsAt,
+                        selectedPlacement.endsAt,
+                      ),
+                    );
+                    setFocusedDayKey(inspectorDay);
+                    setView("day");
+                    void movePlacement({
+                      placementId: selectedPlacement.id,
+                      roomId: inspectorRoomId,
+                      startsAt,
+                      endsAt,
+                      expectedVersion: selectedPlacement.version,
+                      previous: {
+                        roomId: selectedPlacement.roomId,
+                        startsAt: selectedPlacement.startsAt,
+                        endsAt: selectedPlacement.endsAt,
+                      },
+                    });
+                  }}
+                >
+                  Apply reschedule
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  data-testid="schedule-inspector-unschedule"
+                  disabled={busy}
+                  onClick={() => {
+                    void unschedulePlacement({
+                      placementId: selectedPlacement.id,
+                      expectedVersion: selectedPlacement.version,
+                      previous: {
+                        sessionId: selectedPlacement.sessionId,
+                        roomId: selectedPlacement.roomId,
+                        startsAt: selectedPlacement.startsAt,
+                        endsAt: selectedPlacement.endsAt,
+                      },
+                    });
+                    setSelectedPlacementId(null);
+                  }}
+                >
+                  Unschedule to tray
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  data-testid="schedule-inspector-clear"
+                  onClick={() => setSelectedPlacementId(null)}
+                >
+                  Clear selection
+                </Button>
+              </div>
+            </section>
+          ) : null}
+
           {allConflicts.length > 0 ? (
             <section
               className="schedule-studio__conflict-summary"
@@ -1482,8 +1707,12 @@ export function ScheduleStudioPage() {
                 ) : (
                   unscheduled.map((s) => (
                     <li key={s.id}>
-                      <button
-                        type="button"
+                      {/*
+                        Use a div, not <button draggable> — native HTML5 drag on
+                        buttons is flaky in Chromium (often fails first grab).
+                      */}
+                      <div
+                        role="button"
                         className={[
                           "schedule-tray-item",
                           "lumen-focusable",
@@ -1501,22 +1730,42 @@ export function ScheduleStudioPage() {
                         data-pending={
                           pendingSessionId === s.id ? "true" : undefined
                         }
-                        draggable
+                        data-draggable="true"
+                        draggable={pendingSessionId !== s.id}
+                        tabIndex={0}
                         aria-selected={selectedSessionId === s.id}
+                        aria-grabbed={
+                          dragPayload?.source === "tray" &&
+                          dragPayload.sessionId === s.id
+                            ? true
+                            : undefined
+                        }
                         onDragStart={(e) => onTrayDragStart(e, s)}
                         onDragEnd={onDragEnd}
                         onClick={() => {
                           setSelectedSessionId(s.id);
                           setSelectedPlacementId(null);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedSessionId(s.id);
+                            setSelectedPlacementId(null);
+                          }
+                        }}
                       >
+                        <span
+                          className="schedule-tray-item__grip"
+                          aria-hidden
+                          title="Drag to schedule"
+                        />
                         <span className="schedule-tray-item__title">
                           {s.title}
                         </span>
                         <span className="schedule-tray-item__meta">
-                          {trackName(s.trackId)}
+                          {trackName(s.trackId)} · drag or select + slot Enter
                         </span>
-                      </button>
+                      </div>
                     </li>
                   ))
                 )}

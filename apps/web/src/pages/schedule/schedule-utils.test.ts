@@ -27,6 +27,7 @@ import {
   undoForPlace,
   undoForUnschedule,
   zonedDayKey,
+  zonedWallParts,
   zonedWallToUtcIso,
 } from "./schedule-utils.js";
 import type { SchedulePlacementDto } from "@speakerops/shared";
@@ -125,6 +126,15 @@ describe("schedule-utils", () => {
     );
     expect(keys).toEqual(["2026-09-02", "2026-09-03", "2026-09-04"]);
     expect(keys).not.toContain("2026-09-05");
+  });
+
+  it("zonedWallParts round-trips with zonedWallToUtcIso (UTC)", () => {
+    const iso = "2026-09-01T15:30:00.000Z";
+    const parts = zonedWallParts(iso, "UTC");
+    expect(parts).toEqual({ dayKey: "2026-09-01", hour: 15, minute: 30 });
+    expect(zonedWallToUtcIso(parts.dayKey, parts.hour, parts.minute, "UTC")).toBe(
+      iso,
+    );
   });
 
   it("10.6: isDayWithinEventRange rejects days outside event", () => {

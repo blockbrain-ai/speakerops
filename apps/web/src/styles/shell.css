@@ -2928,17 +2928,26 @@
   width: 100%;
   text-align: left;
   padding: var(--lumen-space-3);
+  padding-left: calc(var(--lumen-space-3) + 0.75rem);
+  position: relative;
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-sm);
   background: var(--lumen-surface);
   color: var(--lumen-text);
   font-family: var(--lumen-font);
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
   box-shadow: var(--lumen-shadow-sm);
   transition:
     border-color var(--lumen-motion) var(--lumen-ease),
     box-shadow var(--lumen-motion) var(--lumen-ease),
     background var(--lumen-motion) var(--lumen-ease);
+}
+
+.schedule-tray-item:active {
+  cursor: grabbing;
 }
 
 .schedule-tray-item:hover {
@@ -2955,6 +2964,23 @@
   opacity: 0.72;
   border-style: dashed;
   cursor: wait;
+}
+
+.schedule-tray-item__grip {
+  position: absolute;
+  left: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.35rem;
+  height: 1.25rem;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--lumen-border-strong, var(--lumen-border)) 0 2px,
+    transparent 2px 4px
+  );
+  pointer-events: none;
+  opacity: 0.85;
 }
 
 .schedule-tray-item__title {
@@ -2982,9 +3008,16 @@
   font-family: var(--lumen-font);
   font-size: 13px;
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
   box-shadow: var(--lumen-shadow-sm);
   overflow: hidden;
   min-height: 3rem;
+}
+
+.schedule-tile:active {
+  cursor: grabbing;
 }
 
 .schedule-tile__track {
@@ -3024,8 +3057,44 @@
 }
 
 .schedule-tile--compact {
-  cursor: default;
+  /* Still draggable for move; slightly denser chrome */
   min-height: 0;
+}
+
+.schedule-studio__inspector {
+  margin-bottom: var(--lumen-space-4);
+}
+
+.schedule-studio__inspector-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-3);
+  margin: var(--lumen-space-3) 0;
+}
+
+.schedule-studio__inspector-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+  font-size: 13px;
+  color: var(--lumen-text-secondary);
+  min-width: 8rem;
+}
+
+.schedule-studio__inspector-field select,
+.schedule-studio__inspector-field input {
+  font: inherit;
+  color: var(--lumen-text);
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-sm);
+  padding: 0.4rem 0.55rem;
+}
+
+.schedule-studio__inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
 }
 
 .schedule-tile--compact .schedule-tile__body {

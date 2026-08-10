@@ -118,6 +118,47 @@ function timeZoneOffsetMs(date: Date, timeZone: string): number {
  * Convert a wall-clock local time on dayKey in timeZone to UTC ISO.
  * dayKey is YYYY-MM-DD in the event timezone.
  */
+/**
+ * Wall-clock parts of an instant in timeZone for inspector/date inputs.
+ * Returns 24h hour/minute and YYYY-MM-DD day key.
+ */
+export function zonedWallParts(
+  iso: string,
+  timeZone: string = "UTC",
+): { dayKey: string; hour: number; minute: number } {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return { dayKey: iso.slice(0, 10), hour: 9, minute: 0 };
+  }
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    const parts = dtf.formatToParts(d);
+    const map: Record<string, string> = {};
+    for (const p of parts) {
+      if (p.type !== "literal") map[p.type] = p.value;
+    }
+    return {
+      dayKey: `${map.year}-${map.month}-${map.day}`,
+      hour: Number(map.hour) || 0,
+      minute: Number(map.minute) || 0,
+    };
+  } catch {
+    return {
+      dayKey: d.toISOString().slice(0, 10),
+      hour: d.getUTCHours(),
+      minute: d.getUTCMinutes(),
+    };
+  }
+}
+
 export function zonedWallToUtcIso(
   dayKey: string,
   hour: number,

@@ -46,11 +46,14 @@ describe("8.3 security hardening", () => {
     }
   });
 
-  it("index.html meta CSP aligns with shared policy (script-src self + turnstile)", () => {
+  it("index.html meta CSP aligns with shared policy (turnstile + CF insights)", () => {
     const html = readFileSync(join(root, "apps/web/index.html"), "utf8");
     expect(html).toMatch(/http-equiv=["']Content-Security-Policy["']/i);
     expect(html).toMatch(/default-src\s+'self'/);
     expect(html).toMatch(/challenges\.cloudflare\.com/);
+    // Zone-injected Web Analytics beacon must not CSP-block console on dogfood
+    expect(html).toMatch(/static\.cloudflareinsights\.com/);
+    expect(html).toMatch(/cloudflareinsights\.com/);
     expect(html).toMatch(/object-src\s+'none'/);
   });
 
@@ -70,8 +73,9 @@ describe("8.3 security hardening", () => {
     );
     // Production policy string must not embed script-src unsafe-inline.
     expect(shared).toMatch(
-      /CONTENT_SECURITY_POLICY\s*=\s*\[[\s\S]*?script-src 'self' https:\/\/challenges\.cloudflare\.com/,
+      /CONTENT_SECURITY_POLICY\s*=\s*\[[\s\S]*?script-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/static\.cloudflareinsights\.com/,
     );
+    expect(shared).toMatch(/static\.cloudflareinsights\.com/);
     expect(shared).toMatch(/CONTENT_SECURITY_POLICY_DEV/);
     expect(shared).toMatch(
       /CONTENT_SECURITY_POLICY_DEV[\s\S]*?script-src 'self' 'unsafe-inline'/,
