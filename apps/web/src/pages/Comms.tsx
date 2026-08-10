@@ -57,6 +57,7 @@ import {
   buildCommsSegment,
   canRunCommsPreview,
   previewDisabledReason,
+  formatLogTimestamp,
   type CampaignStepId,
   type AudienceSpeakerRow,
 } from "./comms-utils.js";
@@ -147,6 +148,13 @@ export function CommsPage() {
   const [icsBusy, setIcsBusy] = useState(false);
 
   const mergeFields = extractMergeFields(subject, body);
+
+  /** Template key lookup for the delivery log (template name over raw ids). */
+  const templateKeyById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of templates) m.set(t.id, t.key);
+    return m;
+  }, [templates]);
 
   const audienceRows: AudienceSpeakerRow[] = useMemo(
     () =>
@@ -1133,7 +1141,7 @@ export function CommsPage() {
             </div>
             {templates.length > 0 ? (
               <div
-                className="event-settings__list"
+                className="comms-campaign__template-list"
                 data-testid="comms-template-list"
               >
                 {templates.map((t) => (
@@ -1225,7 +1233,7 @@ export function CommsPage() {
 
               <Button
                 type="submit"
-                variant="primary"
+                variant="secondary"
                 data-testid="comms-template-save"
                 pending={saving}
                 disabled={saving}
@@ -1535,11 +1543,10 @@ export function CommsPage() {
               >
                 <thead>
                   <tr>
-                    <th scope="col">Job</th>
-                    <th scope="col">Status</th>
+                    <th scope="col">Template</th>
                     <th scope="col">Recipients</th>
-                    <th scope="col">Idempotency</th>
                     <th scope="col">Created</th>
+                    <th scope="col">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1554,19 +1561,27 @@ export function CommsPage() {
                           type="button"
                           className="eval-queue__link lumen-focusable"
                           data-testid={`comms-log-open-${j.id}`}
+                          title={`Job ${j.id}${
+                            j.idempotencyKey
+                              ? ` · idempotency ${j.idempotencyKey}`
+                              : ""
+                          }`}
                           onClick={() => void openJobDetail(j.id)}
                         >
-                          {j.id.slice(0, 8)}…
+                          {templateKeyById.get(j.templateId) ??
+                            `Job ${j.id.slice(0, 8)}…`}
                         </button>
+                        <span className="comms-campaign__log-ref eval-queue__muted">
+                          {j.id.slice(0, 8)}…
+                        </span>
+                      </td>
+                      <td>{j.recipientCount}</td>
+                      <td className="eval-queue__muted">
+                        {formatLogTimestamp(j.createdAt)}
                       </td>
                       <td data-testid={`comms-log-status-${j.id}`}>
                         {j.status}
                       </td>
-                      <td>{j.recipientCount}</td>
-                      <td className="eval-queue__muted">
-                        {j.idempotencyKey ?? "—"}
-                      </td>
-                      <td className="eval-queue__muted">{j.createdAt}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1615,8 +1630,8 @@ export function CommsPage() {
               ICS attach (scheduled session)
             </h3>
             <p className="page-stub__body">
-              Fixture placement form for Phase 5. Stable UID per event +
-              placement; reschedule bumps SEQUENCE (J10).
+              Generate a calendar invite for a scheduled session. Rescheduling
+              updates the same invite.
             </p>
             <form
               className="event-settings__form"
@@ -1627,7 +1642,7 @@ export function CommsPage() {
                 className="event-settings__label"
                 htmlFor="comms-ics-placement"
               >
-                Placement id
+                Placement
               </label>
               <input
                 id="comms-ics-placement"
@@ -1655,7 +1670,7 @@ export function CommsPage() {
                 className="event-settings__label"
                 htmlFor="comms-ics-starts"
               >
-                Starts (ISO)
+                Starts (UTC)
               </label>
               <input
                 id="comms-ics-starts"
@@ -1666,7 +1681,7 @@ export function CommsPage() {
                 required
               />
               <label className="event-settings__label" htmlFor="comms-ics-ends">
-                Ends (ISO)
+                Ends (UTC)
               </label>
               <input
                 id="comms-ics-ends"
@@ -1731,27 +1746,35 @@ export function CommsPage() {
                 No calendar invites yet.
               </p>
             ) : (
-              <ul data-testid="comms-ics-list">
+              <ul
+                className="comms-campaign__invite-list"
+                data-testid="comms-ics-list"
+              >
                 {invites.map((inv) => (
                   <li
                     key={inv.id}
+                    className="comms-campaign__invite"
                     data-testid={`comms-ics-invite-${inv.placementId}`}
                     data-uid={inv.uid}
                     data-sequence={String(inv.sequence)}
                     data-method={inv.method}
                   >
-                    <strong>{inv.summary ?? inv.placementId}</strong>
-                    <br />
-                    <span className="eval-queue__muted">
-                      UID: {inv.uid} · SEQUENCE: {inv.sequence} ·{" "}
-                      {inv.method}
-                    </span>
-                    <pre
-                      className="eval-queue__muted"
-                      data-testid={`comms-ics-body-${inv.placementId}`}
-                    >
-                      {inv.icsBody}
-                    </pre>
+                    <p className="comms-campaign__invite-line">
+                      <strong>{inv.summary ?? inv.placementId}</strong>{" "}
+                      <span className="eval-queue__muted">
+                        UID {inv.uid.slice(0, 8)}… · SEQUENCE {inv.sequence} ·{" "}
+                        {inv.method}
+                      </span>
+                    </p>
+                    <details className="comms-campaign__invite-details">
+                      <summary className="eval-queue__muted">Raw ICS</summary>
+                      <pre
+                        className="eval-queue__muted"
+                        data-testid={`comms-ics-body-${inv.placementId}`}
+                      >
+                        {inv.icsBody}
+                      </pre>
+                    </details>
                   </li>
                 ))}
               </ul>

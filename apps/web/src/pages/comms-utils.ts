@@ -141,6 +141,19 @@ export function sendDisabledReason(input: {
   return null;
 }
 
+/** Human-readable local timestamp for the delivery log (e.g. "Aug 10, 18:50"). */
+export function formatLogTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 /** Client-side idempotency key for a send attempt. */
 export function newIdempotencyKey(prefix = "ui"): string {
   const rand =

@@ -266,31 +266,20 @@
 }
 
 /* Section 8.4 — dogfood/dev role switcher (Lumen tokens only).
- * Top-right (not bottom toast): bottom placement covered public CFP submit
- * and Schedule Studio unschedule controls during the full suite. */
+ * Slim full-width top bar in normal document flow (mounted before the shells
+ * in App.tsx) so it can never cover page headers, the portal wordmark, or any
+ * primary control at 1440px or 390px. */
 .role-switcher {
-  position: fixed;
-  z-index: var(--lumen-z-toast);
-  top: var(--lumen-space-3);
-  right: var(--lumen-space-3);
-  bottom: auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--lumen-space-2);
-  max-width: min(360px, calc(100vw - var(--lumen-space-6) * 2));
-  padding: var(--lumen-space-2) var(--lumen-space-3);
+  width: 100%;
+  padding: var(--lumen-space-2) var(--lumen-space-4);
   background: var(--lumen-surface);
-  border: 1px solid var(--lumen-border);
-  border-radius: var(--lumen-radius-md);
-  box-shadow: var(--lumen-shadow-sm);
+  border-bottom: 1px solid var(--lumen-border);
   font-family: var(--lumen-font);
-  /* Do not intercept clicks outside the compact panel chrome */
-  pointer-events: none;
-}
-
-.role-switcher > * {
-  pointer-events: auto;
 }
 
 .role-switcher__label {
@@ -369,6 +358,13 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--lumen-text-secondary);
+}
+
+/* Label + control stack (label wrapping a span + input/textarea) */
+.event-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
 }
 
 .event-settings__input {
@@ -1072,6 +1068,42 @@
   border-top: none;
 }
 
+/* Evaluator picker: card-styled fieldset (no native legend/bullet chrome) */
+.submissions-page__evaluator-picker {
+  margin: 0;
+  min-width: 0;
+  padding: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface-muted);
+}
+
+.submissions-page__evaluator-picker > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 var(--lumen-space-2);
+}
+
+.submissions-page__evaluator-list {
+  clear: both;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.submissions-page__evaluator-option {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  font-size: 14px;
+  color: var(--lumen-text);
+  cursor: pointer;
+}
+
 /* Admin evaluations coverage (11.4) */
 .eval-admin-page {
   max-width: 1100px;
@@ -1161,13 +1193,10 @@
   line-height: 1.2;
 }
 
+/* Plain subtitle text — not a boxed panel (reads as a stray input otherwise) */
 .public-cfp__brand-panel {
-  margin-top: var(--lumen-space-4);
+  margin-top: var(--lumen-space-1);
   margin-bottom: var(--lumen-space-4);
-  padding: var(--lumen-space-4);
-  border-radius: var(--lumen-radius-md);
-  border: 1px solid var(--lumen-border);
-  background: var(--lumen-bg);
 }
 
 .public-cfp__progress {
@@ -1414,6 +1443,16 @@
   cursor: pointer;
 }
 
+/* Checkbox fields: control + label on one line, like other form checkboxes */
+.public-cfp__checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  font-size: 14px;
+  color: var(--lumen-text);
+  cursor: pointer;
+}
+
 .public-cfp__actions {
   display: flex;
   flex-wrap: wrap;
@@ -1633,6 +1672,10 @@
   gap: var(--lumen-space-2);
   font-size: 14px;
   color: var(--lumen-text);
+}
+
+.login-form__radio input[type="radio"] {
+  accent-color: var(--lumen-brand);
 }
 
 .login-form__submit {
@@ -2529,6 +2572,11 @@
   margin: 0 0 var(--lumen-space-2);
   font-size: 13px;
   color: var(--lumen-text-secondary);
+}
+
+/* Capitalize raw status enums for display only (text/data-* stay lowercase) */
+.portal-status-chip {
+  text-transform: capitalize;
 }
 
 .portal-nav {
@@ -4940,6 +4988,50 @@ a.event-settings__btn {
   margin-top: var(--lumen-space-4);
   padding-top: var(--lumen-space-3);
   border-top: 1px solid var(--lumen-border);
+}
+
+/* Saved-template picker: spaced, wrapping buttons (no run-on text) */
+.comms-campaign__template-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  margin-bottom: var(--lumen-space-3);
+}
+
+/* Delivery log: muted job reference under the template name */
+.comms-campaign__log-ref {
+  display: block;
+  font-size: 12px;
+}
+
+/* Generated calendar invites: one line each, raw ICS behind a disclosure */
+.comms-campaign__invite-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+}
+
+.comms-campaign__invite-line {
+  margin: 0 0 var(--lumen-space-1);
+  font-size: 14px;
+}
+
+.comms-campaign__invite-details summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.comms-campaign__invite-details pre {
+  margin: var(--lumen-space-2) 0 0;
+  padding: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-surface-muted);
+  font-size: 12px;
+  overflow-x: auto;
 }
 
 @media (max-width: 640px) {

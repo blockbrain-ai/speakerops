@@ -235,8 +235,8 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
                   status: currentTaskStatus ?? "pending",
                   dueAt: currentTaskDueAt ?? null,
                 }) === "overdue"
-                  ? "lumen-status lumen-status--danger"
-                  : "lumen-status lumen-status--warn"
+                  ? "portal-status-chip lumen-status lumen-status--danger"
+                  : "portal-status-chip lumen-status lumen-status--warn"
               }
               data-testid="portal-wizard-task-status"
               data-status={taskDisplayStatus({

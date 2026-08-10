@@ -1639,7 +1639,7 @@ export function ScheduleStudioPage() {
                     if (toast?.kind === "conflict") setToast(null);
                   }}
                 >
-                  Dismiss API alerts
+                  Dismiss alerts
                 </Button>
               </div>
               <ul

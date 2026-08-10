@@ -81,15 +81,17 @@ import {
 type LoadState = "idle" | "loading" | "ready" | "error" | "unauthenticated";
 
 function statusBadgeClass(status: string): string {
+  // portal-status-chip capitalizes the raw enum for display only
+  // (text/data-* values stay lowercase for tests and tooling).
   switch (status) {
     case "completed":
-      return "lumen-status lumen-status--success";
+      return "portal-status-chip lumen-status lumen-status--success";
     case "overdue":
-      return "lumen-status lumen-status--danger";
+      return "portal-status-chip lumen-status lumen-status--danger";
     case "cancelled":
-      return "lumen-status lumen-status--info";
+      return "portal-status-chip lumen-status lumen-status--info";
     default:
-      return "lumen-status lumen-status--warn";
+      return "portal-status-chip lumen-status lumen-status--warn";
   }
 }
 

@@ -231,6 +231,8 @@ export function PublicCfpPage() {
   const [activeSection, setActiveSection] = useState<
     "proposal" | "details" | "speakers" | "submit"
   >("proposal");
+  /** Suppress scroll-spy while a stepper click smooth-scrolls to a section. */
+  const sectionScrollLockUntil = useRef(0);
 
   /** Production site key → real CF widget; Cloudflare always-pass test key → e2e control. */
   const useLiveTurnstileWidget =
@@ -305,6 +307,28 @@ export function PublicCfpPage() {
     setLoadState("loading");
     setLoadAttempt((n) => n + 1);
   }, []);
+
+  // Scroll-spy: keep the stepper label honest by reflecting the section
+  // actually in view (11.3). Clicks temporarily suppress this so smooth
+  // scrolling cannot overwrite an explicit selection mid-flight.
+  useEffect(() => {
+    if (loadState !== "ok") return;
+    const sectionIds = ["proposal", "details", "speakers", "submit"] as const;
+    const onScroll = () => {
+      if (Date.now() < sectionScrollLockUntil.current) return;
+      const line = window.innerHeight * 0.35;
+      let current: (typeof sectionIds)[number] = "proposal";
+      for (const id of sectionIds) {
+        const el = document.querySelector(`[data-cfp-section="${id}"]`);
+        if (el instanceof HTMLElement && el.getBoundingClientRect().top <= line) {
+          current = id;
+        }
+      }
+      setActiveSection(current);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [loadState]);
 
   const fields: FormFieldDto[] = useMemo(
     () => formVersion?.fields ?? formVersion?.snapshotJson?.fields ?? [],
@@ -1085,6 +1109,7 @@ export function PublicCfpPage() {
                         data-testid={s.testId}
                         aria-current={current ? "step" : undefined}
                         onClick={() => {
+                          sectionScrollLockUntil.current = Date.now() + 1000;
                           setActiveSection(s.id);
                           const el = document.querySelector(
                             `[data-cfp-section="${s.id}"]`,
@@ -1112,7 +1137,8 @@ export function PublicCfpPage() {
                 className="event-settings__meta"
                 data-testid="public-cfp-progress-meta"
               >
-                Step {progressIndex + 1} of {progressSections.length}
+                Step {progressIndex + 1} of {progressSections.length} ·{" "}
+                {progressSections[progressIndex]?.label}
               </p>
             </nav>
           ) : null}
@@ -1225,14 +1251,16 @@ export function PublicCfpPage() {
                   data-testid={`cfp-field-wrap-${f.fieldKey}`}
                   data-field-key={f.fieldKey}
                 >
-                  <label
-                    className="public-cfp__label"
-                    htmlFor={`cfp-field-${f.fieldKey}`}
-                    data-testid={`cfp-label-${f.fieldKey}`}
-                  >
-                    {f.label}
-                    {f.required ? " *" : ""}
-                  </label>
+                  {f.type !== "checkbox" ? (
+                    <label
+                      className="public-cfp__label"
+                      htmlFor={`cfp-field-${f.fieldKey}`}
+                      data-testid={`cfp-label-${f.fieldKey}`}
+                    >
+                      {f.label}
+                      {f.required ? " *" : ""}
+                    </label>
+                  ) : null}
                   {f.type === "textarea" ? (
                     <textarea
                       id={`cfp-field-${f.fieldKey}`}
@@ -1305,16 +1333,26 @@ export function PublicCfpPage() {
                       })}
                     </div>
                   ) : f.type === "checkbox" ? (
-                    <input
-                      id={`cfp-field-${f.fieldKey}`}
-                      type="checkbox"
-                      className="lumen-focusable"
-                      data-testid={`cfp-field-${f.fieldKey}`}
-                      checked={(answers[f.fieldKey] ?? "") === "true"}
-                      onChange={(e) =>
-                        setAnswer(f.fieldKey, e.target.checked ? "true" : "false")
-                      }
-                    />
+                    <label
+                      className="public-cfp__checkbox-label"
+                      htmlFor={`cfp-field-${f.fieldKey}`}
+                      data-testid={`cfp-label-${f.fieldKey}`}
+                    >
+                      <input
+                        id={`cfp-field-${f.fieldKey}`}
+                        type="checkbox"
+                        className="lumen-focusable"
+                        data-testid={`cfp-field-${f.fieldKey}`}
+                        checked={(answers[f.fieldKey] ?? "") === "true"}
+                        onChange={(e) =>
+                          setAnswer(f.fieldKey, e.target.checked ? "true" : "false")
+                        }
+                      />
+                      <span>
+                        {f.label}
+                        {f.required ? " *" : ""}
+                      </span>
+                    </label>
                   ) : f.type === "url" ? (
                     <input
                       id={`cfp-field-${f.fieldKey}`}
@@ -1528,7 +1566,7 @@ export function PublicCfpPage() {
                       checked={turnstileChecked}
                       onChange={onTurnstileToggle}
                     />
-                    <span>I am human (Turnstile test)</span>
+                    <span>I&apos;m human</span>
                   </label>
                 )}
                 {fieldErrors.turnstile ? (

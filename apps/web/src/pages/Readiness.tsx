@@ -175,6 +175,13 @@ export function ReadinessPage() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
   const loadGenRef = useRef(0);
+  /**
+   * True while a load batch is in flight. The live poll must never preempt
+   * it: on high-latency links a batch can outlast the poll interval, and a
+   * new generation would discard every completion — the Overview then shows
+   * "Loading…" forever despite all-200 responses (live-only starvation).
+   */
+  const loadInFlightRef = useRef(false);
   const activeEventIdRef = useRef(activeEventId);
   activeEventIdRef.current = activeEventId;
 
@@ -273,6 +280,7 @@ export function ReadinessPage() {
   const load = useCallback(
     async (eventId: string, filterOverdue: boolean, opts?: { quiet?: boolean }) => {
       const gen = ++loadGenRef.current;
+      loadInFlightRef.current = true;
       if (!opts?.quiet) setLoading(true);
       setLoadError(null);
       const qs = filterOverdue ? "?overdueOnly=true" : "";
@@ -352,6 +360,7 @@ export function ReadinessPage() {
         }
       } finally {
         clearTimeout(abortTimer);
+        loadInFlightRef.current = false;
         if (gen === loadGenRef.current && !opts?.quiet) {
           setLoading(false);
         }
@@ -371,10 +380,13 @@ export function ReadinessPage() {
     void load(activeEventId, overdueOnly);
   }, [activeEventId, overdueOnly, load]);
 
-  // Live poll ≤5s (H04) — quiet refresh so UI does not flash loading
+  // Live poll ≤5s (H04) — quiet refresh so UI does not flash loading.
+  // Skip ticks while a batch is in flight: preempting would discard every
+  // completion on links slower than the interval (permanent "Loading…").
   useEffect(() => {
     if (!activeEventId) return;
     const id = window.setInterval(() => {
+      if (loadInFlightRef.current) return;
       void load(activeEventId, overdueOnly, { quiet: true });
     }, READINESS_POLL_MS);
     return () => window.clearInterval(id);
