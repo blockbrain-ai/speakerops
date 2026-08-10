@@ -536,4 +536,190 @@ describe("2.1 session auth magic link", () => {
     const body = ExchangeMagicLinkResponseSchema.parse(await res.json());
     expect(body.email).toBe(email);
   });
+
+  it("omit purpose: open existing admin membership is not clobbered to speaker", async () => {
+    const { app, store, outbox } = createAppWithAuth();
+    const email = "admin-omit@example.com";
+    // Seed admin via explicit purpose
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, purpose: "admin" }),
+      },
+      env,
+    );
+    const user = await store.findUserByEmail(email);
+    expect(user).toBeTruthy();
+    const before = await store.findMembership("evt_dogfood", user!.id);
+    expect(before?.role).toBe("admin");
+
+    // Customer path: email only
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      },
+      env,
+    );
+    const after = await store.findMembership("evt_dogfood", user!.id);
+    expect(after?.role).toBe("admin");
+    const link = outbox.lastForEmail(email)!;
+    expect(link.purpose).toBe("admin");
+    expect(link.eventId).toBeNull();
+  });
+
+  it("omit purpose: open new user creates account with zero memberships", async () => {
+    const { app, store, outbox } = createAppWithAuth();
+    const email = "fresh-omit@example.com";
+    const res = await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ sent: true });
+    const user = await store.findUserByEmail(email);
+    expect(user).toBeTruthy();
+    const memberships = await store.listMembershipsForUser(user!.id);
+    expect(memberships).toEqual([]);
+    const link = outbox.lastForEmail(email)!;
+    expect(link.purpose).toBe("speaker"); // metadata only
+    expect(link.eventId).toBeNull();
+  });
+
+  it("supplied purpose admin still grants under open", async () => {
+    const { app, store } = createAppWithAuth();
+    const email = "grant-admin@example.com";
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, purpose: "admin" }),
+      },
+      env,
+    );
+    const user = await store.findUserByEmail(email);
+    const m = await store.findMembership("evt_dogfood", user!.id);
+    expect(m?.role).toBe("admin");
+  });
+
+  it("controlled + allowlist: omit purpose does not clobber existing admin", async () => {
+    const { app, store, outbox } = createAppWithAuth({
+      bootstrapPolicy: "controlled",
+    });
+    const email = "allow-admin@example.com";
+    const user = await store.createUser({ email });
+    await store.upsertMembership({
+      eventId: "evt_dogfood",
+      userId: user.id,
+      role: "admin",
+    });
+    const allowEnv = {
+      ...env,
+      MAGIC_LINK_ALLOWLIST: email,
+    };
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      },
+      allowEnv,
+    );
+    expect(outbox.lastForEmail(email)).toBeTruthy();
+    const m = await store.findMembership("evt_dogfood", user.id);
+    expect(m?.role).toBe("admin");
+  });
+
+  it("controlled + allowlist: new user omit purpose creates user without membership", async () => {
+    const { app, store, outbox } = createAppWithAuth({
+      bootstrapPolicy: "controlled",
+    });
+    const email = "allow-new-omit@example.com";
+    const allowEnv = {
+      ...env,
+      MAGIC_LINK_ALLOWLIST: email,
+    };
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      },
+      allowEnv,
+    );
+    expect(outbox.lastForEmail(email)).toBeTruthy();
+    const user = await store.findUserByEmail(email);
+    expect(user).toBeTruthy();
+    expect(await store.listMembershipsForUser(user!.id)).toEqual([]);
+  });
+
+  it("controlled: non-default event membership re-entry without allowlist when purpose omitted", async () => {
+    const { app, store, outbox } = createAppWithAuth({
+      bootstrapPolicy: "controlled",
+    });
+    const email = "other-event@example.com";
+    const user = await store.createUser({ email });
+    await store.upsertMembership({
+      eventId: "evt_other_conf",
+      userId: user.id,
+      role: "evaluator",
+    });
+    // Allowlist present but email not on it — program reentry via any membership
+    const allowEnv = {
+      ...env,
+      MAGIC_LINK_ALLOWLIST: "someone-else@example.com",
+    };
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      },
+      allowEnv,
+    );
+    const link = outbox.lastForEmail(email);
+    expect(link).toBeTruthy();
+    expect(link!.purpose).toBe("evaluator");
+    expect(link!.eventId).toBeNull();
+    const m = await store.findMembership("evt_other_conf", user.id);
+    expect(m?.role).toBe("evaluator");
+  });
+
+  it("omit purpose + eventId sets link eventId without injecting dogfood default", async () => {
+    const { app, store, outbox } = createAppWithAuth();
+    const email = "evt-scoped@example.com";
+    const user = await store.createUser({ email });
+    await store.upsertMembership({
+      eventId: "evt_scoped",
+      userId: user.id,
+      role: "speaker",
+    });
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, eventId: "evt_scoped" }),
+      },
+      env,
+    );
+    const link = outbox.lastForEmail(email)!;
+    expect(link.eventId).toBe("evt_scoped");
+    expect(link.purpose).toBe("speaker");
+    // No clobber of other events
+    expect(await store.findMembership("evt_dogfood", user.id)).toBeNull();
+  });
 });

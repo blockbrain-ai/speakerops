@@ -45,6 +45,7 @@ import {
   type ParticipationProfileDto,
   type ProgramSessionDto,
 } from "@speakerops/shared";
+import { PortalFileField } from "../../components/portal/PortalFileField.js";
 import {
   sanitizeBioText,
   bioIsPlainText,
@@ -99,7 +100,9 @@ export function PortalHomePage() {
   const [headshotPreview, setHeadshotPreview] = useState<string | null>(null);
   const [headshotStatus, setHeadshotStatus] = useState<string | null>(null);
   const [slidesStatus, setSlidesStatus] = useState<string | null>(null);
-  const [fileBusy, setFileBusy] = useState(false);
+  const [fileBusyPurpose, setFileBusyPurpose] = useState<
+    null | "headshot" | "slides"
+  >(null);
 
   // Task complete busy set
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
@@ -370,7 +373,7 @@ export function PortalHomePage() {
     purpose: "headshot" | "slides",
   ): Promise<void> {
     if (!eventId || !participation) return;
-    setFileBusy(true);
+    setFileBusyPurpose(purpose);
     if (purpose === "headshot") setHeadshotStatus(null);
     else setSlidesStatus(null);
 
@@ -379,12 +382,12 @@ export function PortalHomePage() {
     const mime = resolveUploadMime(file, purpose);
     if (purpose === "headshot" && !isAllowedHeadshotMime(mime)) {
       setStatus("Headshot must be JPEG or PNG");
-      setFileBusy(false);
+      setFileBusyPurpose(null);
       return;
     }
     if (purpose === "slides" && !isAllowedSlidesMime(mime)) {
       setStatus("Slides must be PDF");
-      setFileBusy(false);
+      setFileBusyPurpose(null);
       return;
     }
 
@@ -410,13 +413,13 @@ export function PortalHomePage() {
             ? env.data.error
             : `Presign rejected (${presignRes.status})`,
         );
-        setFileBusy(false);
+        setFileBusyPurpose(null);
         return;
       }
       const presign = FilePresignResponseSchema.safeParse(presignRaw);
       if (!presign.success) {
         setStatus("Unexpected presign response");
-        setFileBusy(false);
+        setFileBusyPurpose(null);
         return;
       }
 
@@ -434,7 +437,7 @@ export function PortalHomePage() {
             ? env.data.error
             : `Upload failed (${uploadRes.status})`,
         );
-        setFileBusy(false);
+        setFileBusyPurpose(null);
         return;
       }
       FileUploadResponseSchema.safeParse(await uploadRes.json().catch(() => null));
@@ -461,7 +464,7 @@ export function PortalHomePage() {
             ? env.data.error
             : `Complete failed (${completeRes.status})`,
         );
-        setFileBusy(false);
+        setFileBusyPurpose(null);
         return;
       }
       FileCompleteResponseSchema.safeParse(
@@ -490,14 +493,14 @@ export function PortalHomePage() {
               ? env.data.error
               : `Profile update failed (${patchRes.status})`,
           );
-          setFileBusy(false);
+          setFileBusyPurpose(null);
           return;
         }
         const parsed =
           ParticipationUpdateProfileResponseSchema.safeParse(patchRaw);
         if (!parsed.success) {
           setStatus("Unexpected profile update response");
-          setFileBusy(false);
+          setFileBusyPurpose(null);
           return;
         }
         const p = parsed.data.participation;
@@ -529,7 +532,7 @@ export function PortalHomePage() {
     } catch {
       setStatus("Network error");
     } finally {
-      setFileBusy(false);
+      setFileBusyPurpose(null);
     }
   }
 
@@ -930,67 +933,39 @@ export function PortalHomePage() {
           >
             <h2 className="portal-heading">Files</h2>
 
-            <div className="portal-file-block" data-testid="portal-headshot">
-              <h3 className="portal-subheading">Headshot</h3>
-              <p className="portal-muted">
-                JPEG or PNG · max 10 MiB · public portrait for the programme
-              </p>
-              <input
-                type="file"
-                accept="image/jpeg,image/png"
-                className="portal-file-input lumen-focusable"
-                data-testid="portal-headshot-input"
-                disabled={fileBusy}
-                onChange={(ev) => {
-                  const f = ev.target.files?.[0];
-                  if (f) void uploadFile(f, "headshot");
-                  ev.target.value = "";
-                }}
-              />
-              {headshotPreview ? (
-                <img
-                  className="portal-headshot-preview"
-                  data-testid="portal-headshot-preview"
-                  src={headshotPreview}
-                  alt="Headshot preview"
-                />
-              ) : null}
-              {headshotStatus ? (
-                <p
-                  className="portal-status"
-                  data-testid="portal-headshot-status"
-                  role="status"
-                >
-                  {headshotStatus}
-                </p>
-              ) : null}
-            </div>
+            <PortalFileField
+              fieldTestId="portal-headshot"
+              inputTestId="portal-headshot-input"
+              chooseTestId="portal-headshot-choose"
+              statusTestId="portal-headshot-status"
+              previewTestId="portal-headshot-preview"
+              title="Headshot"
+              hint="JPEG or PNG · max 10 MiB · public portrait for the programme"
+              privacyNote="Shown on the public programme listing. Replace anytime."
+              accept="image/jpeg,image/png"
+              disabled={!participation}
+              busy={fileBusyPurpose === "headshot"}
+              status={headshotStatus}
+              previewUrl={headshotPreview}
+              hasFile={Boolean(headshotPreview || participation?.headshotFileId)}
+              onFile={(f) => void uploadFile(f, "headshot")}
+            />
 
-            <div className="portal-file-block" data-testid="portal-slides">
-              <h3 className="portal-subheading">Slides</h3>
-              <p className="portal-muted">PDF only · max 10 MiB · private to organisers</p>
-              <input
-                type="file"
-                accept="application/pdf"
-                className="portal-file-input lumen-focusable"
-                data-testid="portal-slides-input"
-                disabled={fileBusy}
-                onChange={(ev) => {
-                  const f = ev.target.files?.[0];
-                  if (f) void uploadFile(f, "slides");
-                  ev.target.value = "";
-                }}
-              />
-              {slidesStatus ? (
-                <p
-                  className="portal-status"
-                  data-testid="portal-slides-status"
-                  role="status"
-                >
-                  {slidesStatus}
-                </p>
-              ) : null}
-            </div>
+            <PortalFileField
+              fieldTestId="portal-slides"
+              inputTestId="portal-slides-input"
+              chooseTestId="portal-slides-choose"
+              statusTestId="portal-slides-status"
+              title="Slides"
+              hint="PDF only · max 10 MiB · private to organisers"
+              privacyNote="Private to organisers — not published on the public CFP."
+              accept="application/pdf"
+              disabled={!participation}
+              busy={fileBusyPurpose === "slides"}
+              status={slidesStatus}
+              hasFile={Boolean(slidesStatus?.includes("uploaded"))}
+              onFile={(f) => void uploadFile(f, "slides")}
+            />
           </section>
 
           {/* G05 / G06 — tasks list */}

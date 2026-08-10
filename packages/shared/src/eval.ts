@@ -164,6 +164,13 @@ export const EvalQueueItemSchema = z.object({
     id: z.string().min(1),
     name: z.string(),
   }),
+  /** Active review round context for evaluator strip (deadline / guidance). */
+  round: EvalRoundSchema.pick({
+    id: true,
+    name: true,
+    status: true,
+    closesAt: true,
+  }),
 });
 export type EvalQueueItem = z.infer<typeof EvalQueueItemSchema>;
 

@@ -36,6 +36,10 @@ import {
   PageHeader,
   Skeleton,
 } from "../components/ui/index.js";
+import {
+  buildEvalRoundStrip,
+  formatRoundDeadline,
+} from "./eval-queue-utils.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
 
@@ -293,6 +297,12 @@ export function EvaluatorQueuePage() {
     return { total, done, pct };
   }, [items]);
 
+  /** Active-round strip (deadline + round-scoped progress). */
+  const roundStrip = useMemo(
+    () => buildEvalRoundStrip(items, activeId),
+    [items, activeId],
+  );
+
   function selectItem(item: EvalQueueItem) {
     setActiveId(item.assignment.id);
     seedScores(item);
@@ -412,6 +422,45 @@ export function EvaluatorQueuePage() {
       <h2 className="eval-queue__sr-only" data-testid="eval-queue-title">
         Evaluation queue
       </h2>
+
+      {!loading && !loadError && roundStrip ? (
+        <div
+          className="eval-round-strip"
+          data-testid="eval-round-strip"
+          data-round-id={roundStrip.roundId}
+          data-round-status={roundStrip.roundStatus}
+        >
+          <div className="eval-round-strip__row">
+            <div>
+              <p className="eval-round-strip__event" data-testid="eval-round-strip-event">
+                {roundStrip.eventName}
+              </p>
+              <p className="eval-round-strip__round" data-testid="eval-round-strip-round">
+                {roundStrip.roundName}
+              </p>
+            </div>
+            <Badge tone="info" data-testid="eval-round-strip-status">
+              {roundStrip.roundStatus}
+            </Badge>
+          </div>
+          <p className="eval-round-strip__deadline" data-testid="eval-round-strip-deadline">
+            Deadline: {formatRoundDeadline(roundStrip.closesAt)}
+          </p>
+          <p
+            className="eval-round-strip__progress"
+            data-testid="eval-round-strip-progress"
+            data-done={roundStrip.done}
+            data-total={roundStrip.total}
+          >
+            This round: {roundStrip.done} of {roundStrip.total} complete (
+            {roundStrip.pct}%)
+          </p>
+          <p className="eval-round-strip__guidance" data-testid="eval-round-strip-guidance">
+            Score each criterion in the panel; save with Ctrl/Cmd+Enter. Rubric
+            criteria for this assignment appear beside the proposal.
+          </p>
+        </div>
+      ) : null}
 
       {loading ? (
         <div data-testid="eval-queue-loading" aria-busy="true">

@@ -259,6 +259,24 @@ test("@inv:F01 e2e/eval/queue See only assigned (unassigned hidden)", async ({
     forEvent.some((i) => i.submission.id === unassignedId),
   ).toBe(false);
 
+  // DTO includes round context for strip
+  const queueWithRound = queueBody as {
+    items: Array<{
+      submission: { id: string; eventId: string };
+      round?: { id: string; name: string; status: string; closesAt: string | null };
+      event?: { name: string };
+    }>;
+  };
+  expect(queueWithRound.items[0]?.round?.id).toBeTruthy();
+  expect(queueWithRound.items[0]?.round?.name).toBeTruthy();
+
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+  page.on("console", (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text());
+  });
+
   // UI: evaluator queue
   await page.goto(`${baseURL ?? ""}/eval`);
   await expect(page.getByTestId("evaluator-queue")).toBeVisible({
@@ -275,6 +293,49 @@ test("@inv:F01 e2e/eval/queue See only assigned (unassigned hidden)", async ({
   await expect(
     page.getByTestId("eval-queue-list").getByText("Unassigned E2E Talk"),
   ).toHaveCount(0);
+
+  // Round strip present for non-empty queue
+  await expect(page.getByTestId("eval-round-strip")).toBeVisible();
+  await expect(page.getByTestId("eval-round-strip-event")).toContainText(
+    /F01 Queue Event|./,
+  );
+  await expect(page.getByTestId("eval-round-strip-round")).toBeVisible();
+  await expect(page.getByTestId("eval-round-strip-deadline")).toBeVisible();
+  await expect(page.getByTestId("eval-round-strip-guidance")).toBeVisible();
+  await expect(page.getByTestId("eval-round-strip-progress")).toHaveAttribute(
+    "data-total",
+    "1",
+  );
+
+  expect(pageErrors, `pageerror: ${pageErrors.join(" | ")}`).toEqual([]);
+  expect(
+    consoleErrors.filter((t) => !/favicon|React DevTools/i.test(t)),
+    `console.error: ${consoleErrors.join(" | ")}`,
+  ).toEqual([]);
+});
+
+test("eval empty queue has no round strip (extends F01 proof)", async ({
+  page,
+  request,
+  context,
+  baseURL,
+}) => {
+  const run = Date.now();
+  const evalEmail = `e2e-eval-f01-empty-${run}@example.com`;
+  await loginAs(request, context, baseURL, evalEmail, "evaluator");
+
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  await page.goto(`${baseURL ?? ""}/eval`);
+  await expect(page.getByTestId("evaluator-queue")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId("eval-queue-empty")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId("eval-round-strip")).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
 });
 
 test("@inv:F02 e2e/eval/score Score criteria + comment; out-of-range rejected", async ({

@@ -173,7 +173,8 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
     );
     const result = await requestMagicLink(deps, {
       email: parsed.data.email,
-      purpose: parsed.data.purpose ?? "speaker",
+      // Preserve omitted purpose so membership-aware login does not default-grant speaker.
+      purpose: parsed.data.purpose,
       eventId: parsed.data.eventId,
       correlationId,
       bootstrapAdminEmail,

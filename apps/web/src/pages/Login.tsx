@@ -184,8 +184,8 @@ export function LoginPage() {
         credentials: "include",
         body: JSON.stringify({
           email: email.trim(),
-          // Invite/query purpose when present; otherwise server defaults to speaker
-          // and membership chooser after exchange.
+          // Invite/demo purpose when present; otherwise omit purpose so the
+          // server does not grant/clobber memberships (membership-aware login).
           ...(showPurposeRadios || invitePurpose
             ? { purpose }
             : {}),

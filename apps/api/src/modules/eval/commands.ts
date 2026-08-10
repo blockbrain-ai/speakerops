@@ -599,6 +599,7 @@ export async function getEvalQueue(
     if (!event) continue;
     const criteria = await deps.eval.listCriteria(round.id);
     const assignmentDto = await toAssignmentDto(deps, a, criteria, true);
+    const roundDto = toRoundDto(round);
     items.push({
       assignment: assignmentDto,
       submission: {
@@ -612,6 +613,12 @@ export async function getEvalQueue(
       event: {
         id: event.id,
         name: event.name,
+      },
+      round: {
+        id: roundDto.id,
+        name: roundDto.name,
+        status: roundDto.status,
+        closesAt: roundDto.closesAt,
       },
     });
   }

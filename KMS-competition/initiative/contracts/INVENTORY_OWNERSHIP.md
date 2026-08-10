@@ -8,6 +8,7 @@
 | A01–A11 | 3.3 | 3.6 then 8.2 | Public CFP |
 | B01–B03 | 2.1 | 2.5 then 8.2 | Auth happy |
 | B04–B06 | 2.2 | 2.5 then 8.2 | Guards |
+| B08 | 2.1 | 2.5 then 8.2 | Multi-membership chooser |
 | C01,C02,C07,C11 | 2.3 | 2.5 then 8.2 | Events |
 | C03–C06,C08–C10 | 2.4 | 2.5 then 8.2 | Design Kit |
 | D01–D10 | 3.2 | 3.6 then 8.2 | Form builder UI |

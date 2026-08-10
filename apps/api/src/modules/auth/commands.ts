@@ -163,18 +163,38 @@ export async function isAllowedBootstrap(
   return adminCount === 0;
 }
 
+/** Prefer admin > evaluator > speaker; ties broken by eventId ascending. */
+export function preferMembershipRole(
+  memberships: Array<{ eventId: string; role: EventRole }>,
+): EventRole | null {
+  if (memberships.length === 0) return null;
+  const rank: Record<EventRole, number> = {
+    admin: 0,
+    evaluator: 1,
+    speaker: 2,
+  };
+  const sorted = [...memberships].sort((a, b) => {
+    const rd = rank[a.role] - rank[b.role];
+    if (rd !== 0) return rd;
+    return a.eventId.localeCompare(b.eventId);
+  });
+  return sorted[0]!.role;
+}
+
 /**
  * Auth.RequestMagicLink
  * - Always returns { sent: true } (no email enumeration)
  * - Controlled: unknown email is a silent no-op unless first-admin bootstrap
  * - Existing users get a magic link; purpose does not rewrite memberships
+ *   when purpose is **omitted** (membership-aware login). Explicit purpose still
+ *   grants under open / allowlist (dogfood + helpers).
  */
 export async function requestMagicLink(
   deps: AuthCommandDeps,
   input: RequestMagicLinkInput,
 ): Promise<RequestMagicLinkResponse> {
   const email = normalizeEmail(input.email);
-  const purpose: MagicLinkPurpose = input.purpose ?? "speaker";
+  const purposeSupplied = input.purpose !== undefined;
   const response: RequestMagicLinkResponse = { sent: true };
   const policy = deps.bootstrapPolicy ?? "controlled";
   const allowlist = parseMagicLinkAllowlist(input.magicLinkAllowlist ?? null);
@@ -184,17 +204,21 @@ export async function requestMagicLink(
   let grantedMembershipId: string | null = null;
   let grantedRole: EventRole | null = null;
   let isBootstrapCreate = false;
-  const membershipEventIdEarly = input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
 
-  /** Provisioned program user: has membership or will be checked for participation by caller event. */
+  /** Provisioned program user: any membership when purpose omitted; else event-scoped. */
   let programReentry = false;
   if (user && policy === "controlled" && allowlist.length > 0 && !onAllowlist) {
-    const membership = await deps.store.findMembership(
-      membershipEventIdEarly,
-      user.id,
-    );
-    if (membership) {
-      programReentry = true;
+    if (!purposeSupplied) {
+      const all = await deps.store.listMembershipsForUser(user.id);
+      programReentry = all.length > 0;
+    } else {
+      const membershipEventIdEarly =
+        input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
+      const membership = await deps.store.findMembership(
+        membershipEventIdEarly,
+        user.id,
+      );
+      programReentry = Boolean(membership);
     }
   }
 
@@ -207,11 +231,15 @@ export async function requestMagicLink(
       user = await deps.store.createUser({ email });
       isBootstrapCreate = true;
     } else {
+      // Bootstrap check needs a purpose; omitted purpose cannot claim first-admin.
+      const bootstrapPurpose: MagicLinkPurpose = purposeSupplied
+        ? input.purpose!
+        : "speaker";
       const allowed = await isAllowedBootstrap(
         deps.store,
         {
           email,
-          purpose,
+          purpose: bootstrapPurpose,
           bootstrapAdminEmail: input.bootstrapAdminEmail,
         },
         policy,
@@ -234,8 +262,28 @@ export async function requestMagicLink(
     return response;
   }
 
-  // Allowlisted existing users: ensure membership for requested purpose.
-  if (user && onAllowlist && policy === "controlled") {
+  // Resolve purpose for the magic-link row (metadata). When omitted, derive from
+  // memberships; never invent a grant from the default.
+  let purpose: MagicLinkPurpose;
+  if (purposeSupplied) {
+    purpose = input.purpose!;
+  } else {
+    const memberships = await deps.store.listMembershipsForUser(user.id);
+    if (input.eventId) {
+      const onEvent = memberships.find((m) => m.eventId === input.eventId);
+      purpose = onEvent?.role ?? preferMembershipRole(memberships) ?? "speaker";
+    } else {
+      purpose = preferMembershipRole(memberships) ?? "speaker";
+    }
+  }
+
+  // Allowlisted existing users: ensure membership only when purpose was explicit.
+  if (
+    purposeSupplied &&
+    user &&
+    onAllowlist &&
+    policy === "controlled"
+  ) {
     const role = purposeToRole(purpose);
     const membership = await deps.store.upsertMembership({
       eventId: input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID,
@@ -251,12 +299,18 @@ export async function requestMagicLink(
   const now = new Date();
   const magicId = uuidv7();
   const createdAt = now.toISOString();
-  const membershipEventId = input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
+  // Grants (open/allowlist) may use dogfood default event; link row + mail never
+  // inject DEFAULT_BOOTSTRAP_EVENT_ID when purpose was omitted.
+  const grantEventId = input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
+  const linkEventId = input.eventId ?? null;
+  const auditEventId = purposeSupplied
+    ? grantEventId
+    : (linkEventId ?? DEFAULT_BOOTSTRAP_EVENT_ID);
 
   await deps.store.insertMagicLink({
     id: magicId,
     userId: user.id,
-    eventId: input.eventId ?? null,
+    eventId: linkEventId,
     purpose,
     tokenHash,
     expiresAt: expiresAtMinutesFromNow(MAGIC_LINK_TTL_MINUTES, now),
@@ -264,31 +318,37 @@ export async function requestMagicLink(
     createdAt,
   });
 
-  // Membership grants:
-  // - open: purpose → role upsert (e2e dogfood)
-  // - controlled + allowlist create: grant purpose role for tester walk
-  // - controlled: only on first-admin bootstrap create; never elevate existing users
-  if (policy === "open") {
+  // Membership grants only when purpose was explicitly supplied (or first-admin bootstrap).
+  // - open + purpose: purpose → role upsert (e2e dogfood)
+  // - controlled + allowlist create + purpose: grant purpose role
+  // - controlled first-admin bootstrap create with purpose=admin
+  // Omitted purpose: never upsert (membership-aware re-entry).
+  if (purposeSupplied && policy === "open") {
     const role = purposeToRole(purpose);
     const membership = await deps.store.upsertMembership({
-      eventId: membershipEventId,
+      eventId: grantEventId,
       userId: user.id,
       role,
     });
     grantedMembershipId = membership.id;
     grantedRole = role;
-  } else if (isBootstrapCreate && onAllowlist) {
+  } else if (purposeSupplied && isBootstrapCreate && onAllowlist) {
     const role = purposeToRole(purpose);
     const membership = await deps.store.upsertMembership({
-      eventId: membershipEventId,
+      eventId: grantEventId,
       userId: user.id,
       role,
     });
     grantedMembershipId = membership.id;
     grantedRole = role;
-  } else if (isBootstrapCreate && purpose === "admin") {
+  } else if (
+    purposeSupplied &&
+    isBootstrapCreate &&
+    purpose === "admin" &&
+    !onAllowlist
+  ) {
     const membership = await deps.store.upsertMembership({
-      eventId: membershipEventId,
+      eventId: grantEventId,
       userId: user.id,
       role: "admin",
     });
@@ -300,7 +360,7 @@ export async function requestMagicLink(
     email,
     purpose,
     token: plaintext,
-    eventId: input.eventId ?? null,
+    eventId: linkEventId,
     userId: user.id,
     magicLinkId: magicId,
     createdAt,
@@ -324,7 +384,10 @@ export async function requestMagicLink(
           email,
           enc,
           purpose,
-          eventId: input.eventId ?? membershipEventId,
+          // Never inject dogfood default when purpose omitted.
+          eventId: purposeSupplied
+            ? (input.eventId ?? grantEventId)
+            : linkEventId,
         }),
         createdAt,
         processedAt: null,
@@ -352,7 +415,7 @@ export async function requestMagicLink(
 
   await deps.store.insertAudit({
     id: uuidv7(),
-    eventId: membershipEventId,
+    eventId: auditEventId,
     actorType: "system",
     actorId: "auth",
     action: "Auth.RequestMagicLink",
@@ -362,6 +425,7 @@ export async function requestMagicLink(
     afterJson: JSON.stringify({
       email,
       purpose,
+      purposeSupplied,
       userId: user.id,
       membershipId: grantedMembershipId,
       role: grantedRole,

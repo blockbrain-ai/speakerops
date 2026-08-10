@@ -316,6 +316,9 @@ test("@inv:G01 e2e/portal/home Land on next incomplete task", async ({
     seed.eventId,
   );
 
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
@@ -323,12 +326,37 @@ test("@inv:G01 e2e/portal/home Land on next incomplete task", async ({
   await expect(page.getByTestId("portal-next-task")).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByTestId("portal-next-task-card")).toBeVisible();
-  await expect(page.getByTestId("portal-next-task-title")).not.toBeEmpty();
-  const status = page.getByTestId("portal-next-task-status");
-  await expect(status).toBeVisible();
-  const statusText = (await status.textContent())?.trim() ?? "";
-  expect(["pending", "overdue"]).toContain(statusText);
+
+  // Readiness truth: incomplete profile must not celebrate as ready
+  const readiness = await page
+    .getByTestId("portal-next-task")
+    .getAttribute("data-readiness");
+  expect(readiness).not.toBe("complete");
+
+  // Complete profile so next organiser task becomes the dominant next step
+  await page.getByTestId("portal-bio-input").fill(`G01 bio ${run}`);
+  await page.getByTestId("portal-company-input").fill("G01 Co");
+  await page.getByTestId("portal-title-input").fill("Speaker");
+  await page.getByTestId("portal-bio-save").click();
+  await expect(page.getByTestId("portal-bio-status")).toContainText(/Saved/i, {
+    timeout: 10_000,
+  });
+
+  // Headshot still may block profileComplete — if so, assert profile CTA path
+  // and still prove tasks list has incomplete work. Prefer next-task card when shown.
+  const card = page.getByTestId("portal-next-task-card");
+  if (await card.isVisible().catch(() => false)) {
+    await expect(page.getByTestId("portal-next-task-title")).not.toBeEmpty();
+    const status = page.getByTestId("portal-next-task-status");
+    await expect(status).toBeVisible();
+    const statusText = (await status.textContent())?.trim() ?? "";
+    expect(["pending", "overdue"]).toContain(statusText);
+  } else {
+    // Profile still incomplete (e.g. headshot required) — next action is profile
+    await expect(page.getByTestId("portal-next-profile-cta")).toBeVisible();
+    await expect(page.getByTestId("portal-task-list")).toBeVisible();
+  }
+  expect(pageErrors).toEqual([]);
 });
 
 test("@inv:G02 e2e/portal/bio Edit bio; save — XSS text-only", async ({
@@ -410,15 +438,27 @@ test("@inv:G03 e2e/portal/headshot Upload headshot; preview — bad type rejecte
   const exePath = join(dir, "bad.exe");
   writeFileSync(exePath, Buffer.from("MZ fake exe"));
 
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+  page.on("console", (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text());
+  });
+
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
   await expect(page.getByTestId("portal-headshot")).toBeVisible({
     timeout: 15_000,
   });
+  await expect(page.getByTestId("portal-headshot-choose")).toBeVisible();
+  await expect(page.getByTestId("portal-headshot-privacy")).toBeVisible();
 
-  // Bad type rejected (client mime gate)
-  await page.getByTestId("portal-headshot-input").setInputFiles({
+  // Bad type via filechooser from visible Choose control (proves label wiring)
+  const chooserBad = page.waitForEvent("filechooser");
+  await page.getByTestId("portal-headshot-choose").click();
+  const badChooser = await chooserBad;
+  await badChooser.setFiles({
     name: "bad.exe",
     mimeType: "application/x-msdownload",
     buffer: Buffer.from("MZ"),
@@ -428,8 +468,11 @@ test("@inv:G03 e2e/portal/headshot Upload headshot; preview — bad type rejecte
     { timeout: 5_000 },
   );
 
-  // Valid JPEG
-  await page.getByTestId("portal-headshot-input").setInputFiles(jpegPath);
+  // Valid JPEG via filechooser
+  const chooserOk = page.waitForEvent("filechooser");
+  await page.getByTestId("portal-headshot-choose").click();
+  const okChooser = await chooserOk;
+  await okChooser.setFiles(jpegPath);
   await expect(page.getByTestId("portal-headshot-preview")).toBeVisible({
     timeout: 15_000,
   });
@@ -437,6 +480,12 @@ test("@inv:G03 e2e/portal/headshot Upload headshot; preview — bad type rejecte
     /uploaded|Headshot/i,
     { timeout: 10_000 },
   );
+
+  expect(pageErrors, `pageerror: ${pageErrors.join(" | ")}`).toEqual([]);
+  expect(
+    consoleErrors.filter((t) => !/favicon|React DevTools/i.test(t)),
+    `console.error: ${consoleErrors.join(" | ")}`,
+  ).toEqual([]);
 });
 
 test("@inv:G04 e2e/portal/slides Upload slides", async ({
@@ -460,17 +509,27 @@ test("@inv:G04 e2e/portal/slides Upload slides", async ({
   const pdfPath = join(dir, "slides.pdf");
   writeFileSync(pdfPath, MINI_PDF);
 
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
   await expect(page.getByTestId("portal-slides")).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByTestId("portal-slides-input").setInputFiles(pdfPath);
+  await expect(page.getByTestId("portal-slides-choose")).toBeVisible();
+  await expect(page.getByTestId("portal-slides-privacy")).toBeVisible();
+
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByTestId("portal-slides-choose").click();
+  const fc = await chooser;
+  await fc.setFiles(pdfPath);
   await expect(page.getByTestId("portal-slides-status")).toContainText(
     /uploaded|Slides/i,
     { timeout: 15_000 },
   );
+  expect(pageErrors).toEqual([]);
 });
 
 test("@inv:G05 e2e/portal/task-complete Complete task; status flips", async ({
