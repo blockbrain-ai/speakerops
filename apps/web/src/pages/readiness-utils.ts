@@ -31,6 +31,25 @@ export function paginateSlice<T>(
   };
 }
 
+/**
+ * Short human date for attention rows ("17 Aug 2026") — never raw ISO.
+ * Falls back to the input when unparseable so data is never hidden.
+ */
+export function formatShortDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    // UTC keeps the calendar day stable across viewer timezones (due dates
+    // are stored as UTC instants).
+    return new Intl.DateTimeFormat("en-GB", {
+      dateStyle: "medium",
+      timeZone: "UTC",
+    }).format(d);
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 /** Build speakers list deep-link for readiness drill (H03). */
 export function speakerDetailPath(participationId: string): string {
   return `/admin/speakers?participationId=${encodeURIComponent(participationId)}`;

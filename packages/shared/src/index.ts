@@ -544,6 +544,7 @@ export {
   type DefaultDenyScope,
   DEFAULT_DENY_SCOPE_SET,
   SAFE_DEFAULT_SCOPES,
+  API_KEY_CREATED_AT_FALLBACK,
   ApiKeySchema,
   type ApiKeyDto,
   KeysListResponseSchema,

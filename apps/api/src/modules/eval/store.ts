@@ -5,7 +5,7 @@
  * D1EvalStore wraps the Worker DB binding for production (E1 SoR).
  * Event-scoped via eval_rounds.event_id (E2).
  */
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import {
   createDb,
@@ -99,6 +99,13 @@ export type EvalStore = {
 
   replaceScores(assignmentId: string, rows: ScoreRow[]): Promise<void>;
   listScores(assignmentId: string): Promise<ScoreRow[]>;
+  /**
+   * Batch scores for a set of assignments (evaluator queue — avoids N+1
+   * listScores per assignment). Assignments without scores map to [].
+   */
+  listScoresForAssignments(
+    assignmentIds: string[],
+  ): Promise<Map<string, ScoreRow[]>>;
   countScoresForRound(roundId: string): Promise<number>;
 };
 
@@ -266,6 +273,16 @@ export class MemoryEvalStore implements EvalStore {
 
   async listScores(assignmentId: string): Promise<ScoreRow[]> {
     return (this.scoreRows.get(assignmentId) ?? []).map((r) => ({ ...r }));
+  }
+
+  async listScoresForAssignments(
+    assignmentIds: string[],
+  ): Promise<Map<string, ScoreRow[]>> {
+    const out = new Map<string, ScoreRow[]>();
+    for (const id of assignmentIds) {
+      out.set(id, (this.scoreRows.get(id) ?? []).map((r) => ({ ...r })));
+    }
+    return out;
   }
 
   async countScoresForRound(roundId: string): Promise<number> {
@@ -568,6 +585,28 @@ export class D1EvalStore implements EvalStore {
       .from(scores)
       .where(eq(scores.assignmentId, assignmentId));
     return rows.map((r) => this.mapScore(r));
+  }
+
+  async listScoresForAssignments(
+    assignmentIds: string[],
+  ): Promise<Map<string, ScoreRow[]>> {
+    const out = new Map<string, ScoreRow[]>();
+    if (assignmentIds.length === 0) return out;
+    const unique = [...new Set(assignmentIds)];
+    for (const id of unique) out.set(id, []);
+    // D1 bound-parameter limit is 100 per query — chunk IN lists.
+    const CHUNK = 90;
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const slice = unique.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select()
+        .from(scores)
+        .where(inArray(scores.assignmentId, slice));
+      for (const r of rows) {
+        out.get(r.assignmentId)?.push(this.mapScore(r));
+      }
+    }
+    return out;
   }
 
   async countScoresForRound(roundId: string): Promise<number> {

@@ -37,7 +37,8 @@
 
 ## Demo seed / role switcher (section 8.4) — names only
 - `SPEAKEROPS_DB_PATH` — local SQLite path for `pnpm db:migrate` / `pnpm seed` (default `.data/speakerops.local.sqlite`). Not a secret.
-- `ROLE_SWITCHER_ENABLED` — when `"1"`, Worker registers `POST /api/auth/dev/role-switch` for private dogfood judges. **Default off.** Never enable on public production. When enabled on a controlled Worker, the route requires an **existing valid session** and **event admin membership** (speakers/evaluators cannot escalate to admin) — workers.dev alone is not an authorization boundary.
+- `ROLE_SWITCHER_ENABLED` — when `"1"`, Worker registers `POST /api/auth/dev/role-switch` for private dogfood judges (and, together with `JUDGE_ACCESS_CODE`, `POST /api/auth/judge-access`). **Default off.** Never enable on public production. When enabled on a controlled Worker, role-switch requires an **existing valid session** with **event admin membership** or a preserved judge-origin cookie (speakers/evaluators cannot escalate to admin) — workers.dev alone is not an authorization boundary.
+- `JUDGE_ACCESS_CODE` — Worker **secret**: competition judge entry code for the public `/judge` page. `POST /api/auth/judge-access` registers only when this is set **and** `ROLE_SWITCHER_ENABLED=1`; otherwise the path 404s. Exchanges the code (constant-time compare) for a **4-hour** demo-persona session (`admin` / `evaluator` / `speaker`) on the seeded demo event; rate-limited 10 attempts / 5 min / IP; demo sessions cannot create API keys. Never commit or log the value.
 - `VITE_ROLE_SWITCHER` — when `"1"`, SPA shows the RoleSwitcher chrome (also shown automatically in Vite `import.meta.env.DEV`). Build-time only; not a secret.
 - Demo emails are public constants (`admin@demo.speakerops.local`, etc.) — not credentials; switcher still issues real HttpOnly session cookies server-side.
 
@@ -60,7 +61,7 @@
 - `AUTH_LINK_ENCRYPTION_KEY` — encrypts magic-link plaintext in outbox (AES-GCM). Env **name** only; never commit values.
 - `CLOUDFLARE_EMAIL_API_TOKEN` — Cloudflare API token with Email Sending permission when not using Workers `EMAIL` binding.
 - `CLOUDFLARE_ACCOUNT_ID` — account id for Email Sending REST (public id; may be a wrangler var).
-- `MAGIC_LINK_ALLOWLIST` — comma-separated emails allowed to request magic links under controlled dogfood (not a secret).
+- `MAGIC_LINK_ALLOWLIST` — optional comma-separated extra emails permitted to request magic links (not a secret). **Unset on dogfood**: the controlled policy is that existing users and provisioned members (e.g. accepted speakers) may log in; unknown emails cannot self-register.
 - Comms.Send request path never uses these bindings; only `emailConsumer` / queue drain does (E7).
 - Queue binding name: `JOBS_QUEUE` (wrangler.toml) — producer (kick after Comms.Send) + consumer; Worker `queue` / `scheduled` handlers drain `outbox_events` topic `comms.send` via `processCommsOutbox`.
 

@@ -70,7 +70,7 @@ This document is operator- and judge-facing architecture. It does **not** invent
 | DB | `packages/db` | Drizzle schema + linear migrations |
 | Shared DTOs | `packages/shared/src/` | Zod schemas + E4 envelopes — single source; no duplicate types in web/api |
 
-Workspace: `pnpm-workspace.yaml` (`apps/*`, `packages/*`). Package manager: **pnpm** · Node **≥20**.
+Workspace: `pnpm-workspace.yaml` (`apps/*`, `packages/*`). Package manager: **pnpm** · Node **≥20 &lt;25** (`engines`-enforced).
 
 ---
 

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Place sessions into rooms and times with conflict detection from Admin → Schedule.">
+<title>Schedule studio · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule" aria-current="page">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Schedule studio</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L11">
+<h1>Schedule studio</h1>
+<p class="learn-lead">Place sessions into rooms and times with conflict detection from Admin → Schedule.</p>
+<section class="learn-section">
+<h2 id="where-scheduling-happens">Where scheduling happens</h2>
+<p>Open Admin → Schedule (schedule studio). Sessions are program slots; placements assign room and time range. Hard conflicts such as double-booking a room or speaker surface as conflicts the operator must resolve. Soft preferences may appear as warnings depending on product rules.</p>
+</section>
+<section class="learn-section">
+<h2 id="place-a-session">Place a session</h2>
+<p>Ensure rooms and tracks exist for the event. Create or select a session, choose room, start, and end in ISO-8601-compatible inputs the UI provides, and save. If the Worker returns a conflict, read the conflict list and adjust room or time.</p>
+<ol class="learn-steps">
+<li>Confirm rooms and tracks for the event under settings or schedule setup.</li>
+<li>Open Admin → Schedule.</li>
+<li>Select or create the session to place.</li>
+<li>Choose room and time range, then save placement.</li>
+<li>If conflicts return, resolve them before announcing the grid.</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="cli-parity">CLI parity</h2>
+<p>Agents with schedule:write can place sessions via the CLI. Success exits 0. Hard conflicts exit 3 with conflicts in the JSON body. Missing scope exits 2. Always pass --json for automation.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code>speakerops schedule place \
+  --event &lt;eventId&gt; \
+  --session &lt;sessionId&gt; \
+  --room &lt;roomId&gt; \
+  --start &lt;ISO-8601&gt; \
+  --end &lt;ISO-8601&gt; \
+  --json
+
+speakerops schedule list --event &lt;eventId&gt; --json
+speakerops schedule unschedule --event &lt;eventId&gt; --placement &lt;placementId&gt;</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="operator-tips">Operator tips</h2>
+<p>Lock rooms before publishing a public grid. Place keynotes and constrained speakers first. Re-run readiness after large schedule moves. Unschedule instead of stacking overlapping drafts when exploring alternatives.</p>
+<aside class="learn-callout learn-callout--warning" data-testid="learn-callout"><p><strong>WARNING.</strong> Treat exit code 3 as a real conflict. Do not retry the same placement in a loop without changing room or time.</p></aside>
+</section>
+<aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
+<li><code>/admin/schedule</code></li>
+</ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#where-scheduling-happens">Where scheduling happens</a></li>
+<li><a href="#place-a-session">Place a session</a></li>
+<li><a href="#cli-parity">CLI parity</a></li>
+<li><a href="#operator-tips">Operator tips</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

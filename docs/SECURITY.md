@@ -60,9 +60,13 @@ Flags (production-ready, section 2.1 + 8.3):
 - `Secure` (always in `createAppFromBindings`)
 - `SameSite=Lax`
 - `Path=/`
-- Bounded `Max-Age` (`SESSION_TTL_DAYS`)
+- Bounded `Max-Age` (`SESSION_TTL_DAYS`; **4 hours** for `/judge` demo-persona sessions — DB row and cookie share the TTL)
 
 Magic-link exchange issues the cookie server-side. Tokens themselves are single-use, short-lived, and must **never** appear in git, evidence logs, or structured log fields at full length.
+
+**Magic-link request policy (controlled dogfood):** existing users and provisioned members (e.g. accepted speakers via program re-entry) may request a login link; unknown emails cannot self-register. There is **no active email allowlist on the demo** (`MAGIC_LINK_ALLOWLIST` is unset on dogfood; it remains an optional extra-allow env name).
+
+**Judge access (competition demo):** the public `/judge` page posts to `POST /api/auth/judge-access`, which registers only when `JUDGE_ACCESS_CODE` (Worker secret) **and** `ROLE_SWITCHER_ENABLED=1` are set — otherwise the path 404s, indistinguishable from a non-existent route. The code is compared constant-time (both sides SHA-256), attempts are rate-limited (10 / 5 min / IP), failures are generic 401s, and success mints a 4-hour demo-persona session on the server-fixed demo event. Demo sessions cannot create API keys.
 
 ---
 
@@ -73,7 +77,7 @@ Magic-link exchange issues the cookie server-side. Tokens themselves are single-
 | Format | Bearer secret prefix `spk_…` (minted once; store hashed server-side) |
 | Enforcement | Worker `requireScope` — CLI cannot bypass |
 | High-risk default-deny | `comms:send`, `decisions:write`, `keys:admin` on new keys |
-| Mint / revoke | Admin role + `keys:admin` for key admin operations |
+| Mint / revoke | Admin role + `keys:admin` for key admin operations; **demo-persona sessions (role switcher / judge access) cannot create keys** |
 | Env for CLI | `SPEAKEROPS_API_KEY` (name only in docs) |
 
 Canonical scopes: [SCOPES.md](../KMS-competition/initiative/contracts/SCOPES.md).  
@@ -176,7 +180,7 @@ Envelope shape is stable across HTTP and CLI (CLI maps HTTP status to exit codes
 | Redact evidence (BC10 URL rules in OPERATIONS) | Paste Bearer values into issues or docs |
 | Rotate via `wrangler secret put` | Put tokens in wrangler `[vars]` |
 
-Demo role switcher (`ROLE_SWITCHER_ENABLED`) is **default off** and still requires an existing admin session when enabled — workers.dev alone is not an auth boundary.
+Demo role switcher (`ROLE_SWITCHER_ENABLED`) is **default off** and still requires an existing admin session (or a preserved judge-origin cookie minted via `JUDGE_ACCESS_CODE` on `/judge`) when enabled — workers.dev alone is not an auth boundary.
 
 ---
 

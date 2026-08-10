@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="How to reach the private SpeakerOps Cloudflare demo, who can log in, and what is seeded.">
+<title>Demo host access · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host" aria-current="page">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Demo host access</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L03">
+<h1>Demo host access</h1>
+<p class="learn-lead">How to reach the private SpeakerOps Cloudflare demo, who can log in, and what is seeded.</p>
+<section class="learn-section">
+<h2 id="what-the-demo-host-is">What the demo host is</h2>
+<p>The private Cloudflare demo is a full SpeakerOps app on Workers with remote D1 and seeded program data. It is not a marketing site and not a bare IP. SPA routes are served from the Worker ASSETS binding; API stays under /api/* with /health for probes.</p>
+<p>Email delivery uses Cloudflare Email Sending from noreply@speakerops.org. Resend is not used on the demo host. Magic links are enqueued as outbox rows and drained asynchronously — never sent on the login request path.</p>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Host</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td>https://www.speakerops.org</td><td>Primary app + API custom domain</td></tr>
+<tr><td>https://speakerops.org</td><td>Apex → same Worker</td></tr>
+<tr><td>workers.dev fallback</td><td>speakerops-demo.speakerops-dogfood.workers.dev when needed</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="who-can-log-in">Who can log in</h2>
+<p><strong>Judges:</strong> open <code>https://www.speakerops.org/judge</code> and enter the access code from the competition submission. This mints a shared demo-persona session (admin, evaluator, or speaker) on the seeded demo event lasting about four hours; the role switcher at the top of every shell moves between roles without re-entering the code and is badged “Shared demo”. Demo sessions cannot create API keys.</p>
+<p><strong>Everyone else:</strong> login is membership-aware — there is no email allowlist. Existing users and provisioned members (for example a speaker whose CFP submission was accepted) can request a magic link on the login page; unknown emails cannot self-register. Check the inbox for the Cloudflare-delivered message, open the link once, and the Worker sets an HttpOnly session cookie. Links are single-use and short-lived.</p>
+<ol class="learn-steps">
+<li>Judges: open https://www.speakerops.org/judge, enter the access code, and pick a role.</li>
+<li>Members: open https://www.speakerops.org/login (or the current demo base URL).</li>
+<li>Enter your email and submit the magic-link request.</li>
+<li>Open the email from SpeakerOps and click the link once.</li>
+<li>Verify the app loads admin or portal chrome matching your role.</li>
+</ol>
+<aside class="learn-callout learn-callout--note" data-testid="learn-callout"><p><strong>NOTE.</strong> If no email arrives, confirm your email belongs to an existing user or provisioned member, and see FAQ pages on magic-link limits and Cloudflare email delivery.</p></aside>
+</section>
+<section class="learn-section">
+<h2 id="what-is-seeded-and-what-is-limited">What is seeded and what is limited</h2>
+<p>Demo seed includes a large speaker graph, forms, tasks, and schedule-ready structures so every menu has realistic data. Public CFP is open for the dogfood event slug with Turnstile. Public CFP file upload is limited by a strict mime/size allowlist and per-IP rate limits so untrusted traffic cannot fill R2.</p>
+<p>The role switcher is enabled on the shared demo (judge access requires it); the developer outbox stays off. DDoS protection relies on the Cloudflare edge; the /judge access code is rate limited per IP, and magic links go only to existing users and provisioned members.</p>
+<ul class="learn-bullets">
+<li>Seeded multi-speaker program graph on remote D1</li>
+<li>Public CFP open with Turnstile; uploads mime/size-restricted and rate limited</li>
+<li>Comms and auth email via Cloudflare Email Sending (no attachments — calendar .ics is a portal download)</li>
+<li>Role switcher on (shared demo); AUTH_DEV_OUTBOX off; demo sessions cannot mint API keys</li>
+</ul>
+</section>
+<section class="learn-section">
+<h2 id="operator-checklist-after-first-login">Operator checklist after first login</h2>
+<p>Walk Admin → CFP, submissions, speakers, schedule, readiness, and settings so you know where each Learn guide maps. If you need agent automation, mint a scoped API key under Settings → API keys and follow the CLI and keys guide in this handbook. That article includes install, auth, every inventory command, exit codes, and agent rules so you do not need a second document to automate.</p>
+<ol class="learn-steps">
+<li>Confirm role and event context after login.</li>
+<li>Open readiness to see the health of the seeded program at a glance.</li>
+<li>Open at least one form, one submission, and schedule studio.</li>
+<li>When ready for automation, mint a least-privilege API key and open CLI and keys.</li>
+</ol>
+</section>
+<aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
+<li><code>/judge</code></li>
+<li><code>/login</code></li>
+<li><code>/admin</code></li>
+<li><code>/cfp/dogfood-2026</code></li>
+</ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#what-the-demo-host-is">What the demo host is</a></li>
+<li><a href="#who-can-log-in">Who can log in</a></li>
+<li><a href="#what-is-seeded-and-what-is-limited">What is seeded and what is limited</a></li>
+<li><a href="#operator-checklist-after-first-login">Operator checklist after first login</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

@@ -479,6 +479,116 @@ describe("10.1 Submission.List reliability", () => {
     expect(body.submissions.some((s) => s.id === "sub_bad_1")).toBe(false);
   });
 
+  it("q search filters by title and primary speaker name (case-insensitive); `search` alias works", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "list-search-admin@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Search Filters");
+    await seedSubmissions(admin.submissions, event.id, 30, { prefix: "sq" });
+
+    // Title match — every seeded title contains "Talk"
+    const byTitle = await admin.app.request(
+      `http://localhost/api/events/${event.id}/submissions?q=talk%20003`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(byTitle.status).toBe(200);
+    const titleBody = SubmissionListResponseSchema.parse(await byTitle.json());
+    expect(titleBody.total).toBe(1);
+    expect(titleBody.submissions[0]!.id).toBe("sub_sq_003");
+
+    // Speaker-name match ("Seed Speaker 004"), case-insensitive
+    const bySpeaker = await admin.app.request(
+      `http://localhost/api/events/${event.id}/submissions?q=SEED%20SPEAKER%20004`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(bySpeaker.status).toBe(200);
+    const speakerBody = SubmissionListResponseSchema.parse(
+      await bySpeaker.json(),
+    );
+    expect(speakerBody.total).toBe(1);
+    expect(speakerBody.submissions[0]!.id).toBe("sub_sq_004");
+
+    // `search` alias must behave identically to `q` (live parity regression)
+    const byAlias = await admin.app.request(
+      `http://localhost/api/events/${event.id}/submissions?search=talk%20003`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(byAlias.status).toBe(200);
+    const aliasBody = SubmissionListResponseSchema.parse(await byAlias.json());
+    expect(aliasBody.total).toBe(1);
+    expect(aliasBody.submissions[0]!.id).toBe("sub_sq_003");
+  });
+
+  it("q with SQL wildcard characters (% / _) never 500s and matches literally", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "list-wildcard-admin@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Wildcard Search");
+    await seedSubmissions(admin.submissions, event.id, 5, { prefix: "wc" });
+    await admin.submissions.insertSubmission({
+      id: "sub_wc_literal",
+      eventId: event.id,
+      formVersionId: "fv_wc",
+      title: "100% legit_talk",
+      category: null,
+      status: "submitted",
+      submittedAt: "2026-06-01T12:10:00.000Z",
+      version: 1,
+    });
+
+    for (const q of ["%", "_", "%%%", "100%", "legit_talk", "%_"]) {
+      const res = await admin.app.request(
+        `http://localhost/api/events/${event.id}/submissions?q=${encodeURIComponent(q)}`,
+        { headers: { cookie: admin.cookie } },
+        env,
+      );
+      expect(res.status, `q=${q} must not 500`).toBe(200);
+      const body = SubmissionListResponseSchema.parse(await res.json());
+      // Wildcards are literal contains — only the literal row can match
+      for (const row of body.submissions) {
+        expect(row.title.toLowerCase()).toContain(q.toLowerCase());
+      }
+    }
+
+    const literal = await admin.app.request(
+      `http://localhost/api/events/${event.id}/submissions?q=${encodeURIComponent("100%")}`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    const literalBody = SubmissionListResponseSchema.parse(
+      await literal.json(),
+    );
+    expect(literalBody.total).toBe(1);
+    expect(literalBody.submissions[0]!.id).toBe("sub_wc_literal");
+  });
+
+  it("q over a >100-row filtered set pages correctly (chunked speaker-name batch)", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "list-chunk-admin@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Chunk Search");
+    // 120 rows all matching "talk" — the q path batches primary-speaker names
+    // for EVERY filtered row id (pre-page), which must chunk on D1 (≤100 params).
+    await seedSubmissions(admin.submissions, event.id, 120, { prefix: "ck" });
+
+    const res = await admin.app.request(
+      `http://localhost/api/events/${event.id}/submissions?q=talk&limit=25&offset=0`,
+      { headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = SubmissionListResponseSchema.parse(await res.json());
+    expect(body.total).toBe(120);
+    expect(body.submissions).toHaveLength(25);
+    expect(body.submissions[0]!.primarySpeakerName).toMatch(/Seed Speaker/);
+  });
+
   it("evaluator role cannot list admin submissions (403/404)", async () => {
     const shared = createAppWithAuth({ cookieSecure: true });
     const admin = await magicLinkSession(

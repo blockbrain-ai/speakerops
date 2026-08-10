@@ -428,6 +428,7 @@ speakerops keys create \
 <li>Secret is returned <strong>once</strong> in the create response. Store it in the host secret channel as <code>SPEAKEROPS_API_KEY</code>.</li>
 <li>List endpoints never re-display the secret.</li>
 <li>Without <code>keys:admin</code> → <strong>exit 2</strong> / HTTP <strong>403</strong> <code>FORBIDDEN</code> (CLI11).</li>
+<li><strong>Shared-demo note:</strong> demo-persona sessions (role switcher / <code>/judge</code> judge access) cannot create API keys — key mint needs a real admin login.</li>
 </ul>
 <h3>Scope recipes (examples — not values)</h3>
 <table><thead><tr><th>Agent role</th><th>Example scopes (comma-separated)</th></tr></thead><tbody><tr><td>Reporting only</td><td><code>events:read</code>, <code>reports:read</code></td></tr><tr><td>Design publish</td><td><code>events:read</code>, <code>design:read</code>, <code>design:write</code></td></tr><tr><td>Schedule ops</td><td><code>events:read</code>, <code>schedule:read</code>, <code>schedule:write</code></td></tr><tr><td>Comms draft</td><td><code>comms:draft</code> (<strong>not</strong> <code>comms:send</code>)</td></tr><tr><td>Key admin</td><td><code>keys:admin</code> (<strong>default-deny</strong> — grant explicitly)</td></tr></tbody></table>
@@ -442,7 +443,7 @@ export SPEAKEROPS_API_KEY   # set by operator out-of-band</code></pre>
 speakerops openapi --json
 # equivalent:
 curl -s &quot;${SPEAKEROPS_API_URL}/openapi.json&quot;</code></pre>
-<p><strong>URL:</strong> <code>{SPEAKEROPS_API_URL}/openapi.json</code> (local default <code>http://127.0.0.1:8787/openapi.json</code>).</p>
+<p><strong>URL:</strong> <code>{SPEAKEROPS_API_URL}/openapi.json</code> (local default <code>http://127.0.0.1:8787/openapi.json</code>). The deployed site serves it live too: <code>https://www.speakerops.org/openapi.json</code>.</p>
 <p>Expect paths that include <code>/api/events</code>, design, schedule, readiness, keys, and other COMMANDS.md routes. Do not invent routes that are absent from OpenAPI / COMMANDS.</p>
 <hr />
 <h2>4. Readiness JSON (<code>speakerops reports readiness</code>)</h2>
@@ -550,9 +551,9 @@ speakerops design publish --event &quot;$EVENT_ID&quot; --json || test $? -eq 1<
 <p><em>— Section 9.3 · S-ONB-AGENT agent setup and CLI runbook</em></p>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-10T11:25:16.915Z" data-git-sha="64d3f817e">
-  <div><strong>Generated:</strong> <time datetime="2026-08-10T11:25:16.915Z">2026-08-10T11:25:16.915Z</time></div>
-  <div><strong>Git SHA:</strong> <code>64d3f817e</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-10T12:14:20.672Z" data-git-sha="309c1d560">
+  <div><strong>Generated:</strong> <time datetime="2026-08-10T12:14:20.672Z">2026-08-10T12:14:20.672Z</time></div>
+  <div><strong>Git SHA:</strong> <code>309c1d560</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/AGENT_SETUP.md · no secrets in report</div>
 </footer>
   </div>

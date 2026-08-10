@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Magic-link sessions, role gates, and what each role can do in admin and portal.">
+<title>Roles and session auth · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles" aria-current="page">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Roles and session auth</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L04">
+<h1>Roles and session auth</h1>
+<p class="learn-lead">Magic-link sessions, role gates, and what each role can do in admin and portal.</p>
+<section class="learn-section">
+<h2 id="how-humans-authenticate">How humans authenticate</h2>
+<p>Humans never use long-lived passwords in SpeakerOps. Login issues a magic link to a known email. Completing the link creates a server-side session and sets the speakerops_session cookie with HttpOnly, Secure, and SameSite=Lax flags. Auth material must never be stored in localStorage or sessionStorage.</p>
+<p>Sessions expire after a bounded TTL. Operators re-request a magic link when the session ends. On demo and dogfood hosts, login is membership-aware: only existing users and provisioned members are issued links, and unknown emails cannot self-register. Competition judges instead enter through /judge with an access code, which mints a shared demo-persona session lasting about four hours.</p>
+<ol class="learn-steps">
+<li>Open /login and enter the email of an existing user or provisioned member.</li>
+<li>Submit the request. The Worker enqueues auth.magic_link work instead of calling the email provider on the request path.</li>
+<li>Open the single-use link from email. The Worker exchanges the token and sets the session cookie.</li>
+<li>Navigate admin or portal routes; each API call is authorized from the session on the Worker.</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="roles-you-will-see">Roles you will see</h2>
+<p>Roles gate which UI chrome and API commands succeed. Typical roles include admin, evaluator, and speaker (portal). Admin can manage forms, decisions, schedule, design, keys, and settings. Evaluators score assigned submissions. Speakers complete portal tasks for their participation.</p>
+<p>Authorization checks run on the Worker for every mutation. A hidden button in the SPA is not a security boundary. Agents use Bearer API keys with scopes instead of human sessions; see CLI and keys.</p>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Role</th><th>Primary surfaces</th><th>Typical actions</th></tr></thead>
+<tbody>
+<tr><td>admin</td><td>Full /admin tree</td><td>Forms, decisions, schedule, comms, settings, API keys</td></tr>
+<tr><td>evaluator</td><td>Evaluation /eval and related</td><td>Score submissions; no key admin or high-risk sends by default</td></tr>
+<tr><td>speaker</td><td>Speaker portal</td><td>View tasks, complete work, upload allowed files</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="session-security-rules-operators-must-keep">Session security rules operators must keep</h2>
+<p>Do not share magic links in chat channels that retain history longer than needed. Do not paste full session cookies into tickets. Prefer provisioning a second member email over sharing one operator session. High-risk automation should use scoped API keys, not a stolen browser cookie.</p>
+<aside class="learn-callout learn-callout--warning" data-testid="learn-callout"><p><strong>WARNING.</strong> Production CSP and cookie flags must not be weakened for demo convenience. Dev-only CSP exceptions exist for Vite HMR and never apply on the Worker.</p></aside>
+</section>
+<section class="learn-section">
+<h2 id="troubleshooting-access">Troubleshooting access</h2>
+<p>If login fails, verify that your email belongs to an existing user or provisioned member with the right role, check magic-link limits, confirm email delivery, and ensure you open the latest link only once. After role changes, sign out and request a fresh link so the session reflects the new role. Judges who see 404 on /judge are on a host where judge access is disabled.</p>
+</section>
+<aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
+<li><code>/login</code></li>
+<li><code>/admin</code></li>
+<li><code>/portal</code></li>
+<li><code>/eval</code></li>
+</ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#how-humans-authenticate">How humans authenticate</a></li>
+<li><a href="#roles-you-will-see">Roles you will see</a></li>
+<li><a href="#session-security-rules-operators-must-keep">Session security rules operators must keep</a></li>
+<li><a href="#troubleshooting-access">Troubleshooting access</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
   READINESS_POLL_MS,
   SPEAKERS_PAGE_SIZE,
+  formatShortDate,
   paginateSlice,
   speakerDetailPath,
   participationIdFromSearch,
@@ -38,6 +39,12 @@ describe("readiness-utils", () => {
   it("participationIdFromSearch parses query", () => {
     expect(participationIdFromSearch("?participationId=abc")).toBe("abc");
     expect(participationIdFromSearch("")).toBeNull();
+  });
+
+  it("formatShortDate renders a short date, never raw ISO", () => {
+    expect(formatShortDate("2026-08-17T08:09:13.418Z")).toBe("17 Aug 2026");
+    // Unparseable input falls back to the input (data never hidden)
+    expect(formatShortDate("not-a-date")).toBe("not-a-date");
   });
 });
 
@@ -83,6 +90,9 @@ describe("11.1 buildAttentionQueue", () => {
     const queue = buildAttentionQueue([pendingRow, overdueRow], baseMetrics);
     expect(queue[0]!.taskId).toBe("task_overdue");
     expect(queue[0]!.severity).toBe("danger");
+    // Due dates render as short dates, never raw ISO (live UX walk)
+    expect(queue[0]!.detail).toContain("due 1 Jan 2020");
+    expect(queue[0]!.detail).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
     expect(queue.some((i) => i.id === "gap-schedule")).toBe(true);
     expect(queue.some((i) => i.id === "gap-eval")).toBe(true);
     // ranks are 1-based sequential

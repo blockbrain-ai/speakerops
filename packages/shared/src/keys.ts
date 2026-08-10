@@ -55,6 +55,12 @@ export const SAFE_DEFAULT_SCOPES: readonly ApiScope[] = API_SCOPES.filter(
   (s) => !DEFAULT_DENY_SCOPE_SET.has(s),
 );
 
+/**
+ * Fallback createdAt for api_keys rows minted before migration 0022 added the
+ * column (pre-backfill NULLs must list, never 500 — matches 0022 backfill).
+ */
+export const API_KEY_CREATED_AT_FALLBACK = "2026-08-09T00:00:00.000Z" as const;
+
 export const ApiKeySchema = z.object({
   id: z.string().min(1),
   orgId: z.string().min(1),
@@ -66,6 +72,7 @@ export const ApiKeySchema = z.object({
   expiresAt: z.string().datetime({ offset: true }).nullable(),
   revokedAt: z.string().datetime({ offset: true }).nullable(),
   createdBy: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
   lastUsedAt: z.string().datetime({ offset: true }).nullable(),
 });
 

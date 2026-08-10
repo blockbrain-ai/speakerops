@@ -186,7 +186,7 @@ speakerops openapi --json
 # or: curl -s "$SPEAKEROPS_API_URL/openapi.json"
 ```
 
-- **HTTP:** `GET /openapi.json` (public discovery document)
+- **HTTP:** `GET /openapi.json` (public discovery document — served by the Worker on the deployed site too, e.g. `https://www.speakerops.org/openapi.json`)
 - **Assert:** paths include `/api/events`, schedule, readiness, design, keys, …
 
 ### Program loop — `forms` (cfp:read / cfp:write)

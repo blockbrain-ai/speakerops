@@ -133,7 +133,8 @@ export function createEventDecisionRoutes(
       const eventId = c.req.param("eventId");
       const statusRaw = c.req.query("status");
       const categoryRaw = c.req.query("category");
-      const qRaw = c.req.query("q");
+      // Accept both `q` (SPA) and `search` (CLI/manual) as the text filter.
+      const qRaw = c.req.query("q") || c.req.query("search");
       const limitRaw = c.req.query("limit");
       const offsetRaw = c.req.query("offset");
 

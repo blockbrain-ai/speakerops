@@ -7,6 +7,7 @@
  * Plaintext secrets never persist — only key_hash (E10).
  */
 import { eq, isNull, and } from "drizzle-orm";
+import { API_KEY_CREATED_AT_FALLBACK } from "@speakerops/shared";
 import {
   createDb,
   type D1DatabaseLike,
@@ -26,6 +27,8 @@ export type ApiKeyRow = {
   expiresAt: string | null;
   revokedAt: string | null;
   createdBy: string;
+  /** Never null out of a store — NULL D1 rows map to a fixed fallback ISO. */
+  createdAt: string;
   lastUsedAt: string | null;
 };
 
@@ -115,6 +118,9 @@ export class D1KeysStore implements KeysStore {
       expiresAt: r.expiresAt ?? null,
       revokedAt: r.revokedAt ?? null,
       createdBy: r.createdBy,
+      // Rows minted before migration 0022 backfill have NULL created_at —
+      // tolerate with a fixed fallback so Keys.List never 500s on them.
+      createdAt: r.createdAt ?? API_KEY_CREATED_AT_FALLBACK,
       lastUsedAt: r.lastUsedAt ?? null,
     };
   }
@@ -131,6 +137,7 @@ export class D1KeysStore implements KeysStore {
       expiresAt: row.expiresAt,
       revokedAt: row.revokedAt,
       createdBy: row.createdBy,
+      createdAt: row.createdAt,
       lastUsedAt: row.lastUsedAt,
     });
     return { ...row };
@@ -169,12 +176,13 @@ export class D1KeysStore implements KeysStore {
   }
 
   async revokeKey(id: string, revokedAt: string): Promise<ApiKeyRow | null> {
-    await this.db
+    // d1Changes must read the UPDATE result (not the db handle) or revoke
+    // always reports 0 rows changed on D1.
+    const result = await this.db
       .update(apiKeys)
       .set({ revokedAt })
       .where(and(eq(apiKeys.id, id), isNull(apiKeys.revokedAt)));
-    const changes = await d1Changes(this.db);
-    if (changes === 0) return null;
+    if (d1Changes(result) === 0) return null;
     return this.findById(id);
   }
 

@@ -19,13 +19,13 @@ Work these steps in order. Each step lists the command or doc you need — nothi
 
 | Requirement | Notes |
 |-------------|--------|
-| Node.js **≥ 20** | `node -v` |
+| Node.js **≥ 20 &lt; 25** (`engines`-enforced) | `node -v` |
 | **pnpm** (workspace pin) | See root `packageManager` in `package.json` |
 | Git clone of this workspace | Clean worktree; do not invent alternate monorepo layout |
 | Optional: Cloudflare account | Only for dogfood deploy (steps 12–14); local demo works without it |
 
 ```bash
-node -v          # expect v20+
+node -v          # expect v20–v24 (engines: >=20 <25)
 pnpm -v          # install via corepack enable && corepack prepare if needed
 ```
 
@@ -53,6 +53,7 @@ Copy names into a local secrets channel or `.env` / `.dev.vars` that is **gitign
 | `SPEAKEROPS_D1_DATABASE_ID` | remote D1 | Real D1 `database_id` when leaving wrangler placeholder |
 | `SPEAKEROPS_R2_BUCKET_NAME` | optional R2 | Override `FILES` bucket name |
 | `ROLE_SWITCHER_ENABLED` | private dogfood only | `"1"` enables role-switch API (default **off**) |
+| `JUDGE_ACCESS_CODE` | shared demo only (secret) | With role switcher on, enables `/judge` entry (4h demo sessions); 404 when unset |
 | `VITE_ROLE_SWITCHER` | private dogfood SPA | `"1"` shows RoleSwitcher chrome (also auto in Vite DEV) |
 | `EMAIL_PROVIDER` | comms drain | `sandbox` (default) or `resend` |
 | `RESEND_API_KEY` | live email only | Ignored unless `EMAIL_PROVIDER=resend` |

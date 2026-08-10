@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Local day-0 loop, Cloudflare dogfood deploy, migrate, seed, and day-2 care.">
+<title>Operations and deploy · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations" aria-current="page">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Operations and deploy</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L19">
+<h1>Operations and deploy</h1>
+<p class="learn-lead">Local day-0 loop, Cloudflare dogfood deploy, migrate, seed, and day-2 care.</p>
+<section class="learn-section">
+<h2 id="local-day-0-loop">Local day-0 loop</h2>
+<p>Most development never needs Cloudflare credentials. Install, migrate, seed, typecheck, test, and run e2e locally with non-interactive gates.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code>pnpm install
+pnpm db:migrate
+pnpm seed
+pnpm typecheck
+pnpm test:ci
+# optional: start API + web, then
+pnpm test:e2e</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="deploy-prerequisites">Deploy prerequisites</h2>
+<p>Dogfood deploy needs a Cloudflare account, API token with Workers/D1/R2/Queues permissions as required, account id, and secrets channel outside git. Set SPEAKEROPS_D1_DATABASE_ID when leaving wrangler placeholders. TURNSTILE_SECRET_KEY is set via wrangler secret put for production Workers.</p>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Name</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>CLOUDFLARE_API_TOKEN</td><td>Wrangler auth</td></tr>
+<tr><td>CLOUDFLARE_ACCOUNT_ID</td><td>Account scope</td></tr>
+<tr><td>SPEAKEROPS_D1_DATABASE_ID</td><td>Real D1 id</td></tr>
+<tr><td>SMOKE_BASE_URL</td><td>Optional health re-smoke base</td></tr>
+<tr><td>DOGFOOD_SKIP_DEPLOY</td><td>1 = health-only path</td></tr>
+<tr><td>DEPLOY_DRY_RUN</td><td>1 = validate without network deploy</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="deploy-shape">Deploy shape</h2>
+<p>Operator scripts build the Worker, apply migrations remotely as documented, set secrets, deploy, and smoke GET /health for 200. Custom domain cutover may be separate from the workers.dev dogfood claim. Learn has its own static worker and wrangler.learn.toml for learn.speakerops.org.</p>
+<ol class="learn-steps">
+<li>Export Cloudflare credentials in a secure shell session (not committed files).</li>
+<li>Ensure D1 database id and bindings match wrangler config.</li>
+<li>Put required secrets with wrangler secret put.</li>
+<li>Run the deploy script for the target environment.</li>
+<li>Smoke GET /health and critical login path.</li>
+<li>Remote demo data is seeded once by the operator (D1 execute) — there is no remote reseed command; restore remote data with D1 Time Travel bookmarks plus exports.</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="day-2-care">Day-2 care</h2>
+<p>Apply new migrations forward with the documented migrate path. Use D1 Time Travel only with explicit operator care for rollback scenarios. Rotate API keys and Turnstile secrets on a schedule. Watch queue drain for email and projection backlogs.</p>
+<aside class="learn-callout learn-callout--note" data-testid="learn-callout"><p><strong>NOTE.</strong> Gates (typecheck, test:ci, install) must remain free of deployment secrets.</p></aside>
+</section>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#local-day-0-loop">Local day-0 loop</a></li>
+<li><a href="#deploy-prerequisites">Deploy prerequisites</a></li>
+<li><a href="#deploy-shape">Deploy shape</a></li>
+<li><a href="#day-2-care">Day-2 care</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

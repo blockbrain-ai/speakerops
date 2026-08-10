@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Build, version, and publish conditional CFP forms from Admin → CFP, including speaking configuration.">
+<title>CFP form builder · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms" aria-current="page">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">CFP form builder</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L05">
+<h1>CFP form builder</h1>
+<p class="learn-lead">Build, version, and publish conditional CFP forms from Admin → CFP, including speaking configuration.</p>
+<section class="learn-section">
+<h2 id="where-this-lives">Where this lives</h2>
+<p>Open Admin → CFP (route /admin/cfp). Forms are event-scoped, and a form picker in the builder switches between the event&#39;s forms so you always know which one you are editing. A form has a draft you edit freely, then a publish action that pins an immutable form version with fields and rules. Public submit always reads the published version so mid-season edits do not silently rewrite historical answers.</p>
+</section>
+<section class="learn-section">
+<h2 id="build-a-draft-form">Build a draft form</h2>
+<p>Create or open a form for the active event. Add fields with types the builder supports (short text, long text, select, multi-select, boolean, and related structures). Order fields for the public experience. Conditional rules hide or show fields based on earlier answers so multi-track or multi-format CFPs stay calm.</p>
+<p>Speaking configuration on the form controls how many speakers a submission can carry and related public CFP transport limits. Configure that panel when proposals need co-speakers, titles, companies, or bios on the public surface.</p>
+<ol class="learn-steps">
+<li>Select the event context if the shell requires it.</li>
+<li>Open Admin → CFP and create a form or open an existing draft.</li>
+<li>Add fields in the order submitters should see them.</li>
+<li>Attach conditional rules for format, track, or other branching.</li>
+<li>Set speaking configuration (speaker count and related public fields) when co-speakers are required.</li>
+<li>Save the draft and review the preview if the UI offers one.</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="publish-and-versioning">Publish and versioning</h2>
+<p>Publishing creates a form version snapshot. Submissions bind to that version. Later draft edits do not change past submissions. To change the live public form, publish again after you are satisfied with the draft. The publish action warns about the consequence — it replaces what the public CFP serves — before you confirm.</p>
+<p>Treat publish as a program decision: announce changes to submitters if the CFP is already open. Prefer additive clarification fields over removing fields mid-flight when evaluation rubrics depend on answers.</p>
+<aside class="learn-callout learn-callout--tip" data-testid="learn-callout"><p><strong>TIP.</strong> Field flow continues into evaluation, decisions, and portal tasks. Design questions you will score and tasks you will assign after accept.</p></aside>
+</section>
+<section class="learn-section">
+<h2 id="operator-checklist-before-opening-the-cfp">Operator checklist before opening the CFP</h2>
+<p>Confirm required fields are truly required, optional fields are optional, speaking limits match program policy, Turnstile is configured on the public host, and the public slug is the one you will share. Walk the public form once as a stranger before marketing the URL.</p>
+<ul class="learn-bullets">
+<li>Draft fields and rules reviewed by program lead</li>
+<li>Speaking configuration matches max co-speakers policy</li>
+<li>Published version exists and public route resolves</li>
+<li>Turnstile keys present on the Worker for production/demo</li>
+<li>Test submission created and visible under Submissions</li>
+</ul>
+</section>
+<section class="learn-section">
+<h2 id="how-form-data-flows-next">How form data flows next</h2>
+<p>Published forms feed public CFP submit. Answers land on submissions under the form version. Evaluation scores those submissions. Accept decisions create or link people and participations and generate speaker tasks from templates. Readiness and schedule consume the accepted program graph. This chain is the core field flow of SpeakerOps.</p>
+</section>
+<aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
+<li><code>/admin/cfp</code></li>
+</ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#where-this-lives">Where this lives</a></li>
+<li><a href="#build-a-draft-form">Build a draft form</a></li>
+<li><a href="#publish-and-versioning">Publish and versioning</a></li>
+<li><a href="#operator-checklist-before-opening-the-cfp">Operator checklist before opening the CFP</a></li>
+<li><a href="#how-form-data-flows-next">How form data flows next</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

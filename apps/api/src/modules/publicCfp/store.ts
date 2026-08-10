@@ -66,6 +66,13 @@ export type SubmissionsStore = {
   insertAnswers(rows: SubmissionAnswerRow[]): Promise<void>;
   insertSpeakers(rows: SubmissionSpeakerRow[]): Promise<void>;
   findSubmissionById(submissionId: string): Promise<SubmissionRow | null>;
+  /**
+   * Batch submission lookup by id (evaluator queue at 30+ assignments).
+   * Missing ids are omitted from the map — avoids N+1 findSubmissionById.
+   */
+  listSubmissionsByIds(
+    submissionIds: string[],
+  ): Promise<Map<string, SubmissionRow>>;
   /** Event-scoped list (E2) — section 3.4 assign / admin rollup / 3.5 list. */
   listSubmissionsForEvent(eventId: string): Promise<SubmissionRow[]>;
   listAnswers(submissionId: string): Promise<SubmissionAnswerRow[]>;
@@ -213,6 +220,17 @@ export class MemorySubmissionsStore implements SubmissionsStore {
   ): Promise<SubmissionRow | null> {
     const row = this.submissions.get(submissionId);
     return row ? { ...row } : null;
+  }
+
+  async listSubmissionsByIds(
+    submissionIds: string[],
+  ): Promise<Map<string, SubmissionRow>> {
+    const out = new Map<string, SubmissionRow>();
+    for (const id of submissionIds) {
+      const row = this.submissions.get(id);
+      if (row) out.set(id, { ...row });
+    }
+    return out;
   }
 
   async listSubmissionsForEvent(eventId: string): Promise<SubmissionRow[]> {
@@ -487,6 +505,36 @@ export class D1SubmissionsStore implements SubmissionsStore {
     };
   }
 
+  async listSubmissionsByIds(
+    submissionIds: string[],
+  ): Promise<Map<string, SubmissionRow>> {
+    const out = new Map<string, SubmissionRow>();
+    if (submissionIds.length === 0) return out;
+    const unique = [...new Set(submissionIds)];
+    // D1 bound-parameter limit is 100 per query — chunk IN lists.
+    const CHUNK = 90;
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const slice = unique.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select()
+        .from(submissions)
+        .where(inArray(submissions.id, slice));
+      for (const row of rows) {
+        out.set(row.id, {
+          id: row.id,
+          eventId: row.eventId,
+          formVersionId: row.formVersionId,
+          title: row.title,
+          category: row.category,
+          status: row.status,
+          submittedAt: row.submittedAt,
+          version: row.version,
+        });
+      }
+    }
+    return out;
+  }
+
   async listSubmissionsForEvent(eventId: string): Promise<SubmissionRow[]> {
     const rows = await this.db
       .select()
@@ -537,10 +585,20 @@ export class D1SubmissionsStore implements SubmissionsStore {
     if (submissionIds.length === 0) return out;
     for (const id of submissionIds) out.set(id, null);
 
-    const speakerRows = await this.db
-      .select()
-      .from(submissionSpeakers)
-      .where(inArray(submissionSpeakers.submissionId, submissionIds));
+    // D1 bound-parameter limit is 100 per query — chunk IN lists. The q search
+    // path passes every filtered row id (not just a page), so an unchunked
+    // inArray 500s on dogfood 150+ (live `?q=` regression).
+    const CHUNK = 90;
+    const uniqueIds = [...new Set(submissionIds)];
+    const speakerRows: Array<typeof submissionSpeakers.$inferSelect> = [];
+    for (let i = 0; i < uniqueIds.length; i += CHUNK) {
+      const slice = uniqueIds.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select()
+        .from(submissionSpeakers)
+        .where(inArray(submissionSpeakers.submissionId, slice));
+      speakerRows.push(...rows);
+    }
 
     // Prefer is_primary=1; otherwise lowest sort_order per submission.
     const best = new Map<
@@ -570,11 +628,15 @@ export class D1SubmissionsStore implements SubmissionsStore {
     const personIds = [...new Set([...best.values()].map((b) => b.personId))];
     if (personIds.length === 0) return out;
 
-    const personRows = await this.db
-      .select({ id: people.id, name: people.name })
-      .from(people)
-      .where(inArray(people.id, personIds));
-    const nameById = new Map(personRows.map((p) => [p.id, p.name]));
+    const nameById = new Map<string, string>();
+    for (let i = 0; i < personIds.length; i += CHUNK) {
+      const slice = personIds.slice(i, i + CHUNK);
+      const personRows = await this.db
+        .select({ id: people.id, name: people.name })
+        .from(people)
+        .where(inArray(people.id, slice));
+      for (const p of personRows) nameById.set(p.id, p.name);
+    }
 
     for (const [submissionId, b] of best) {
       out.set(submissionId, nameById.get(b.personId) ?? null);

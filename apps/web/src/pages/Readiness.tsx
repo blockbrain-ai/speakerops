@@ -32,6 +32,7 @@ import {
 import { useEventContext } from "../events/EventContext.js";
 import {
   READINESS_POLL_MS,
+  formatShortDate,
   speakerDetailPath,
 } from "./readiness-utils.js";
 import { Button } from "../components/ui/Button.js";
@@ -108,7 +109,7 @@ export function buildAttentionQueue(
       detail: [
         row.personName ?? row.personId,
         row.isOverdue ? "Overdue" : "Pending",
-        row.dueAt ? `due ${row.dueAt}` : null,
+        row.dueAt ? `due ${formatShortDate(row.dueAt)}` : null,
       ]
         .filter(Boolean)
         .join(" · "),

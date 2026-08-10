@@ -471,6 +471,10 @@ test.describe("3.5 submissions decisions", () => {
 
     await selectEvent(page, event.id);
     await page.getByTestId(`submission-open-${idA}`).click();
+    // Eligible row: assign controls active, no ineligible reason shown
+    await expect(
+      page.getByTestId("submission-assign-ineligible"),
+    ).toHaveCount(0);
     await page.getByTestId("submission-waitlist").click();
     await expect(page.getByTestId("submissions-status")).toContainText(
       "waitlist recorded",
@@ -479,6 +483,18 @@ test.describe("3.5 submissions decisions", () => {
       "data-status",
       "waitlist",
     );
+
+    // Waitlisted rows are not assign-eligible — control disables with a
+    // muted reason instead of failing with a 400 after the click.
+    await expect(
+      page.getByTestId("submission-assign-ineligible"),
+    ).toContainText(/waitlist/);
+    await expect(page.getByTestId("submission-assign-submit")).toBeDisabled();
+    // Re-decision among accepted/rejected/waitlist stays allowed
+    await expect(page.getByTestId("submission-accept")).toBeEnabled();
+    await expect(
+      page.getByTestId("submission-decision-ineligible"),
+    ).toHaveCount(0);
   });
 
   test("@inv:E07 e2e/admin/session-direct direct sponsor session", async ({

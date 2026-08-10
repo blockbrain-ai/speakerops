@@ -752,6 +752,7 @@ describe("2.3 event settings same-store isolation", () => {
       expiresAt: null,
       revokedAt: null,
       createdBy: userA!.id,
+      createdAt: "2026-08-01T00:00:00.000Z",
       lastUsedAt: null,
     });
 

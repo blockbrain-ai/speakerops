@@ -19,7 +19,7 @@ Custom domain production cutover is **out of scope** for dogfood claim unless ow
 
 | Requirement | Notes |
 |-------------|--------|
-| Node ≥ 20 · pnpm | Workspace `packageManager` pin |
+| Node ≥ 20 &lt; 25 · pnpm | Workspace `engines` (`>=20 <25`) + `packageManager` pin |
 | Cloudflare account | Account id + API token with Workers / D1 / R2 / Queues edit |
 | Secrets channel | `/root/.config/speakerops/secrets.env` (mode 600) or equivalent — **not** in git |
 | Wrangler CLI | `pnpm add -Dw wrangler` (or `WRANGLER_BIN` pointing at a local binary) |
@@ -41,7 +41,9 @@ Custom domain production cutover is **out of scope** for dogfood claim unless ow
 | `DOGFOOD_SKIP_DEPLOY` | optional | `1` = health-only (requires `SMOKE_BASE_URL`) |
 | `DEPLOY_DRY_RUN` | optional | `1` = validate creds + write dry-run evidence; no network deploy |
 | `DOGFOOD_EVIDENCE_PATH` | optional | Override BC10 evidence output path |
-| `DOGFOOD_WORKER_NAME` | optional | Default `speakerops-api` |
+| `DOGFOOD_WORKER_NAME` | optional | Default `speakerops-demo` |
+| `ROLE_SWITCHER_ENABLED` | dogfood Worker | `"1"` registers role-switch (and, with `JUDGE_ACCESS_CODE`, judge access). Default off |
+| `JUDGE_ACCESS_CODE` | dogfood Worker (secret) | Judge entry code for `/judge`; route 404s when unset — see [`SECRETS.md`](./SECRETS.md) |
 | `WRANGLER_BIN` | optional | Path or command for wrangler |
 | `TURNSTILE_SECRET_KEY` | production Worker | Required by `createAppFromBindings` (unless `DEMO_MODE=1`) — set via `wrangler secret put` |
 | `TURNSTILE_SITE_KEY` | production Worker | Public site key — `[vars]` or secret; not a private credential (ignored for public CFP when `DEMO_MODE=1`) |
@@ -126,6 +128,8 @@ Local SQLite path for dev remains `pnpm db:migrate` (`SPEAKEROPS_DB_PATH`).
 
 **Migration policy:** additive / linear only. No destructive “reset production” in dogfood without a Time Travel bookmark first (see Rollback).
 
+**Recent migrations (11.9):** `0021_message_jobs_calendar_invite` (comms preview calendar-invite column) is applied remotely on the dogfood D1; `0022_api_keys_created_at` adds `created_at` to `api_keys`.
+
 ### 4.4 Put Worker secrets (names only here)
 
 ```bash
@@ -207,8 +211,10 @@ After remote migrations:
 pnpm db:migrate
 pnpm seed
 
-# Remote seed is operator-specific (D1 execute / one-off job) — do not commit
-# production dumps. Prefer role switcher only on private dogfood:
+# There is NO remote reseed command. The dogfood D1 was seeded once (operator
+# D1 execute); the restore path for remote data is D1 Time Travel bookmarks
+# plus operator exports (see Rollback) — do not commit production dumps.
+# Prefer role switcher / judge access only on private dogfood:
 # ROLE_SWITCHER_ENABLED=1 + VITE_ROLE_SWITCHER=1 (names only; default off).
 ```
 
@@ -233,14 +239,15 @@ point judges or agents at `/api/auth/dev/outbox` on dogfood (route is **off** in
 | HttpOnly | yes | Not readable by JS (E10) |
 | Secure | yes | HTTPS dogfood |
 | SameSite | `Lax` | Same-site navigations; blocks cross-site POST CSRF |
-| Max-Age | `SESSION_TTL_DAYS` (14d) | Bounded session; survives reloads |
+| Max-Age | `SESSION_TTL_DAYS` (14d); **4h** for `/judge` demo sessions | Bounded session; survives reloads |
 | Domain | **omit** (host-only) | Exact host only — no sibling-host leakage |
 
 ### Mint paths (agents + operators)
 
 | Path | When | How |
 |------|------|-----|
-| **A. Role switcher** (preferred dogfood) | Private dogfood with seed | `ROLE_SWITCHER_ENABLED=1` on Worker + `VITE_ROLE_SWITCHER=1` SPA build. Operator signs in as **event admin** once, then uses Role switcher chrome → `POST /api/auth/dev/role-switch` mints demo `admin` / `evaluator` / `speaker` sessions. Controlled mode requires existing admin (or preserved judge cookie); unauthenticated mint → 401. |
+| **A. Judge access** (`/judge`, judges) | Shared demo with `JUDGE_ACCESS_CODE` + `ROLE_SWITCHER_ENABLED=1` | Public `/judge` page exchanges the access code (`POST /api/auth/judge-access`) for a **4-hour** demo-persona session (`admin` / `evaluator` / `speaker`) on `evt_dogfood`. Route 404s when disabled; rate-limited 10 attempts / 5 min / IP; demo sessions cannot create API keys; role switcher badge shows “Shared demo”. |
+| **A2. Role switcher** (preferred dogfood) | Private dogfood with seed | `ROLE_SWITCHER_ENABLED=1` on Worker + `VITE_ROLE_SWITCHER=1` SPA build. Operator signs in as **event admin** once, then uses Role switcher chrome → `POST /api/auth/dev/role-switch` mints demo `admin` / `evaluator` / `speaker` sessions. Controlled mode requires existing admin (or preserved judge cookie); unauthenticated mint → 401. |
 | **B. Magic link + real email** | Live mail transport | `POST /api/auth/magic-link` then open link → `POST /api/auth/exchange` sets cookie. Login UI does **not** promise a product outbox. |
 | **C. Local e2e / Playwright** | `pnpm test:e2e` only | `scripts/e2e-api-server.mjs` enables in-memory `GET /api/auth/dev/outbox` (`AUTH_DEV_OUTBOX=1`). Harness reads token, exchanges, seeds browser cookie. **Never** enable outbox as dogfood default. |
 | **D. Agent mint script** | Local API or open-bootstrap e2e | `node scripts/sbek-mint-auth-states.mjs` — mints three role sessions via role-switch (open e2e) or documents controlled dogfood steps. Writes redacted state paths under `.data/mint-states/` (tokens not committed). |

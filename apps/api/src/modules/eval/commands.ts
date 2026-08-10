@@ -159,6 +159,44 @@ async function toAssignmentDto(
   return dto;
 }
 
+/**
+ * Pure DTO mapper using prefetched score rows (no store round-trips).
+ * Same semantics as toAssignmentDto(..., includeScores = true) — used by the
+ * batched evaluator queue so aggregates never trigger per-assignment queries.
+ */
+function toAssignmentDtoWithScores(
+  row: EvalAssignmentRow,
+  criteria: EvalCriterionRow[],
+  scoreRows: ScoreRow[],
+): EvalAssignmentDto {
+  let aggregateScore: number | null = null;
+  if (row.status === "scored") {
+    const byCriterion = new Map(criteria.map((c) => [c.id, c]));
+    const items: Array<{ value: number; weight: number }> = [];
+    for (const s of scoreRows) {
+      const c = byCriterion.get(s.criterionId);
+      if (!c) continue;
+      items.push({ value: s.value, weight: c.weight });
+    }
+    aggregateScore = computeWeightedAggregate(items);
+  }
+  return {
+    id: row.id,
+    roundId: row.roundId,
+    submissionId: row.submissionId,
+    evaluatorUserId: row.evaluatorUserId,
+    status: asAssignmentStatus(row.status),
+    overallComment: row.overallComment ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    aggregateScore:
+      aggregateScore != null && Number.isFinite(aggregateScore)
+        ? aggregateScore
+        : null,
+    scores: scoreRows.map(toScoreDto),
+  };
+}
+
 export type UpsertRubricInput = EvalUpsertRubricBody & {
   eventId: string;
   actorUserId: string;
@@ -580,6 +618,10 @@ export async function assignEvaluators(
  * GET /api/me/eval-queue — only assignments for the current user.
  * Unassigned submissions are never included (F01).
  * Optional eventId filters to one programme (multi-event evaluators).
+ *
+ * Batched (no N+1): submissions/scores fetch in bulk; rounds, criteria, and
+ * events resolve once per unique id. On D1 every store call is a network hop,
+ * so per-assignment lookups made /eval take ~10s at dogfood scale.
  */
 export async function getEvalQueue(
   deps: EvalCommandDeps,
@@ -590,20 +632,54 @@ export async function getEvalQueue(
     await deps.eval.listAssignmentsForEvaluator(evaluatorUserId);
   const items: EvalQueueItem[] = [];
   const filterEventId = opts?.eventId?.trim() || null;
+  if (assignments.length === 0) {
+    return { ok: true, value: { items } };
+  }
+
+  const [submissionById, scoresByAssignment] = await Promise.all([
+    deps.submissions.listSubmissionsByIds(
+      assignments.map((a) => a.submissionId),
+    ),
+    deps.eval.listScoresForAssignments(assignments.map((a) => a.id)),
+  ]);
+
+  const uniqueRoundIds = [...new Set(assignments.map((a) => a.roundId))];
+  const roundById = new Map<string, EvalRoundRow>();
+  const criteriaByRound = new Map<string, EvalCriterionRow[]>();
+  await Promise.all(
+    uniqueRoundIds.map(async (roundId) => {
+      const [round, criteria] = await Promise.all([
+        deps.eval.findRoundById(roundId),
+        deps.eval.listCriteria(roundId),
+      ]);
+      if (round) roundById.set(roundId, round);
+      criteriaByRound.set(roundId, criteria);
+    }),
+  );
+
+  const uniqueEventIds = [
+    ...new Set([...roundById.values()].map((r) => r.eventId)),
+  ];
+  const eventById = new Map<string, { id: string; name: string }>();
+  await Promise.all(
+    uniqueEventIds.map(async (eventId) => {
+      const event = await deps.events.findEventById(eventId);
+      if (event) eventById.set(eventId, { id: event.id, name: event.name });
+    }),
+  );
 
   for (const a of assignments) {
-    const submission = await deps.submissions.findSubmissionById(
-      a.submissionId,
-    );
+    const submission = submissionById.get(a.submissionId);
     if (!submission) continue;
     if (filterEventId && submission.eventId !== filterEventId) continue;
-    const round = await deps.eval.findRoundById(a.roundId);
+    const round = roundById.get(a.roundId);
     if (!round) continue;
     if (filterEventId && round.eventId !== filterEventId) continue;
-    const event = await deps.events.findEventById(round.eventId);
+    const event = eventById.get(round.eventId);
     if (!event) continue;
-    const criteria = await deps.eval.listCriteria(round.id);
-    const assignmentDto = await toAssignmentDto(deps, a, criteria, true);
+    const criteria = criteriaByRound.get(round.id) ?? [];
+    const scoreRows = scoresByAssignment.get(a.id) ?? [];
+    const assignmentDto = toAssignmentDtoWithScores(a, criteria, scoreRows);
     const roundDto = toRoundDto(round);
     items.push({
       assignment: assignmentDto,

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Zero to a running SpeakerOps workspace: install, env names, migrate, seed, first admin, and the demo walk.">
+<title>Operator onboarding · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview" aria-current="page">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Operator onboarding</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L02">
+<h1>Operator onboarding</h1>
+<p class="learn-lead">Zero to a running SpeakerOps workspace: install, env names, migrate, seed, first admin, and the demo walk.</p>
+<section class="learn-section">
+<h2 id="goal-and-timebox">Goal and timebox</h2>
+<p>New human operators should go from a clean machine to a running local workspace without tribal knowledge. The target is under ninety minutes through install, migrate, seed, first admin, and a demo walk of CFP → evaluation → portal → schedule → readiness. Cloudflare dogfood deploy is optional and may take longer because of account setup.</p>
+<p>Judges and invited staff who only need to click through the product can skip local install and use the shared demo host instead — judges enter via /judge with the access code; members log in with membership-aware magic links.</p>
+</section>
+<section class="learn-section">
+<h2 id="prerequisites">Prerequisites</h2>
+<p>You need Node.js 20–24 (engines-enforced: &gt;=20 &lt;25), pnpm matching the workspace packageManager pin, and a git clone of the SpeakerOps monorepo. Cloudflare account access is optional until you deploy dogfood or demo.</p>
+<ol class="learn-steps">
+<li>Confirm node -v reports v20–v24.</li>
+<li>Enable corepack if needed, then confirm pnpm -v matches the workspace pin.</li>
+<li>Clone the monorepo and change into the repository root.</li>
+<li>Run pnpm install. Do not source deployment secrets into install or CI gates.</li>
+</ol>
+<pre class="learn-code" data-testid="learn-code-block"><code>node -v
+pnpm -v
+pnpm install</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="environment-names-only">Environment names only</h2>
+<p>Copy variable names into a local secrets channel or a gitignored .env / .dev.vars file. Document names only in shared docs. Never commit API keys, magic-link tokens, encryption keys, or Cloudflare tokens.</p>
+<aside class="learn-callout learn-callout--warning" data-testid="learn-callout"><p><strong>WARNING.</strong> Full secret values must never appear in git, screenshots committed to the repo, or structured logs at full length.</p></aside>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Name</th><th>Needed for</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>SPEAKEROPS_DB_PATH</td><td>Local DB</td><td>Optional SQLite path (default .data/speakerops.local.sqlite)</td></tr>
+<tr><td>BOOTSTRAP_ADMIN_EMAIL</td><td>First admin</td><td>Allowlisted email for controlled bootstrap</td></tr>
+<tr><td>AUTH_DEV_OUTBOX</td><td>Local e2e only</td><td>Set to 1 to expose magic-link outbox for Playwright — never production default</td></tr>
+<tr><td>TURNSTILE_SITE_KEY</td><td>Public CFP / Worker</td><td>Public Turnstile site key</td></tr>
+<tr><td>TURNSTILE_SECRET_KEY</td><td>Worker secret</td><td>Turnstile secret via wrangler secret put</td></tr>
+<tr><td>SPEAKEROPS_API_KEY</td><td>CLI / agents</td><td>Bearer secret spk_… minted in admin</td></tr>
+<tr><td>SPEAKEROPS_API_URL</td><td>CLI optional</td><td>API base URL (default http://127.0.0.1:8787)</td></tr>
+<tr><td>EMAIL_PROVIDER</td><td>Comms drain</td><td>sandbox (default), resend, or cloudflare on demo</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="migrate-seed-and-first-admin">Migrate, seed, and first admin</h2>
+<p>Apply linear D1 migrations to local SQLite with the same SQL used on Cloudflare. Seed loads a realistic demo graph so every admin surface has data. First admin is controlled by the BOOTSTRAP_ADMIN_EMAIL bootstrap and magic-link flow — there is no password database.</p>
+<ol class="learn-steps">
+<li>Run pnpm db:migrate to apply packages/db/migrations to local SQLite.</li>
+<li>Run pnpm seed to load the demo event graph.</li>
+<li>Start the API and web apps per repository scripts (typical ports 8787 and 5173).</li>
+<li>Open /login, request a magic link for your bootstrap admin email, and complete the exchange.</li>
+<li>Confirm you land in admin with access to CFP, submissions, schedule, and settings.</li>
+</ol>
+<pre class="learn-code" data-testid="learn-code-block"><code>pnpm db:migrate
+pnpm seed
+# then start API + web per package scripts / AGENTS.md</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="demo-walk-program-path">Demo walk (program path)</h2>
+<p>After login, walk the product in season order so you see how fields flow from forms to readiness. Keep this Learn handbook open beside the app.</p>
+<ol class="learn-steps">
+<li>Open Admin → CFP forms. Review or edit the draft form, then understand publish pins an immutable version.</li>
+<li>Open the public CFP route for the form slug and submit a test proposal if your host allows it.</li>
+<li>Score the submission in evaluation, then record accept, reject, or waitlist on the submissions screen.</li>
+<li>As an accepted speaker, open the portal and complete a task or note outstanding work.</li>
+<li>Place a session on the schedule studio and resolve any conflict messaging.</li>
+<li>Open readiness and confirm outstanding tasks and stats match what you just did.</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="gates-and-optional-deploy">Gates and optional deploy</h2>
+<p>Local quality gates must stay non-interactive: typecheck, unit and CI tests, and Playwright inventory proofs run without production credentials. Optional dogfood deploy needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in a secrets channel, plus D1 and Worker configuration described in Operations.</p>
+<ul class="learn-bullets">
+<li>pnpm typecheck</li>
+<li>pnpm test:ci</li>
+<li>pnpm test:e2e (and inventory crawl when required)</li>
+<li>Optional: dogfood deploy scripts from docs/OPERATIONS.md</li>
+</ul>
+</section>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#goal-and-timebox">Goal and timebox</a></li>
+<li><a href="#prerequisites">Prerequisites</a></li>
+<li><a href="#environment-names-only">Environment names only</a></li>
+<li><a href="#migrate-seed-and-first-admin">Migrate, seed, and first admin</a></li>
+<li><a href="#demo-walk-program-path">Demo walk (program path)</a></li>
+<li><a href="#gates-and-optional-deploy">Gates and optional deploy</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

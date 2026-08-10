@@ -380,13 +380,32 @@ export function formatTimeLabel(iso: string, timeZone?: string): string {
   }
 }
 
+/** ISO-8601 instants embedded in API conflict copy (UTC or offset form). */
+const ISO_INSTANT_RE =
+  /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})/g;
+
+/**
+ * Rewrite raw ISO instants inside server copy (e.g. "Room is already booked
+ * from 2026-09-01T16:00:00.000Z…") to event-local grid times via
+ * formatTimeLabel, so the banner matches the schedule grid.
+ */
+export function localizeIsoTimesInText(
+  text: string,
+  timeZone?: string,
+): string {
+  return text.replace(ISO_INSTANT_RE, (iso) => formatTimeLabel(iso, timeZone));
+}
+
 export function formatConflictMessage(
   conflicts: ScheduleConflictItem[] | undefined,
+  timeZone?: string,
 ): string {
   if (!conflicts || conflicts.length === 0) {
     return "Schedule conflict";
   }
-  return conflicts.map((c) => c.message).join(" · ");
+  return conflicts
+    .map((c) => localizeIsoTimesInText(c.message, timeZone))
+    .join(" · ");
 }
 
 /**
@@ -453,10 +472,11 @@ export function detectLocalRoomConflicts(
 /** Map API conflict items into local rows (failed place/move). */
 export function apiConflictsToLocal(
   conflicts: ScheduleConflictItem[],
+  timeZone?: string,
 ): LocalScheduleConflict[] {
   return conflicts.map((c) => ({
     type: c.type,
-    message: c.message,
+    message: localizeIsoTimesInText(c.message, timeZone),
     roomId: c.roomId,
     placementId: c.placementId,
     sessionId: c.sessionId,

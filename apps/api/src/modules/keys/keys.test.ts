@@ -163,6 +163,44 @@ describe("7.1 API keys", () => {
     expect(listed.keys.every((k) => k.prefix.length > 0)).toBe(true);
   });
 
+  it("a row without created_at still lists (fallback ISO — never 500)", async () => {
+    const { app, keys, cookie, userId } = await magicLinkSession(
+      "admin",
+      "keys-legacy-created@example.com",
+    );
+    const {
+      DEFAULT_ORG_ID,
+      DEFAULT_BOOTSTRAP_EVENT_ID,
+      API_KEY_CREATED_AT_FALLBACK,
+    } = await import("@speakerops/shared");
+    // Pre-0022-backfill shape: created_at missing (empty out of the store)
+    await keys.insertKey({
+      id: "key_legacy_created",
+      orgId: DEFAULT_ORG_ID,
+      name: "legacy-no-created-at",
+      keyPrefix: "spk_1e9a0000",
+      keyHash: await hashToken("spk_1e9a0000_legacycreatedatsecret"),
+      scopesJson: JSON.stringify(["events:read"]),
+      eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+      expiresAt: null,
+      revokedAt: null,
+      createdBy: userId,
+      createdAt: "",
+      lastUsedAt: null,
+    });
+
+    const list = await app.request(
+      "http://localhost/api/keys",
+      { headers: { cookie } },
+      env,
+    );
+    expect(list.status).toBe(200);
+    const listed = KeysListResponseSchema.parse(await list.json());
+    const legacy = listed.keys.find((k) => k.id === "key_legacy_created");
+    expect(legacy).toBeTruthy();
+    expect(legacy!.createdAt).toBe(API_KEY_CREATED_AT_FALLBACK);
+  });
+
   it("assert revoked key 401 on API call", async () => {
     const { app, cookie } = await magicLinkSession(
       "admin",
@@ -633,6 +671,7 @@ describe("7.1 API keys", () => {
       expiresAt: null,
       revokedAt: null,
       createdBy: userId,
+      createdAt: "2026-08-01T00:00:00.000Z",
       lastUsedAt: null,
     });
 

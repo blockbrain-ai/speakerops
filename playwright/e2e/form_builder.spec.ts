@@ -586,3 +586,68 @@ test("@inv:D10 e2e/admin/form-link copy public link", async ({
   await page.getByTestId("form-copy-link").focus();
   await expect(page.getByTestId("form-copy-link")).toBeFocused();
 });
+
+test("form picker opens an older form; publish shows live-CFP consequence copy", async ({
+  page,
+  request,
+  context,
+  baseURL,
+}) => {
+  const session = await loginAsAdmin(
+    request,
+    context,
+    baseURL,
+    "e2e-picker@example.com",
+  );
+  const event = await ensureEvent(request, session, "Picker Event");
+
+  // Two forms via API — builder previously always loaded the newest silently
+  const mkForm = async (name: string): Promise<string> => {
+    const res = await request.post(`/api/events/${event.id}/forms`, {
+      headers: sessionHeaders(session),
+      data: { name },
+    });
+    expect(res.status(), `Form.Create ${res.status()}`).toBe(201);
+    const body = (await res.json()) as { form: { id: string } };
+    return body.form.id;
+  };
+  const olderId = await mkForm("Older CFP");
+  const newerId = await mkForm("Newer CFP");
+
+  await openFormBuilder(page, baseURL, event.id);
+
+  // A form loads by default; picker lists every form for the event
+  await expect(page.getByTestId("form-builder-picker")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId("form-id")).not.toBeEmpty();
+  await expect(
+    page.getByTestId(`form-builder-picker-option-${olderId}`),
+  ).toHaveCount(1);
+  await expect(
+    page.getByTestId(`form-builder-picker-option-${newerId}`),
+  ).toHaveCount(1);
+
+  // Pick the older form — builder reloads it (deep link ?form=)
+  await page.getByTestId("form-builder-picker").selectOption(olderId);
+  await expect(page.getByTestId("form-id")).toHaveText(olderId, {
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId("form-load-status")).toContainText(
+    /Older CFP/i,
+  );
+  await expect(page.getByTestId("form-builder-picker")).toHaveValue(olderId);
+
+  // Publish consequence copy is explicit next to the Publish action
+  await expect(page.getByTestId("form-publish-consequence")).toContainText(
+    "Publishing makes this version the live public CFP form for this event.",
+  );
+
+  // Existing edit flow still works on the older form
+  await page.getByTestId("palette-text").click();
+  await page.getByTestId("form-save-draft").click();
+  await expect(page.getByTestId("form-save-status")).toContainText(
+    /Draft saved/i,
+    { timeout: 10_000 },
+  );
+});

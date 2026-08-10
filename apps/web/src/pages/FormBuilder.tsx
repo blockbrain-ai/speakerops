@@ -98,10 +98,12 @@ function reasonMessage(reasons: ReturnType<typeof publishBlockReasons>): string 
 
 export function FormBuilderPage() {
   const { activeEventId, activeEvent } = useEventContext();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [formName, setFormName] = useState("CFP form");
   const [form, setForm] = useState<FormDto | null>(null);
+  /** All forms for the event — picker so older forms stay reachable. */
+  const [formsList, setFormsList] = useState<FormDto[]>([]);
   const [draftMeta, setDraftMeta] = useState<FormVersionDto | null>(null);
   const [publishedVersion, setPublishedVersion] =
     useState<FormVersionDto | null>(null);
@@ -170,6 +172,7 @@ export function FormBuilderPage() {
   useEffect(() => {
     setFormName("CFP form");
     setForm(null);
+    setFormsList([]);
     setDraftMeta(null);
     setPublishedVersion(null);
     setFields([]);
@@ -218,6 +221,7 @@ export function FormBuilderPage() {
           return;
         }
         const forms = listParsed.data.forms;
+        setFormsList(forms);
         const target =
           (preferFormId
             ? forms.find((f) => f.id === preferFormId)
@@ -340,6 +344,14 @@ export function FormBuilderPage() {
     setFields((prev) => reorderFields(prev, index, to));
   }
 
+  /** Open an existing form via ?form= deep link (mount effect reloads it). */
+  function onPickForm(formId: string) {
+    if (!formId || formId === form?.id) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("form", formId);
+    setSearchParams(next, { replace: true });
+  }
+
   async function onCreateForm(e: FormEvent) {
     e.preventDefault();
     if (!activeEventId) {
@@ -380,6 +392,10 @@ export function FormBuilderPage() {
         return;
       }
       setForm(parsed.data.form);
+      setFormsList((prev) => [
+        parsed.data.form,
+        ...prev.filter((f) => f.id !== parsed.data.form.id),
+      ]);
       setDraftMeta(parsed.data.draft);
       setPublishedVersion(null);
       setFields([]);
@@ -502,6 +518,9 @@ export function FormBuilderPage() {
         return;
       }
       setForm(parsed.data.form);
+      setFormsList((prev) =>
+        prev.map((f) => (f.id === parsed.data.form.id ? parsed.data.form : f)),
+      );
       setPublishedVersion(parsed.data.formVersion);
       setPublishStatus({
         kind: "ok",
@@ -649,6 +668,13 @@ export function FormBuilderPage() {
               >
                 Copy public link
               </Button>
+              <p
+                className="form-builder__muted form-builder__publish-consequence"
+                data-testid="form-publish-consequence"
+              >
+                Publishing makes this version the live public CFP form for this
+                event.
+              </p>
             </div>
           ) : null
         }
@@ -666,6 +692,35 @@ export function FormBuilderPage() {
         data-testid="form-create-section"
         aria-labelledby="form-create-heading"
       >
+        {formsList.length > 0 ? (
+          <div
+            className="form-builder__form-row"
+            data-testid="form-builder-picker-row"
+          >
+            <label className="form-builder__label" htmlFor="form-builder-picker">
+              Open existing form
+            </label>
+            <select
+              id="form-builder-picker"
+              className="form-builder__input lumen-focusable"
+              data-testid="form-builder-picker"
+              value={form?.id ?? ""}
+              onChange={(e) => onPickForm(e.target.value)}
+              disabled={busy}
+            >
+              {!form ? <option value="">Select a form…</option> : null}
+              {formsList.map((f) => (
+                <option
+                  key={f.id}
+                  value={f.id}
+                  data-testid={`form-builder-picker-option-${f.id}`}
+                >
+                  {f.name} · {f.status}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <h3 id="form-create-heading" className="form-builder__heading">
           Create form
         </h3>
@@ -1283,7 +1338,8 @@ export function FormBuilderPage() {
                 ) : (
                   <Alert tone="info" title="Ready to publish">
                     Publishing freezes an immutable form version. New submissions
-                    pin to that version.
+                    pin to that version. Publishing makes this version the live
+                    public CFP form for this event.
                   </Alert>
                 )}
                 <ul className="form-builder__publish-field-list" data-testid="publish-field-list">

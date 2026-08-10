@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Sessions, CSP, secrets names-only, scopes, and operator hardening practices.">
+<title>Security model · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security" aria-current="page">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Security model</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L18">
+<h1>Security model</h1>
+<p class="learn-lead">Sessions, CSP, secrets names-only, scopes, and operator hardening practices.</p>
+<section class="learn-section">
+<h2 id="trust-boundary">Trust boundary</h2>
+<p>Authorization runs on the Cloudflare Worker. The SPA and CLI are clients only. If a client can call an API without a server-side check, that is a bug — not an operator workaround. Domain commands and middleware enforce roles and scopes on every mutation.</p>
+</section>
+<section class="learn-section">
+<h2 id="session-cookies">Session cookies</h2>
+<p>Human sessions use the speakerops_session cookie with HttpOnly, Secure, SameSite=Lax, Path=/, and bounded Max-Age. Judge demo sessions minted on /judge share the same cookie discipline with a shorter four-hour TTL and cannot create API keys. Magic-link tokens are single-use and short-lived. Never place auth material in localStorage or sessionStorage.</p>
+<ul class="learn-bullets">
+<li>HttpOnly + Secure + SameSite=Lax on production sessions</li>
+<li>No auth secrets in frontend storage APIs</li>
+<li>Redact cookies, tokens, and magic links in logs</li>
+</ul>
+</section>
+<section class="learn-section">
+<h2 id="content-security-policy">Content-Security-Policy</h2>
+<p>Production CSP uses default-src &#39;self&#39;, tight script-src without unsafe-inline on Worker paths, Turnstile host allowances, frame-ancestors none, and companion headers such as X-Content-Type-Options and Referrer-Policy. Dev servers may relax script-src for Vite HMR only — never copy that relaxation to the Worker.</p>
+<aside class="learn-callout learn-callout--warning" data-testid="learn-callout"><p><strong>WARNING.</strong> Do not weaken production CSP or cookie flags for demo convenience.</p></aside>
+</section>
+<section class="learn-section">
+<h2 id="secrets-discipline">Secrets discipline</h2>
+<p>Documentation and commits may list environment variable names only. Values live in wrangler secrets, local gitignored files, or a mode-600 secrets channel. CLI keys use SPEAKEROPS_API_KEY as the name; the value is the spk_ secret minted once.</p>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Surface</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>Git</td><td>Names only; no tokens, keys, or magic links</td></tr>
+<tr><td>Logs</td><td>Structured logs; redact secrets</td></tr>
+<tr><td>API keys</td><td>Hash at rest; secret once on create</td></tr>
+<tr><td>Default-deny scopes</td><td>comms:send, decisions:write, keys:admin</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="operator-hardening-checklist">Operator hardening checklist</h2>
+<p>Keep admin memberships tight. Revoke unused API keys. Prefer least privilege per agent. Review audit events after bulk decisions or sends. Confirm Turnstile on public CFP. Confirm public upload mime/size limits remain intentional.</p>
+</section>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#trust-boundary">Trust boundary</a></li>
+<li><a href="#session-cookies">Session cookies</a></li>
+<li><a href="#content-security-policy">Content-Security-Policy</a></li>
+<li><a href="#secrets-discipline">Secrets discipline</a></li>
+<li><a href="#operator-hardening-checklist">Operator hardening checklist</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

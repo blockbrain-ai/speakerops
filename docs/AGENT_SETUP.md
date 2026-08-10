@@ -126,6 +126,7 @@ speakerops keys create \
 - Secret is returned **once** in the create response. Store it in the host secret channel as `SPEAKEROPS_API_KEY`.
 - List endpoints never re-display the secret.
 - Without `keys:admin` → **exit 2** / HTTP **403** `FORBIDDEN` (CLI11).
+- **Shared-demo note:** demo-persona sessions (role switcher / `/judge` judge access) cannot create API keys — key mint needs a real admin login.
 
 ### Scope recipes (examples — not values)
 
@@ -158,7 +159,7 @@ speakerops openapi --json
 curl -s "${SPEAKEROPS_API_URL}/openapi.json"
 ```
 
-**URL:** `{SPEAKEROPS_API_URL}/openapi.json` (local default `http://127.0.0.1:8787/openapi.json`).
+**URL:** `{SPEAKEROPS_API_URL}/openapi.json` (local default `http://127.0.0.1:8787/openapi.json`). The deployed site serves it live too: `https://www.speakerops.org/openapi.json`.
 
 Expect paths that include `/api/events`, design, schedule, readiness, keys, and other COMMANDS.md routes. Do not invent routes that are absent from OpenAPI / COMMANDS.
 

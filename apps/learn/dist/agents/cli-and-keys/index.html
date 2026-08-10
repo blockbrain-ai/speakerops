@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Full handbook: mint scoped API keys, install the speakerops CLI, authenticate, run every inventory command, read exit codes, and automate safely.">
+<title>CLI and API keys · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys" aria-current="page">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">CLI and API keys</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L17">
+<h1>CLI and API keys</h1>
+<p class="learn-lead">Full handbook: mint scoped API keys, install the speakerops CLI, authenticate, run every inventory command, read exit codes, and automate safely.</p>
+<section class="learn-section">
+<h2 id="what-you-will-learn-on-this-page">What you will learn on this page</h2>
+<p>This page is the complete operator and agent guide for SpeakerOps automation. You will mint scoped API keys in the admin UI, install and run the speakerops CLI, set environment variables, understand exit codes, and copy working examples for every inventory command family. You do not need to open a separate repository document to perform these tasks — examples and scope tables are included here.</p>
+<p>The CLI maps one-to-one to domain commands on the Worker. Scopes are enforced server-side. The CLI cannot grant itself extra power. Prefer least-privilege keys and --json output for agents.</p>
+<ul class="learn-bullets">
+<li>Mint and revoke API keys (secret shown once)</li>
+<li>Install CLI from the monorepo package @speakerops/cli</li>
+<li>Authenticate with SPEAKEROPS_API_KEY and SPEAKEROPS_API_URL</li>
+<li>Run events, reports, design, schedule, files, comms, keys, and agent ops verbs</li>
+<li>Interpret exit codes 0–4 and default-deny scopes</li>
+</ul>
+</section>
+<section class="learn-section">
+<h2 id="mint-an-api-key-in-the-admin-ui">Mint an API key in the admin UI</h2>
+<p>Sign in as an admin. Open Admin → Settings → API keys (route /admin/settings/api-keys). Create a key with a human name and only the scopes the agent needs. The full secret is shown once at creation; the list view shows prefix only. Store the secret in a password manager or secrets channel — never in git.</p>
+<p>Revocation is immediate for subsequent requests. Rotate keys by creating a new key, updating the agent env, then revoking the old id.</p>
+<ol class="learn-steps">
+<li>Open /admin/settings/api-keys as an admin session.</li>
+<li>Click create and enter a name such as readiness-reporter.</li>
+<li>Select least-privilege scopes (for example events:read and reports:read).</li>
+<li>Submit create and copy the full secret immediately.</li>
+<li>Confirm the list shows prefix and scopes without the full secret.</li>
+<li>To disable a compromised key, revoke it from the same screen.</li>
+</ol>
+<aside class="learn-callout learn-callout--warning" data-testid="learn-callout"><p><strong>WARNING.</strong> Default-deny scopes on new keys include comms:send, decisions:write, and keys:admin. Opt in only for trusted automation with human oversight. On the shared demo, judge and role-switcher demo sessions cannot create API keys — key mint requires a real admin login.</p></aside>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Agent role</th><th>Example scopes</th></tr></thead>
+<tbody>
+<tr><td>Reporting</td><td>events:read, reports:read</td></tr>
+<tr><td>Design</td><td>design:read, design:write, events:read</td></tr>
+<tr><td>Schedule</td><td>schedule:read, schedule:write, events:read</td></tr>
+<tr><td>Comms draft only</td><td>comms:draft (not comms:send)</td></tr>
+<tr><td>Submissions read</td><td>events:read, submissions:read</td></tr>
+<tr><td>Full send / key admin</td><td>opt-in comms:send, keys:admin (default-deny)</td></tr>
+<tr><td>Decisions automation</td><td>opt-in decisions:write (default-deny)</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="install-the-cli">Install the CLI</h2>
+<p>The CLI ships as package @speakerops/cli in the monorepo (packages/cli). Build it after pnpm install. Run via pnpm exec speakerops or node packages/cli/dist/main.js. There is no interactive TUI — every verb is a non-interactive command suitable for agents and CI.</p>
+<ol class="learn-steps">
+<li>Clone the monorepo and run pnpm install from the root.</li>
+<li>Build the CLI package: pnpm --filter @speakerops/cli build</li>
+<li>Verify help output: pnpm exec speakerops --help</li>
+<li>Optionally alias speakerops to the built binary in your shell profile for local ops.</li>
+</ol>
+<pre class="learn-code" data-testid="learn-code-block"><code># From monorepo root
+pnpm install
+pnpm --filter @speakerops/cli build
+pnpm exec speakerops --help
+pnpm exec speakerops --version
+# equivalent:
+# node packages/cli/dist/main.js --help</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="authenticate-every-invocation">Authenticate every invocation</h2>
+<p>The CLI sends Authorization: Bearer &lt;secret&gt; to the API base URL. Provide the secret through the SPEAKEROPS_API_KEY environment variable or the --api-key flag. Set SPEAKEROPS_API_URL when not using the local default http://127.0.0.1:8787. Optional SPEAKEROPS_CORRELATION_ID pins a correlation id; otherwise the CLI generates a cli_… id for audit trails.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code>export SPEAKEROPS_API_URL=&quot;https://www.speakerops.org&quot;   # or local http://127.0.0.1:8787
+export SPEAKEROPS_API_KEY=&quot;spk_…&quot;   # from admin create; never commit
+
+speakerops events list --json</code></pre>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Name or flag</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>SPEAKEROPS_API_KEY</td><td>Bearer secret spk_… (required for authenticated commands)</td></tr>
+<tr><td>SPEAKEROPS_API_URL</td><td>API base URL (default http://127.0.0.1:8787)</td></tr>
+<tr><td>SPEAKEROPS_CORRELATION_ID</td><td>Optional fixed correlation id for audit</td></tr>
+<tr><td>--api-key</td><td>Override SPEAKEROPS_API_KEY for one run</td></tr>
+<tr><td>--api-url</td><td>Override SPEAKEROPS_API_URL for one run</td></tr>
+<tr><td>--json / -j</td><td>Stable JSON on stdout for agents</td></tr>
+<tr><td>--help / -h</td><td>Command help</td></tr>
+<tr><td>--version / -V</td><td>CLI version</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="exit-codes">Exit codes</h2>
+<p>Agents must branch on exit codes. Do not retry authorization failures without a human expanding scopes. Do not retry schedule conflicts without changing room or time.</p>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Code</th><th>Meaning</th><th>Agent action</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>Success</td><td>Parse stdout JSON and continue</td></tr>
+<tr><td>1</td><td>Validation / not found / missing client config</td><td>Fix args or data; do not blind retry</td></tr>
+<tr><td>2</td><td>Authz (401/403 missing scope or bad key)</td><td>Stop; request scope grant or new key</td></tr>
+<tr><td>3</td><td>Conflict (409), e.g. schedule double-book</td><td>Surface conflicts[]; change placement</td></tr>
+<tr><td>4</td><td>Network / 5xx</td><td>Retry with backoff; alert if persistent</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="events-and-readiness-commands">Events and readiness commands</h2>
+<p>List events and fetch readiness reports. These are the safest first checks after minting a read-only key.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code># CLI01 — list events (scope: events:read)
+speakerops events list --json
+
+# events get
+speakerops events get --event &lt;eventId&gt; --json
+
+# CLI02 — readiness (scope: reports:read)
+speakerops reports readiness --event &lt;eventId&gt; --json
+speakerops reports readiness --event &lt;eventId&gt; --overdue-only --json</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="design-kit-commands">Design kit commands</h2>
+<p>Read draft and published tokens, merge brand into draft, and publish. Freeform CSS is not accepted. Contrast failures return validation errors (exit 1).</p>
+<pre class="learn-code" data-testid="learn-code-block"><code># CLI03 — get design (design:read or design:write)
+speakerops design get --event &lt;eventId&gt; --json
+
+# CLI04 — set draft brand/radius (design:write)
+speakerops design set --event &lt;eventId&gt; --brand &#39;#4F46E5&#39; --radius soft
+
+# CLI05 — publish draft (design:write)
+speakerops design publish --event &lt;eventId&gt; --json</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="schedule-commands">Schedule commands</h2>
+<p>Place and list schedule placements. Hard conflicts exit 3. Scope schedule:write is required for mutations; schedule:read for list.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code># CLI06 — place session (schedule:write)
+speakerops schedule place \
+  --event &lt;eventId&gt; \
+  --session &lt;sessionId&gt; \
+  --room &lt;roomId&gt; \
+  --start 2026-09-12T09:00:00.000Z \
+  --end 2026-09-12T09:45:00.000Z \
+  --json
+
+# List / unschedule
+speakerops schedule list --event &lt;eventId&gt; --json
+speakerops schedule unschedule --event &lt;eventId&gt; --placement &lt;placementId&gt; --json
+
+# CLI07 — prove deny: reports-only key attempting place → exit 2</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="submissions-decisions-speakers-rooms-tracks">Submissions, decisions, speakers, rooms, tracks</h2>
+<p>Agent ops verbs cover the program pipeline without raw SQL. Staff frustration with private developer-only databases is solved by scoped domain commands — the same path as the admin UI — not by bypassing the system of record.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code># Submissions (submissions:read)
+speakerops submissions list --event &lt;eventId&gt; --json
+speakerops submissions list --event &lt;eventId&gt; --status submitted --json
+speakerops submissions get --id &lt;submissionId&gt; --json
+
+# Decisions (decisions:write — default-deny)
+speakerops decisions record --submission &lt;id&gt; --decision accept --reason &#39;PC&#39; --json
+# decisions: accept | reject | waitlist
+
+# Speakers / rooms / tracks (read scopes)
+speakerops speakers list --event &lt;eventId&gt; --json
+speakerops speakers list --event &lt;eventId&gt; --q &#39;Ada&#39; --json
+speakerops rooms list --event &lt;eventId&gt; --json
+speakerops tracks list --event &lt;eventId&gt; --json</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="files-upload">Files upload</h2>
+<p>Upload flows presign, PUT bytes, and complete through domain commands. Scope files:write is required. Bind headshots or slides to a participation when the command supports --participation.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code># CLI08
+speakerops files upload --event &lt;eventId&gt; --file ./logo.png --purpose logo --json
+speakerops files upload --event &lt;eventId&gt; --file ./headshot.jpg --participation &lt;participationId&gt; --json</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="comms-draft-and-send">Comms draft and send</h2>
+<p>Preview before send. Draft scope cannot send. Send enqueues only; provider HTTP stays off the request path.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code># CLI09 — preview (comms:draft)
+speakerops comms draft --template &lt;templateId&gt; --preview --json
+speakerops comms templates --event &lt;eventId&gt; --json
+
+# CLI10 — send (comms:send default-deny)
+speakerops comms send --preview-id &lt;previewId&gt; --json
+# optional: --idempotency-key &lt;key&gt;</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="key-administration-from-the-cli">Key administration from the CLI</h2>
+<p>Creating and revoking keys requires keys:admin (default-deny). The create response returns the secret once; list never includes it.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code># CLI11 — create (keys:admin)
+speakerops keys create --name &#39;agent-read&#39; --scopes events:read,reports:read --json
+
+speakerops keys list --json
+speakerops keys revoke --id &lt;keyId&gt; --json</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="openapi-discovery">OpenAPI discovery</h2>
+<p>OpenAPI is a public discovery document for humans and agents. It lists paths for events, schedule, readiness, design, keys, and related resources. The Worker serves it live on the deployed site too: https://www.speakerops.org/openapi.json.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code># CLI12
+speakerops openapi --json
+# or: curl -s &quot;$SPEAKEROPS_API_URL/openapi.json&quot;</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="optional-airtable-status">Optional Airtable status</h2>
+<p>When one-way Airtable projection is configured, agents can read status with airtable:read. Product core works when Airtable is unset (paused). Airtable is never a second system of record for writes from SpeakerOps program commands.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code>speakerops airtable status --event &lt;eventId&gt; --json</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="agent-rules-of-the-road">Agent rules of the road</h2>
+<p>These rules keep automation safe and debuggable.</p>
+<ul class="learn-bullets">
+<li>Prefer --json on every automation command for stable stdout.</li>
+<li>Treat exit 2 as wrong key or missing scope — do not loop without human grant.</li>
+<li>Treat exit 3 as schedule conflict — show conflicts[] to an operator.</li>
+<li>Never log full API key secrets or magic-link URLs.</li>
+<li>Mutations write audit_events with correlationId (and key id when Bearer).</li>
+<li>Do not use raw SQL against D1 for staff ops; use domain commands.</li>
+<li>Keep high-risk scopes off default keys used by broad agent fleets.</li>
+</ul>
+<aside class="learn-callout learn-callout--tip" data-testid="learn-callout"><p><strong>TIP.</strong> A practical first agent key is events:read + reports:read only. Expand scopes when a concrete workflow needs them.</p></aside>
+</section>
+<section class="learn-section">
+<h2 id="end-to-end-agent-smoke-sequence">End-to-end agent smoke sequence</h2>
+<p>After minting a key that includes events:read, reports:read, design:read, and schedule:read, run this sequence against demo or local to prove connectivity. Grant mutation scopes only for concrete write workflows you mean to run.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code>export SPEAKEROPS_API_URL=&quot;http://127.0.0.1:8787&quot;
+export SPEAKEROPS_API_KEY=&quot;spk_…&quot;
+
+speakerops events list --json
+speakerops reports readiness --event &lt;eventId&gt; --json
+speakerops design get --event &lt;eventId&gt; --json
+speakerops schedule list --event &lt;eventId&gt; --json
+speakerops openapi --json &gt;/dev/null &amp;&amp; echo openapi_ok</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="http-mapping-reference">HTTP mapping reference</h2>
+<p>Each CLI verb calls the same Worker routes the admin SPA uses. Scopes are checked by Worker middleware. OpenAPI documents the HTTP shapes for client generation.</p>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>CLI</th><th>HTTP sketch</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>events list</td><td>GET /api/events</td><td>events:read</td></tr>
+<tr><td>reports readiness</td><td>GET /api/events/:eventId/readiness</td><td>reports:read</td></tr>
+<tr><td>design get/set/publish</td><td>GET/PUT/POST design routes</td><td>design:read / design:write</td></tr>
+<tr><td>schedule place</td><td>POST …/schedule/place</td><td>schedule:write</td></tr>
+<tr><td>files upload</td><td>presign → upload → complete</td><td>files:write</td></tr>
+<tr><td>comms draft/send</td><td>POST preview / send</td><td>comms:draft / comms:send</td></tr>
+<tr><td>keys create/list/revoke</td><td>/api/keys</td><td>keys:admin</td></tr>
+<tr><td>openapi</td><td>GET /openapi.json</td><td>public</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="security-model-for-keys">Security model for keys</h2>
+<p>Plaintext secrets are returned only on create. The Worker stores a SHA-256 hash. Bearer lookup hashes the presented secret. Revoked or expired keys get 401. Wrong scopes get 403 with a structured error envelope that can include required scopes. Audit logs never store the full secret.</p>
+<p>UI session cookies and API keys are different credentials. Do not paste browser cookies into agent configs. Do not reuse a god-mode key across untrusted automation.</p>
+<aside class="learn-callout learn-callout--note" data-testid="learn-callout"><p><strong>NOTE.</strong> Package path: packages/cli. Proof tests live in packages/cli/src/cli.test.ts and Playwright phase keystones for spawn-against-API scenarios.</p></aside>
+</section>
+<aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
+<li><code>/admin/settings/api-keys</code></li>
+</ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#what-you-will-learn-on-this-page">What you will learn on this page</a></li>
+<li><a href="#mint-an-api-key-in-the-admin-ui">Mint an API key in the admin UI</a></li>
+<li><a href="#install-the-cli">Install the CLI</a></li>
+<li><a href="#authenticate-every-invocation">Authenticate every invocation</a></li>
+<li><a href="#exit-codes">Exit codes</a></li>
+<li><a href="#events-and-readiness-commands">Events and readiness commands</a></li>
+<li><a href="#design-kit-commands">Design kit commands</a></li>
+<li><a href="#schedule-commands">Schedule commands</a></li>
+<li><a href="#submissions-decisions-speakers-rooms-tracks">Submissions, decisions, speakers, rooms, tracks</a></li>
+<li><a href="#files-upload">Files upload</a></li>
+<li><a href="#comms-draft-and-send">Comms draft and send</a></li>
+<li><a href="#key-administration-from-the-cli">Key administration from the CLI</a></li>
+<li><a href="#openapi-discovery">OpenAPI discovery</a></li>
+<li><a href="#optional-airtable-status">Optional Airtable status</a></li>
+<li><a href="#agent-rules-of-the-road">Agent rules of the road</a></li>
+<li><a href="#end-to-end-agent-smoke-sequence">End-to-end agent smoke sequence</a></li>
+<li><a href="#http-mapping-reference">HTTP mapping reference</a></li>
+<li><a href="#security-model-for-keys">Security model for keys</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

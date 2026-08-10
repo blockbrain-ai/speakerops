@@ -253,6 +253,47 @@ describe("schedule-utils", () => {
     expect(isScheduleView("auto")).toBe(false);
   });
 
+  it("formatConflictMessage renders embedded ISO instants in the event timezone", () => {
+    // Server copy embeds raw UTC ISO — banner must show event-local grid times
+    const msg = formatConflictMessage(
+      [
+        {
+          type: "room",
+          message:
+            "Room is already booked from 2026-09-01T16:00:00.000Z to 2026-09-01T17:30:00.000Z",
+        },
+      ],
+      "Australia/Sydney",
+    );
+    expect(msg).toBe("Room is already booked from 02:00 to 03:30");
+    expect(msg).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+
+    // Without a timezone the times fall back to UTC wall clock
+    expect(
+      formatConflictMessage([
+        {
+          type: "speaker",
+          message: "Speaker is already booked from 2026-09-01T16:00:00.000Z",
+        },
+      ]),
+    ).toBe("Speaker is already booked from 16:00");
+  });
+
+  it("apiConflictsToLocal localizes summary row messages too", () => {
+    const rows = apiConflictsToLocal(
+      [
+        {
+          type: "room",
+          message: "Room is already booked from 2026-09-01T16:00:00.000Z",
+          placementId: "plc_9",
+        },
+      ],
+      "Australia/Sydney",
+    );
+    expect(rows[0]!.message).toBe("Room is already booked from 02:00");
+    expect(rows[0]!.affectedPlacementIds).toEqual(["plc_9"]);
+  });
+
   it("intervalsOverlap and detectLocalRoomConflicts for tile + summary", () => {
     expect(
       intervalsOverlap(

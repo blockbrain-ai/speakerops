@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Assign evaluators, score submissions against rubrics, and prepare decisions.">
+<title>Evaluation and scoring · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation" aria-current="page">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Evaluation and scoring</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L07">
+<h1>Evaluation and scoring</h1>
+<p class="learn-lead">Assign evaluators, score submissions against rubrics, and prepare decisions.</p>
+<section class="learn-section">
+<h2 id="where-evaluation-happens">Where evaluation happens</h2>
+<p>Admins manage evaluation from Admin → Evaluations. Evaluators often work from /eval for their assigned queue. Scores attach to submissions and feed ranking and decision discussions. Evaluation is human-in-the-loop by design; agents may list and read with scopes but program quality still depends on people.</p>
+<p>Provision evaluator accounts with the evaluator role only. External reviewers should not receive full admin sessions or keys with decisions:write.</p>
+</section>
+<section class="learn-section">
+<h2 id="prepare-rubrics-and-assignments">Prepare rubrics and assignments</h2>
+<p>Rubric dimensions should map to questions the form actually asked. If you score innovation but never asked for an innovation narrative, evaluators will invent signal. Assign evaluators so workload is balanced and conflicts of interest are avoided (same company, co-authors, etc.).</p>
+<ol class="learn-steps">
+<li>Confirm rubric dimensions with the program committee.</li>
+<li>Map each dimension to form fields evaluators should read.</li>
+<li>Assign evaluators to submissions or cohorts.</li>
+<li>Brief evaluators on score meaning (what a 3 versus a 5 means).</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="run-a-scoring-pass">Run a scoring pass</h2>
+<p>Evaluators open each submission, read answers and speaker context, and enter scores and optional comments. Multiple evaluators may score the same submission depending on program policy. Save often; do not rely on browser back to preserve drafts.</p>
+<ol class="learn-steps">
+<li>Publish the CFP and collect enough submissions to score.</li>
+<li>Open evaluation admin and confirm assignments for your cohort.</li>
+<li>As an evaluator, open /eval and work the queue one submission at a time.</li>
+<li>Enter scores for each rubric dimension and save.</li>
+<li>Return to admin views to compare aggregates before decisions.</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="from-scores-to-decisions">From scores to decisions</h2>
+<p>Scoring does not automatically accept a talk. Decisions are a separate command that records accept, reject, or waitlist with audit. Use evaluation output as the evidence pack for decision meetings, then apply decisions deliberately on the submissions screen.</p>
+<aside class="learn-callout learn-callout--tip" data-testid="learn-callout"><p><strong>TIP.</strong> Clear unscored items before decision day. A missing score is louder than a low score in committee meetings.</p></aside>
+</section>
+<section class="learn-section">
+<h2 id="quality-tips">Quality tips</h2>
+<p>Calibrate scorers on a few shared submissions. Document what each rubric number means. Watch for missing scores before decision day. List views help find unscored items quickly.</p>
+<ul class="learn-bullets">
+<li>Rubric dimensions match form questions</li>
+<li>Assignments cover the full submission set</li>
+<li>Comments capture conflict-of-interest notes when needed</li>
+<li>Unscored items cleared before bulk decisioning</li>
+<li>Calibration set reviewed before solo scoring begins</li>
+</ul>
+</section>
+<aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
+<li><code>/admin/evaluations</code></li>
+<li><code>/eval</code></li>
+<li><code>/admin/submissions</code></li>
+</ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#where-evaluation-happens">Where evaluation happens</a></li>
+<li><a href="#prepare-rubrics-and-assignments">Prepare rubrics and assignments</a></li>
+<li><a href="#run-a-scoring-pass">Run a scoring pass</a></li>
+<li><a href="#from-scores-to-decisions">From scores to decisions</a></li>
+<li><a href="#quality-tips">Quality tips</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

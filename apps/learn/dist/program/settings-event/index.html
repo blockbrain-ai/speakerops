@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Configure event identity, rooms, tracks, and program parameters under Admin → Settings.">
+<title>Event settings · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event" aria-current="page">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Event settings</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L14">
+<h1>Event settings</h1>
+<p class="learn-lead">Configure event identity, rooms, tracks, and program parameters under Admin → Settings.</p>
+<section class="learn-section">
+<h2 id="what-event-settings-control">What event settings control</h2>
+<p>Admin → Settings holds event-level configuration: naming, dates, rooms, tracks, and related program parameters. Schedule studio and public surfaces consume these values. Change them deliberately mid-season; room renames can confuse published grids.</p>
+<p>Treat settings as the skeleton of the program. Forms, schedule, and comms all hang off a correct event identity.</p>
+</section>
+<section class="learn-section">
+<h2 id="operator-setup-sequence">Operator setup sequence</h2>
+<p>Create or select the event. Set display name and schedule bounds. Add rooms with capacities if modeled. Add tracks that match the CFP. Confirm timezone expectations for schedule inputs. Save and open schedule studio to verify rooms appear.</p>
+<ol class="learn-steps">
+<li>Open Admin → Settings for the active event.</li>
+<li>Verify event name, slug, and date range.</li>
+<li>Create rooms you will place sessions into.</li>
+<li>Create tracks that match form and program taxonomy.</li>
+<li>Save and spot-check schedule and public references.</li>
+<li>Document the public event name for comms templates.</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="rooms-and-tracks-in-depth">Rooms and tracks in depth</h2>
+<p>Rooms need stable identifiers because schedule placements reference them. Tracks should match CFP options so accepted talks route cleanly into the grid. Avoid renumbering rooms after the public grid ships; prefer display label updates when the product supports them.</p>
+<ul class="learn-bullets">
+<li>Room list complete before schedule place marathon</li>
+<li>Track names match CFP select options</li>
+<li>Timezone agreed with ops and printed materials</li>
+<li>Slug stable once public CFP is marketed</li>
+</ul>
+</section>
+<section class="learn-section">
+<h2 id="cli-helpers">CLI helpers</h2>
+<p>Read-only listing of rooms and tracks supports agents assembling schedule plans.</p>
+<pre class="learn-code" data-testid="learn-code-block"><code>speakerops rooms list --event &lt;eventId&gt; --json
+speakerops tracks list --event &lt;eventId&gt; --json
+speakerops events get --event &lt;eventId&gt; --json
+speakerops events list --json</code></pre>
+</section>
+<section class="learn-section">
+<h2 id="guardrails">Guardrails</h2>
+<p>Only admins should change event settings. Export or screenshot configuration before large renames. Keep production secrets out of event description fields. After changing dates, re-check task due offsets and comms copy that mention days of week.</p>
+<aside class="learn-callout learn-callout--warning" data-testid="learn-callout"><p><strong>WARNING.</strong> Mid-season room deletes can break existing placements. Unschedule or re-place sessions first.</p></aside>
+</section>
+<aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
+<li><code>/admin/settings</code></li>
+</ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#what-event-settings-control">What event settings control</a></li>
+<li><a href="#operator-setup-sequence">Operator setup sequence</a></li>
+<li><a href="#rooms-and-tracks-in-depth">Rooms and tracks in depth</a></li>
+<li><a href="#cli-helpers">CLI helpers</a></li>
+<li><a href="#guardrails">Guardrails</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

@@ -125,11 +125,12 @@ test("@inv:K01 e2e/keys/create create key with subset of scopes; secret shown on
   const prefix = await page.getByTestId("api-key-prefix-value").innerText();
   expect(secret.startsWith(prefix)).toBeTruthy();
 
-  // Key appears in list with prefix (not full secret)
+  // Key appears in list with prefix (not full secret). Match by prefix text —
+  // parallel workers share the e2e server, so this key is not always first.
   await expect(page.getByTestId("api-keys-list")).toBeVisible();
-  await expect(page.getByTestId("api-key-row-prefix").first()).toContainText(
-    prefix,
-  );
+  await expect(
+    page.getByTestId("api-key-row-prefix").filter({ hasText: prefix }).first(),
+  ).toBeVisible();
   const listText = await page.getByTestId("api-keys-list").innerText();
   expect(listText).not.toContain(secret);
 
@@ -223,18 +224,23 @@ test("@inv:K03 e2e/keys/secret-once copy prefix only after dismiss", async ({
   await expect(page.getByTestId("api-key-secret-once")).toHaveCount(0);
   await expect(page.getByTestId("api-key-secret-dismissed")).toBeVisible();
 
-  // Full secret no longer on page; prefix remains
+  // Full secret no longer on page; prefix remains. Match by prefix text —
+  // parallel workers share the e2e server, so this key is not always first.
   const pageText = await page.getByTestId("api-keys-page").innerText();
   expect(pageText).not.toContain(secret);
-  await expect(page.getByTestId("api-key-row-prefix").first()).toContainText(
-    prefix,
-  );
+  await expect(
+    page.getByTestId("api-key-row-prefix").filter({ hasText: prefix }).first(),
+  ).toBeVisible();
 
-  // Copy prefix control present after dismiss
-  const row = page.locator(`[data-testid^="api-key-row-"]`).first();
+  // Copy prefix control present after dismiss (scoped to this key's row)
+  const row = page
+    .locator(`li[data-testid^="api-key-row-"]`, {
+      has: page.getByTestId("api-key-row-prefix").filter({ hasText: prefix }),
+    })
+    .first();
   await expect(row.getByTestId("api-key-row-prefix")).toContainText(prefix);
   await expect(
-    page.locator(`[data-testid^="api-key-copy-prefix-"]`).first(),
+    row.locator(`[data-testid^="api-key-copy-prefix-"]`),
   ).toBeVisible();
 });
 

@@ -149,6 +149,7 @@ If unsure whether a surface is clean-room-safe: **stop** and treat as out of sco
 
 ## 7. Demo path for judges (pointer)
 
+Live demo entry: open `/judge` on <https://www.speakerops.org> with the access code from the submission (README → “Judges — start here”)  
 Human timed path: [ONBOARDING.md](./ONBOARDING.md)  
 Agent path: [AGENT_SETUP.md](./AGENT_SETUP.md)  
 Demo seed: [8.4-demo-seed.md](./sections/8.4-demo-seed.md)  

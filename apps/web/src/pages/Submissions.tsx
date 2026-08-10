@@ -57,6 +57,10 @@ import {
   type BadgeTone,
   type DataTableColumn,
 } from "../components/ui/index.js";
+import {
+  assignIneligibleReason,
+  decisionIneligibleReason,
+} from "./submissions-eligibility.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
 
@@ -835,6 +839,15 @@ export function SubmissionsPage() {
     label: string;
     clear: () => void;
   }>;
+
+  // Mirror server eligibility so ineligible rows disable controls up front
+  // instead of 400ing after the click (draft/waitlist assign, draft decision).
+  const assignBlocked = detail
+    ? assignIneligibleReason(detail.submission.status)
+    : null;
+  const decisionBlocked = detail
+    ? decisionIneligibleReason(detail.submission.status)
+    : null;
 
   return (
     <div
@@ -1624,12 +1637,22 @@ export function SubmissionsPage() {
                       </ul>
                     )}
                   </fieldset>
+                  {assignBlocked ? (
+                    <p
+                      className="eval-queue__muted"
+                      data-testid="submission-assign-ineligible"
+                    >
+                      {assignBlocked}
+                    </p>
+                  ) : null}
                   <div className="eval-queue__row">
                     <Button
                       type="submit"
                       variant="secondary"
                       data-testid="submission-assign-submit"
-                      disabled={busy || assignUserIds.size === 0}
+                      disabled={
+                        busy || assignUserIds.size === 0 || assignBlocked != null
+                      }
                       pending={busy}
                     >
                       Assign to this submission
@@ -1674,6 +1697,14 @@ export function SubmissionsPage() {
                     placeholder="Optional reason (required for clear reject trail)"
                   />
                 </label>
+                {decisionBlocked ? (
+                  <p
+                    className="eval-queue__muted"
+                    data-testid="submission-decision-ineligible"
+                  >
+                    {decisionBlocked}
+                  </p>
+                ) : null}
                 <div
                   className="submissions-page__decision-actions"
                   data-testid="submission-decision-actions"
@@ -1681,7 +1712,7 @@ export function SubmissionsPage() {
                   <Button
                     variant="success"
                     data-testid="submission-accept"
-                    disabled={busy}
+                    disabled={busy || decisionBlocked != null}
                     pending={busy}
                     onClick={() => void recordDecision("accept")}
                   >
@@ -1690,7 +1721,7 @@ export function SubmissionsPage() {
                   <Button
                     variant="danger"
                     data-testid="submission-reject"
-                    disabled={busy}
+                    disabled={busy || decisionBlocked != null}
                     onClick={() => void recordDecision("reject")}
                   >
                     Reject
@@ -1698,7 +1729,7 @@ export function SubmissionsPage() {
                   <Button
                     variant="secondary"
                     data-testid="submission-waitlist"
-                    disabled={busy}
+                    disabled={busy || decisionBlocked != null}
                     onClick={() => void recordDecision("waitlist")}
                   >
                     Waitlist

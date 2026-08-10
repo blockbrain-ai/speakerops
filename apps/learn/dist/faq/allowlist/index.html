@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="The demo has no email allowlist: existing users and provisioned members can log in, and judges enter with an access code on /judge.">
+<title>Demo access and login · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist" aria-current="page">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">Demo access and login</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L23">
+<h1>Demo access and login</h1>
+<p class="learn-lead">The demo has no email allowlist. Login is membership-aware: existing users and provisioned members can sign in, and judges enter with an access code on /judge.</p>
+<section class="learn-section">
+<h2 id="how-demo-login-works">How demo login works</h2>
+<p>Magic links are issued to <strong>existing users</strong> and <strong>provisioned members</strong> — for example a speaker whose CFP submission was accepted. Unknown emails fail closed without enumerating other users: they cannot self-register on the demo host. There is no separate email allowlist to join.</p>
+</section>
+<section class="learn-section">
+<h2 id="judge-access">Judge access</h2>
+<p>Competition judges open <code>/judge</code> and enter the access code from the submission. This mints a shared demo-persona session (admin, evaluator, or speaker) on the seeded demo event that lasts about four hours. The role switcher at the top of every shell moves between roles without re-entering the code and is badged “Shared demo”. Attempts are rate-limited (10 per 5 minutes per IP), the page 404s when judge access is disabled, and demo sessions cannot create API keys.</p>
+</section>
+<section class="learn-section">
+<h2 id="get-access">Get access as a real entrant</h2>
+<p>Submit the public CFP with your own email. When an admin accepts your submission you become a provisioned member, and membership-aware magic-link login gets you into the portal with that identity.</p>
+<ol class="learn-steps">
+<li>Submit the public CFP with the email you will use to sign in.</li>
+<li>Wait for an accept decision (on the shared demo, an admin persona can record it).</li>
+<li>Open /login and request a magic link for that email.</li>
+<li>Complete the link and confirm your role chrome.</li>
+</ol>
+</section>
+<section class="learn-section">
+<h2 id="role-changes">Role changes</h2>
+<p>If your role is upgraded to admin, request a fresh magic link so the session picks up new authorizations. Old sessions may not reflect mid-session role edits depending on implementation timing.</p>
+<aside class="learn-callout learn-callout--tip" data-testid="learn-callout"><p><strong>TIP.</strong> Public CFP submit needs no login at all. Only human login surfaces are membership-aware.</p></aside>
+</section>
+<aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
+<li><code>/judge</code></li>
+<li><code>/login</code></li>
+</ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
+
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#how-demo-login-works">How demo login works</a></li>
+<li><a href="#judge-access">Judge access</a></li>
+<li><a href="#get-access">Get access as a real entrant</a></li>
+<li><a href="#role-changes">Role changes</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

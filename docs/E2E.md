@@ -107,7 +107,7 @@ Full anti-shrinkage, DEFER ownership checks, suite reconciliation, and Phase 8 r
 | `scripts/e2e-inventory-lint.mjs` | Full inventory law engine (section 0.3) |
 | `docs/sections/8.1-inventory-completeness.md` | Completeness audit notes (S-E2E-INV) |
 | `docs/sections/8.2-full-playwright-suite.md` | Full suite notes (S-E2E-RUN) |
-| `scripts/e2e-inventory-required-baseline.json` | Anti-shrinkage baseline (109 IDs) |
+| `scripts/e2e-inventory-required-baseline.json` | Anti-shrinkage baseline (131 REQUIRED IDs, incl. B07 judge access + G09 portal ICS) |
 | `playwright-report/` | Raw HTML report (8.2 / local run) |
 | `reports/playwright/` | HTML report mirror (CI) |
 | `reports/playwright-run.json` | JSON run report (`E2E_PLAYWRIGHT_RUN_REPORT`) |

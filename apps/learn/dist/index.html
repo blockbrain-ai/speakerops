@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
+<meta name="description" content="Operator handbook for SpeakerOps: program operations from CFP to readiness, with full CLI and security guides.">
+<title>SpeakerOps Learn · SpeakerOps Learn</title>
+<link rel="stylesheet" href="/assets/learn.css">
+
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="learn-shell">
+  <aside class="learn-sidebar" data-testid="learn-sidebar">
+    <div class="sidebar-brand">
+      <a class="brand" href="/" data-testid="learn-brand">SpeakerOps Learn</a>
+      <p class="sidebar-tagline">Program OS operator guides</p>
+    </div>
+    <form class="search-form" role="search" data-testid="learn-search-form" action="#" method="get" onsubmit="return false;">
+      <label class="visually-hidden" for="learn-search">Search</label>
+      <input type="search" id="learn-search" name="q" class="search-input lumen-focusable" data-testid="learn-search" placeholder="Search all guides…" autocomplete="off">
+    </form>
+    <nav class="learn-nav" id="learn-nav" aria-label="Documentation" data-testid="learn-sidebar-nav">
+<div class="nav-head"><p class="nav-title">Guides</p><button type="button" class="nav-close" id="nav-close" data-testid="learn-nav-close" aria-label="Close menu">Close</button></div>
+<div class="nav-group"><p class="nav-group-label">Home</p><ul>
+<li><a href="/" aria-current="page">Home</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Get started</p><ul>
+<li><a href="/get-started/overview">Onboarding</a></li>
+<li><a href="/get-started/demo-host">Demo host</a></li>
+<li><a href="/get-started/roles">Roles</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Program</p><ul>
+<li><a href="/program/cfp-forms">CFP forms</a></li>
+<li><a href="/program/public-cfp">Public CFP</a></li>
+<li><a href="/program/evaluation">Evaluation</a></li>
+<li><a href="/program/decisions">Decisions</a></li>
+<li><a href="/program/speakers-admin">Speakers admin</a></li>
+<li><a href="/program/speaker-portal">Speaker portal</a></li>
+<li><a href="/program/schedule">Schedule</a></li>
+<li><a href="/program/readiness">Readiness</a></li>
+<li><a href="/program/comms">Comms</a></li>
+<li><a href="/program/settings-event">Event settings</a></li>
+<li><a href="/program/settings-design">Design kit</a></li>
+<li><a href="/program/task-templates">Task templates</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Agents</p><ul>
+<li><a href="/agents/cli-and-keys">CLI and keys</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">Ops</p><ul>
+<li><a href="/ops/security">Security</a></li>
+<li><a href="/ops/operations">Operations</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">About</p><ul>
+<li><a href="/about/scope-and-non-goals">Scope</a></li>
+</ul></div>
+<div class="nav-group"><p class="nav-group-label">FAQ</p><ul>
+<li><a href="/faq/index">FAQ index</a></li>
+<li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
+<li><a href="/faq/allowlist">Demo access</a></li>
+<li><a href="/faq/email-cloudflare">Email delivery</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
+</ul></div>
+</nav>
+
+  </aside>
+  <div class="learn-primary">
+    <header class="learn-topbar" role="banner">
+      <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
+      <p class="topbar-crumb" data-testid="learn-crumb">SpeakerOps Learn</p>
+    </header>
+    <div class="learn-body-row">
+      <main id="main" class="learn-main" data-testid="learn-main">
+<article data-article-id="L01">
+<h1>SpeakerOps Learn</h1>
+<p class="learn-lead">Operator handbook for SpeakerOps: program operations from CFP to readiness, with full CLI and security guides.</p>
+<section class="learn-section">
+<h2 id="what-speakerops-is">What SpeakerOps is</h2>
+<p>SpeakerOps is a Program OS for multi-day tech conference program operations. Operators run conditional call-for-proposals forms, human evaluation, accept or reject decisions, speaker portal tasks, templated communications with calendar invites, conflict-aware scheduling, and a live readiness dashboard from one system of record.</p>
+<p>The product is open source and deploys on Cloudflare Workers with D1 as the durable store and R2 for file assets. Humans use the admin SPA with magic-link sessions. Agents and automation use the same typed domain commands through the speakerops CLI and scoped API keys. Authorization is always enforced on the Worker; the UI and CLI never elevate themselves.</p>
+<p>This Learn site is the self-contained operator handbook. Every guide on the left should teach the screen or command set in full so you do not need a second document to finish the job. Use search when you know a term; use the Program group when you are walking the season end to end.</p>
+<ul class="learn-bullets">
+<li>Program path: CFP forms → public submit → evaluation → decisions → portal → schedule → readiness → comms</li>
+<li>Agent path: mint scoped API key → install CLI → run domain verbs with --json</li>
+<li>Access path: /judge access code (judges) or membership-aware magic link → role-gated admin or portal</li>
+</ul>
+<aside class="learn-callout learn-callout--tip" data-testid="learn-callout"><p><strong>TIP.</strong> Start with Get started → Onboarding if you are new. Jump to CLI and keys if you already have an admin session and need automation.</p></aside>
+</section>
+<section class="learn-section">
+<h2 id="how-this-handbook-is-organized">How this handbook is organized</h2>
+<p>Guides are grouped the way operators work. Get started covers onboarding, the private demo host, and roles. Program covers each admin surface in season order. Agents covers CLI install, API keys, scopes, exit codes, and every inventory command with examples. Ops covers security hardening and day-2 deploy. About and FAQ answer scope boundaries and common blockers.</p>
+<p>Each article lists the product routes it maps to so you can open the live app beside the guide. Code blocks are copy-paste ready for local or demo hosts. Tables summarize scopes, env names, and exit codes without sending you elsewhere for the critical path.</p>
+<div class="learn-table-wrap"><table class="learn-table">
+<thead><tr><th>Group</th><th>What you learn</th></tr></thead>
+<tbody>
+<tr><td>Get started</td><td>Zero to running workspace, demo host, roles and sessions</td></tr>
+<tr><td>Program</td><td>Menu-by-menu operator steps for every admin surface</td></tr>
+<tr><td>Agents</td><td>Full CLI and API key handbook for humans and coding agents</td></tr>
+<tr><td>Ops</td><td>Security model, deploy, migrate, seed, and day-2 care</td></tr>
+<tr><td>FAQ</td><td>Magic-link limits, demo access, email delivery, list performance</td></tr>
+</tbody></table></div>
+</section>
+<section class="learn-section">
+<h2 id="what-speakerops-is-not">What SpeakerOps is not</h2>
+<p>SpeakerOps deliberately stays out of CRM suites, marketing automation, awards applications, SMS blasts, marketplace apps, and form payment collection. Those systems remain separate sources of truth. The product focuses on program operations only so operators get depth where conference program work actually happens.</p>
+<p>If a workflow is not listed under Program or Agents, check Scope and non-goals before inventing a parallel process. Prefer domain commands over raw database access for every staff or agent action.</p>
+</section>
+<section class="learn-section">
+<h2 id="live-surfaces-you-will-use">Live surfaces you will use</h2>
+<p>The private demo app lives on speakerops.org with seeded data and magic-link login. Learn itself is published at learn.speakerops.org as a static handbook worker. Local development typically runs the API near port 8787 and the Vite SPA near port 5173. Env var names are documented throughout; never commit secret values.</p>
+<ul class="learn-bullets">
+<li>App: https://www.speakerops.org (or your dogfood workers.dev host)</li>
+<li>Learn: https://learn.speakerops.org</li>
+<li>Local API default: http://127.0.0.1:8787</li>
+<li>OpenAPI discovery: GET /openapi.json on the API base URL</li>
+</ul>
+</section>
+
+<h2 id="all-guides">All guides</h2>
+<p class="learn-muted">Every topic below is a full how-to written for operators and agents — not a teaser that sends you elsewhere.</p>
+<div class="card-grid"><a class="card" href="/get-started/overview"><h2>Onboarding</h2><p>Zero to a running SpeakerOps workspace: install, env names, migrate, seed, first admin, and the demo walk.</p></a>
+<a class="card" href="/get-started/demo-host"><h2>Demo host</h2><p>How to reach the private SpeakerOps Cloudflare demo, who can log in, and what is seeded.</p></a>
+<a class="card" href="/get-started/roles"><h2>Roles</h2><p>Magic-link sessions, role gates, and what each role can do in admin and portal.</p></a>
+<a class="card" href="/program/cfp-forms"><h2>CFP forms</h2><p>Build, version, and publish conditional CFP forms from Admin → CFP, including speaking configuration.</p></a>
+<a class="card" href="/program/public-cfp"><h2>Public CFP</h2><p>How submitters complete the public call for proposals, including Turnstile and multi-speaker answers.</p></a>
+<a class="card" href="/program/evaluation"><h2>Evaluation</h2><p>Assign evaluators, score submissions against rubrics, and prepare decisions.</p></a>
+<a class="card" href="/program/decisions"><h2>Decisions</h2><p>Record accept, reject, and waitlist decisions with audit, and understand side effects on speakers and tasks.</p></a>
+<a class="card" href="/program/speakers-admin"><h2>Speakers admin</h2><p>Manage event participations, search speakers, and open portal-related work from admin.</p></a>
+<a class="card" href="/program/speaker-portal"><h2>Speaker portal</h2><p>How accepted speakers complete tasks, upload files, and track what the program still needs.</p></a>
+<a class="card" href="/program/schedule"><h2>Schedule</h2><p>Place sessions into rooms and times with conflict detection from Admin → Schedule.</p></a>
+<a class="card" href="/program/readiness"><h2>Readiness</h2><p>Monitor outstanding speaker tasks, stats, and go-live risk from the readiness dashboard.</p></a>
+<a class="card" href="/program/comms"><h2>Comms</h2><p>Draft templated email, preview recipients, send via outbox, and manage calendar invites.</p></a>
+<a class="card" href="/program/settings-event"><h2>Event settings</h2><p>Configure event identity, rooms, tracks, and program parameters under Admin → Settings.</p></a>
+<a class="card" href="/program/settings-design"><h2>Design kit</h2><p>Set brand tokens for public and portal surfaces without freeform CSS.</p></a>
+<a class="card" href="/program/task-templates"><h2>Task templates</h2><p>Define the speaker tasks that are generated when proposals are accepted.</p></a>
+<a class="card" href="/agents/cli-and-keys"><h2>CLI and keys</h2><p>Full handbook: mint scoped API keys, install the speakerops CLI, authenticate, run every inventory command, read exit codes, and automate safely.</p></a>
+<a class="card" href="/ops/security"><h2>Security</h2><p>Sessions, CSP, secrets names-only, scopes, and operator hardening practices.</p></a>
+<a class="card" href="/ops/operations"><h2>Operations</h2><p>Local day-0 loop, Cloudflare dogfood deploy, migrate, seed, and day-2 care.</p></a>
+<a class="card" href="/about/scope-and-non-goals"><h2>Scope</h2><p>What SpeakerOps owns as Program OS and what it intentionally will not become.</p></a>
+<a class="card" href="/faq/index"><h2>FAQ index</h2><p>Short answers and links to deep FAQ pages for access, email, and performance.</p></a>
+<a class="card" href="/faq/magic-link-rate-limits"><h2>Magic-link limits</h2><p>Why magic-link requests are rate limited and how operators recover.</p></a>
+<a class="card" href="/faq/allowlist"><h2>Allowlist</h2><p>Private demo and dogfood access is controlled by email allowlist membership and role.</p></a>
+<a class="card" href="/faq/email-cloudflare"><h2>Email delivery</h2><p>How demo email sending works on Cloudflare and how to debug missing messages.</p></a>
+<a class="card" href="/faq/speakers-list-performance"><h2>Speakers performance</h2><p>Keep Admin → Speakers responsive for large events.</p></a></div>
+</article>
+      </main>
+      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
+<li><a href="#what-speakerops-is">What SpeakerOps is</a></li>
+<li><a href="#how-this-handbook-is-organized">How this handbook is organized</a></li>
+<li><a href="#what-speakerops-is-not">What SpeakerOps is not</a></li>
+<li><a href="#live-surfaces-you-will-use">Live surfaces you will use</a></li>
+</ul></nav>
+
+    </div>
+    <footer class="learn-footer">
+      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
+    </footer>
+  </div>
+</div>
+<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
+<script src="/assets/learn.js" defer></script>
+</body>
+</html>

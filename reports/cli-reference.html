@@ -468,7 +468,7 @@ speakerops schedule place --event E --session S --room R --start … --end … -
 <pre><code>speakerops openapi --json
 # or: curl -s &quot;$SPEAKEROPS_API_URL/openapi.json&quot;</code></pre>
 <ul>
-<li><strong>HTTP:</strong> <code>GET /openapi.json</code> (public discovery document)</li>
+<li><strong>HTTP:</strong> <code>GET /openapi.json</code> (public discovery document — served by the Worker on the deployed site too, e.g. <code>https://www.speakerops.org/openapi.json</code>)</li>
 <li><strong>Assert:</strong> paths include <code>/api/events</code>, schedule, readiness, design, keys, …</li>
 </ul>
 <h3>Program loop — <code>forms</code> (cfp:read / cfp:write)</h3>
@@ -516,9 +516,9 @@ speakerops eval export --event &lt;eventId&gt; [--sort score_desc]   # CSV on st
 </ul>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-10T11:25:16.915Z" data-git-sha="64d3f817e">
-  <div><strong>Generated:</strong> <time datetime="2026-08-10T11:25:16.915Z">2026-08-10T11:25:16.915Z</time></div>
-  <div><strong>Git SHA:</strong> <code>64d3f817e</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-10T12:14:20.672Z" data-git-sha="309c1d560">
+  <div><strong>Generated:</strong> <time datetime="2026-08-10T12:14:20.672Z">2026-08-10T12:14:20.672Z</time></div>
+  <div><strong>Git SHA:</strong> <code>309c1d560</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/CLI.md · no secrets in report</div>
 </footer>
   </div>

@@ -60,22 +60,33 @@ async function probeAdminAccess(): Promise<
 }
 
 /**
- * Probe evaluator access via GET /api/me/eval-queue (section 3.4).
- * 401 unauthenticated · 403 wrong role · 200 ok.
+ * Probe evaluator access via GET /api/auth/me memberships (section 3.4).
+ * Mirrors the server /api/me/eval-queue gate (evaluator OR admin membership)
+ * without fetching the whole queue — the queue itself can be slow at dogfood
+ * scale and the page fetches it anyway, so probing it doubled a ~seconds-long
+ * round-trip before anything rendered.
+ * 401 unauthenticated · no evaluator/admin membership → forbidden · else ok.
  */
 async function probeEvaluatorAccess(): Promise<
   "ok" | "unauthenticated" | "forbidden" | "error"
 > {
   try {
-    const res = await fetch("/api/me/eval-queue", {
+    const res = await fetch("/api/auth/me", {
       method: "GET",
       credentials: "include",
       headers: { accept: "application/json" },
     });
     if (res.status === 401) return "unauthenticated";
     if (res.status === 403) return "forbidden";
-    if (res.ok) return "ok";
-    return "error";
+    if (!res.ok) return "error";
+    const raw = (await res.json()) as {
+      memberships?: Array<{ eventId: string; role: string }>;
+    };
+    const memberships = raw.memberships ?? [];
+    const allowed = memberships.some(
+      (m) => m.role === "evaluator" || m.role === "admin",
+    );
+    return allowed ? "ok" : "forbidden";
   } catch {
     return "error";
   }

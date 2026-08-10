@@ -392,7 +392,7 @@ footer.report-footer code {
 <hr />
 <h2>3. Composition roots</h2>
 <table><thead><tr><th>Surface</th><th>Path</th><th>Role</th></tr></thead><tbody><tr><td>API</td><td><code>apps/api/src/index.ts</code></td><td>Worker entry; middleware; route modules</td></tr><tr><td>Web</td><td><code>apps/web/src/main.tsx</code></td><td>SPA entry; Lumen shell; role routes</td></tr><tr><td>CLI</td><td><code>packages/cli/src/main.ts</code></td><td><code>speakerops</code> binary; maps to HTTP commands</td></tr><tr><td>DB</td><td><code>packages/db</code></td><td>Drizzle schema + linear migrations</td></tr><tr><td>Shared DTOs</td><td><code>packages/shared/src/</code></td><td>Zod schemas + E4 envelopes — single source; no duplicate types in web/api</td></tr></tbody></table>
-<p>Workspace: <code>pnpm-workspace.yaml</code> (<code>apps/*</code>, <code>packages/*</code>). Package manager: <strong>pnpm</strong> · Node <strong>≥20</strong>.</p>
+<p>Workspace: <code>pnpm-workspace.yaml</code> (<code>apps/*</code>, <code>packages/*</code>). Package manager: <strong>pnpm</strong> · Node <strong>≥20 &amp;amp;lt;25</strong> (<code>engines</code>-enforced).</p>
 <hr />
 <h2>4. Domain model invariants</h2>
 <h3>Person ≠ Speaker</h3>
@@ -485,9 +485,9 @@ pnpm test:e2e            # Phase 8 full REQUIRED
 pnpm test:e2e:inventory  # inventory law</code></pre>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-10T11:25:16.915Z" data-git-sha="64d3f817e">
-  <div><strong>Generated:</strong> <time datetime="2026-08-10T11:25:16.915Z">2026-08-10T11:25:16.915Z</time></div>
-  <div><strong>Git SHA:</strong> <code>64d3f817e</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-10T12:14:20.672Z" data-git-sha="309c1d560">
+  <div><strong>Generated:</strong> <time datetime="2026-08-10T12:14:20.672Z">2026-08-10T12:14:20.672Z</time></div>
+  <div><strong>Git SHA:</strong> <code>309c1d560</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/ARCHITECTURE.md · no secrets in report</div>
 </footer>
   </div>

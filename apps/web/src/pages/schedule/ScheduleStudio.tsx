@@ -382,14 +382,18 @@ export function ScheduleStudioPage() {
     setUndoStack((prev) => [...prev, action]);
   }, []);
 
-  const showConflict = useCallback((conflicts: ScheduleConflictItem[]) => {
-    setApiConflictRows(apiConflictsToLocal(conflicts));
-    setToast({
-      kind: "conflict",
-      text: formatConflictMessage(conflicts),
-      conflicts,
-    });
-  }, []);
+  const showConflict = useCallback(
+    (conflicts: ScheduleConflictItem[]) => {
+      // Banner + summary rows show event-local times (grid parity), not raw ISO.
+      setApiConflictRows(apiConflictsToLocal(conflicts, timezone));
+      setToast({
+        kind: "conflict",
+        text: formatConflictMessage(conflicts, timezone),
+        conflicts,
+      });
+    },
+    [timezone],
+  );
 
   const handleApiError = useCallback(
     async (res: Response): Promise<"conflict" | "version" | "other"> => {

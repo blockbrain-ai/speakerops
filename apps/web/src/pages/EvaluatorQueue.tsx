@@ -564,7 +564,8 @@ export function EvaluatorQueuePage() {
           data-testid="eval-queue-list"
           aria-label="Assigned submissions"
         >
-          {filteredItems.length === 0 ? (
+          {/* Empty state only after load completes — never during the skeleton */}
+          {!loading && !loadError && filteredItems.length === 0 ? (
             <li>
               <EmptyState
                 title="No matching assignments"

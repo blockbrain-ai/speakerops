@@ -33,7 +33,7 @@ Common failures and recovery: local migrate/seed issues, auth/session, scope den
 
 | Problem | Recovery |
 |---------|----------|
-| `pnpm install` fails | Node ≥20; use workspace `packageManager` (pnpm pin) |
+| `pnpm install` fails | Node ≥20 &lt;25 (`engines`); use workspace `packageManager` (pnpm pin) |
 | `pnpm typecheck` fails | Fix project references; do not skip with `// @ts-ignore` on contracts |
 | `pnpm test:ci` hangs | Ensure vitest `watch: false`; no concurrent `--watch` |
 | Governance test fails | Read assertion message; usually docs/contracts drift |
@@ -55,7 +55,9 @@ Common failures and recovery: local migrate/seed issues, auth/session, scope den
 | Health not 200 | Start e2e API helper / Worker local binding per ONBOARDING |
 | CORS / wrong port | Align `E2E_BASE_URL`, Vite port, API port (see E2E.md env table) |
 | Magic link missing in UI | Local `AUTH_DEV_OUTBOX=1` for Playwright only — never production default |
-| Role switcher missing | Dev mode or `VITE_ROLE_SWITCHER=1`; server needs `ROLE_SWITCHER_ENABLED=1` + admin session |
+| Role switcher missing | Dev mode or `VITE_ROLE_SWITCHER=1`; server needs `ROLE_SWITCHER_ENABLED=1` + admin session (or `/judge` demo session) |
+| `/judge` returns 404 | Expected unless **both** `ROLE_SWITCHER_ENABLED=1` and `JUDGE_ACCESS_CODE` (secret) are set on the Worker |
+| `/judge` 429 Too many attempts | Rate limit — 10 attempts / 5 min / IP; wait and retry |
 
 ---
 

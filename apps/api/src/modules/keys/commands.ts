@@ -10,6 +10,7 @@
 import {
   uuidv7,
   DEFAULT_ORG_ID,
+  API_KEY_CREATED_AT_FALLBACK,
   type ApiScope,
   type KeysCreateBody,
   type ApiKeyDto,
@@ -57,6 +58,8 @@ export function toApiKeyDto(row: ApiKeyRow): ApiKeyDto {
     expiresAt: row.expiresAt,
     revokedAt: row.revokedAt,
     createdBy: row.createdBy,
+    // Defensive: pre-0022 rows may surface without created_at.
+    createdAt: row.createdAt || API_KEY_CREATED_AT_FALLBACK,
     lastUsedAt: row.lastUsedAt,
   };
 }
@@ -322,6 +325,7 @@ export async function createKey(
   // createdBy is always a human users.id (membership context for resolveBearer).
   // Audit actorId may be the minting API key id when actorType is api_key.
   const auditActorId = input.actorId ?? input.actorUserId;
+  const now = new Date().toISOString();
   const row: ApiKeyRow = {
     id,
     orgId,
@@ -333,12 +337,12 @@ export async function createKey(
     expiresAt,
     revokedAt: null,
     createdBy: input.actorUserId,
+    createdAt: now,
     lastUsedAt: null,
   };
 
   await deps.keys.insertKey(row);
 
-  const now = new Date().toISOString();
   await deps.auth.insertAudit({
     id: uuidv7(),
     eventId,

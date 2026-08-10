@@ -1037,6 +1037,11 @@ export const apiKeys = sqliteTable(
     revokedAt: text("revoked_at"),
     createdBy: text("created_by").notNull(),
     lastUsedAt: text("last_used_at"),
+    /**
+     * Nullable: added by 0022 (0018 shipped without it) — pre-backfill rows
+     * are NULL; the keys store maps NULL to a fixed fallback ISO.
+     */
+    createdAt: text("created_at"),
   },
   (t) => [
     uniqueIndex("idx_api_keys_key_hash").on(t.keyHash),
