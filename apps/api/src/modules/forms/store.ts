@@ -14,6 +14,8 @@ import type {
   FormFieldConditions,
   FormFieldOption,
   FormFieldType,
+  FormLayoutType,
+  FormNodeKind,
   FormSnapshot,
   FormStatus,
 } from "@speakerops/shared";
@@ -44,6 +46,8 @@ export type FormVersionRow = {
   opensAt: string | null;
   closesAt: string | null;
   submissionLimit: number | null;
+  /** Max submitted proposals per primary-speaker email (0028; null = unlimited). */
+  perSubmitterLimit?: number | null;
   /** Configurable speaker bounds (post-11.9 depth; defaults 1/5 pre-knob). */
   minSpeakers?: number;
   maxSpeakers?: number;
@@ -65,6 +69,9 @@ export type FormFieldRow = {
   helpText?: string | null;
   placeholder?: string | null;
   maxChars?: number | null;
+  /** Node discrimination (0027; optional for pre-wave rows — input). */
+  nodeKind?: FormNodeKind;
+  layoutType?: FormLayoutType | null;
 };
 
 export type FormRuleRow = {
@@ -96,6 +103,7 @@ export type FormsStore = {
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
+      perSubmitterLimit: number | null;
       minSpeakers: number;
       maxSpeakers: number;
     },
@@ -199,6 +207,7 @@ export class MemoryFormsStore implements FormsStore {
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
+      perSubmitterLimit: number | null;
       minSpeakers: number;
       maxSpeakers: number;
     },
@@ -348,6 +357,7 @@ export class D1FormsStore implements FormsStore {
       opensAt: row.opensAt,
       closesAt: row.closesAt,
       submissionLimit: row.submissionLimit,
+      perSubmitterLimit: row.perSubmitterLimit ?? null,
       minSpeakers: row.minSpeakers ?? 1,
       maxSpeakers: row.maxSpeakers ?? 5,
       publishedAt: row.publishedAt,
@@ -409,6 +419,7 @@ export class D1FormsStore implements FormsStore {
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
+      perSubmitterLimit: number | null;
       minSpeakers: number;
       maxSpeakers: number;
     },
@@ -429,6 +440,7 @@ export class D1FormsStore implements FormsStore {
         opensAt: patch.opensAt,
         closesAt: patch.closesAt,
         submissionLimit: patch.submissionLimit,
+        perSubmitterLimit: patch.perSubmitterLimit,
         minSpeakers: patch.minSpeakers,
         maxSpeakers: patch.maxSpeakers,
       })
@@ -471,6 +483,8 @@ export class D1FormsStore implements FormsStore {
         helpText: f.helpText ?? null,
         placeholder: f.placeholder ?? null,
         maxChars: f.maxChars ?? null,
+        nodeKind: f.nodeKind ?? "input",
+        layoutType: f.layoutType ?? null,
       });
     }
   }
@@ -494,6 +508,13 @@ export class D1FormsStore implements FormsStore {
         helpText: row.helpText ?? null,
         placeholder: row.placeholder ?? null,
         maxChars: row.maxChars ?? null,
+        nodeKind: (row.nodeKind === "layout"
+          ? "layout"
+          : "input") as FormNodeKind,
+        layoutType: (row.layoutType === "section" ||
+        row.layoutType === "divider"
+          ? row.layoutType
+          : null) as FormLayoutType | null,
       }))
       .sort(
         (a, b) =>
@@ -567,6 +588,7 @@ function mapVersion(row: {
   opensAt: string | null;
   closesAt: string | null;
   submissionLimit: number | null;
+  perSubmitterLimit?: number | null;
   minSpeakers?: number | null;
   maxSpeakers?: number | null;
   publishedAt: string | null;
@@ -583,6 +605,10 @@ function mapVersion(row: {
     opensAt: row.opensAt ?? null,
     closesAt: row.closesAt ?? null,
     submissionLimit: row.submissionLimit ?? null,
+    perSubmitterLimit:
+      typeof row.perSubmitterLimit === "number" && row.perSubmitterLimit > 0
+        ? row.perSubmitterLimit
+        : null,
     minSpeakers:
       Number.isFinite(minSpeakers) && minSpeakers > 0 ? minSpeakers : 1,
     maxSpeakers:

@@ -407,6 +407,17 @@ export const FORM_OPENAPI_PATHS = {
                         description:
                           "Character cap for text/textarea; enforced on Submission.Create",
                       },
+                      nodeKind: {
+                        type: "string",
+                        description:
+                          "input (default, answerable field) | layout (section/divider structure — excluded from answers, required checks, conditions, submissions, exports)",
+                      },
+                      layoutType: {
+                        type: "string",
+                        nullable: true,
+                        description:
+                          "section | divider — required when nodeKind is layout; section renders label as a styled heading (≤255 chars)",
+                      },
                     },
                   },
                 },
@@ -430,7 +441,17 @@ export const FORM_OPENAPI_PATHS = {
                   format: "date-time",
                   nullable: true,
                 },
-                submissionLimit: { type: "integer", nullable: true },
+                submissionLimit: {
+                  type: "integer",
+                  nullable: true,
+                  description: "Max total submitted proposals for the version",
+                },
+                perSubmitterLimit: {
+                  type: "integer",
+                  nullable: true,
+                  description:
+                    "Max submitted proposals per person (normalized primary-speaker email); null = unlimited. Enforced on Submission.Create",
+                },
                 minSpeakers: {
                   type: "integer",
                   nullable: true,
@@ -510,7 +531,7 @@ export const FORM_OPENAPI_PATHS = {
       operationId: "Submission.Create",
       summary: "Submission.Create",
       description:
-        "Public multi-speaker CFP submit with Turnstile, form_version pin, rate limit",
+        "Public multi-speaker CFP submit with Turnstile, form_version pin, rate limit, per-submitter cap; enqueues the submission confirmation email (outbox lifecycle — a comms failure never fails the submission)",
       tags: ["Submission"],
       parameters: [
         {
@@ -684,6 +705,11 @@ export const EVAL_OPENAPI_PATHS = {
                   nullable: true,
                   description:
                     "Evaluator guidance rendered as plain text in the queue",
+                },
+                hideSpeakers: {
+                  type: "boolean",
+                  description:
+                    "Hide speaker identities from evaluators — the proposal DTO omits speakers[] server-side (titles/answers may still reveal identity; admin surfaces unaffected)",
                 },
                 criteria: {
                   type: "array",

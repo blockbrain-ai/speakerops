@@ -759,7 +759,16 @@ export function EvaluatorQueuePage() {
                     aria-label="Speakers"
                   >
                     <h3 className="eval-queue__proposal-heading">Speakers</h3>
-                    {proposal.speakers.length === 0 ? (
+                    {proposal.speakersHidden === true ||
+                    proposal.speakers == null ? (
+                      <p
+                        className="eval-queue__muted"
+                        data-testid="eval-proposal-speakers-hidden"
+                      >
+                        Speaker identities are hidden for this review round.
+                        Score the proposal on its content alone.
+                      </p>
+                    ) : proposal.speakers.length === 0 ? (
                       <p className="eval-queue__muted">No speakers listed.</p>
                     ) : (
                       <ul className="eval-queue__proposal-speaker-list">

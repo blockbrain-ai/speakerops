@@ -64,6 +64,8 @@ export function RubricSettingsPage() {
   const [closesAtLocal, setClosesAtLocal] = useState("");
   /** Evaluator guidance shown in the queue banner (plain text). */
   const [instructions, setInstructions] = useState("");
+  /** Hide speaker identities from evaluators (Wave 1B; server-side omit). */
+  const [hideSpeakers, setHideSpeakers] = useState(false);
   const [roundStatus, setRoundStatus] = useState<"open" | "closed">("open");
 
   const loadRubric = useCallback(async (eventId: string) => {
@@ -96,6 +98,7 @@ export function RubricSettingsPage() {
         setCriteria([emptyCriterion()]);
         setClosesAtLocal("");
         setInstructions("");
+        setHideSpeakers(false);
         setRoundStatus("open");
         return;
       }
@@ -108,6 +111,7 @@ export function RubricSettingsPage() {
       setRoundName(parsed.data.round.name);
       setClosesAtLocal(isoToDatetimeLocal(parsed.data.round.closesAt));
       setInstructions(parsed.data.round.instructionsMd ?? "");
+      setHideSpeakers(parsed.data.round.hideSpeakers === true);
       setRoundStatus(parsed.data.round.status);
       if (parsed.data.criteria.length === 0) {
         setCriteria([emptyCriterion()]);
@@ -211,6 +215,7 @@ export function RubricSettingsPage() {
             criteria: payloadCriteria,
             closesAt: datetimeLocalToIso(closesAtLocal),
             instructionsMd: instructions.trim() ? instructions : null,
+            hideSpeakers,
           }),
         },
       );
@@ -234,6 +239,7 @@ export function RubricSettingsPage() {
       setRoundName(parsed.data.round.name);
       setClosesAtLocal(isoToDatetimeLocal(parsed.data.round.closesAt));
       setInstructions(parsed.data.round.instructionsMd ?? "");
+      setHideSpeakers(parsed.data.round.hideSpeakers === true);
       setRoundStatus(parsed.data.round.status);
       setCriteria(
         parsed.data.criteria.map((c) => ({
@@ -343,6 +349,27 @@ export function RubricSettingsPage() {
                   "data-testid": "rubric-instructions",
                 }}
               />
+              {/* Wave 1B — hide speaker identities (server-side DTO omit) */}
+              <div
+                className="rubric-settings__toggle"
+                data-testid="rubric-hide-speakers-row"
+              >
+                <label className="form-builder__check-row">
+                  <input
+                    type="checkbox"
+                    className="lumen-focusable"
+                    checked={hideSpeakers}
+                    onChange={(ev) => setHideSpeakers(ev.target.checked)}
+                    data-testid="rubric-hide-speakers"
+                  />
+                  <span>Hide speaker identities from evaluators</span>
+                </label>
+                <p className="l2-field__hint" id="rubric-hide-speakers-hint">
+                  Removes the speaker roster from what evaluators see — names
+                  and emails never leave the server. Titles and answers may
+                  still reveal who wrote a proposal. Admin views are unchanged.
+                </p>
+              </div>
               {isEvalRoundClosed({
                 status: roundStatus,
                 closesAt: datetimeLocalToIso(closesAtLocal),

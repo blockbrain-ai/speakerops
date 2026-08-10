@@ -35,6 +35,8 @@ import {
   CFP_MIN_SPEAKERS,
   CFP_MAX_SPEAKERS,
   isFieldVisible,
+  isInputNode,
+  isLayoutNode,
   deriveCategoryFromRules,
   type DesignPublished,
   type FormVersionDto,
@@ -351,7 +353,9 @@ export function PublicCfpPage() {
 
   const fieldTypeByKey = useMemo(() => {
     const m = new Map<string, string>();
-    for (const f of fields) m.set(f.fieldKey, f.type);
+    for (const f of fields) {
+      if (isInputNode(f)) m.set(f.fieldKey, f.type);
+    }
     return m;
   }, [fields]);
 
@@ -524,6 +528,8 @@ export function PublicCfpPage() {
     const errs: Record<string, string> = {};
     if (!title.trim()) errs.title = "Title is required";
     for (const f of visibleFields) {
+      // Layout nodes (section/divider) are structure only — never validated.
+      if (isLayoutNode(f)) continue;
       // Character cap (client mirror of the server rule).
       if (
         f.maxChars != null &&
@@ -895,6 +901,8 @@ export function PublicCfpPage() {
 
     const answerPayload = visibleFields
       .filter((f) => {
+        // Layout nodes never enter the submission payload (Wave 1B).
+        if (isLayoutNode(f)) return false;
         const raw = answers[f.fieldKey];
         if (raw == null || raw === "") return false;
         if (f.type === "multiselect") {
@@ -1261,7 +1269,30 @@ export function PublicCfpPage() {
                 data-testid="cfp-section-details"
                 onFocus={() => setActiveSection("details")}
               >
-              {visibleFields.map((f) => (
+              {visibleFields.map((f) =>
+                isLayoutNode(f) ? (
+                  <div
+                    key={f.id}
+                    className="public-cfp__layout"
+                    data-testid={`cfp-layout-${f.fieldKey}`}
+                    data-layout-type={f.layoutType ?? undefined}
+                  >
+                    {f.layoutType === "section" ? (
+                      <h3
+                        className="public-cfp__section-heading"
+                        data-testid={`cfp-section-heading-${f.fieldKey}`}
+                      >
+                        {f.label}
+                      </h3>
+                    ) : (
+                      <hr
+                        className="public-cfp__divider"
+                        data-testid={`cfp-divider-${f.fieldKey}`}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </div>
+                ) : (
                 <div
                   key={f.id}
                   className="public-cfp__field"
@@ -1478,7 +1509,8 @@ export function PublicCfpPage() {
                     </p>
                   ) : null}
                 </div>
-              ))}
+                ),
+              )}
               </div>
 
               {derivedCategory ? (

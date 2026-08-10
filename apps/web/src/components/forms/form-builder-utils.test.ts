@@ -28,6 +28,11 @@ function field(
     options: partial.options ?? null,
     sortOrder: partial.sortOrder ?? 0,
     conditions: partial.conditions ?? null,
+    helpText: partial.helpText ?? null,
+    placeholder: partial.placeholder ?? null,
+    maxChars: partial.maxChars ?? null,
+    nodeKind: partial.nodeKind ?? "input",
+    layoutType: partial.layoutType ?? null,
   };
 }
 
@@ -150,5 +155,119 @@ describe("3.2 form-builder-utils", () => {
     expect(body.welcomeMd).toBe("Welcome");
     expect(body.submissionLimit).toBe(50);
     expect(body.rules[0]?.routeToCategory).toBe("track_a");
+  });
+
+  // --- Wave 1B: layout nodes + per-submitter cap ---
+
+  it("layout nodes never satisfy the publish field requirement", () => {
+    const layoutOnly = [
+      field({
+        fieldKey: "layout_intro",
+        type: "text",
+        label: "Intro",
+        nodeKind: "layout",
+        layoutType: "section",
+      }),
+    ];
+    expect(
+      publishBlockReasons({ formId: "form_1", fields: layoutOnly, rules: [] }),
+    ).toContain("no_fields");
+    const mixed = [
+      ...layoutOnly,
+      field({ fieldKey: "title", type: "text", label: "Title" }),
+    ];
+    expect(canPublish({ formId: "form_1", fields: mixed, rules: [] })).toBe(
+      true,
+    );
+  });
+
+  it("conditions and rules referencing layout keys are invalid refs", () => {
+    const fields = [
+      field({
+        fieldKey: "layout_intro",
+        type: "text",
+        label: "Intro",
+        nodeKind: "layout",
+        layoutType: "section",
+      }),
+      field({
+        fieldKey: "title",
+        type: "text",
+        label: "Title",
+        conditions: {
+          showWhen: { fieldKey: "layout_intro", op: "eq", value: "x" },
+        },
+      }),
+    ];
+    const reasons = publishBlockReasons({
+      formId: "form_1",
+      fields,
+      rules: [
+        {
+          clientId: "r1",
+          when: { fieldKey: "layout_intro", op: "eq", value: "x" },
+          routeToCategory: "nope",
+        },
+      ],
+    });
+    expect(reasons).toContain("invalid_condition_ref");
+    expect(reasons).toContain("invalid_rule_ref");
+  });
+
+  it("layout nodes are always visible in preview and reorder like fields", () => {
+    const fields = [
+      field({
+        fieldKey: "layout_break",
+        type: "text",
+        label: "Divider",
+        nodeKind: "layout",
+        layoutType: "divider",
+        sortOrder: 0,
+      }),
+      field({ fieldKey: "title", type: "text", label: "Title", sortOrder: 1 }),
+    ];
+    expect(isFieldVisibleInPreview(fields[0]!, fields, {})).toBe(true);
+    const reordered = reorderFields(fields, 0, 1);
+    expect(reordered.map((f) => f.fieldKey)).toEqual([
+      "title",
+      "layout_break",
+    ]);
+  });
+
+  it("toDraftBody normalizes layout nodes and carries perSubmitterLimit", () => {
+    const fields = [
+      field({
+        fieldKey: "layout_intro",
+        type: "text",
+        label: "Intro",
+        nodeKind: "layout",
+        layoutType: "section",
+        // Stray input knobs must be stripped for layout nodes.
+        required: true,
+        helpText: "should drop",
+        maxChars: 10,
+      }),
+      field({ fieldKey: "title", type: "text", label: "Title" }),
+    ];
+    const body = toDraftBody({
+      fields,
+      rules: [],
+      welcomeMd: "",
+      thankYouMd: "",
+      opensAt: "",
+      closesAt: "",
+      submissionLimit: "",
+      perSubmitterLimit: "3",
+    });
+    expect(body.perSubmitterLimit).toBe(3);
+    const layout = body.fields[0]!;
+    expect(layout.nodeKind).toBe("layout");
+    expect(layout.layoutType).toBe("section");
+    expect(layout.required).toBe(false);
+    expect(layout.helpText).toBeNull();
+    expect(layout.maxChars).toBeNull();
+    const input = body.fields[1]!;
+    expect(input.nodeKind).toBe("input");
+    expect(input.layoutType).toBeNull();
   });
 });

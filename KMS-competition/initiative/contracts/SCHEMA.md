@@ -51,8 +51,8 @@
 
 ### forms / form_versions / form_fields / form_rules
 - forms: `id, event_id, name, status, created_at`
-- form_versions: `id, form_id, version_num, welcome_md, thank_you_md, opens_at, closes_at, submission_limit, published_at, immutable snapshot_json`
-- form_fields: `id, form_version_id, field_key, type, label, required, options_json, sort_order, conditions_json`
+- form_versions: `id, form_id, version_num, welcome_md, thank_you_md, opens_at, closes_at, submission_limit, per_submitter_limit (0028), min_speakers, max_speakers (0024), published_at, immutable snapshot_json`
+- form_fields: `id, form_version_id, field_key, type, label, required, options_json, sort_order, conditions_json, help_text, placeholder, max_chars (0023), node_kind input|layout, layout_type section|divider (0027)`
 - form_rules: category routing rules `id, form_version_id, when_json, route_to_category`
 
 ### submissions
@@ -65,7 +65,7 @@
 `submission_id, person_id, is_primary, sort_order`
 
 ### eval_* 
-`eval_rounds`, `eval_criteria (round_id, name, max_score, weight)`, `eval_assignments (round_id, submission_id, evaluator_user_id, status)`, `scores (assignment_id, criterion_id, value, comment)` UNIQUE assignment+criterion
+`eval_rounds (+ closes_at, instructions_md 0026, hide_speakers 0029)`, `eval_criteria (round_id, name, max_score, weight)`, `eval_assignments (round_id, submission_id, evaluator_user_id, status)`, `scores (assignment_id, criterion_id, value, comment)` UNIQUE assignment+criterion
 
 ### decisions
 `id, submission_id, decision (accept|reject|waitlist), reason, decided_by, created_at`

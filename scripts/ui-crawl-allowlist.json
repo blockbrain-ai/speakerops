@@ -896,6 +896,24 @@
       "inv": "G11",
       "surface": "portal",
       "journey": "Mobile section nav"
+    },
+    {
+      "testid": "palette-section",
+      "inv": "D16",
+      "surface": "admin",
+      "journey": "Add section heading from layout palette (Wave 1B)"
+    },
+    {
+      "testid": "palette-divider",
+      "inv": "D16",
+      "surface": "admin",
+      "journey": "Add divider from layout palette (Wave 1B)"
+    },
+    {
+      "testid": "event-notify-save",
+      "inv": "J12",
+      "surface": "admin",
+      "journey": "Save submission notification settings (Wave 1B lifecycle email)"
     }
   ]
 }

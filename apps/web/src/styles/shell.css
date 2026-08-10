@@ -1391,6 +1391,27 @@
   color: var(--lumen-text);
 }
 
+/* --- Wave 1B layout nodes (section heading / divider) on the public form --- */
+.public-cfp__layout {
+  margin: var(--lumen-space-4) 0 var(--lumen-space-2);
+}
+
+.public-cfp__section-heading {
+  margin: 0;
+  padding-bottom: var(--lumen-space-2);
+  border-bottom: 2px solid var(--lumen-brand, var(--lumen-border));
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--lumen-text);
+}
+
+.public-cfp__divider {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--lumen-border);
+}
+
 .public-cfp__speakers {
   display: flex;
   flex-direction: column;
@@ -2286,6 +2307,27 @@
 .form-builder__preview-thanks {
   background: var(--lumen-success-soft);
   margin-top: var(--lumen-space-3);
+}
+
+/* --- Wave 1B layout nodes in the builder preview --- */
+.form-builder__preview-layout {
+  margin: var(--lumen-space-3) 0 var(--lumen-space-1);
+  list-style: none;
+}
+
+.form-builder__preview-section-heading {
+  margin: 0;
+  padding-bottom: var(--lumen-space-1);
+  border-bottom: 2px solid var(--lumen-border);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--lumen-text);
+}
+
+.form-builder__preview-divider {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--lumen-border);
 }
 
 /* ---------------------------------------------------------------------------
@@ -5338,6 +5380,16 @@ a.event-settings__btn {
   background: var(--lumen-surface-muted);
   border: 1px solid var(--lumen-border-subtle);
   border-radius: var(--lumen-radius-md);
+}
+
+/* --- Rubric settings hide-speakers toggle (Wave 1B) --- */
+.rubric-settings__toggle {
+  display: grid;
+  gap: var(--lumen-space-1);
+}
+
+.rubric-settings__toggle .l2-field__hint {
+  margin: 0;
 }
 
 /* --- Evaluator round strip: closed state + instructions --- */

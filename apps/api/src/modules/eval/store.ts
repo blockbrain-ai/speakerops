@@ -25,6 +25,8 @@ export type EvalRoundRow = {
   closesAt: string | null;
   /** Evaluator guidance (plain-text render; post-11.9 depth). */
   instructionsMd?: string | null;
+  /** Hide speaker identities from evaluators (0029; default false). */
+  hideSpeakers?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -68,6 +70,7 @@ export type EvalStore = {
       status?: "open" | "closed";
       closesAt?: string | null;
       instructionsMd?: string | null;
+      hideSpeakers?: boolean;
       updatedAt: string;
     },
   ): Promise<EvalRoundRow | null>;
@@ -150,6 +153,7 @@ export class MemoryEvalStore implements EvalStore {
       status?: "open" | "closed";
       closesAt?: string | null;
       instructionsMd?: string | null;
+      hideSpeakers?: boolean;
       updatedAt: string;
     },
   ): Promise<EvalRoundRow | null> {
@@ -323,6 +327,7 @@ export class D1EvalStore implements EvalStore {
       status,
       closesAt: row.closesAt ?? null,
       instructionsMd: row.instructionsMd ?? null,
+      hideSpeakers: row.hideSpeakers === 1,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -384,6 +389,7 @@ export class D1EvalStore implements EvalStore {
       status: row.status,
       closesAt: row.closesAt,
       instructionsMd: row.instructionsMd ?? null,
+      hideSpeakers: row.hideSpeakers === true ? 1 : 0,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });
@@ -397,6 +403,7 @@ export class D1EvalStore implements EvalStore {
       status?: "open" | "closed";
       closesAt?: string | null;
       instructionsMd?: string | null;
+      hideSpeakers?: boolean;
       updatedAt: string;
     },
   ): Promise<EvalRoundRow | null> {
@@ -410,6 +417,7 @@ export class D1EvalStore implements EvalStore {
         status: next.status,
         closesAt: next.closesAt,
         instructionsMd: next.instructionsMd ?? null,
+        hideSpeakers: next.hideSpeakers === true ? 1 : 0,
         updatedAt: next.updatedAt,
       })
       .where(eq(evalRounds.id, roundId));

@@ -55,6 +55,35 @@ export const CFP_SPEAKERS_BOUND_MAX = 15 as const;
 export const FormStatusSchema = z.enum(["draft", "published"]);
 export type FormStatus = z.infer<typeof FormStatusSchema>;
 
+/**
+ * Node discrimination (Wave 1B): `input` nodes are answerable fields; `layout`
+ * nodes (section heading / divider) are pure structure. Layout nodes never
+ * participate in answers, required checks, conditional-rule field lookups,
+ * submission payloads, or CSV export columns (I16 untouched).
+ */
+export const FormNodeKindSchema = z.enum(["input", "layout"]);
+export type FormNodeKind = z.infer<typeof FormNodeKindSchema>;
+
+export const FormLayoutTypeSchema = z.enum(["section", "divider"]);
+export type FormLayoutType = z.infer<typeof FormLayoutTypeSchema>;
+
+/** Max label length for a section layout node (divider labels are ignored). */
+export const FORM_SECTION_LABEL_MAX = 255 as const;
+
+/** True when a node is a layout node (section/divider) — omitted kind = input. */
+export function isLayoutNode(node: {
+  nodeKind?: string | null;
+}): boolean {
+  return node.nodeKind === "layout";
+}
+
+/** True when a node is an answerable input field (pre-0027 rows included). */
+export function isInputNode(node: {
+  nodeKind?: string | null;
+}): boolean {
+  return !isLayoutNode(node);
+}
+
 /** Condition op for show/hide and category routing. */
 export const FormConditionOpSchema = z.enum(["eq", "neq", "in"]);
 export type FormConditionOp = z.infer<typeof FormConditionOpSchema>;
@@ -106,8 +135,65 @@ export const FormFieldInputSchema = z
       .max(FORM_FIELD_MAX_CHARS_MAX)
       .optional()
       .nullable(),
+    /** Node discrimination (Wave 1B). Omitted = input (pre-0027 clients). */
+    nodeKind: FormNodeKindSchema.default("input"),
+    /** section | divider — required when nodeKind is layout, never on input. */
+    layoutType: FormLayoutTypeSchema.optional().nullable(),
   })
   .superRefine((field, ctx) => {
+    if (field.nodeKind === "layout") {
+      if (field.layoutType == null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["layoutType"],
+          message: "layout nodes require layoutType (section or divider)",
+        });
+      }
+      if (field.layoutType === "section" && field.label.length > FORM_SECTION_LABEL_MAX) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["label"],
+          message: `Section labels are limited to ${FORM_SECTION_LABEL_MAX} characters`,
+        });
+      }
+      // Layout nodes have no answer participation — reject input-only knobs.
+      if (field.required) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["required"],
+          message: "layout nodes cannot be required",
+        });
+      }
+      if (field.options != null && field.options.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["options"],
+          message: "layout nodes do not take options",
+        });
+      }
+      if (field.conditions?.showWhen != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["conditions"],
+          message: "layout nodes do not take conditions",
+        });
+      }
+      if (field.maxChars != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["maxChars"],
+          message: "layout nodes do not take maxChars",
+        });
+      }
+      return;
+    }
+    if (field.layoutType != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["layoutType"],
+        message: "layoutType is only allowed on layout nodes",
+      });
+    }
     if (field.maxChars != null && !fieldTypeSupportsMaxChars(field.type)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -159,6 +245,9 @@ export const FormFieldSchema = z.object({
   helpText: z.string().max(500).optional().nullable(),
   placeholder: z.string().max(200).optional().nullable(),
   maxChars: z.number().int().positive().optional().nullable(),
+  /** Node discrimination (Wave 1B). Pre-0027 snapshots omit → input. */
+  nodeKind: FormNodeKindSchema.optional(),
+  layoutType: FormLayoutTypeSchema.optional().nullable(),
 });
 export type FormFieldDto = z.infer<typeof FormFieldSchema>;
 
@@ -180,6 +269,8 @@ export const FormSnapshotSchema = z.object({
   opensAt: z.string().nullable(),
   closesAt: z.string().nullable(),
   submissionLimit: z.number().int().positive().nullable(),
+  /** Per-submitter cap frozen at publish (pre-0028 snapshots omit; unlimited). */
+  perSubmitterLimit: z.number().int().positive().optional().nullable(),
   /** Speaker bounds frozen at publish (pre-0024 snapshots omit; defaults apply). */
   minSpeakers: z.number().int().positive().optional(),
   maxSpeakers: z.number().int().positive().optional(),
@@ -198,6 +289,8 @@ export const FormVersionSchema = z.object({
   opensAt: z.string().nullable(),
   closesAt: z.string().nullable(),
   submissionLimit: z.number().int().positive().nullable(),
+  /** Max submitted proposals per primary-speaker email (null = unlimited). */
+  perSubmitterLimit: z.number().int().positive().optional().nullable(),
   /** Configurable speaker bounds (1–15; defaults 1/5 pre-knob). */
   minSpeakers: z.number().int().positive().optional(),
   maxSpeakers: z.number().int().positive().optional(),
@@ -234,6 +327,14 @@ export const FormUpdateDraftBodySchema = z
     opensAt: z.string().min(1).max(64).optional().nullable(),
     closesAt: z.string().min(1).max(64).optional().nullable(),
     submissionLimit: z.number().int().positive().max(1_000_000).optional().nullable(),
+    /** Max submitted proposals per person (primary-speaker email; null = unlimited). */
+    perSubmitterLimit: z
+      .number()
+      .int()
+      .positive()
+      .max(1_000_000)
+      .optional()
+      .nullable(),
     /** Speaker bounds knob (1–15). Omitted → keep current draft values. */
     minSpeakers: z
       .number()

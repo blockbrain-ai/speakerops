@@ -31,10 +31,10 @@ Auth: session cookie **or** API key with scopes.
 | Command | Scope | Input | Output |
 |---------|-------|-------|--------|
 | `Form.Create` | cfp:write | eventId, name | form |
-| `Form.UpdateDraftFields` | cfp:write | formId, fields[], rules[] | formVersion draft |
+| `Form.UpdateDraftFields` | cfp:write | formId, fields[] (nodeKind input\|layout + layoutType section\|divider), rules[], submissionLimit?, perSubmitterLimit?, minSpeakers?, maxSpeakers? | formVersion draft |
 | `Form.Publish` | cfp:write | formId | formVersion immutable |
 | `Form.GetPublic` | public | eventSlug / form slug | published form + tokens |
-| `Submission.Create` | public | formVersionId, answers, speakers[], turnstile | submission |
+| `Submission.Create` | public | formVersionId, answers, speakers[], turnstile | submission (enforces submissionLimit + perSubmitterLimit; enqueues `Comms.SubmissionConfirmation`) |
 | `Submission.SaveDraft` | public | formVersionId, title (required), answers?, speakers?, draftId? | submission status=draft + form-field snapshot |
 | `Submission.GetDraft` | public | eventSlug, draftId | draft submission + snapshot (event-scoped; non-draft → 404) |
 | `Cfp.FileUpload` | public | eventSlug, filename, mime, size, contentBase64 | { fileId, mime, size, filename } — supporting file for public CFP; mime/size allowlist enforced |
@@ -46,7 +46,7 @@ Auth: session cookie **or** API key with scopes.
 ## Evaluation & decisions
 | Command | Scope | Input | Output |
 |---------|-------|-------|--------|
-| `Eval.UpsertRubric` | admin | roundId, criteria[], closesAt?, instructionsMd? | rubric (deadline + evaluator guidance; post-11.9 depth) |
+| `Eval.UpsertRubric` | admin | roundId, criteria[], closesAt?, instructionsMd?, hideSpeakers? | rubric (deadline + evaluator guidance + speaker-identity hiding; post-11.9 depth) |
 | `Eval.Score` | evaluator | assignmentId, scores[], comment | assignment (409 after round close) |
 | `Eval.Abstain` | evaluator (owner-verified) | assignmentId, reason? | assignment status=abstained (excluded from aggregates; 409 after round close / repeat) |
 | `Eval.ExportScores` | admin | eventId, sort? | CSV (scores/status/abstained counts) |
@@ -90,6 +90,7 @@ Auth: session cookie **or** API key with scopes.
 | `Comms.GetJob` | admin | eventId, jobId | job + recipients + delivery_events |
 | `Comms.ListIcs` | admin | eventId | calendar_invites[] |
 | `Comms.IcsForPlacement` | system/admin | placementId (+ fixture fields) | calendar_invite row |
+| `Comms.SubmissionConfirmation` | system (after `Submission.Create`) | event, submission, primary speaker | message_job (queued) + direct-email recipient (participation_id NULL) + outbox + idempotency key `submission-confirmation:<submissionId>`; lazily seeds the `submission_confirmation` template; disabled/missing template → log + skip, never fails the submission |
 
 ## Readiness & reports
 | Command | Scope | Input | Output |

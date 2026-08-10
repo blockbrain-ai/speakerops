@@ -440,6 +440,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Section 3.3 — Submission.Create + public CFP file upload
   // Section 8.3 — rate limit inject for deterministic 429 proofs
   // Section 10.3 — DEMO_MODE Turnstile allowlist
+  // Wave 1B — comms store for the submission confirmation lifecycle email
   app.route(
     "/api/public",
     createPublicCfpRoutes({
@@ -448,6 +449,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       forms: formsStore,
       design: designStore,
       submissions: submissionsStore,
+      comms: commsStore,
       turnstileSecret,
       demoTurnstile,
       rateLimiter: options.rateLimiter,

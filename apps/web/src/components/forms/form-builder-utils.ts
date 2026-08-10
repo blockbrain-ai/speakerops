@@ -8,9 +8,12 @@ import type {
   FormFieldInput,
   FormFieldOption,
   FormFieldType,
+  FormLayoutType,
+  FormNodeKind,
   FormRuleInput,
   FormUpdateDraftBody,
 } from "@speakerops/shared";
+import { isInputNode, isLayoutNode } from "@speakerops/shared";
 
 /** Client-side field row before/after sync (no server id required for draft replace). */
 export type BuilderField = {
@@ -27,7 +30,20 @@ export type BuilderField = {
   helpText?: string | null;
   placeholder?: string | null;
   maxChars?: number | null;
+  /** Node discrimination (Wave 1B): input (default) | layout section/divider. */
+  nodeKind?: FormNodeKind;
+  layoutType?: FormLayoutType | null;
 };
+
+/** True for layout nodes (section/divider) in the builder node list. */
+export function isBuilderLayoutNode(node: BuilderField): boolean {
+  return isLayoutNode(node);
+}
+
+/** Answerable input nodes only (layout excluded from field lookups). */
+export function builderInputFields(fields: BuilderField[]): BuilderField[] {
+  return fields.filter((f) => isInputNode(f));
+}
 
 export type BuilderRule = {
   clientId: string;
@@ -137,6 +153,33 @@ export const FIELD_PALETTE: ReadonlyArray<{
   },
 ] as const;
 
+/**
+ * Layout palette (Wave 1B) — structure nodes, not answer fields.
+ * Section renders as a styled heading; divider as a horizontal rule.
+ */
+export const LAYOUT_PALETTE: ReadonlyArray<{
+  layoutType: FormLayoutType;
+  label: string;
+  testId: string;
+  defaultLabel: string;
+  keyPrefix: string;
+}> = [
+  {
+    layoutType: "section",
+    label: "Section",
+    testId: "palette-section",
+    defaultLabel: "New section",
+    keyPrefix: "layout_section",
+  },
+  {
+    layoutType: "divider",
+    label: "Divider",
+    testId: "palette-divider",
+    defaultLabel: "Divider",
+    keyPrefix: "layout_divider",
+  },
+] as const;
+
 export function slugifyFieldKey(raw: string): string {
   const s = raw
     .toLowerCase()
@@ -181,7 +224,7 @@ export function defaultOptionsForType(
  */
 export function hasCircularConditions(fields: BuilderField[]): boolean {
   const edges = new Map<string, string>();
-  for (const f of fields) {
+  for (const f of builderInputFields(fields)) {
     const dep = f.conditions?.showWhen?.fieldKey;
     if (dep) edges.set(f.fieldKey, dep);
   }
@@ -199,7 +242,7 @@ export function hasCircularConditions(fields: BuilderField[]): boolean {
 
 /** Select/multiselect without options cannot be published or saved. */
 export function fieldsMissingOptions(fields: BuilderField[]): string[] {
-  return fields
+  return builderInputFields(fields)
     .filter(
       (f) =>
         (f.type === "select" || f.type === "multiselect") &&
@@ -210,9 +253,10 @@ export function fieldsMissingOptions(fields: BuilderField[]): string[] {
 
 /** Condition field_key must exist in the field set. */
 export function invalidConditionRefs(fields: BuilderField[]): string[] {
-  const keys = new Set(fields.map((f) => f.fieldKey));
+  // Conditions may only reference answerable input nodes (Wave 1B).
+  const keys = new Set(builderInputFields(fields).map((f) => f.fieldKey));
   const bad: string[] = [];
-  for (const f of fields) {
+  for (const f of builderInputFields(fields)) {
     const ref = f.conditions?.showWhen?.fieldKey;
     if (ref && !keys.has(ref)) bad.push(f.fieldKey);
   }
@@ -223,7 +267,7 @@ export function invalidRuleRefs(
   fields: BuilderField[],
   rules: BuilderRule[],
 ): number[] {
-  const keys = new Set(fields.map((f) => f.fieldKey));
+  const keys = new Set(builderInputFields(fields).map((f) => f.fieldKey));
   const bad: number[] = [];
   rules.forEach((r, i) => {
     if (!keys.has(r.when.fieldKey)) bad.push(i);
@@ -251,7 +295,8 @@ export function publishBlockReasons(input: {
 }): PublishBlockReason[] {
   const reasons: PublishBlockReason[] = [];
   if (!input.formId) reasons.push("no_form");
-  if (input.fields.length === 0) reasons.push("no_fields");
+  // Sections/dividers are structure only — publish needs an answerable field.
+  if (builderInputFields(input.fields).length === 0) reasons.push("no_fields");
   if (hasCircularConditions(input.fields)) reasons.push("circular_conditions");
   if (fieldsMissingOptions(input.fields).length > 0)
     reasons.push("missing_options");
@@ -288,30 +333,42 @@ export function toDraftBody(input: {
   opensAt: string;
   closesAt: string;
   submissionLimit: string;
+  /** Per-person cap as raw string ("" = unlimited) — Wave 1B. */
+  perSubmitterLimit?: string;
   /** Speaker bounds knob values as raw strings ("" keeps server default). */
   minSpeakers?: string;
   maxSpeakers?: string;
 }): FormUpdateDraftBody {
-  const fields: FormFieldInput[] = input.fields.map((f, index) => ({
-    fieldKey: f.fieldKey,
-    type: f.type,
-    label: f.label,
-    required: f.required,
-    options: f.options,
-    sortOrder: f.sortOrder ?? index,
-    conditions: f.conditions,
-    helpText: f.helpText?.trim() ? f.helpText.trim() : null,
-    placeholder: f.placeholder?.trim() ? f.placeholder.trim() : null,
-    maxChars:
-      f.maxChars != null && (f.type === "text" || f.type === "textarea")
-        ? f.maxChars
-        : null,
-  }));
+  const fields: FormFieldInput[] = input.fields.map((f, index) => {
+    const layout = isBuilderLayoutNode(f);
+    return {
+      fieldKey: f.fieldKey,
+      type: f.type,
+      label: f.label,
+      required: layout ? false : f.required,
+      options: layout ? null : f.options,
+      sortOrder: f.sortOrder ?? index,
+      conditions: layout ? null : f.conditions,
+      helpText: layout ? null : f.helpText?.trim() ? f.helpText.trim() : null,
+      placeholder: layout
+        ? null
+        : f.placeholder?.trim()
+          ? f.placeholder.trim()
+          : null,
+      maxChars:
+        !layout && f.maxChars != null && (f.type === "text" || f.type === "textarea")
+          ? f.maxChars
+          : null,
+      nodeKind: layout ? ("layout" as const) : ("input" as const),
+      layoutType: layout ? (f.layoutType ?? null) : null,
+    };
+  });
   const rules: FormRuleInput[] = input.rules.map((r) => ({
     when: r.when,
     routeToCategory: r.routeToCategory,
   }));
   const submissionLimit = parsePositiveInt(input.submissionLimit);
+  const perSubmitterLimit = parsePositiveInt(input.perSubmitterLimit ?? "");
   return {
     fields,
     rules,
@@ -320,6 +377,7 @@ export function toDraftBody(input: {
     opensAt: input.opensAt.trim() ? input.opensAt.trim() : null,
     closesAt: input.closesAt.trim() ? input.closesAt.trim() : null,
     submissionLimit,
+    perSubmitterLimit,
     minSpeakers: parsePositiveInt(input.minSpeakers ?? ""),
     maxSpeakers: parsePositiveInt(input.maxSpeakers ?? ""),
   };
@@ -335,6 +393,8 @@ export function isFieldVisibleInPreview(
   answers: Record<string, string>,
   visiting: Set<string> = new Set(),
 ): boolean {
+  // Layout nodes carry no conditions — always visible structure.
+  if (isBuilderLayoutNode(field)) return true;
   const showWhen = field.conditions?.showWhen;
   if (!showWhen) return true;
   if (visiting.has(field.fieldKey)) return false;

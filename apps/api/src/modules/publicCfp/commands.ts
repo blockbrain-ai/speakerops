@@ -15,6 +15,7 @@ import {
   CFP_FILE_MAX_BYTES,
   deriveCategoryFromRules,
   isFieldVisible,
+  isInputNode,
   computeCfpWindowState,
   type SubmissionCreateBody,
   type SubmissionSaveDraftBody,
@@ -29,6 +30,8 @@ import {
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { FormsStore } from "../forms/store.js";
+import type { CommsStore } from "../comms/store.js";
+import { enqueueSubmissionConfirmation } from "../comms/lifecycle.js";
 import type { DesignStore, FileAssetRow } from "../design/store.js";
 import {
   FILE_UPLOAD_STORED,
@@ -50,6 +53,14 @@ export type PublicCfpCommandDeps = {
   events: EventsStore;
   auth: AuthStore;
   design: DesignStore;
+  /**
+   * Optional comms store — enables the submission confirmation lifecycle
+   * email (Wave 1B). A missing store or any comms failure never fails the
+   * submission (log + skip).
+   */
+  comms?: CommsStore;
+  /** Best-effort JOBS_QUEUE kick after the lifecycle enqueue (production). */
+  commsQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
   /** TURNSTILE_SECRET_KEY binding (env name only in docs). */
   turnstileSecret?: string;
   /** DEMO_MODE / allowlist context for Turnstile (section 10.3). */
@@ -238,6 +249,38 @@ export async function createSubmission(
     }
   }
 
+  // Per-submitter cap (Wave 1B, ADDITIVE beside the total limit above):
+  // count existing submitted rows whose primary speaker email matches the
+  // incoming primary speaker's normalized email.
+  const perSubmitterLimit = version.perSubmitterLimit ?? null;
+  const incomingPrimary =
+    input.speakers.find((sp) => sp.isPrimary === true) ?? input.speakers[0];
+  const incomingPrimaryEmail = incomingPrimary
+    ? incomingPrimary.email.toLowerCase().trim()
+    : null;
+  if (perSubmitterLimit != null && incomingPrimaryEmail) {
+    const mine = await deps.submissions.countSubmittedByPrimaryEmail(
+      event.id,
+      incomingPrimaryEmail,
+    );
+    if (mine >= perSubmitterLimit) {
+      return {
+        ok: false,
+        status: 400,
+        error:
+          perSubmitterLimit === 1
+            ? "You have already submitted a proposal for this event — this form allows one per person"
+            : `You have reached this form's limit of ${perSubmitterLimit} proposals per person`,
+        code: "VALIDATION_ERROR",
+        details: {
+          perSubmitterLimit,
+          count: mine,
+          email: incomingPrimaryEmail,
+        },
+      };
+    }
+  }
+
   // Speaker bounds come from the PINNED published version (configurable 1–15).
   const minSpeakers = version.minSpeakers ?? CFP_MIN_SPEAKERS;
   const maxSpeakers = version.maxSpeakers ?? CFP_MAX_SPEAKERS;
@@ -285,6 +328,8 @@ export async function createSubmission(
     sortOrder: number;
     conditions: FormFieldDto["conditions"];
     maxChars?: number | null;
+    nodeKind?: FormFieldDto["nodeKind"];
+    layoutType?: FormFieldDto["layoutType"];
   }>;
   const rules = (await deps.forms.listRules(version.id)) as Array<{
     id: string;
@@ -295,17 +340,21 @@ export async function createSubmission(
   const answerMap = answersToMap(
     input.answers.map((a) => ({ fieldKey: a.fieldKey, value: a.value as unknown })),
   );
-  const fieldDtos: FormFieldDto[] = fields.map((f) => ({
-    id: f.id,
-    fieldKey: f.fieldKey as FormFieldDto["fieldKey"],
-    type: f.type as FormFieldDto["type"],
-    label: f.label,
-    required: f.required,
-    options: f.options,
-    sortOrder: f.sortOrder,
-    conditions: f.conditions,
-    maxChars: f.maxChars ?? null,
-  }));
+  // Layout nodes (section/divider) are structure only — excluded from answer
+  // validation, required checks, and stored payloads (Wave 1B).
+  const fieldDtos: FormFieldDto[] = fields
+    .filter((f) => isInputNode(f))
+    .map((f) => ({
+      id: f.id,
+      fieldKey: f.fieldKey as FormFieldDto["fieldKey"],
+      type: f.type as FormFieldDto["type"],
+      label: f.label,
+      required: f.required,
+      options: f.options,
+      sortOrder: f.sortOrder,
+      conditions: f.conditions,
+      maxChars: f.maxChars ?? null,
+    }));
 
   // Required visible fields
   for (const f of fieldDtos) {
@@ -524,6 +573,37 @@ export async function createSubmission(
     correlationId: input.correlationId,
     createdAt: now,
   });
+
+  // Wave 1B lifecycle: confirmation email to the submitter (durable outbox
+  // enqueue). Guarded so comms problems can NEVER fail the submission.
+  if (deps.comms) {
+    const primary =
+      speakerDtos.find((sp) => sp.isPrimary) ?? speakerDtos[0] ?? null;
+    if (primary) {
+      await enqueueSubmissionConfirmation(
+        {
+          comms: deps.comms,
+          auth: deps.auth,
+          queueKick: deps.commsQueueKick ?? null,
+        },
+        {
+          event: {
+            id: event.id,
+            name: event.name,
+            slug: event.slug,
+            settingsJson: event.settingsJson ?? null,
+          },
+          submission: {
+            id: submission.id,
+            title: submission.title,
+            category: submission.category,
+          },
+          primarySpeaker: { name: primary.name, email: primary.email },
+          correlationId: input.correlationId,
+        },
+      );
+    }
+  }
 
   return {
     ok: true,
@@ -956,11 +1036,15 @@ export async function saveDraft(
     }
   }
 
-  // Published field keys only — strip unknown / hidden noise (no required gate).
+  // Published input field keys only — strip unknown / hidden / layout noise
+  // (no required gate; layout nodes never take answers).
   const fields = (await deps.forms.listFields(version.id)) as Array<{
     fieldKey: string;
+    nodeKind?: string;
   }>;
-  const allowedKeys = new Set(fields.map((f) => f.fieldKey));
+  const allowedKeys = new Set(
+    fields.filter((f) => isInputNode(f)).map((f) => f.fieldKey),
+  );
   const storedAnswers: Array<{ fieldKey: string; value: unknown }> = [];
   for (const a of input.answers ?? []) {
     if (!allowedKeys.has(a.fieldKey)) continue;

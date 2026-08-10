@@ -122,6 +122,12 @@ export type SubmissionsStore = {
   /** Count submitted rows for event (submission_limit check). */
   countSubmittedForEvent(eventId: string): Promise<number>;
   countSubmittedForFormVersion(formVersionId: string): Promise<number>;
+  /**
+   * Count submitted rows for an event whose primary speaker matches the
+   * normalized (lowercase/trimmed) email — per-submitter cap (Wave 1B).
+   * Draft rows never count; matches any speaker flagged primary.
+   */
+  countSubmittedByPrimaryEmail(eventId: string, email: string): Promise<number>;
 };
 
 export function newPersonId(): string {
@@ -339,6 +345,25 @@ export class MemorySubmissionsStore implements SubmissionsStore {
     let n = 0;
     for (const s of this.submissions.values()) {
       if (s.formVersionId === formVersionId && s.status === "submitted") n++;
+    }
+    return n;
+  }
+
+  async countSubmittedByPrimaryEmail(
+    eventId: string,
+    email: string,
+  ): Promise<number> {
+    const normalized = email.toLowerCase().trim();
+    let n = 0;
+    for (const s of this.submissions.values()) {
+      if (s.eventId !== eventId || s.status !== "submitted") continue;
+      const speakerRows = this.speakers.get(s.id) ?? [];
+      const primaries = speakerRows.filter((sp) => sp.isPrimary);
+      const matched = primaries.some((sp) => {
+        const person = this.people.get(sp.personId);
+        return person?.email.toLowerCase() === normalized;
+      });
+      if (matched) n++;
     }
     return n;
   }
@@ -758,5 +783,30 @@ export class D1SubmissionsStore implements SubmissionsStore {
         ),
       );
     return rows.length;
+  }
+
+  async countSubmittedByPrimaryEmail(
+    eventId: string,
+    email: string,
+  ): Promise<number> {
+    const normalized = email.toLowerCase().trim();
+    const rows = await this.db
+      .select({ id: submissions.id })
+      .from(submissions)
+      .innerJoin(
+        submissionSpeakers,
+        eq(submissionSpeakers.submissionId, submissions.id),
+      )
+      .innerJoin(people, eq(people.id, submissionSpeakers.personId))
+      .where(
+        and(
+          eq(submissions.eventId, eventId),
+          eq(submissions.status, "submitted"),
+          eq(submissionSpeakers.isPrimary, 1),
+          eq(people.email, normalized),
+        ),
+      );
+    // Defensive distinct — a submission with duplicated primary rows counts once.
+    return new Set(rows.map((r) => r.id)).size;
   }
 }

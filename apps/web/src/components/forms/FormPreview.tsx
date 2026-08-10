@@ -6,7 +6,10 @@
  */
 import { useMemo, useState } from "react";
 import type { BuilderField } from "./form-builder-utils.js";
-import { isFieldVisibleInPreview } from "./form-builder-utils.js";
+import {
+  isBuilderLayoutNode,
+  isFieldVisibleInPreview,
+} from "./form-builder-utils.js";
 import { charCountLabel, charCountTone } from "./char-count.js";
 
 export type FormPreviewProps = {
@@ -69,7 +72,30 @@ export function FormPreview({
         </p>
       ) : (
         <ul className="form-builder__preview-list" data-testid="form-preview-fields">
-          {visible.map((f) => (
+          {visible.map((f) =>
+            isBuilderLayoutNode(f) ? (
+              <li
+                key={f.clientId}
+                className="form-builder__preview-layout"
+                data-testid={`form-preview-layout-${f.fieldKey}`}
+                data-layout-type={f.layoutType ?? undefined}
+              >
+                {f.layoutType === "section" ? (
+                  <h4
+                    className="form-builder__preview-section-heading"
+                    data-testid={`form-preview-section-${f.fieldKey}`}
+                  >
+                    {f.label}
+                  </h4>
+                ) : (
+                  <hr
+                    className="form-builder__preview-divider"
+                    data-testid={`form-preview-divider-${f.fieldKey}`}
+                    aria-hidden="true"
+                  />
+                )}
+              </li>
+            ) : (
             <li
               key={f.clientId}
               className="form-builder__preview-field"
@@ -255,7 +281,8 @@ export function FormPreview({
                 </p>
               ) : null}
             </li>
-          ))}
+            ),
+          )}
         </ul>
       )}
 

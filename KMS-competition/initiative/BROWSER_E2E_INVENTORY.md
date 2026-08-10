@@ -96,6 +96,8 @@
 | D12 | admin | Forms | Field help text, placeholder & character cap render on public CFP with live counter | e2e/admin/form-field-help | Over-cap submit rejected client + server (400) | REQUIRED | PASS |
 | D13 | admin | Forms | File field from palette; publish; public PDF upload; admin detail shows working file link | e2e/admin/form-file-field | File field with options rejected | REQUIRED | PASS |
 | D14 | admin | Forms | Form settings speaker min/max (1–15) enforced on public CFP | e2e/admin/form-speaker-bounds | Over-max and under-min submits rejected (400) | REQUIRED | PASS |
+| D15 | admin | Forms | Form settings per-person cap enforced on public CFP by normalized submitter email; total cap independent | e2e/admin/form-per-submitter-limit | Same email second submit rejected (400, human copy) | REQUIRED | PASS |
+| D16 | admin | Forms | Section + divider layout nodes: builder compose/reorder, reload round-trip, public headings/dividers, no layout answers | e2e/admin/form-layout-nodes | Submitted DTO contains no layout answers | REQUIRED | PASS |
 
 ---
 
@@ -134,6 +136,7 @@
 | F10 | evaluator | Queue | Abstain with reason; leaves pending flow; admin rollup counts distinctly + shows reason; aggregate unchanged | e2e/eval/abstain | Second abstain rejected (409) | REQUIRED | PASS |
 | F11 | evaluator | Queue | Round deadline in banner; closed round locks scoring server-side + shows closed state | e2e/eval/round-close | Score after close rejected (409) | REQUIRED | PASS |
 | F12 | admin | Evaluations | Insights: completion bar, top 10 by aggregate (linked), divergence spread list | e2e/eval/insights | Empty insights state before any scores | REQUIRED | PASS |
+| F13 | evaluator | Queue | Hide speaker identities: proposal API + evaluator DOM carry no roster tokens; toggle off restores; admin detail complete | e2e/eval/hide-speakers | Toggle off shows the roster again | REQUIRED | PASS |
 
 ---
 
@@ -204,6 +207,7 @@
 | J08 | admin | Comms | Send without completed preview blocked | e2e/comms/preview-required | Blocked | REQUIRED | PASS |
 | J09 | admin | Comms | Edit audience invalidates preview | e2e/comms/preview-invalidate | — | REQUIRED | PASS |
 | J10 | admin | Comms | ICS update after reschedule keeps UID bumps SEQUENCE | e2e/comms/ics-update | — | REQUIRED | PASS |
+| J12 | admin | Comms | Submission confirmation lifecycle: public submit → queued delivery-log job with rendered merge fields; template editable | e2e/comms/submission-confirmation | Disabled toggle → no new lifecycle job | REQUIRED | PASS |
 
 ---
 

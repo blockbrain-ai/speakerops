@@ -31,6 +31,7 @@ import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { FormsStore } from "../forms/store.js";
+import type { CommsStore } from "../comms/store.js";
 import type { DesignStore } from "../design/store.js";
 import type { SubmissionsStore } from "./store.js";
 import {
@@ -53,6 +54,8 @@ export type PublicCfpRouteOptions = {
   forms: FormsStore;
   design: DesignStore;
   submissions: SubmissionsStore;
+  /** Optional comms store — submission confirmation lifecycle email (Wave 1B). */
+  comms?: CommsStore;
   /** Optional rate limiter inject (tests). */
   rateLimiter?: CfpRateLimiter;
   /** TURNSTILE_SECRET_KEY from Worker env (name only in docs). */
@@ -103,6 +106,7 @@ export function createPublicCfpRoutes(
     events: options.events,
     auth: options.store,
     design: options.design,
+    comms: options.comms,
     turnstileSecret: options.turnstileSecret,
     demoTurnstile: options.demoTurnstile,
   };
@@ -159,13 +163,24 @@ export function createPublicCfpRoutes(
     // Host for DEMO allowlist (section 10.3) — prefer Host header over URL host.
     const hostHeader = c.req.header("host") ?? undefined;
 
-    const result = await createSubmission(submitDeps, {
-      ...parsed.data,
-      slug,
-      correlationId: c.get("correlationId"),
-      remoteIp: key.startsWith("corr:") ? undefined : key,
-      host: hostHeader,
-    });
+    // Per-request queue kick binding (production JOBS_QUEUE; absent locally).
+    const jobsQueue = (c.env as { JOBS_QUEUE?: { send?: unknown } } | undefined)
+      ?.JOBS_QUEUE;
+    const commsQueueKick =
+      jobsQueue && typeof jobsQueue.send === "function"
+        ? (jobsQueue as { send: (message: unknown) => Promise<unknown> })
+        : null;
+
+    const result = await createSubmission(
+      { ...submitDeps, commsQueueKick },
+      {
+        ...parsed.data,
+        slug,
+        correlationId: c.get("correlationId"),
+        remoteIp: key.startsWith("corr:") ? undefined : key,
+        host: hostHeader,
+      },
+    );
 
     if (!result.ok) {
       return commandError(c, result, headers);

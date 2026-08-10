@@ -1,7 +1,7 @@
 # Linkcheck report — onboarding proof (section 9.6)
 
 Workspace: speakerops-build
-Date (UTC): 2026-08-10T14:50:03.538Z
+Date (UTC): 2026-08-10T15:32:26.405Z
 Status: PASS
 Broken internal links: 0
 

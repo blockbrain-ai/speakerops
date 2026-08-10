@@ -373,6 +373,8 @@ export const formVersions = sqliteTable(
     opensAt: text("opens_at"),
     closesAt: text("closes_at"),
     submissionLimit: integer("submission_limit"),
+    /** Max submitted proposals per primary-speaker email (post-11.9 depth; 0028). */
+    perSubmitterLimit: integer("per_submitter_limit"),
     /** Configurable speaker bounds (post-11.9 depth; 0024). Defaults preserve 1–5. */
     minSpeakers: integer("min_speakers").notNull().default(1),
     maxSpeakers: integer("max_speakers").notNull().default(5),
@@ -407,6 +409,10 @@ export const formFields = sqliteTable(
     placeholder: text("placeholder"),
     /** Character cap for text/textarea answers (post-11.9 depth; 0023). */
     maxChars: integer("max_chars"),
+    /** Node discrimination: input (answerable) | layout (section/divider) (0027). */
+    nodeKind: text("node_kind").notNull().default("input"),
+    /** section | divider when node_kind = layout; NULL for inputs (0027). */
+    layoutType: text("layout_type"),
   },
   (t) => [
     index("idx_form_fields_form_version_id").on(t.formVersionId),
@@ -539,6 +545,8 @@ export const evalRounds = sqliteTable(
     closesAt: text("closes_at"),
     /** Evaluator guidance rendered as plain text in the queue (0026). */
     instructionsMd: text("instructions_md"),
+    /** 1 = evaluator proposal DTO omits speakers[] (server-side; 0029). */
+    hideSpeakers: integer("hide_speakers").notNull().default(0),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

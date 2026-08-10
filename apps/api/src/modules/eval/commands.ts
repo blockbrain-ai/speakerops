@@ -116,6 +116,7 @@ function toRoundDto(row: EvalRoundRow): EvalRoundDto {
     status: asRoundStatus(row.status),
     closesAt: row.closesAt ?? null,
     instructionsMd: row.instructionsMd ?? null,
+    hideSpeakers: row.hideSpeakers === true,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -252,16 +253,20 @@ export async function upsertRubric(
   const now = new Date().toISOString();
   let round: EvalRoundRow | null = null;
 
-  // Deadline / instructions knobs: omitted keeps current, null clears.
+  // Deadline / instructions / hide-speakers knobs: omitted keeps current, null clears.
   const roundPatch: {
     closesAt?: string | null;
     instructionsMd?: string | null;
+    hideSpeakers?: boolean;
   } = {};
   if (input.closesAt !== undefined) roundPatch.closesAt = input.closesAt;
   if (input.instructionsMd !== undefined) {
     roundPatch.instructionsMd = input.instructionsMd?.trim()
       ? input.instructionsMd
       : null;
+  }
+  if (input.hideSpeakers !== undefined) {
+    roundPatch.hideSpeakers = input.hideSpeakers === true;
   }
 
   if (input.roundId) {
@@ -299,6 +304,7 @@ export async function upsertRubric(
         instructionsMd: input.instructionsMd?.trim()
           ? input.instructionsMd
           : null,
+        hideSpeakers: input.hideSpeakers === true,
         createdAt: now,
         updatedAt: now,
       });
@@ -346,6 +352,7 @@ export async function upsertRubric(
     entityId: round.id,
     afterJson: JSON.stringify({
       name: round.name,
+      hideSpeakers: round.hideSpeakers === true,
       criteriaCount: criterionRows.length,
       criteria: criterionRows.map((c) => ({
         id: c.id,
@@ -943,6 +950,31 @@ export async function getEvalAssignmentProposal(
       : { fieldKey: a.fieldKey, value };
   });
 
+  // Wave 1B: when the round hides speaker identities, the roster is omitted
+  // from the DTO entirely — the names/emails never leave the server (not CSS).
+  const round = await deps.eval.findRoundById(assignment.roundId);
+  const hideSpeakers = round?.hideSpeakers === true;
+
+  const submissionDto = {
+    id: submission.id,
+    title: submission.title,
+    eventId: submission.eventId,
+    category: submission.category,
+    status: submission.status,
+  };
+
+  if (hideSpeakers) {
+    return {
+      ok: true,
+      value: {
+        assignmentId: assignment.id,
+        submission: submissionDto,
+        answers,
+        speakersHidden: true,
+      },
+    };
+  }
+
   const speakerRows = await deps.submissions.listSpeakers(submission.id);
   const speakers = [];
   for (const s of speakerRows) {
@@ -961,13 +993,7 @@ export async function getEvalAssignmentProposal(
     ok: true,
     value: {
       assignmentId: assignment.id,
-      submission: {
-        id: submission.id,
-        title: submission.title,
-        eventId: submission.eventId,
-        category: submission.category,
-        status: submission.status,
-      },
+      submission: submissionDto,
       answers,
       speakers,
     },

@@ -9,6 +9,8 @@ import {
   uuidv7,
   FORM_DRAFT_VERSION_NUM,
   FormSnapshotSchema,
+  isInputNode,
+  isLayoutNode,
   CFP_MIN_SPEAKERS,
   CFP_MAX_SPEAKERS,
   CFP_FILE_MIME_ALLOWLIST,
@@ -78,6 +80,8 @@ function toFieldDto(row: FormFieldRow): FormFieldDto {
     helpText: row.helpText ?? null,
     placeholder: row.placeholder ?? null,
     maxChars: row.maxChars ?? null,
+    nodeKind: row.nodeKind ?? "input",
+    layoutType: row.layoutType ?? null,
   };
 }
 
@@ -105,6 +109,7 @@ async function toVersionDto(
     opensAt: version.opensAt,
     closesAt: version.closesAt,
     submissionLimit: version.submissionLimit,
+    perSubmitterLimit: version.perSubmitterLimit ?? null,
     minSpeakers: version.minSpeakers ?? CFP_MIN_SPEAKERS,
     maxSpeakers: version.maxSpeakers ?? CFP_MAX_SPEAKERS,
     publishedAt: version.publishedAt,
@@ -128,14 +133,19 @@ function conditionFieldKeys(condition: FormCondition | undefined | null): string
  * Returns CommandErr when invalid (400 VALIDATION_ERROR).
  */
 function validateConditionKeys(
-  fields: { fieldKey: string }[],
+  fields: { fieldKey: string; nodeKind?: string }[],
   rules: { when: FormCondition }[],
   fieldConditions: Array<{ fieldKey: string; conditions: { showWhen?: FormCondition } | null | undefined }>,
 ): CommandErr | null {
-  const keys = new Set(fields.map((f) => f.fieldKey));
+  const allKeys = new Set(fields.map((f) => f.fieldKey));
+  // Conditions and routing rules may only reference answerable input nodes —
+  // layout nodes (section/divider) never participate in field lookups.
+  const keys = new Set(
+    fields.filter((f) => isInputNode(f)).map((f) => f.fieldKey),
+  );
 
-  // Duplicate field_key in payload
-  if (keys.size !== fields.length) {
+  // Duplicate field_key in payload (layout keys included — storage uniqueness)
+  if (allKeys.size !== fields.length) {
     return {
       ok: false,
       status: 400,
@@ -254,6 +264,7 @@ export async function createForm(
     opensAt: null,
     closesAt: null,
     submissionLimit: null,
+    perSubmitterLimit: null,
     minSpeakers: CFP_MIN_SPEAKERS,
     maxSpeakers: CFP_MAX_SPEAKERS,
     publishedAt: null,
@@ -323,6 +334,20 @@ export async function updateDraftFields(
 
   // select/multiselect should carry options
   for (const f of input.fields) {
+    // Layout nodes (section/divider) carry no input semantics — Zod already
+    // rejects required/options/conditions/maxChars on them; skip type checks.
+    if (isLayoutNode(f)) {
+      if (f.layoutType == null) {
+        return {
+          ok: false,
+          status: 400,
+          error: "Layout nodes require a layout type (section or divider)",
+          code: "VALIDATION_ERROR",
+          details: { fieldKey: f.fieldKey },
+        };
+      }
+      continue;
+    }
     if (
       (f.type === "select" || f.type === "multiselect") &&
       (!f.options || f.options.length === 0)
@@ -372,6 +397,10 @@ export async function updateDraftFields(
     input.submissionLimit !== undefined
       ? input.submissionLimit
       : draft.submissionLimit;
+  const perSubmitterLimit =
+    input.perSubmitterLimit !== undefined
+      ? input.perSubmitterLimit
+      : (draft.perSubmitterLimit ?? null);
   // Speaker bounds knob: omitted/null keeps current draft values (defaults 1/5).
   const minSpeakers =
     input.minSpeakers != null
@@ -397,6 +426,7 @@ export async function updateDraftFields(
     opensAt: opensAt ?? null,
     closesAt: closesAt ?? null,
     submissionLimit: submissionLimit ?? null,
+    perSubmitterLimit: perSubmitterLimit ?? null,
     minSpeakers,
     maxSpeakers,
   });
@@ -409,20 +439,31 @@ export async function updateDraftFields(
     };
   }
 
-  const fieldRows: FormFieldRow[] = input.fields.map((f, index) => ({
-    id: newFormFieldId(),
-    formVersionId: draft.id,
-    fieldKey: f.fieldKey,
-    type: f.type,
-    label: f.label,
-    required: f.required ?? false,
-    options: f.options ?? null,
-    sortOrder: f.sortOrder ?? index,
-    conditions: f.conditions ?? null,
-    helpText: f.helpText?.trim() ? f.helpText.trim() : null,
-    placeholder: f.placeholder?.trim() ? f.placeholder.trim() : null,
-    maxChars: f.maxChars ?? null,
-  }));
+  const fieldRows: FormFieldRow[] = input.fields.map((f, index) => {
+    const layout = isLayoutNode(f);
+    return {
+      id: newFormFieldId(),
+      formVersionId: draft.id,
+      fieldKey: f.fieldKey,
+      type: f.type,
+      label: f.label,
+      // Layout nodes never carry input semantics — normalize hard here so a
+      // stray client payload cannot smuggle answer behavior onto structure.
+      required: layout ? false : (f.required ?? false),
+      options: layout ? null : (f.options ?? null),
+      sortOrder: f.sortOrder ?? index,
+      conditions: layout ? null : (f.conditions ?? null),
+      helpText: layout ? null : f.helpText?.trim() ? f.helpText.trim() : null,
+      placeholder: layout
+        ? null
+        : f.placeholder?.trim()
+          ? f.placeholder.trim()
+          : null,
+      maxChars: layout ? null : (f.maxChars ?? null),
+      nodeKind: layout ? "layout" : "input",
+      layoutType: layout ? (f.layoutType ?? null) : null,
+    };
+  });
   await deps.forms.replaceFields(draft.id, fieldRows);
 
   const ruleRows: FormRuleRow[] = input.rules.map((r) => ({
@@ -517,6 +558,16 @@ export async function publishForm(
       code: "VALIDATION_ERROR",
     };
   }
+  // Sections/dividers are structure only — a publishable form needs at least
+  // one answerable input field.
+  if (!draftFields.some((f) => isInputNode(f))) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Cannot publish a form with only sections and dividers — add at least one field",
+      code: "VALIDATION_ERROR",
+    };
+  }
 
   const latest = await deps.forms.findLatestPublishedVersion(input.formId);
   const nextVersionNum = (latest?.versionNum ?? 0) + 1;
@@ -544,6 +595,7 @@ export async function publishForm(
     opensAt: draft.opensAt,
     closesAt: draft.closesAt,
     submissionLimit: draft.submissionLimit,
+    perSubmitterLimit: draft.perSubmitterLimit ?? null,
     minSpeakers: draft.minSpeakers ?? CFP_MIN_SPEAKERS,
     maxSpeakers: draft.maxSpeakers ?? CFP_MAX_SPEAKERS,
     fields: snapshotFields,
@@ -569,6 +621,7 @@ export async function publishForm(
     opensAt: draft.opensAt,
     closesAt: draft.closesAt,
     submissionLimit: draft.submissionLimit,
+    perSubmitterLimit: draft.perSubmitterLimit ?? null,
     minSpeakers: draft.minSpeakers ?? CFP_MIN_SPEAKERS,
     maxSpeakers: draft.maxSpeakers ?? CFP_MAX_SPEAKERS,
     publishedAt: now,

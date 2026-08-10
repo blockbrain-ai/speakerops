@@ -97,6 +97,12 @@ export const EvalUpsertRubricBodySchema = z.object({
   closesAt: z.string().min(1).max(64).optional().nullable(),
   /** Evaluator guidance (plain text / markdown-safe; never HTML-executed). */
   instructionsMd: z.string().max(10_000).optional().nullable(),
+  /**
+   * Hide speaker identities from evaluators (Wave 1B): the evaluator proposal
+   * DTO omits speakers[] server-side. Omitted keeps the current value.
+   * Honest scope: titles/answers may still reveal identity.
+   */
+  hideSpeakers: z.boolean().optional(),
 });
 export type EvalUpsertRubricBody = z.infer<typeof EvalUpsertRubricBodySchema>;
 
@@ -121,6 +127,8 @@ export const EvalRoundSchema = z.object({
   closesAt: NullableStringSchema,
   /** Evaluator guidance (plain text render only). */
   instructionsMd: NullableStringSchema.optional(),
+  /** True when evaluator proposal DTOs omit speakers[] (0029; default false). */
+  hideSpeakers: z.boolean().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -255,7 +263,13 @@ export const EvalProposalResponseSchema = z.object({
     status: z.string(),
   }),
   answers: z.array(EvalProposalAnswerSchema),
-  speakers: z.array(EvalProposalSpeakerSchema),
+  /**
+   * Omitted entirely when the round hides speaker identities (Wave 1B) —
+   * the roster never reaches the evaluator client (server-side, not CSS).
+   */
+  speakers: z.array(EvalProposalSpeakerSchema).optional(),
+  /** True when the round hides speaker identities (honest UI copy). */
+  speakersHidden: z.boolean().optional(),
 });
 export type EvalProposalResponse = z.infer<typeof EvalProposalResponseSchema>;
 

@@ -31,15 +31,19 @@ import {
   type FormVersionDto,
   type FormFieldType,
   type FormFieldDto,
+  type FormLayoutType,
   type FormRuleDto,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
 import { FormPreview } from "../components/forms/FormPreview.js";
 import {
   FIELD_PALETTE,
+  LAYOUT_PALETTE,
+  builderInputFields,
   canPublish,
   defaultOptionsForType,
   hasCircularConditions,
+  isBuilderLayoutNode,
   newClientId,
   publicCfpAbsoluteUrl,
   publishBlockReasons,
@@ -70,6 +74,8 @@ function draftFieldsToBuilder(fields: FormFieldDto[]): BuilderField[] {
       helpText: f.helpText ?? null,
       placeholder: f.placeholder ?? null,
       maxChars: f.maxChars ?? null,
+      nodeKind: f.nodeKind ?? "input",
+      layoutType: f.layoutType ?? null,
     }));
 }
 
@@ -120,6 +126,8 @@ export function FormBuilderPage() {
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
   const [submissionLimit, setSubmissionLimit] = useState("");
+  /** Form settings — per-person submission cap ("" = unlimited; Wave 1B). */
+  const [perSubmitterLimit, setPerSubmitterLimit] = useState("");
   /** Form settings — configurable speaker bounds (1–15; defaults 1/5). */
   const [minSpeakers, setMinSpeakers] = useState("1");
   const [maxSpeakers, setMaxSpeakers] = useState("5");
@@ -165,6 +173,11 @@ export function FormBuilderPage() {
           ? String(payload.draft.submissionLimit)
           : "",
       );
+      setPerSubmitterLimit(
+        payload.draft.perSubmitterLimit != null
+          ? String(payload.draft.perSubmitterLimit)
+          : "",
+      );
       setMinSpeakers(String(payload.draft.minSpeakers ?? 1));
       setMaxSpeakers(String(payload.draft.maxSpeakers ?? 5));
       setSelectedClientId(null);
@@ -192,6 +205,7 @@ export function FormBuilderPage() {
     setOpensAt("");
     setClosesAt("");
     setSubmissionLimit("");
+    setPerSubmitterLimit("");
     setMinSpeakers("1");
     setMaxSpeakers("5");
     setCreateStatus(null);
@@ -356,6 +370,37 @@ export function FormBuilderPage() {
     setBuilderView("build");
   }
 
+  /** Add a structure node (section heading / divider) from the layout palette. */
+  function addLayoutNode(
+    layoutType: FormLayoutType,
+    keyPrefix: string,
+    defaultLabel: string,
+  ) {
+    setFields((prev) => {
+      const fieldKey = uniqueFieldKey(
+        keyPrefix,
+        prev.map((f) => f.fieldKey),
+      );
+      const next: BuilderField = {
+        clientId: newClientId(),
+        fieldKey,
+        // Stored type is inert for layout nodes — nodeKind drives behavior.
+        type: "text",
+        label: defaultLabel,
+        required: false,
+        options: null,
+        sortOrder: prev.length,
+        conditions: null,
+        nodeKind: "layout",
+        layoutType,
+      };
+      setSelectedClientId(next.clientId);
+      return [...prev, next];
+    });
+    setSaveStatus(null);
+    setBuilderView("build");
+  }
+
   function removeField(clientId: string) {
     setFields((prev) => {
       const next = prev
@@ -432,6 +477,7 @@ export function FormBuilderPage() {
       setOpensAt("");
       setClosesAt("");
       setSubmissionLimit("");
+      setPerSubmitterLimit("");
       setMinSpeakers(String(parsed.data.draft.minSpeakers ?? 1));
       setMaxSpeakers(String(parsed.data.draft.maxSpeakers ?? 5));
       setSelectedClientId(null);
@@ -473,6 +519,7 @@ export function FormBuilderPage() {
       opensAt,
       closesAt,
       submissionLimit,
+      perSubmitterLimit,
       minSpeakers,
       maxSpeakers,
     });
@@ -617,7 +664,7 @@ export function FormBuilderPage() {
   }
 
   function addRule() {
-    const firstKey = fields[0]?.fieldKey ?? "category";
+    const firstKey = builderInputFields(fields)[0]?.fieldKey ?? "category";
     setRules((prev) => [
       ...prev,
       {
@@ -639,7 +686,7 @@ export function FormBuilderPage() {
     setRules((prev) => prev.filter((r) => r.clientId !== clientId));
   }
 
-  const otherFieldKeys = fields
+  const otherFieldKeys = builderInputFields(fields)
     .filter((f) => f.clientId !== selected?.clientId)
     .map((f) => f.fieldKey);
 
@@ -904,6 +951,34 @@ export function FormBuilderPage() {
                       </button>
                     ))}
                   </div>
+                  {/* Wave 1B — structure nodes (never answer fields) */}
+                  <h4
+                    id="layout-palette-heading"
+                    className="form-builder__subheading"
+                  >
+                    Structure
+                  </h4>
+                  <div
+                    className="form-builder__palette-grid"
+                    data-testid="layout-palette"
+                    aria-labelledby="layout-palette-heading"
+                  >
+                    {LAYOUT_PALETTE.map((p) => (
+                      <button
+                        key={p.testId}
+                        type="button"
+                        className="form-builder__btn form-builder__btn--secondary lumen-focusable"
+                        data-testid={p.testId}
+                        data-layout-type={p.layoutType}
+                        onClick={() =>
+                          addLayoutNode(p.layoutType, p.keyPrefix, p.defaultLabel)
+                        }
+                        disabled={busy}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </section>
 
                 <section
@@ -1022,12 +1097,17 @@ export function FormBuilderPage() {
                               className="form-builder__field-label"
                               data-testid={`field-label-${f.fieldKey}`}
                             >
-                              {f.label}
+                              {isBuilderLayoutNode(f) && f.layoutType === "divider"
+                                ? "Divider"
+                                : f.label}
                             </span>
                             <span className="form-builder__muted">
                               {" "}
-                              ({f.type}
-                              {f.required ? ", required" : ""})
+                              {isBuilderLayoutNode(f)
+                                ? f.layoutType === "section"
+                                  ? "(section heading)"
+                                  : "(divider)"
+                                : `(${f.type}${f.required ? ", required" : ""})`}
                             </span>
                           </button>
                           <div className="form-builder__field-actions">
@@ -1099,6 +1179,43 @@ export function FormBuilderPage() {
                       Select a field on the canvas or outline to edit label,
                       required flag, options, and conditionals.
                     </p>
+                  ) : isBuilderLayoutNode(selected) ? (
+                    <div
+                      className="form-builder__field-editor"
+                      data-testid="field-editor"
+                      data-editing-key={selected.fieldKey}
+                      data-node-kind="layout"
+                    >
+                      {selected.layoutType === "section" ? (
+                        <Field
+                          id="layout-edit-label"
+                          label="Section heading"
+                          hint="Shown as a heading on the public form — sections group the fields below them."
+                          inputProps={{
+                            maxLength: 255,
+                            value: selected.label,
+                            onChange: (e) =>
+                              updateField(selected.clientId, {
+                                label: e.target.value,
+                              }),
+                            "data-testid": "layout-edit-label",
+                          }}
+                        />
+                      ) : (
+                        <p
+                          className="form-builder__muted"
+                          data-testid="layout-divider-note"
+                        >
+                          Dividers draw a horizontal rule between fields.
+                          Nothing to configure — drag or use the arrows to
+                          position it.
+                        </p>
+                      )}
+                      <p className="form-builder__muted">
+                        Structure only: this never collects an answer and is
+                        left out of submissions, conditions, and exports.
+                      </p>
+                    </div>
                   ) : (
                     <div
                       className="form-builder__field-editor"
@@ -1418,7 +1535,7 @@ export function FormBuilderPage() {
                   Publish summary
                 </h3>
                 <p className="form-builder__meta">
-                  Fields ready: <strong>{fields.length}</strong>
+                  Fields ready: <strong>{builderInputFields(fields).length}</strong>
                   {rules.length > 0 ? ` · ${rules.length} routing rule(s)` : ""}
                   {publishedVersion
                     ? ` · last published v${publishedVersion.versionNum}`
@@ -1442,11 +1559,21 @@ export function FormBuilderPage() {
                 <ul className="form-builder__publish-field-list" data-testid="publish-field-list">
                   {sortedFields.map((f) => (
                     <li key={f.clientId}>
-                      {f.label}{" "}
-                      <span className="form-builder__muted">
-                        ({f.fieldKey}
-                        {f.required ? ", required" : ""})
-                      </span>
+                      {isBuilderLayoutNode(f) ? (
+                        <span className="form-builder__muted">
+                          {f.layoutType === "section"
+                            ? `Section — ${f.label}`
+                            : "Divider"}
+                        </span>
+                      ) : (
+                        <>
+                          {f.label}{" "}
+                          <span className="form-builder__muted">
+                            ({f.fieldKey}
+                            {f.required ? ", required" : ""})
+                          </span>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -1497,6 +1624,19 @@ export function FormBuilderPage() {
                   value: maxSpeakers,
                   onChange: (e) => setMaxSpeakers(e.target.value),
                   "data-testid": "form-max-speakers",
+                }}
+              />
+              <Field
+                id="form-per-submitter-limit"
+                label="Max submissions per person"
+                hint="Counted by the submitter's email. Leave empty for unlimited — separate from the total cap below."
+                inputProps={{
+                  type: "number",
+                  min: 1,
+                  inputMode: "numeric",
+                  value: perSubmitterLimit,
+                  onChange: (e) => setPerSubmitterLimit(e.target.value),
+                  "data-testid": "form-per-submitter-limit",
                 }}
               />
             </div>
@@ -1561,7 +1701,7 @@ export function FormBuilderPage() {
                           }
                           data-testid={`rule-field-${i}`}
                         >
-                          {fields.map((f) => (
+                          {builderInputFields(fields).map((f) => (
                             <option key={f.fieldKey} value={f.fieldKey}>
                               {f.fieldKey}
                             </option>
@@ -1651,7 +1791,7 @@ export function FormBuilderPage() {
                   aria-labelledby="limits-heading"
                 >
                   <h3 id="limits-heading" className="form-builder__heading">
-                    Open / close & submission limit
+                    Open / close & total submissions
                   </h3>
                   <label className="form-builder__label" htmlFor="opens-at">
                     Opens at (ISO-8601)
@@ -1679,7 +1819,7 @@ export function FormBuilderPage() {
                     className="form-builder__label"
                     htmlFor="submission-limit"
                   >
-                    Submission limit
+                    Max total submissions
                   </label>
                   <input
                     id="submission-limit"

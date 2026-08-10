@@ -15,11 +15,15 @@ import {
   TrackResponseSchema,
   ErrorEnvelopeSchema,
   uuidv7,
+  parseEventNotificationSettings,
+  mergeEventNotificationSettings,
+  parseNotifyEmailsInput,
   type EventDto,
   type RoomDto,
   type TrackDto,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
+import { Field } from "../components/ui/Field.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
 
@@ -44,6 +48,12 @@ export function EventSettingsPage() {
   const [settingsStatus, setSettingsStatus] = useState<StatusMsg>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // --- Submission notifications (Wave 1B lifecycle email) ---
+  const [notifyEnabled, setNotifyEnabled] = useState(true);
+  const [notifyEmailsRaw, setNotifyEmailsRaw] = useState("");
+  const [notifyStatus, setNotifyStatus] = useState<StatusMsg>(null);
+  const [savingNotify, setSavingNotify] = useState(false);
 
   // --- Rooms (O02) ---
   const [rooms, setRooms] = useState<RoomDto[]>([]);
@@ -88,6 +98,10 @@ export function EventSettingsPage() {
     setTimezone(ev.timezone);
     setStartsAt(ev.startsAt ?? "");
     setEndsAt(ev.endsAt ?? "");
+    const notify = parseEventNotificationSettings(ev.settingsJson ?? null);
+    setNotifyEnabled(notify.submissionConfirmationEnabled);
+    setNotifyEmailsRaw(notify.notifySubmissionEmails.join(", "));
+    setNotifyStatus(null);
   }, [activeEvent?.name]);
 
   const loadRooms = useCallback(async (eventId: string) => {
@@ -241,6 +255,70 @@ export function EventSettingsPage() {
       setSettingsStatus({ kind: "error", text: "Network error" });
     } finally {
       setSavingSettings(false);
+    }
+  }
+
+  /** Save submission notification settings into events.settings_json. */
+  async function onSaveNotifications(e: FormEvent) {
+    e.preventDefault();
+    if (!activeEventId || !eventDetail) {
+      setNotifyStatus({
+        kind: "error",
+        text: "Create or select an event before saving notifications",
+      });
+      return;
+    }
+    const parsedEmails = parseNotifyEmailsInput(notifyEmailsRaw);
+    if (parsedEmails.invalid.length > 0) {
+      setNotifyStatus({
+        kind: "error",
+        text: `Check these addresses: ${parsedEmails.invalid.join(", ")}`,
+      });
+      return;
+    }
+    setSavingNotify(true);
+    setNotifyStatus(null);
+    try {
+      const settingsJson = mergeEventNotificationSettings(
+        eventDetail.settingsJson ?? null,
+        {
+          submissionConfirmationEnabled: notifyEnabled,
+          notifySubmissionEmails: parsedEmails.emails,
+        },
+      );
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            settingsJson,
+            expectedVersion: eventDetail.version,
+          }),
+        },
+      );
+      const raw: unknown = await res.json().catch(() => null);
+      if (!res.ok) {
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setNotifyStatus({
+          kind: "error",
+          text: env.success ? env.data.error : `Save failed (${res.status})`,
+        });
+        return;
+      }
+      const parsed = EventResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        setNotifyStatus({ kind: "error", text: "Unexpected response" });
+        return;
+      }
+      setEventDetail(parsed.data.event);
+      setNotifyStatus({ kind: "ok", text: "Notification settings saved" });
+      await refreshEvents();
+    } catch {
+      setNotifyStatus({ kind: "error", text: "Network error" });
+    } finally {
+      setSavingNotify(false);
     }
   }
 
@@ -577,6 +655,71 @@ export function EventSettingsPage() {
             ) : null}
           </form>
         )}
+      </section>
+
+      {/* Wave 1B — submission notification lifecycle settings */}
+      <section
+        className="event-settings__card"
+        data-testid="event-notifications-section"
+        aria-labelledby="event-notifications-heading"
+      >
+        <h3 id="event-notifications-heading" className="event-settings__heading">
+          Submission notifications
+        </h3>
+        <p className="event-settings__muted">
+          Submitters get a confirmation email after they send a proposal. Edit
+          the wording in Comms under the “submission_confirmation” template.
+        </p>
+        <form
+          className="event-settings__form"
+          onSubmit={onSaveNotifications}
+          data-testid="event-notifications-form"
+        >
+          <label className="form-builder__check-row">
+            <input
+              type="checkbox"
+              className="lumen-focusable"
+              checked={notifyEnabled}
+              onChange={(ev) => setNotifyEnabled(ev.target.checked)}
+              data-testid="event-notify-confirmation-toggle"
+              disabled={!eventDetail}
+            />
+            <span>Email submitters a confirmation</span>
+          </label>
+          <Field
+            id="event-notify-emails"
+            label="Also notify the team"
+            hint="Organizer inboxes copied on every new submission. Separate addresses with commas; leave empty for none."
+            disabled={!eventDetail}
+            inputProps={{
+              value: notifyEmailsRaw,
+              onChange: (ev) => setNotifyEmailsRaw(ev.target.value),
+              placeholder: "program-team@example.com",
+              "data-testid": "event-notify-emails",
+            }}
+          />
+          <button
+            type="submit"
+            className="event-settings__submit lumen-focusable"
+            data-testid="event-notify-save"
+            disabled={savingNotify || !eventDetail}
+          >
+            {savingNotify ? "Saving…" : "Save notifications"}
+          </button>
+          {notifyStatus ? (
+            <p
+              className={
+                notifyStatus.kind === "ok"
+                  ? "event-settings__status event-settings__status--ok"
+                  : "event-settings__status event-settings__status--error"
+              }
+              data-testid="event-notify-status"
+              role="status"
+            >
+              {notifyStatus.text}
+            </p>
+          ) : null}
+        </form>
       </section>
 
       {/* O02 — Rooms */}

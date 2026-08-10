@@ -213,6 +213,13 @@ export {
   CFP_SPEAKERS_BOUND_MAX,
   FormStatusSchema,
   type FormStatus,
+  FormNodeKindSchema,
+  type FormNodeKind,
+  FormLayoutTypeSchema,
+  type FormLayoutType,
+  FORM_SECTION_LABEL_MAX,
+  isLayoutNode,
+  isInputNode,
   FormConditionOpSchema,
   type FormConditionOp,
   FormConditionSchema,
@@ -255,6 +262,19 @@ export {
   type FormAdminGetResponse,
   FORM_DRAFT_VERSION_NUM,
 } from "./forms.js";
+
+export {
+  SUBMISSION_CONFIRMATION_TEMPLATE_KEY,
+  submissionConfirmationIdempotencyKey,
+  SUBMISSION_CONFIRMATION_DEFAULT_SUBJECT,
+  SUBMISSION_CONFIRMATION_DEFAULT_BODY,
+  EventNotificationSettingsSchema,
+  type EventNotificationSettings,
+  type ResolvedEventNotificationSettings,
+  parseEventNotificationSettings,
+  mergeEventNotificationSettings,
+  parseNotifyEmailsInput,
+} from "./lifecycle.js";
 
 export {
   SubmissionStatusSchema,
