@@ -321,11 +321,13 @@ else
     [[ -f "$ROOT/apps/web/dist/index.html" ]] || die "apps/web/dist/index.html missing (build SPA or unset DOGFOOD_SKIP_WEB_BUILD)"
   fi
 
-  # Optional D1 id override (names in docs; values from secrets/env)
+  # Optional D1 id override (names in docs; values from secrets/env).
+  # Write override next to the repo wrangler.toml so relative `main` / assets
+  # paths still resolve (a /tmp config breaks entry-point lookup).
   CONFIG_FOR_DEPLOY="$WRANGLER_CONFIG"
   if [[ -n "${SPEAKEROPS_D1_DATABASE_ID:-}" ]]; then
     info "SPEAKEROPS_D1_DATABASE_ID set — injecting D1 database_id for deploy"
-    OVERRIDE_TOML="$(mktemp "${TMPDIR:-/tmp}/wrangler-dogfood.XXXXXX.toml")"
+    OVERRIDE_TOML="$ROOT/.wrangler-dogfood-override.toml"
     # shellcheck disable=SC2064
     trap 'rm -f "$OVERRIDE_TOML"' EXIT
     sed -E "s/database_id = \"[^\"]+\"/database_id = \"${SPEAKEROPS_D1_DATABASE_ID}\"/" \

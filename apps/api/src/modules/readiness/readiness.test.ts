@@ -450,6 +450,82 @@ describe("6.3 Reports.Readiness", () => {
     );
   });
 
+  it("outstanding list is capped with truncation metadata (dogfood scale)", async () => {
+    const run = Date.now();
+    const admin = await magicLinkSession(
+      "admin",
+      `ready-admin-cap-${run}@example.com`,
+    );
+    const ev = await createEvent(
+      admin.app,
+      admin.cookie,
+      `Ready Cap ${run}`,
+    );
+    // One accept materializes on_accept templates + participation; then bulk-insert
+    // pending tasks past the list cap (avoids 30× form/publish round-trips).
+    const { READINESS_OUTSTANDING_LIST_CAP } = await import("@speakerops/shared");
+    const decision = await acceptTalk(
+      admin.app,
+      admin.cookie,
+      ev.event.id,
+      ev.event.slug,
+      `cap-spk-${run}@example.com`,
+      "Cap Spk",
+      `Talk Cap ${run}`,
+    );
+    const participationId =
+      decision.participations[0]?.id ??
+      (await admin.decisions.listParticipationsForEvent(ev.event.id))[0]?.id;
+    expect(participationId).toBeTruthy();
+    const templates = await admin.decisions.listTaskTemplates(ev.event.id);
+    let templateId = templates[0]?.id;
+    if (!templateId) {
+      templateId = `tpl_cap_${run}`;
+      await admin.decisions.insertTaskTemplate({
+        id: templateId,
+        eventId: ev.event.id,
+        title: "Cap bulk task",
+        description: null,
+        trigger: "on_accept",
+        dueOffsetDays: 14,
+        version: 1,
+        createdAt: new Date().toISOString(),
+      });
+    }
+    const existing = await admin.decisions.listSpeakerTasksForParticipations([
+      participationId!,
+    ]);
+    const need = READINESS_OUTSTANDING_LIST_CAP + 10 - existing.length;
+    const now = new Date().toISOString();
+    for (let i = 0; i < need; i += 1) {
+      await admin.decisions.insertSpeakerTask({
+        id: `task_cap_${run}_${i}`,
+        participationId: participationId!,
+        templateId,
+        status: "pending",
+        dueAt: `2026-12-${String((i % 28) + 1).padStart(2, "0")}T12:00:00.000Z`,
+        completedAt: null,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    const res = await admin.app.request(
+      `http://localhost/api/events/${ev.event.id}/readiness`,
+      { method: "GET", headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = ReportsReadinessResponseSchema.parse(await res.json());
+    expect(body.stats.outstandingTasks).toBeGreaterThan(
+      READINESS_OUTSTANDING_LIST_CAP,
+    );
+    expect(body.outstandingTotal).toBe(body.stats.outstandingTasks);
+    expect(body.outstandingListCap).toBe(READINESS_OUTSTANDING_LIST_CAP);
+    expect(body.outstanding.length).toBe(READINESS_OUTSTANDING_LIST_CAP);
+    expect(body.outstandingTruncated).toBe(true);
+  });
+
   it("readiness is event-scoped (no cross-event leak)", async () => {
     const run = Date.now();
     const admin = await magicLinkSession(

@@ -58,14 +58,27 @@ export const ReadinessStatsSchema = z.object({
 });
 export type ReadinessStats = z.infer<typeof ReadinessStatsSchema>;
 
+/** Max outstanding rows returned in the list payload (stats stay full). */
+export const READINESS_OUTSTANDING_LIST_CAP = 50;
+
 export const ReportsReadinessResponseSchema = z.object({
   eventId: z.string().min(1),
   stats: ReadinessStatsSchema,
   /**
    * Outstanding incomplete tasks (filtered when overdueOnly=true).
    * Sorted: overdue first, then dueAt ascending, then taskId.
+   * Capped at READINESS_OUTSTANDING_LIST_CAP — see outstandingTotal.
    */
   outstanding: z.array(ReadinessOutstandingItemSchema),
+  /**
+   * Full count of outstanding rows after overdueOnly filter (before list cap).
+   * stats.outstandingTasks is always the unfiltered event total.
+   */
+  outstandingTotal: z.number().int().nonnegative(),
+  /** Cap applied to outstanding[] (constant; echoed for clients). */
+  outstandingListCap: z.number().int().positive(),
+  /** True when outstandingTotal > outstanding.length (list truncated). */
+  outstandingTruncated: z.boolean(),
   /** ISO timestamp when this report was computed (for live-poll freshness). */
   generatedAt: z.string().min(1),
 });

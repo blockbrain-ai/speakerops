@@ -118,9 +118,11 @@ Ask Codex Sol xhigh: ADEQUATE / REVISE on this plan before code lands. Fold note
 
 ## F. Definition of done
 
-- [ ] Overview shows real readiness/stats on dogfood within **8s** p95
-- [ ] Schedule list session click focuses day placement without throw
-- [ ] Evaluations row reaches submission detail path
-- [ ] CSP no longer blocks CF insights beacon (or analytics disabled)
-- [ ] Multi-role dogfood workflow suite **PASS**, no pageerror
-- [ ] All committed + pushed to `origin/section-runner/speakerops`
+- [x] Overview shows real readiness/stats on dogfood within **8s** p95 (~0.7s measured 2026-08-10)
+- [x] Schedule list session click focuses day placement without throw
+- [x] Evaluations row reaches submission detail path
+- [x] CSP no longer blocks CF insights beacon (or analytics disabled)
+- [x] Multi-role dogfood workflow suite **PASS**, no pageerror
+- [x] All committed + pushed to `origin/section-runner/speakerops`
+
+See `DOGFOOD_UX_GAP_CLOSE_EVIDENCE.md` for timings + deploy smoke.

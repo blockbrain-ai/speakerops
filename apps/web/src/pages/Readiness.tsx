@@ -276,6 +276,10 @@ export function ReadinessPage() {
       if (!opts?.quiet) setLoading(true);
       setLoadError(null);
       const qs = filterOverdue ? "?overdueOnly=true" : "";
+      // Never leave Overview on infinite "Loading readiness…" (dogfood scale).
+      const READINESS_FETCH_MS = 8_000;
+      const controller = new AbortController();
+      const abortTimer = setTimeout(() => controller.abort(), READINESS_FETCH_MS);
       try {
         const [res, programMetrics] = await Promise.all([
           fetch(
@@ -283,6 +287,7 @@ export function ReadinessPage() {
             {
               credentials: "include",
               headers: { accept: "application/json" },
+              signal: controller.signal,
             },
           ),
           loadMetrics(eventId),
@@ -334,11 +339,19 @@ export function ReadinessPage() {
           });
         }
         setLastFetchedAt(new Date().toISOString());
-      } catch {
+      } catch (err) {
         if (gen === loadGenRef.current) {
-          setLoadError("Network error");
+          const aborted =
+            (err instanceof DOMException && err.name === "AbortError") ||
+            (err instanceof Error && err.name === "AbortError");
+          setLoadError(
+            aborted
+              ? "Readiness took too long (over 8s). Refresh or try again — stats may still load on retry."
+              : "Network error",
+          );
         }
       } finally {
+        clearTimeout(abortTimer);
         if (gen === loadGenRef.current && !opts?.quiet) {
           setLoading(false);
         }
@@ -720,6 +733,17 @@ export function ReadinessPage() {
                 Needs attention
                 {overdueOnly ? " (overdue)" : ""}
               </h3>
+              {data.outstandingTruncated ? (
+                <p
+                  className="eval-queue__muted"
+                  data-testid="readiness-list-truncated"
+                >
+                  Showing top {data.outstanding.length} of{" "}
+                  {data.outstandingTotal} outstanding tasks (cap{" "}
+                  {data.outstandingListCap}). Stats above reflect the full
+                  program.
+                </p>
+              ) : null}
               {attentionVisible.length === 0 ? (
                 <p
                   className="eval-queue__muted"

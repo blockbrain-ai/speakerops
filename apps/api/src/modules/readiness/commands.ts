@@ -9,6 +9,7 @@
  */
 import {
   isTaskOverdue,
+  READINESS_OUTSTANDING_LIST_CAP,
   type ReportsReadinessResponse,
   type ReadinessOutstandingItem,
   type ReadinessStats,
@@ -136,8 +137,9 @@ export async function getReadiness(
 
   // Cap list payload for SPA (stats remain full). Overview attention needs
   // top items only — 290 rows blocked dogfood paint for ~47s + large JSON.
-  const OUTSTANDING_LIST_CAP = 50;
-  const outstanding = filtered.slice(0, OUTSTANDING_LIST_CAP);
+  const outstanding = filtered.slice(0, READINESS_OUTSTANDING_LIST_CAP);
+  const outstandingTotal = filtered.length;
+  const outstandingTruncated = outstandingTotal > outstanding.length;
 
   const stats: ReadinessStats = {
     totalSpeakers: parts.length,
@@ -154,6 +156,9 @@ export async function getReadiness(
       eventId: input.eventId,
       stats,
       outstanding,
+      outstandingTotal,
+      outstandingListCap: READINESS_OUTSTANDING_LIST_CAP,
+      outstandingTruncated,
       generatedAt,
     },
   };

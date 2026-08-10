@@ -212,6 +212,9 @@ describe("8.3 security headers middleware", () => {
     expect(csp).toMatch(/frame-ancestors\s+'none'/);
     expect(csp).toMatch(/object-src\s+'none'/);
     expect(csp).toMatch(/challenges\.cloudflare\.com/);
+    // Cloudflare Web Analytics beacon (zone-injected) must not CSP-block console
+    expect(csp).toMatch(/static\.cloudflareinsights\.com/);
+    expect(csp).toMatch(/cloudflareinsights\.com/);
 
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
