@@ -249,6 +249,8 @@ describe("3.5 Decision.Record", () => {
       description: "A",
       trigger: "on_accept",
       dueOffsetDays: 7,
+      linkUrl: null,
+      required: false,
       version: 1,
       createdAt: new Date().toISOString(),
     });
@@ -259,6 +261,8 @@ describe("3.5 Decision.Record", () => {
       description: "B",
       trigger: "on_accept",
       dueOffsetDays: 14,
+      linkUrl: null,
+      required: false,
       version: 1,
       createdAt: new Date().toISOString(),
     });
@@ -269,6 +273,8 @@ describe("3.5 Decision.Record", () => {
       description: "C",
       trigger: "on_accept",
       dueOffsetDays: 21,
+      linkUrl: null,
+      required: false,
       version: 1,
       createdAt: new Date().toISOString(),
     });
@@ -331,6 +337,8 @@ describe("3.5 Decision.Record", () => {
       description: null,
       trigger: "on_accept",
       dueOffsetDays: 3,
+      linkUrl: null,
+      required: false,
       version: 1,
       createdAt: new Date().toISOString(),
     });
@@ -922,6 +930,8 @@ describe("3.5 Decision.Record", () => {
       description: null,
       trigger: "on_accept",
       dueOffsetDays: 7,
+      linkUrl: null,
+      required: false,
       version: 1,
       createdAt: new Date().toISOString(),
     });
@@ -1381,6 +1391,8 @@ describe("3.5 Decision.Record", () => {
       description: null,
       trigger: "on_accept",
       dueOffsetDays: 7,
+      linkUrl: null,
+      required: false,
       version: 1,
       createdAt: new Date().toISOString(),
     });

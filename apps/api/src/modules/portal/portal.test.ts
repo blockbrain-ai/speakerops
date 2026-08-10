@@ -35,6 +35,7 @@ import {
 import { createAppWithAuth } from "../../index.js";
 import { OPENAPI_COMMANDS } from "../../openapi.js";
 import { newTaskTemplateId } from "../decisions/store.js";
+import { computePortalReadiness } from "./commands.js";
 
 const env = { APP_VERSION: "0.1.0" };
 
@@ -258,6 +259,7 @@ describe("4.1 portal API", () => {
     expect(OPENAPI_COMMANDS).toContain("Participation.UpdateProfile");
     expect(OPENAPI_COMMANDS).toContain("Speakers.List");
     expect(OPENAPI_COMMANDS).toContain("Speakers.UpdateProfile");
+    expect(OPENAPI_COMMANDS).toContain("Speakers.CompleteTask");
     expect(OPENAPI_COMMANDS).toContain("TaskTemplate.Create");
   });
 
@@ -274,6 +276,8 @@ describe("4.1 portal API", () => {
       description: "Upload photo",
       trigger: "on_accept",
       dueOffsetDays: 7,
+      linkUrl: null,
+      required: false,
       version: 1,
       createdAt: new Date().toISOString(),
     });
@@ -1160,5 +1164,375 @@ describe("G09 Portal.SessionIcs — speaker-owned calendar download", () => {
       env,
     );
     expect(anon.status).toBe(401);
+  });
+});
+
+describe("Wave 2 — portal task depth (link + required + complete-on-behalf)", () => {
+  it("computePortalReadiness: required-incomplete blocks; optional-only is honest ready", () => {
+    const fullProfile = {
+      bio: "Bio",
+      company: "Co",
+      title: "Eng",
+      headshotFileId: "file_1",
+    };
+
+    // Required incomplete → needs_action with required headline
+    const blocked = computePortalReadiness(fullProfile, [
+      { status: "pending", required: true },
+      { status: "pending", required: false },
+    ]);
+    expect(blocked.state).toBe("needs_action");
+    expect(blocked.headline).toBe("Required tasks remaining");
+    expect(blocked.tasksPending).toBe(2);
+
+    // Only optional incomplete → ready (enum member finally earned)
+    const ready = computePortalReadiness(fullProfile, [
+      { status: "completed", required: true },
+      { status: "pending", required: false },
+    ]);
+    expect(ready.state).toBe("ready");
+    expect(ready.headline).toBe("Ready — optional tasks remain");
+    expect(ready.percent).toBeLessThan(100);
+
+    // Nothing incomplete → complete at 100
+    const done = computePortalReadiness(fullProfile, [
+      { status: "completed", required: true },
+      { status: "completed", required: false },
+    ]);
+    expect(done.state).toBe("complete");
+    expect(done.percent).toBe(100);
+
+    // Profile incomplete always wins → needs_action
+    const noProfile = computePortalReadiness(
+      { bio: null, company: null, title: null, headshotFileId: null },
+      [{ status: "pending", required: false }],
+    );
+    expect(noProfile.state).toBe("needs_action");
+    expect(noProfile.headline).toBe("Complete your profile");
+  });
+
+  it("template create validates https link; portal home carries linkUrl/required with server ordering", async () => {
+    const admin = await magicLinkSession("admin", "w2-admin-link@example.com");
+    const event = await createEvent(admin.app, admin.cookie, "W2 Link Event");
+
+    // http:// rejected server-side (never just client validation)
+    const badLink = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          title: "Insecure link",
+          trigger: "on_accept",
+          linkUrl: "http://insecure.example.com/guide",
+          required: true,
+        }),
+      },
+      env,
+    );
+    expect(badLink.status).toBe(400);
+    expect(ErrorEnvelopeSchema.parse(await badLink.json()).code).toBe(
+      VALIDATION_ERROR,
+    );
+
+    // Required template with https link, due later than the optional one
+    const reqCreate = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-w2-tpl-req",
+        },
+        body: JSON.stringify({
+          title: "Sign agreement",
+          trigger: "on_accept",
+          dueOffsetDays: 30,
+          linkUrl: "https://example.com/agreement",
+          required: true,
+        }),
+      },
+      env,
+    );
+    expect(reqCreate.status).toBe(201);
+    const reqTpl = TaskTemplateResponseSchema.parse(await reqCreate.json());
+    expect(reqTpl.template.linkUrl).toBe("https://example.com/agreement");
+    expect(reqTpl.template.required).toBe(true);
+
+    const optCreate = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          title: "Optional extras",
+          trigger: "on_accept",
+          dueOffsetDays: 3,
+        }),
+      },
+      env,
+    );
+    expect(optCreate.status).toBe(201);
+    const optTpl = TaskTemplateResponseSchema.parse(await optCreate.json());
+    expect(optTpl.template.linkUrl).toBeNull();
+    expect(optTpl.template.required).toBe(false);
+
+    // Update round-trip: clear link, toggle required off/on with versions
+    const cleared = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates/${reqTpl.template.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          linkUrl: null,
+          expectedVersion: reqTpl.template.version,
+        }),
+      },
+      env,
+    );
+    expect(cleared.status).toBe(200);
+    const clearedTpl = TaskTemplateResponseSchema.parse(await cleared.json());
+    expect(clearedTpl.template.linkUrl).toBeNull();
+    expect(clearedTpl.template.required).toBe(true);
+    const relinked = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates/${reqTpl.template.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          linkUrl: "https://example.com/agreement",
+          expectedVersion: clearedTpl.template.version,
+        }),
+      },
+      env,
+    );
+    expect(relinked.status).toBe(200);
+
+    // Accept materializes both tasks; portal home sorts required first even
+    // though the optional task is due sooner.
+    const speakerEmail = "w2-speaker-link@example.com";
+    const { submissionId } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "W2 Talk",
+      speakerEmail,
+    );
+    await acceptSubmission(admin.app, admin.cookie, submissionId, "corr-w2-accept");
+
+    const speaker = await magicLinkSession(
+      "speaker",
+      speakerEmail,
+      event.id,
+      admin,
+    );
+    const home = await admin.app.request(
+      `http://localhost/api/portal/home?eventId=${encodeURIComponent(event.id)}`,
+      { headers: { cookie: speaker.cookie } },
+      env,
+    );
+    expect(home.status).toBe(200);
+    const body = PortalHomeResponseSchema.parse(await home.json());
+    expect(body.tasks.length).toBe(2);
+    expect(body.tasks[0]!.templateId).toBe(reqTpl.template.id);
+    expect(body.tasks[0]!.required).toBe(true);
+    expect(body.tasks[0]!.linkUrl).toBe("https://example.com/agreement");
+    expect(body.tasks[1]!.templateId).toBe(optTpl.template.id);
+    expect(body.tasks[1]!.required).toBe(false);
+    expect(body.tasks[1]!.linkUrl).toBeNull();
+    // nextTask prefers the required incomplete task despite later dueAt
+    expect(body.nextTask?.templateId).toBe(reqTpl.template.id);
+    // Readiness blocks on the required task (profile still incomplete anyway,
+    // so needs_action; required stays pending in the counters)
+    expect(body.readiness?.state).toBe("needs_action");
+  });
+
+  it("Speakers.CompleteTask: admin completes on behalf; audited; idempotent; 404 cross-event; 409 stale", async () => {
+    const admin = await magicLinkSession("admin", "w2-admin-obo@example.com");
+    const event = await createEvent(admin.app, admin.cookie, "W2 OBO Event");
+    const eventB = await createEvent(admin.app, admin.cookie, "W2 OBO Other");
+
+    await admin.decisions.insertTaskTemplate({
+      id: newTaskTemplateId(),
+      eventId: event.id,
+      title: "Required agreement",
+      description: null,
+      trigger: "on_accept",
+      dueOffsetDays: 7,
+      linkUrl: "https://example.com/agreement",
+      required: true,
+      version: 1,
+      createdAt: new Date().toISOString(),
+    });
+
+    const speakerEmail = "w2-speaker-obo@example.com";
+    const { submissionId } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "W2 OBO Talk",
+      speakerEmail,
+    );
+    const decision = await acceptSubmission(
+      admin.app,
+      admin.cookie,
+      submissionId,
+      "corr-w2-obo-accept",
+    );
+    const participationId = decision.participations[0]!.id;
+    const task = decision.tasks[0]!;
+
+    const url = (evId: string, partId: string, taskId: string) =>
+      `http://localhost/api/events/${evId}/speakers/${partId}/tasks/${taskId}/complete`;
+
+    // Cross-event → 404 (no probing)
+    const cross = await admin.app.request(
+      url(eventB.id, participationId, task.id),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ expectedVersion: task.version }),
+      },
+      env,
+    );
+    expect(cross.status).toBe(404);
+
+    // Task not under that participation → 404
+    const wrongPart = await admin.app.request(
+      url(event.id, "part-nonexistent", task.id),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ expectedVersion: task.version }),
+      },
+      env,
+    );
+    expect(wrongPart.status).toBe(404);
+
+    // Speaker role cannot use the admin endpoint
+    const speaker = await magicLinkSession(
+      "speaker",
+      speakerEmail,
+      event.id,
+      admin,
+    );
+    const forbidden = await admin.app.request(
+      url(event.id, participationId, task.id),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: speaker.cookie,
+        },
+        body: JSON.stringify({ expectedVersion: task.version }),
+      },
+      env,
+    );
+    expect(forbidden.status).toBe(403);
+
+    // Stale expectedVersion → 409
+    const stale = await admin.app.request(
+      url(event.id, participationId, task.id),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ expectedVersion: task.version + 5 }),
+      },
+      env,
+    );
+    expect(stale.status).toBe(409);
+    expect(ErrorEnvelopeSchema.parse(await stale.json()).code).toBe(CONFLICT);
+
+    // Success: admin completes on behalf; audit written with admin actor
+    const ok = await admin.app.request(
+      url(event.id, participationId, task.id),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-w2-obo-complete",
+        },
+        body: JSON.stringify({ expectedVersion: task.version }),
+      },
+      env,
+    );
+    expect(ok.status).toBe(200);
+    const completed = TaskCompleteResponseSchema.parse(await ok.json());
+    expect(completed.task.status).toBe("completed");
+    expect(completed.task.completedAt).toBeTruthy();
+    expect(completed.task.version).toBe(task.version + 1);
+
+    const audits = await admin.store.listAudits();
+    const audit = audits.find(
+      (a) =>
+        a.action === "Speakers.CompleteTask" &&
+        a.entityId === task.id &&
+        a.correlationId === "corr-w2-obo-complete",
+    );
+    expect(audit).toBeTruthy();
+    expect(audit!.entityType).toBe("speaker_task");
+    expect(audit!.actorId).toBe(admin.userId);
+    expect(JSON.parse(audit!.afterJson ?? "{}")).toMatchObject({
+      status: "completed",
+      onBehalfOfParticipationId: participationId,
+    });
+
+    // Idempotent replay: 200, no extra version bump, no duplicate audit
+    const replay = await admin.app.request(
+      url(event.id, participationId, task.id),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+          "x-correlation-id": "corr-w2-obo-replay",
+        },
+        body: JSON.stringify({ expectedVersion: completed.task.version }),
+      },
+      env,
+    );
+    expect(replay.status).toBe(200);
+    const replayed = TaskCompleteResponseSchema.parse(await replay.json());
+    expect(replayed.task.status).toBe("completed");
+    expect(replayed.task.version).toBe(completed.task.version);
+    const auditCount = (await admin.store.listAudits()).filter(
+      (a) => a.action === "Speakers.CompleteTask" && a.entityId === task.id,
+    ).length;
+    expect(auditCount).toBe(1);
+
+    // Portal reflects completion for the speaker
+    const home = await admin.app.request(
+      `http://localhost/api/portal/home?eventId=${encodeURIComponent(event.id)}`,
+      { headers: { cookie: speaker.cookie } },
+      env,
+    );
+    const homeBody = PortalHomeResponseSchema.parse(await home.json());
+    const portalTask = homeBody.tasks.find((t) => t.id === task.id);
+    expect(portalTask?.status).toBe("completed");
   });
 });

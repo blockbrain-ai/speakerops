@@ -107,6 +107,14 @@ export const SubmissionSpeakerInputSchema = z.object({
   name: z.string().min(1).max(200),
   email: z.string().email().max(320),
   isPrimary: z.boolean().optional(),
+  /**
+   * Optional "About this speaker" seed fields (Wave 2). Stored on the
+   * submission speaker row; on accept they pre-fill the event_participation
+   * profile — only where the profile field is still empty, never overwriting.
+   */
+  bio: z.string().max(8000).optional().nullable(),
+  company: z.string().max(200).optional().nullable(),
+  title: z.string().max(200).optional().nullable(),
 });
 export type SubmissionSpeakerInput = z.infer<
   typeof SubmissionSpeakerInputSchema
@@ -150,6 +158,10 @@ export const SubmissionSpeakerDtoSchema = z.object({
   email: z.string().email(),
   isPrimary: z.boolean(),
   sortOrder: z.number().int(),
+  /** Optional "About this speaker" seed fields (Wave 2); null when not given. */
+  bio: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  title: z.string().nullable().optional(),
 });
 export type SubmissionSpeakerDto = z.infer<typeof SubmissionSpeakerDtoSchema>;
 

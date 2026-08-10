@@ -519,11 +519,18 @@ export async function createSubmission(
       person = { ...person, name: sp.name.trim(), updatedAt: now };
     }
     const isPrimary = sp.isPrimary === true || (sp.isPrimary == null && i === 0);
+    // Optional "About this speaker" seed fields (Wave 2): trimmed-or-null.
+    const bio = sp.bio?.trim() ? sp.bio.trim() : null;
+    const company = sp.company?.trim() ? sp.company.trim() : null;
+    const speakerTitle = sp.title?.trim() ? sp.title.trim() : null;
     speakerRows.push({
       submissionId,
       personId: person.id,
       isPrimary,
       sortOrder: i,
+      bio,
+      company,
+      title: speakerTitle,
     });
     speakerDtos.push({
       personId: person.id,
@@ -531,6 +538,9 @@ export async function createSubmission(
       email: person.email,
       isPrimary,
       sortOrder: i,
+      bio,
+      company,
+      title: speakerTitle,
     });
   }
 
@@ -1145,6 +1155,10 @@ export async function saveDraft(
         personId: person.id,
         isPrimary,
         sortOrder: i,
+        // Draft path stores the optional seed fields too (Wave 2).
+        bio: sp.bio?.trim() ? sp.bio.trim() : null,
+        company: sp.company?.trim() ? sp.company.trim() : null,
+        title: sp.title?.trim() ? sp.title.trim() : null,
       });
       speakerSnapshot.push({
         name: person.name,
@@ -1228,6 +1242,10 @@ export async function saveDraft(
       personId: person.id,
       isPrimary,
       sortOrder: i,
+      // Draft path stores the optional seed fields too (Wave 2).
+      bio: sp.bio?.trim() ? sp.bio.trim() : null,
+      company: sp.company?.trim() ? sp.company.trim() : null,
+      title: sp.title?.trim() ? sp.title.trim() : null,
     });
     speakerSnapshot.push({
       name: person.name,

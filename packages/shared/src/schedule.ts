@@ -13,6 +13,8 @@ export const ScheduleConflictTypeSchema = z.enum([
   "room",
   "speaker",
   "session",
+  /** Placement outside the configured agenda day window (Wave 2). */
+  "hours",
 ]);
 export type ScheduleConflictType = z.infer<typeof ScheduleConflictTypeSchema>;
 

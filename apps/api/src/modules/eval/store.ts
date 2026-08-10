@@ -15,6 +15,7 @@ import {
   evalCriteria,
   evalAssignments,
   scores,
+  idempotencyKeys,
 } from "@speakerops/db";
 
 export type EvalRoundRow = {
@@ -61,6 +62,19 @@ export type ScoreRow = {
   comment: string | null;
 };
 
+/**
+ * Idempotency row for Eval.BulkAssign commits (shared idempotency_keys table —
+ * same shape the comms store uses; kept module-local so eval never imports
+ * the comms store).
+ */
+export type EvalIdempotencyKeyRow = {
+  id: string;
+  key: string;
+  requestHash: string;
+  responseJson: string | null;
+  createdAt: string;
+};
+
 export type EvalStore = {
   insertRound(row: EvalRoundRow): Promise<EvalRoundRow>;
   updateRound(
@@ -105,6 +119,17 @@ export type EvalStore = {
   listAssignmentsForEvaluator(evaluatorUserId: string): Promise<EvalAssignmentRow[]>;
   listAssignmentsForRound(roundId: string): Promise<EvalAssignmentRow[]>;
   listAssignmentsForSubmission(submissionId: string): Promise<EvalAssignmentRow[]>;
+  /**
+   * Delete a PENDING assignment only (WHERE id AND status='pending').
+   * Scored/abstained rows are never deleted — returns false, row untouched.
+   */
+  deleteAssignment(assignmentId: string): Promise<boolean>;
+
+  /** Eval.BulkAssign single-use commit — shared idempotency_keys table. */
+  findIdempotencyKey(key: string): Promise<EvalIdempotencyKeyRow | null>;
+  insertIdempotencyKey(
+    row: EvalIdempotencyKeyRow,
+  ): Promise<EvalIdempotencyKeyRow>;
 
   replaceScores(assignmentId: string, rows: ScoreRow[]): Promise<void>;
   listScores(assignmentId: string): Promise<ScoreRow[]>;
@@ -139,6 +164,7 @@ export class MemoryEvalStore implements EvalStore {
   private criteria = new Map<string, EvalCriterionRow[]>();
   private assignments = new Map<string, EvalAssignmentRow>();
   private scoreRows = new Map<string, ScoreRow[]>();
+  private idemKeys = new Map<string, EvalIdempotencyKeyRow>();
 
   async insertRound(row: EvalRoundRow): Promise<EvalRoundRow> {
     const copy = { ...row };
@@ -274,6 +300,36 @@ export class MemoryEvalStore implements EvalStore {
     return [...this.assignments.values()]
       .filter((a) => a.submissionId === submissionId)
       .map((a) => ({ ...a }));
+  }
+
+  async deleteAssignment(assignmentId: string): Promise<boolean> {
+    const existing = this.assignments.get(assignmentId);
+    if (!existing || existing.status !== "pending") return false;
+    this.assignments.delete(assignmentId);
+    this.scoreRows.delete(assignmentId);
+    return true;
+  }
+
+  async findIdempotencyKey(
+    key: string,
+  ): Promise<EvalIdempotencyKeyRow | null> {
+    const row = this.idemKeys.get(key);
+    return row ? { ...row } : null;
+  }
+
+  async insertIdempotencyKey(
+    row: EvalIdempotencyKeyRow,
+  ): Promise<EvalIdempotencyKeyRow> {
+    // Unique-key parity with D1: never silently overwrite a different hash.
+    const existing = this.idemKeys.get(row.key);
+    if (existing) {
+      if (existing.requestHash !== row.requestHash) {
+        throw new Error(`Idempotency key conflict: ${row.key}`);
+      }
+      return { ...existing };
+    }
+    this.idemKeys.set(row.key, { ...row });
+    return { ...row };
   }
 
   async replaceScores(assignmentId: string, rows: ScoreRow[]): Promise<void> {
@@ -587,6 +643,55 @@ export class D1EvalStore implements EvalStore {
       .from(evalAssignments)
       .where(eq(evalAssignments.submissionId, submissionId));
     return rows.map((r) => this.mapAssignment(r));
+  }
+
+  async deleteAssignment(assignmentId: string): Promise<boolean> {
+    const existing = await this.findAssignmentById(assignmentId);
+    if (!existing || existing.status !== "pending") return false;
+    // Guarded delete: only a still-pending row is removed (scored survives races).
+    await this.db
+      .delete(evalAssignments)
+      .where(
+        and(
+          eq(evalAssignments.id, assignmentId),
+          eq(evalAssignments.status, "pending"),
+        ),
+      );
+    // Pending assignments carry no scores; clear defensively for hygiene.
+    await this.db.delete(scores).where(eq(scores.assignmentId, assignmentId));
+    return true;
+  }
+
+  async findIdempotencyKey(
+    key: string,
+  ): Promise<EvalIdempotencyKeyRow | null> {
+    const rows = await this.db
+      .select()
+      .from(idempotencyKeys)
+      .where(eq(idempotencyKeys.key, key))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.id,
+      key: r.key,
+      requestHash: r.requestHash,
+      responseJson: r.responseJson,
+      createdAt: r.createdAt,
+    };
+  }
+
+  async insertIdempotencyKey(
+    row: EvalIdempotencyKeyRow,
+  ): Promise<EvalIdempotencyKeyRow> {
+    await this.db.insert(idempotencyKeys).values({
+      id: row.id,
+      key: row.key,
+      requestHash: row.requestHash,
+      responseJson: row.responseJson,
+      createdAt: row.createdAt,
+    });
+    return { ...row };
   }
 
   async replaceScores(assignmentId: string, rows: ScoreRow[]): Promise<void> {

@@ -35,6 +35,7 @@ import {
   formatShortDate,
   speakerDetailPath,
 } from "./readiness-utils.js";
+import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
 import { Icon } from "../components/ui/Icon.js";
 import { EmptyState } from "../components/ui/EmptyState.js";
@@ -60,6 +61,8 @@ export type AttentionItem = {
   /** When sourced from readiness outstanding row */
   taskId?: string;
   participationId?: string;
+  /** True when the source template marks the task required (Wave 2). */
+  required?: boolean;
 };
 
 function formatEventWindow(
@@ -117,6 +120,7 @@ export function buildAttentionQueue(
       actionLabel: "Open speaker",
       taskId: row.taskId,
       participationId: row.participationId,
+      required: row.required === true,
     });
   }
 
@@ -814,6 +818,14 @@ export function ReadinessPage() {
                         >
                           {item.title}
                         </strong>
+                        {item.taskId && item.required ? (
+                          <Badge
+                            tone="warn"
+                            data-testid={`readiness-required-${item.taskId}`}
+                          >
+                            Required
+                          </Badge>
+                        ) : null}
                         <span className="eval-queue__muted"> · {item.detail}</span>
                       </div>
                       <Link

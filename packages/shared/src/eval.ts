@@ -273,6 +273,132 @@ export const EvalProposalResponseSchema = z.object({
 });
 export type EvalProposalResponse = z.infer<typeof EvalProposalResponseSchema>;
 
+/**
+ * Eval.BulkAssign — cohort assignment wizard (Wave 2).
+ * POST /api/events/:eventId/eval/bulk-assign
+ * Preview (dryRun=true) computes a deterministic plan and a previewId
+ * (SHA-256 over the round version surrogate + matched estate + knobs).
+ * Commit (dryRun=false) requires that previewId; estate drift → 409.
+ */
+export const EvalBulkAssignModeSchema = z.enum(["all_to_all", "round_robin"]);
+export type EvalBulkAssignMode = z.infer<typeof EvalBulkAssignModeSchema>;
+
+export const EvalBulkAssignExistingSchema = z.enum(["preserve", "replace"]);
+export type EvalBulkAssignExisting = z.infer<
+  typeof EvalBulkAssignExistingSchema
+>;
+
+export const EvalBulkAssignSubmissionFilterSchema = z.object({
+  /** Exact submission status match (e.g. submitted | in_review). */
+  status: z.string().min(1).max(64).optional(),
+  /** Exact category match. */
+  category: z.string().min(1).max(200).optional(),
+});
+export type EvalBulkAssignSubmissionFilter = z.infer<
+  typeof EvalBulkAssignSubmissionFilterSchema
+>;
+
+export const EvalBulkAssignBodySchema = z
+  .object({
+    roundId: z.string().min(1).max(128),
+    evaluatorIds: z.array(z.string().min(1).max(128)).min(1).max(100),
+    submissionFilter: EvalBulkAssignSubmissionFilterSchema.optional().default(
+      {},
+    ),
+    mode: EvalBulkAssignModeSchema,
+    /** round_robin only — reviewers picked per submission (default 1). */
+    reviewersPerSubmission: z.number().int().min(1).max(20).optional(),
+    /** Cap per evaluator (pre-existing assignments count when preserving). */
+    maxPerEvaluator: z.number().int().min(1).max(500).optional(),
+    existing: EvalBulkAssignExistingSchema,
+    dryRun: z.boolean(),
+    /** Required when dryRun=false — the hash returned by the preview. */
+    previewId: z.string().min(1).max(128).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.mode === "all_to_all" && v.reviewersPerSubmission != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reviewersPerSubmission"],
+        message: "reviewersPerSubmission only applies to round-robin",
+      });
+    }
+    if (!v.dryRun && (v.previewId == null || v.previewId === "")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["previewId"],
+        message: "previewId is required to apply a plan — preview first",
+      });
+    }
+  });
+export type EvalBulkAssignBody = z.infer<typeof EvalBulkAssignBodySchema>;
+
+/** One (submission, evaluator) pair in additions[] / removals[]. */
+export const EvalBulkAssignPairSchema = z.object({
+  submissionId: z.string().min(1),
+  evaluatorUserId: z.string().min(1),
+});
+export type EvalBulkAssignPair = z.infer<typeof EvalBulkAssignPairSchema>;
+
+/** Skipped entry — human reason ("already assigned", "has a score — kept", …). */
+export const EvalBulkAssignSkipSchema = z.object({
+  submissionId: z.string().min(1).optional(),
+  evaluatorUserId: z.string().min(1).optional(),
+  reason: z.string().min(1),
+});
+export type EvalBulkAssignSkip = z.infer<typeof EvalBulkAssignSkipSchema>;
+
+/**
+ * Capacity shortfall: round_robin reports {submissionId, needed, got};
+ * all_to_all reports the capped pair {submissionId, evaluatorUserId}.
+ */
+export const EvalBulkAssignCapacityFailureSchema = z.object({
+  submissionId: z.string().min(1).optional(),
+  evaluatorUserId: z.string().min(1).optional(),
+  needed: z.number().int().min(0).optional(),
+  got: z.number().int().min(0).optional(),
+  reason: z.string().min(1),
+});
+export type EvalBulkAssignCapacityFailure = z.infer<
+  typeof EvalBulkAssignCapacityFailureSchema
+>;
+
+export const EvalBulkAssignPerEvaluatorSchema = z.object({
+  userId: z.string().min(1),
+  email: z.string(),
+  /** Assignments already on the round before this plan. */
+  current: z.number().int().min(0),
+  /** Assignments after the plan applies (current + additions − removals). */
+  planned: z.number().int().min(0),
+});
+export type EvalBulkAssignPerEvaluator = z.infer<
+  typeof EvalBulkAssignPerEvaluatorSchema
+>;
+
+export const EvalBulkAssignResponseSchema = z.object({
+  previewId: z.string().min(1),
+  dryRun: z.boolean(),
+  roundId: z.string().min(1),
+  mode: EvalBulkAssignModeSchema,
+  existing: EvalBulkAssignExistingSchema,
+  matchedSubmissionCount: z.number().int().min(0),
+  additions: z.array(EvalBulkAssignPairSchema),
+  removals: z.array(EvalBulkAssignPairSchema),
+  skipped: z.array(EvalBulkAssignSkipSchema),
+  perEvaluator: z.array(EvalBulkAssignPerEvaluatorSchema),
+  capacityFailures: z.array(EvalBulkAssignCapacityFailureSchema),
+  counts: z.object({
+    additions: z.number().int().min(0),
+    removals: z.number().int().min(0),
+    skipped: z.number().int().min(0),
+  }),
+  /** True when a commit replayed the stored response (no new rows). */
+  idempotent: z.boolean().optional(),
+});
+export type EvalBulkAssignResponse = z.infer<
+  typeof EvalBulkAssignResponseSchema
+>;
+
 /** Submission.AssignEvaluators body. */
 export const SubmissionAssignBodySchema = z.object({
   userIds: z.array(z.string().min(1).max(128)).min(1).max(50),

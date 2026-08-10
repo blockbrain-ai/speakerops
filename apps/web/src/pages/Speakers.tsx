@@ -19,9 +19,11 @@ import {
   AdminSpeakersListResponseSchema,
   AdminSpeakerDetailResponseSchema,
   SpeakersUpdateProfileResponseSchema,
+  TaskCompleteResponseSchema,
   ErrorEnvelopeSchema,
   type AdminSpeakerListItem,
   type AdminSpeakerDetailResponse,
+  type PortalTaskDto,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
 import {
@@ -117,6 +119,12 @@ export function SpeakersPage() {
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileStatus, setProfileStatus] = useState<string | null>(null);
+  /** Complete-on-behalf (N05): task id in flight + inline outcome copy. */
+  const [taskBusyId, setTaskBusyId] = useState<string | null>(null);
+  const [taskStatus, setTaskStatus] = useState<{
+    kind: "ok" | "error";
+    text: string;
+  } | null>(null);
 
   function headshotUrl(fileId: string | null | undefined): string | null {
     if (!fileId) return null;
@@ -222,6 +230,7 @@ export function SpeakersPage() {
         setEditTitle(p.title ?? "");
         setProfileEditing(false);
         setProfileStatus(null);
+        setTaskStatus(null);
       } catch {
         setDetailError("Network error");
       }
@@ -297,6 +306,81 @@ export function SpeakersPage() {
     loadList,
     q,
   ]);
+
+  /**
+   * Speakers.CompleteTask (N05) — admin marks a speaker task complete on their
+   * behalf. Applies the server response to the open detail pane, then refreshes
+   * the list so task counts and readiness chips stay honest.
+   */
+  const completeSpeakerTask = useCallback(
+    async (task: PortalTaskDto) => {
+      if (!activeEventId || !detail) return;
+      setTaskBusyId(task.id);
+      setTaskStatus(null);
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(activeEventId)}/speakers/${encodeURIComponent(detail.participation.id)}/tasks/${encodeURIComponent(task.id)}/complete`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: JSON.stringify({ expectedVersion: task.version }),
+          },
+        );
+        const raw: unknown = await res.json().catch(() => null);
+        if (!res.ok) {
+          const env = ErrorEnvelopeSchema.safeParse(raw);
+          setTaskStatus({
+            kind: "error",
+            text: env.success
+              ? env.data.error
+              : `Could not mark the task complete (${res.status})`,
+          });
+          return;
+        }
+        const parsed = TaskCompleteResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          setTaskStatus({
+            kind: "error",
+            text: "Unexpected task response — reload to see the latest state",
+          });
+          return;
+        }
+        const updated = parsed.data.task;
+        setDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                tasks: prev.tasks.map((t) =>
+                  t.id === updated.id
+                    ? {
+                        ...t,
+                        status: updated.status,
+                        completedAt: updated.completedAt,
+                        version: updated.version,
+                      }
+                    : t,
+                ),
+              }
+            : prev,
+        );
+        setTaskStatus({
+          kind: "ok",
+          text: `“${task.title}” marked complete for this speaker`,
+        });
+        // Refresh list task counts + readiness chips
+        void loadList(activeEventId, q);
+      } catch {
+        setTaskStatus({ kind: "error", text: "Network error" });
+      } finally {
+        setTaskBusyId(null);
+      }
+    },
+    [activeEventId, detail, loadList, q],
+  );
 
   // H03 deep-link from readiness drill
   useEffect(() => {
@@ -998,16 +1082,85 @@ export function SpeakersPage() {
                   data-testid="speakers-detail-section-tasks"
                 >
                   <h3 className="speakers-page__detail-section-title">Tasks</h3>
+                  {taskStatus ? (
+                    <Alert
+                      tone={taskStatus.kind === "ok" ? "success" : "danger"}
+                      data-testid="speakers-task-action-status"
+                    >
+                      {taskStatus.text}
+                    </Alert>
+                  ) : null}
                   <ul data-testid="speakers-detail-tasks">
                     {detail.tasks.length === 0 ? (
-                      <li className="eval-queue__muted">No tasks</li>
+                      <li className="eval-queue__muted">No tasks assigned yet</li>
                     ) : (
-                      detail.tasks.map((t) => (
-                        <li key={t.id} data-testid={`speakers-task-${t.id}`}>
-                          {t.title} · {t.status}
-                          {t.dueAt ? ` · due ${t.dueAt}` : ""}
-                        </li>
-                      ))
+                      detail.tasks.map((t) => {
+                        const open =
+                          t.status === "pending" || t.status === "overdue";
+                        return (
+                          <li
+                            key={t.id}
+                            data-testid={`speakers-task-${t.id}`}
+                            data-task-status={t.status}
+                          >
+                            <span className="speakers-page__file-name">
+                              {t.title}
+                            </span>{" "}
+                            <Badge
+                              tone={
+                                t.status === "completed"
+                                  ? "success"
+                                  : t.status === "overdue"
+                                    ? "danger"
+                                    : t.status === "cancelled"
+                                      ? "neutral"
+                                      : "warn"
+                              }
+                              showDot
+                              data-testid={`speakers-task-status-${t.id}`}
+                            >
+                              {t.status === "completed"
+                                ? "Completed"
+                                : t.status === "overdue"
+                                  ? "Overdue"
+                                  : t.status === "cancelled"
+                                    ? "Cancelled"
+                                    : "Pending"}
+                            </Badge>
+                            {t.required ? (
+                              <>
+                                {" "}
+                                <Badge
+                                  tone="warn"
+                                  data-testid={`speakers-task-required-${t.id}`}
+                                >
+                                  Required
+                                </Badge>
+                              </>
+                            ) : null}
+                            {t.dueAt ? (
+                              <span className="eval-queue__muted">
+                                {" "}
+                                · Due {new Date(t.dueAt).toLocaleDateString()}
+                              </span>
+                            ) : null}
+                            {open ? (
+                              <div className="speakers-page__task-action">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  data-testid={`speakers-task-complete-${t.id}`}
+                                  pending={taskBusyId === t.id}
+                                  disabled={taskBusyId !== null}
+                                  onClick={() => void completeSpeakerTask(t)}
+                                >
+                                  Mark complete
+                                </Button>
+                              </div>
+                            ) : null}
+                          </li>
+                        );
+                      })
                     )}
                   </ul>
                 </Card>

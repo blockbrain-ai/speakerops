@@ -35,11 +35,43 @@ export const ParticipationProfileSchema = EventParticipationSchema.extend({
 });
 export type ParticipationProfileDto = z.infer<typeof ParticipationProfileSchema>;
 
+/** Max length accepted for a task-template resource link (Wave 2). */
+export const TASK_LINK_URL_MAX_LENGTH = 2000 as const;
+
+/**
+ * True only for a well-formed absolute https:// URL (Wave 2 task links).
+ * http:// is rejected on purpose — portal task links open in a new tab and
+ * must never downgrade the speaker to an insecure origin.
+ */
+export function isHttpsUrl(value: string): boolean {
+  if (value.length > TASK_LINK_URL_MAX_LENGTH) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Optional-nullable https link field shared by template create/update bodies. */
+const TaskLinkUrlSchema = z
+  .string()
+  .max(TASK_LINK_URL_MAX_LENGTH)
+  .refine(isHttpsUrl, {
+    message: "linkUrl must be a valid https:// URL",
+  })
+  .nullable()
+  .optional();
+
 /** Task with template title for portal home. */
 export const PortalTaskSchema = SpeakerTaskSchema.extend({
   title: z.string().min(1),
   description: z.string().nullable().optional(),
   trigger: z.enum(["on_accept", "manual"]).optional(),
+  /** Template resource link, denormalized for portal cards (Wave 2). */
+  linkUrl: z.string().nullable().optional(),
+  /** True when this task blocks portal readiness until complete (Wave 2). */
+  required: z.boolean().optional(),
 });
 export type PortalTaskDto = z.infer<typeof PortalTaskSchema>;
 
@@ -233,6 +265,10 @@ export const TaskTemplateCreateBodySchema = z.object({
   description: z.string().max(4000).nullable().optional(),
   trigger: z.enum(["on_accept", "manual"]).default("on_accept"),
   dueOffsetDays: z.number().int().min(0).max(3650).default(14),
+  /** Optional https:// resource link for portal task cards (Wave 2). */
+  linkUrl: TaskLinkUrlSchema,
+  /** When true, incomplete tasks from this template block readiness (Wave 2). */
+  required: z.boolean().default(false),
 });
 export type TaskTemplateCreateBody = z.infer<typeof TaskTemplateCreateBodySchema>;
 
@@ -242,6 +278,10 @@ export const TaskTemplateUpdateBodySchema = z
     description: z.string().max(4000).nullable().optional(),
     trigger: z.enum(["on_accept", "manual"]).optional(),
     dueOffsetDays: z.number().int().min(0).max(3650).optional(),
+    /** Set an https:// link, or null to clear it (Wave 2). */
+    linkUrl: TaskLinkUrlSchema,
+    /** Toggle whether incomplete tasks block readiness (Wave 2). */
+    required: z.boolean().optional(),
     /** Required for optimistic concurrency on task_templates (E1). */
     expectedVersion: z.number().int().positive(),
   })
@@ -250,7 +290,9 @@ export const TaskTemplateUpdateBodySchema = z
       b.title !== undefined ||
       b.description !== undefined ||
       b.trigger !== undefined ||
-      b.dueOffsetDays !== undefined,
+      b.dueOffsetDays !== undefined ||
+      b.linkUrl !== undefined ||
+      b.required !== undefined,
     { message: "At least one field is required" },
   );
 export type TaskTemplateUpdateBody = z.infer<typeof TaskTemplateUpdateBodySchema>;

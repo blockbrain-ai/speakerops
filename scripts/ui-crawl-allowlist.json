@@ -914,6 +914,54 @@
       "inv": "J12",
       "surface": "admin",
       "journey": "Save submission notification settings (Wave 1B lifecycle email)"
+    },
+    {
+      "testid": "submissions-notify-*",
+      "inv": "E13",
+      "surface": "admin",
+      "journey": "Notify decision result set via Comms hand-off (Wave 2)"
+    },
+    {
+      "testid": "comms-notify-clear",
+      "inv": "E13",
+      "surface": "admin",
+      "journey": "Exit decision hand-off audience (Wave 2)"
+    },
+    {
+      "testid": "submissions-export-csv",
+      "inv": "E14",
+      "surface": "admin",
+      "journey": "Export filtered submissions CSV (Wave 2)"
+    },
+    {
+      "testid": "direct-session-speaker-add",
+      "inv": "E15",
+      "surface": "admin",
+      "journey": "Add speaker row to direct session (Wave 2 parity)"
+    },
+    {
+      "testid": "direct-session-speaker-remove-*",
+      "inv": "E15",
+      "surface": "admin",
+      "journey": "Remove speaker row from direct session (Wave 2 parity)"
+    },
+    {
+      "testid": "comms-ics-refresh",
+      "inv": "J13",
+      "surface": "admin",
+      "journey": "Refresh scheduled sessions in the ICS picker (Wave 2)"
+    },
+    {
+      "testid": "event-agenda-save",
+      "inv": "I17",
+      "surface": "admin",
+      "journey": "Save agenda day window + slot interval (Wave 2 schedule grid settings)"
+    },
+    {
+      "testid": "speakers-task-complete-*",
+      "inv": "N05",
+      "surface": "admin",
+      "journey": "Mark speaker task complete on their behalf (Wave 2)"
     }
   ]
 }

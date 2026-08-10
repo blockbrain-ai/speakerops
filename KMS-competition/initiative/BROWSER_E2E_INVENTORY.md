@@ -42,6 +42,7 @@
 | A17 | public | CFP | Save as draft (title-only); resume restores fields; disabled when closed | e2e/public/cfp-draft | Closed rejects draft save | REQUIRED | PASS |
 | A18 | public | CFP | Multiselect multi-value + URL field is text (not file) | e2e/public/cfp-multiselect-url | Non-array multiselect rejected API | REQUIRED | PASS |
 | A19 | public | CFP | No operator/debug brand copy (Lumen defaults / raw file ids) | e2e/public/cfp-copy-clean | — | REQUIRED | PASS |
+| A20 | public | CFP | Expand "About this speaker"; bio/company/title seed accepted speaker profile; never overwrites non-empty | e2e/public-cfp/speaker-about | Accept replay keeps hand-edited bio | REQUIRED | PASS |
 
 ---
 
@@ -117,6 +118,9 @@
 | E10 | admin | Submissions | Search list by title/speaker (`submissions-filter-q`) | e2e/admin/sub-search | Empty results honest | REQUIRED | PASS |
 | E11 | admin | Submissions | Assign via evaluator picker (not raw user id) | e2e/admin/sub-assign-picker | No evaluators empty state | REQUIRED | PASS |
 | E12 | admin | Submissions | Detail Reviews panel (individual comments) | e2e/admin/sub-detail-reviews | Empty when none | REQUIRED | PASS |
+| E13 | admin | Submissions | Decision → notify hand-off: bulk accept exact result set becomes the comms audience; typed template preselected; preview → idempotent send → delivery log | e2e/submissions/decision-notify | Previously accepted outsider never enters the audience | REQUIRED | PASS |
+| E14 | admin | Submissions | Filtered submissions CSV export: stable headers, flattened speakers, answer columns (layout nodes excluded); bytes inspected | e2e/submissions/export-csv | Non-matching rows and layout keys absent from the bytes | REQUIRED | PASS |
+| E15 | admin | Submissions | Direct/sponsor session dialog parity: repeatable speaker rows + track select; both speakers linked and track chip shown | e2e/submissions/direct-session-parity | — | REQUIRED | PASS |
 
 ---
 
@@ -137,6 +141,7 @@
 | F11 | evaluator | Queue | Round deadline in banner; closed round locks scoring server-side + shows closed state | e2e/eval/round-close | Score after close rejected (409) | REQUIRED | PASS |
 | F12 | admin | Evaluations | Insights: completion bar, top 10 by aggregate (linked), divergence spread list | e2e/eval/insights | Empty insights state before any scores | REQUIRED | PASS |
 | F13 | evaluator | Queue | Hide speaker identities: proposal API + evaluator DOM carry no roster tokens; toggle off restores; admin detail complete | e2e/eval/hide-speakers | Toggle off shows the roster again | REQUIRED | PASS |
+| F14 | admin | Evaluations | Bulk-assign wizard: preview deterministic plan (filters, modes, caps, preserve/replace) then apply; durable assignments match plan; stale re-commit blocked; preserve re-run adds nothing | e2e/eval/bulk-assign | Drifted estate between preview and apply rejected (409 stale) | REQUIRED | PASS |
 
 ---
 
@@ -154,6 +159,7 @@
 | G08 | speaker | Portal | Mobile complete bio+task | e2e/portal/mobile | — | REQUIRED | PASS |
 | G09 | speaker | Portal | Download own session calendar invite (.ics; placed sessions) | e2e/portal/session-ics | Other speaker 404; unscheduled 404 | REQUIRED | PASS |
 | G11 | speaker | Portal | Section nav Home/Profile/Tasks/Sessions active + focus | e2e/portal/section-nav | Short page still shows active change | REQUIRED | PASS |
+| G12 | speaker | Portal | Required task depth: required-first ordering, Required badge, https resource link on task cards (DTO + DOM) | e2e/portal/task-depth | http:// link rejected inline | REQUIRED | PASS |
 
 ---
 
@@ -189,6 +195,7 @@
 | I14 | admin | Schedule | Unschedule back to tray | e2e/sched/unschedule | — | REQUIRED | PASS |
 | I15 | admin | Schedule | Stale version conflict shows recovery UI | e2e/sched/stale | No silent overwrite | REQUIRED | PASS |
 | I16 | admin | Schedule | After place, all five views + reload consistent | e2e/sched/persist | — | REQUIRED | PASS |
+| I17 | admin | Event Settings + Schedule | Agenda settings: set day window 10:00–16:00 + 30-min interval in settings card; Studio day grid shows 12 slots (10:00–15:30); non-drag place snaps to 30-min duration | e2e/schedule/agenda-settings | API place at 09:00 (outside window) → 409 conflicts[] type "hours" | REQUIRED | PASS |
 
 ---
 
@@ -208,6 +215,7 @@
 | J09 | admin | Comms | Edit audience invalidates preview | e2e/comms/preview-invalidate | — | REQUIRED | PASS |
 | J10 | admin | Comms | ICS update after reschedule keeps UID bumps SEQUENCE | e2e/comms/ics-update | — | REQUIRED | PASS |
 | J12 | admin | Comms | Submission confirmation lifecycle: public submit → queued delivery-log job with rendered merge fields; template editable | e2e/comms/submission-confirmation | Disabled toggle → no new lifecycle job | REQUIRED | PASS |
+| J13 | admin | Comms | ICS picker lists actual scheduled sessions (title + time + room); invite carries the placement's real times; reschedule + regenerate bumps SEQUENCE | e2e/comms/ics-picker | Empty picker when nothing scheduled; generate disabled | REQUIRED | PASS |
 
 ---
 
@@ -254,6 +262,7 @@
 | N02 | admin | Speakers | Search/filter | e2e/admin/speakers-filter | — | REQUIRED | PASS |
 | N03 | admin | Speakers | Detail: tasks + files | e2e/admin/speakers-detail | — | REQUIRED | PASS |
 | N04 | admin | Speakers | Open headshot/slides metadata | e2e/admin/speakers-files | No cross-speaker leak | REQUIRED | PASS |
+| N05 | admin | Speakers | Complete task on behalf of speaker; portal + readiness update instantly | e2e/speakers/complete-on-behalf | Replay is idempotent 200 no-op; cross-event 404 | REQUIRED | PASS |
 
 ---
 

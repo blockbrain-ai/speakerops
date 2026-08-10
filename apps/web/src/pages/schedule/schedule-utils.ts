@@ -315,28 +315,68 @@ export function buildDayKeys(
   return keys;
 }
 
-/** Default working-day window on a YYYY-MM-DD in the event timezone (09:00–17:00). */
+/** "HH:MM" → {hour, minute} with a fallback hour when malformed. */
+function parseWallHhmm(
+  s: string,
+  fallbackHour: number,
+): { hour: number; minute: number } {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s);
+  if (!m) return { hour: fallbackHour, minute: 0 };
+  const hour = Number(m[1]);
+  const minute = Number(m[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return { hour: fallbackHour, minute: 0 };
+  }
+  return { hour, minute };
+}
+
+/**
+ * Working-day window on a YYYY-MM-DD in the event timezone.
+ * Defaults 09:00–17:00; agenda settings (Wave 2) pass configured wall times.
+ */
 export function dayWindowUtc(
   dayKey: string,
   timeZone: string = "UTC",
+  startHHMM: string = "09:00",
+  endHHMM: string = "17:00",
 ): {
   dayStart: string;
   dayEnd: string;
 } {
+  const start = parseWallHhmm(startHHMM, 9);
+  const end = parseWallHhmm(endHHMM, 17);
   return {
-    dayStart: zonedWallToUtcIso(dayKey, 9, 0, timeZone),
-    dayEnd: zonedWallToUtcIso(dayKey, 17, 0, timeZone),
+    dayStart: zonedWallToUtcIso(dayKey, start.hour, start.minute, timeZone),
+    dayEnd: zonedWallToUtcIso(dayKey, end.hour, end.minute, timeZone),
   };
 }
 
-/** Prefer event day bounds when they fall on the same calendar day (event TZ). */
+/** Optional explicit agenda window (Wave 2 event settings). */
+export type DayWindowOpts = {
+  startHHMM?: string;
+  endHHMM?: string;
+};
+
+/**
+ * Prefer event day bounds when they fall on the same calendar day (event TZ).
+ * When an explicit agenda window is configured (opts), that window wins —
+ * the server enforces it, so the grid must show exactly the same envelope.
+ */
 export function dayWindowForEvent(
   dayKey: string,
   eventStartsAt: string | null | undefined,
   eventEndsAt: string | null | undefined,
   timeZone: string = "UTC",
+  opts?: DayWindowOpts,
 ): { dayStart: string; dayEnd: string } {
-  const def = dayWindowUtc(dayKey, timeZone);
+  const explicit = Boolean(opts?.startHHMM || opts?.endHHMM);
+  const def = dayWindowUtc(
+    dayKey,
+    timeZone,
+    opts?.startHHMM ?? "09:00",
+    opts?.endHHMM ?? "17:00",
+  );
+  if (explicit) return def;
   if (!eventStartsAt || !eventEndsAt) return def;
   const s = Date.parse(eventStartsAt);
   const e = Date.parse(eventEndsAt);

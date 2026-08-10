@@ -29,7 +29,8 @@
 `id, name, created_at, updated_at`
 
 ### events
-`id, org_id, name, slug, timezone, starts_at, ends_at, settings_json, created_at, updated_at, version`
+`id, org_id, name, slug, timezone, starts_at, ends_at, settings_json, created_at, updated_at, version`  
+settings_json (no migration): Wave-1B notification keys + Wave-2 agenda keys `agendaDayStart`/`agendaDayEnd` ("HH:MM" wall time, event timezone) + `slotIntervalMin` (15|30|60), merged passthrough
 
 ### users
 `id, email, name, created_at, updated_at`
@@ -62,7 +63,7 @@
 `id, submission_id, field_key, value_json`
 
 ### submission_speakers
-`submission_id, person_id, is_primary, sort_order`
+`submission_id, person_id, is_primary, sort_order, bio NULL, company NULL, title NULL (0031 — "About this speaker" seed; accept fills only empty participation profile fields)`
 
 ### eval_* 
 `eval_rounds (+ closes_at, instructions_md 0026, hide_speakers 0029)`, `eval_criteria (round_id, name, max_score, weight)`, `eval_assignments (round_id, submission_id, evaluator_user_id, status)`, `scores (assignment_id, criterion_id, value, comment)` UNIQUE assignment+criterion
@@ -77,7 +78,7 @@
 `session_id, participation_id, is_primary`
 
 ### task_templates / speaker_tasks
-templates: `id, event_id, title, description, trigger (on_accept|manual), due_offset_days, version`  
+templates: `id, event_id, title, description, trigger (on_accept|manual), due_offset_days, link_url NULL (https only, 0030), required (INTEGER 0|1 NOT NULL DEFAULT 0, 0030), version`  
 tasks: `id, template_id, participation_id, status, due_at, completed_at, version`
 
 ### file_assets

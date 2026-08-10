@@ -9,8 +9,11 @@ import {
   TaskTemplateResponseSchema,
   TaskTemplateDeleteResponseSchema,
   ErrorEnvelopeSchema,
+  isHttpsUrl,
+  TASK_LINK_URL_MAX_LENGTH,
   type TaskTemplateDto,
 } from "@speakerops/shared";
+import { Badge } from "../components/ui/index.js";
 import { useEventContext } from "../events/EventContext.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
@@ -22,6 +25,9 @@ export function TaskTemplatesSettingsPage() {
   const [description, setDescription] = useState("");
   const [trigger, setTrigger] = useState<"on_accept" | "manual">("on_accept");
   const [dueOffsetDays, setDueOffsetDays] = useState("14");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [required, setRequired] = useState(false);
   const [status, setStatus] = useState<StatusMsg>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -71,9 +77,18 @@ export function TaskTemplatesSettingsPage() {
     }
     setSaving(true);
     setStatus(null);
+    setLinkError(null);
     const days = Number.parseInt(dueOffsetDays, 10);
     if (Number.isNaN(days) || days < 0) {
       setStatus({ kind: "error", text: "dueOffsetDays must be a non-negative integer" });
+      setSaving(false);
+      return;
+    }
+    const trimmedLink = linkUrl.trim();
+    if (trimmedLink !== "" && !isHttpsUrl(trimmedLink)) {
+      setLinkError(
+        "Task link must be a full https:// address — http links are not allowed.",
+      );
       setSaving(false);
       return;
     }
@@ -89,6 +104,8 @@ export function TaskTemplatesSettingsPage() {
             description: description.trim() === "" ? null : description.trim(),
             trigger,
             dueOffsetDays: days,
+            linkUrl: trimmedLink === "" ? null : trimmedLink,
+            required,
           }),
         },
       );
@@ -112,6 +129,8 @@ export function TaskTemplatesSettingsPage() {
       setDescription("");
       setDueOffsetDays("14");
       setTrigger("on_accept");
+      setLinkUrl("");
+      setRequired(false);
       await loadTemplates(activeEventId);
       setStatus({
         kind: "ok",
@@ -232,12 +251,37 @@ export function TaskTemplatesSettingsPage() {
                     <strong data-testid={`task-template-title-${t.id}`}>
                       {t.title}
                     </strong>
+                    {t.required ? (
+                      <>
+                        {" "}
+                        <Badge
+                          tone="warn"
+                          showDot
+                          data-testid={`task-template-required-${t.id}`}
+                        >
+                          Required
+                        </Badge>
+                      </>
+                    ) : null}
                     <span className="eval-queue__muted">
                       {" "}
                       · {t.trigger} · due +{t.dueOffsetDays}d
                     </span>
                     {t.description ? (
                       <p className="page-stub__body">{t.description}</p>
+                    ) : null}
+                    {t.linkUrl ? (
+                      <p className="page-stub__body">
+                        <a
+                          className="eval-queue__link lumen-focusable"
+                          data-testid={`task-template-link-${t.id}`}
+                          href={t.linkUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Task resource link
+                        </a>
+                      </p>
                     ) : null}
                     <button
                       type="button"
@@ -336,6 +380,60 @@ export function TaskTemplatesSettingsPage() {
                 onChange={(ev) => setDueOffsetDays(ev.target.value)}
                 required
               />
+
+              <div className="event-settings__field">
+                <label
+                  className="event-settings__label"
+                  htmlFor="task-template-link"
+                >
+                  Task link (https)
+                </label>
+                <input
+                  id="task-template-link"
+                  type="url"
+                  className="event-settings__input lumen-focusable"
+                  data-testid="task-template-link-input"
+                  value={linkUrl}
+                  onChange={(ev) => {
+                    setLinkUrl(ev.target.value);
+                    if (linkError) setLinkError(null);
+                  }}
+                  maxLength={TASK_LINK_URL_MAX_LENGTH}
+                  placeholder="https://example.com/speaker-guide"
+                  aria-invalid={linkError ? true : undefined}
+                />
+                <p className="eval-queue__muted">
+                  Optional. Speakers see an “Open resource” link on the task
+                  card. Secure https addresses only.
+                </p>
+                {linkError ? (
+                  <p
+                    className="event-settings__status event-settings__status--error"
+                    data-testid="task-template-link-error"
+                    role="alert"
+                  >
+                    {linkError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="event-settings__field">
+                <label className="event-settings__label" htmlFor="task-template-required">
+                  <input
+                    id="task-template-required"
+                    type="checkbox"
+                    className="lumen-focusable"
+                    data-testid="task-template-required-input"
+                    checked={required}
+                    onChange={(ev) => setRequired(ev.target.checked)}
+                  />{" "}
+                  Required task
+                </label>
+                <p className="eval-queue__muted">
+                  Required tasks keep a speaker at “needs action” until done.
+                  Optional tasks never block readiness.
+                </p>
+              </div>
 
               <button
                 type="submit"

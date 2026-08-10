@@ -6,6 +6,7 @@
  * GET  /api/events/:eventId/eval/rollup          → admin aggregates
  * GET  /api/events/:eventId/eval/export          → Eval.ExportScores (CSV)
  * GET  /api/events/:eventId/members              → evaluator roster + workload
+ * POST /api/events/:eventId/eval/bulk-assign     → Eval.BulkAssign (wizard)
  * POST /api/assignments/:assignmentId/scores     → Eval.Score
  * GET  /api/me/eval-queue                        → assigned queue only
  * POST /api/submissions/:submissionId/assign     → Submission.AssignEvaluators
@@ -25,6 +26,8 @@ import {
   EvalProposalResponseSchema,
   SubmissionAssignBodySchema,
   SubmissionAssignResponseSchema,
+  EvalBulkAssignBodySchema,
+  EvalBulkAssignResponseSchema,
   EvalAdminRollupResponseSchema,
   EvalReviewsResponseSchema,
   EvalScoreSortSchema,
@@ -53,6 +56,7 @@ import {
   scoreAssignment,
   abstainAssignment,
   assignEvaluators,
+  bulkAssignEvaluators,
   getEvalQueue,
   getEvalAssignmentProposal,
   getAdminEvalRollup,
@@ -236,6 +240,73 @@ export function createEventEvalRoutes(
       }
 
       const out = EvalRubricResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * POST /:eventId/eval/bulk-assign — Eval.BulkAssign (admin)
+   * Preview (dryRun=true) → plan + previewId; commit requires that previewId.
+   * Stale estate → 409; replayed commit → stored response + idempotent: true.
+   */
+  app.post(
+    "/:eventId/eval/bulk-assign",
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+
+      const eventId = c.req.param("eventId");
+      let raw: unknown;
+      try {
+        raw = await c.req.json();
+      } catch {
+        return c.json(
+          errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
+          400,
+        );
+      }
+
+      const parsed = EvalBulkAssignBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        // Surface the first cross-field refinement message as the human error
+        // ("reviewersPerSubmission only applies to round-robin", …).
+        const first = parsed.error.issues[0];
+        return c.json(
+          errorEnvelope(
+            first?.message && first.code === "custom"
+              ? first.message
+              : "Validation failed",
+            VALIDATION_ERROR,
+            { issues: parsed.error.flatten() },
+          ),
+          400,
+        );
+      }
+
+      const result = await bulkAssignEvaluators(deps, {
+        ...parsed.data,
+        eventId,
+        actorUserId: user.id,
+        correlationId: c.get("correlationId"),
+      });
+
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+
+      const out = EvalBulkAssignResponseSchema.safeParse(result.value);
       if (!out.success) {
         return c.json(
           errorEnvelope("Response validation failed", INTERNAL_ERROR),

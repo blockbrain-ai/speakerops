@@ -31,6 +31,12 @@ import {
   type EvalProposalResponse,
   type EvalReviewsResponse,
   type EvalReviewItem,
+  type EvalBulkAssignBody,
+  type EvalBulkAssignResponse,
+  type EvalBulkAssignPair,
+  type EvalBulkAssignSkip,
+  type EvalBulkAssignCapacityFailure,
+  type EvalBulkAssignPerEvaluator,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
@@ -774,6 +780,399 @@ export async function assignEvaluators(
     created.map((a) => toAssignmentDto(deps, a, criteria)),
   );
   return { ok: true, value: { assignments } };
+}
+
+export type BulkAssignEvaluatorsInput = EvalBulkAssignBody & {
+  eventId: string;
+  actorUserId: string;
+  correlationId: string;
+};
+
+/** Scope prefix for Eval.BulkAssign keys in the shared idempotency_keys table. */
+export const EVAL_BULK_ASSIGN_IDEMPOTENCY_PREFIX = "eval.bulk-assign:" as const;
+
+/** SHA-256 hex digest (Worker-safe; mirrors comms hashSendRequest). */
+async function sha256Hex(payload: string): Promise<string> {
+  const data = new TextEncoder().encode(payload);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Deterministic (submission, evaluator) pair key. */
+function pairKey(submissionId: string, evaluatorUserId: string): string {
+  return `${submissionId} ${evaluatorUserId}`;
+}
+
+/**
+ * Eval.BulkAssign — cohort assignment wizard (Wave 2).
+ *
+ * Preview (dryRun=true): computes a deterministic plan and returns previewId =
+ * SHA-256 over the estate surrogate (round.updatedAt + sorted matched
+ * submission ids + sorted evaluator ids + mode + caps + existing + filter).
+ * Commit (dryRun=false): requires that previewId; the hash is recomputed from
+ * current DB state — drift → 409 "preview is stale". Single-use/idempotent
+ * via idempotency_keys (`eval.bulk-assign:${previewId}`) — replay returns the
+ * stored response with `idempotent: true` and creates no rows.
+ *
+ * Determinism: submissions sorted by id asc, evaluators sorted by id asc.
+ * Ineligible submissions (not submitted/in_review) are skipped, never assigned.
+ */
+export async function bulkAssignEvaluators(
+  deps: EvalCommandDeps,
+  input: BulkAssignEvaluatorsInput,
+): Promise<CommandOk<EvalBulkAssignResponse> | CommandErr> {
+  // Cross-field guards (also Zod-refined at the route; kept for direct callers).
+  if (input.mode === "all_to_all" && input.reviewersPerSubmission != null) {
+    return {
+      ok: false,
+      status: 400,
+      error: "reviewersPerSubmission only applies to round-robin",
+      code: "VALIDATION_ERROR",
+    };
+  }
+  if (!input.dryRun && (input.previewId == null || input.previewId === "")) {
+    return {
+      ok: false,
+      status: 400,
+      error: "previewId is required to apply a plan — preview first",
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  const round = await deps.eval.findRoundById(input.roundId);
+  if (!round || round.eventId !== input.eventId) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Eval round not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  // Idempotent replay first: a committed plan replays its stored response even
+  // if the estate has since drifted (the work already happened — E7).
+  if (!input.dryRun && input.previewId) {
+    const storageKey = `${EVAL_BULK_ASSIGN_IDEMPOTENCY_PREFIX}${input.previewId}`;
+    const stored = await deps.eval.findIdempotencyKey(storageKey);
+    if (stored && stored.requestHash === input.previewId) {
+      if (stored.responseJson) {
+        try {
+          const cached = JSON.parse(
+            stored.responseJson,
+          ) as EvalBulkAssignResponse;
+          return { ok: true, value: { ...cached, idempotent: true } };
+        } catch {
+          /* corrupt cache — fall through to recompute */
+        }
+      }
+    }
+  }
+
+  // Closed rounds accept no new assignment writes (mirror score/abstain).
+  if (isEvalRoundClosed(round)) {
+    return roundClosedError(round);
+  }
+
+  // Evaluators must hold an evaluator/admin membership on THIS event.
+  const evaluatorIds = [...new Set(input.evaluatorIds)].sort();
+  const badIds: string[] = [];
+  for (const userId of evaluatorIds) {
+    const membership = await deps.auth.findMembership(input.eventId, userId);
+    if (
+      !membership ||
+      (membership.role !== "evaluator" && membership.role !== "admin")
+    ) {
+      badIds.push(userId);
+    }
+  }
+  if (badIds.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Some selected users are not evaluators on this event",
+      code: "VALIDATION_ERROR",
+      details: { userIds: badIds },
+    };
+  }
+
+  // Matched submissions: event-scoped + filter; deterministic id asc.
+  const filter = input.submissionFilter ?? {};
+  const allSubmissions = await deps.submissions.listSubmissionsForEvent(
+    input.eventId,
+  );
+  const matched = allSubmissions
+    .filter((s) => (s.id ?? "").trim() !== "")
+    .filter((s) => filter.status == null || s.status === filter.status)
+    .filter(
+      (s) => filter.category == null || (s.category ?? "") === filter.category,
+    )
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  // Estate surrogate hash — previewId (deterministic hex).
+  const hash = await sha256Hex(
+    JSON.stringify({
+      v: 1,
+      roundId: round.id,
+      roundUpdatedAt: round.updatedAt,
+      submissionIds: matched.map((s) => s.id),
+      evaluatorIds,
+      mode: input.mode,
+      reviewersPerSubmission: input.reviewersPerSubmission ?? null,
+      maxPerEvaluator: input.maxPerEvaluator ?? null,
+      existing: input.existing,
+      filter: {
+        status: filter.status ?? null,
+        category: filter.category ?? null,
+      },
+    }),
+  );
+
+  if (!input.dryRun && input.previewId !== hash) {
+    return {
+      ok: false,
+      status: 409,
+      error:
+        "The preview is stale — the round or matching submissions changed. Preview again.",
+      code: "CONFLICT",
+      details: { previewId: input.previewId },
+    };
+  }
+
+  const existingRows = await deps.eval.listAssignmentsForRound(round.id);
+  const byPair = new Map<string, EvalAssignmentRow>();
+  for (const a of existingRows) {
+    byPair.set(pairKey(a.submissionId, a.evaluatorUserId), a);
+  }
+
+  // Cap counters: preserve counts every pre-existing assignment; replace
+  // counts only kept (scored/abstained) rows — kept pendings add when planned.
+  const counter = new Map<string, number>(evaluatorIds.map((e) => [e, 0]));
+  for (const a of existingRows) {
+    if (!counter.has(a.evaluatorUserId)) continue;
+    if (input.existing === "preserve" || a.status !== "pending") {
+      counter.set(a.evaluatorUserId, counter.get(a.evaluatorUserId)! + 1);
+    }
+  }
+  const cap = input.maxPerEvaluator ?? Number.POSITIVE_INFINITY;
+
+  const additions: EvalBulkAssignPair[] = [];
+  const skipped: EvalBulkAssignSkip[] = [];
+  const capacityFailures: EvalBulkAssignCapacityFailure[] = [];
+  const plannedPairs = new Set<string>();
+
+  // Ineligible matched rows are reported, never assigned (10.5 + S-EVAL).
+  const eligible: typeof matched = [];
+  for (const s of matched) {
+    if (!isSubmissionEvalEligible(s.status)) {
+      skipped.push({
+        submissionId: s.id,
+        reason: `Not eligible for review (status ${s.status})`,
+      });
+      continue;
+    }
+    eligible.push(s);
+  }
+
+  /** Keep an existing pair that the plan would (re)make. */
+  const keepExisting = (submissionId: string, e: string, row: EvalAssignmentRow) => {
+    plannedPairs.add(pairKey(submissionId, e));
+    skipped.push({
+      submissionId,
+      evaluatorUserId: e,
+      reason: "already assigned",
+    });
+    if (input.existing === "replace" && row.status === "pending") {
+      // Kept pending counts toward the cap as planned work.
+      counter.set(e, counter.get(e)! + 1);
+    }
+  };
+
+  if (input.mode === "all_to_all") {
+    for (const s of eligible) {
+      for (const e of evaluatorIds) {
+        const row = byPair.get(pairKey(s.id, e));
+        if (row) {
+          keepExisting(s.id, e, row);
+          continue;
+        }
+        if (counter.get(e)! >= cap) {
+          capacityFailures.push({
+            submissionId: s.id,
+            evaluatorUserId: e,
+            reason: `Evaluator is at the cap of ${cap} assignment${cap === 1 ? "" : "s"}`,
+          });
+          continue;
+        }
+        additions.push({ submissionId: s.id, evaluatorUserId: e });
+        plannedPairs.add(pairKey(s.id, e));
+        counter.set(e, counter.get(e)! + 1);
+      }
+    }
+  } else {
+    // round_robin: rotate through evaluators in id order per submission.
+    const rps = input.reviewersPerSubmission ?? 1;
+    const n = evaluatorIds.length;
+    let cursor = 0;
+    for (const s of eligible) {
+      const chosen = new Set<string>();
+      for (const e of evaluatorIds) {
+        const row = byPair.get(pairKey(s.id, e));
+        if (row) {
+          keepExisting(s.id, e, row);
+          chosen.add(e);
+        }
+      }
+      let got = chosen.size;
+      while (got < rps) {
+        let picked = -1;
+        for (let step = 0; step < n; step++) {
+          const idx = (cursor + step) % n;
+          const e = evaluatorIds[idx]!;
+          if (chosen.has(e)) continue;
+          if (counter.get(e)! >= cap) continue;
+          picked = idx;
+          break;
+        }
+        if (picked < 0) break;
+        const e = evaluatorIds[picked]!;
+        additions.push({ submissionId: s.id, evaluatorUserId: e });
+        plannedPairs.add(pairKey(s.id, e));
+        counter.set(e, counter.get(e)! + 1);
+        chosen.add(e);
+        got += 1;
+        cursor = (picked + 1) % n;
+      }
+      if (got < rps) {
+        capacityFailures.push({
+          submissionId: s.id,
+          needed: rps,
+          got,
+          reason: `Only ${got} of ${rps} reviewer${rps === 1 ? "" : "s"} available for this submission`,
+        });
+      }
+    }
+  }
+
+  // existing=replace: pending assignments not in the new plan are removed;
+  // scored/abstained rows are NEVER removed — reported as kept.
+  const removals: EvalBulkAssignPair[] = [];
+  const removalAssignmentIds: string[] = [];
+  if (input.existing === "replace") {
+    const sortedExisting = [...existingRows].sort((a, b) =>
+      a.submissionId === b.submissionId
+        ? a.evaluatorUserId.localeCompare(b.evaluatorUserId)
+        : a.submissionId.localeCompare(b.submissionId),
+    );
+    for (const a of sortedExisting) {
+      if (plannedPairs.has(pairKey(a.submissionId, a.evaluatorUserId))) {
+        continue;
+      }
+      if (a.status === "pending") {
+        removals.push({
+          submissionId: a.submissionId,
+          evaluatorUserId: a.evaluatorUserId,
+        });
+        removalAssignmentIds.push(a.id);
+      } else {
+        skipped.push({
+          submissionId: a.submissionId,
+          evaluatorUserId: a.evaluatorUserId,
+          reason: "has a score — kept",
+        });
+      }
+    }
+  }
+
+  // Per-evaluator workload (current → planned), evaluator id asc.
+  const perEvaluator: EvalBulkAssignPerEvaluator[] = [];
+  for (const e of evaluatorIds) {
+    const current = existingRows.filter(
+      (a) => a.evaluatorUserId === e,
+    ).length;
+    const adds = additions.filter((a) => a.evaluatorUserId === e).length;
+    const rems = removals.filter((r) => r.evaluatorUserId === e).length;
+    const user = await deps.auth.findUserById(e);
+    perEvaluator.push({
+      userId: e,
+      email: user?.email ?? e,
+      current,
+      planned: Math.max(0, current + adds - rems),
+    });
+  }
+
+  const value: EvalBulkAssignResponse = {
+    previewId: hash,
+    dryRun: input.dryRun,
+    roundId: round.id,
+    mode: input.mode,
+    existing: input.existing,
+    matchedSubmissionCount: matched.length,
+    additions,
+    removals,
+    skipped,
+    perEvaluator,
+    capacityFailures,
+    counts: {
+      additions: additions.length,
+      removals: removals.length,
+      skipped: skipped.length,
+    },
+  };
+
+  if (input.dryRun) {
+    return { ok: true, value };
+  }
+
+  // Commit — apply removals then additions, deterministic order.
+  const now = new Date().toISOString();
+  for (const id of removalAssignmentIds) {
+    await deps.eval.deleteAssignment(id); // pending-only guard in store
+  }
+  for (const pair of additions) {
+    await deps.eval.insertAssignment({
+      id: newEvalAssignmentId(),
+      roundId: round.id,
+      submissionId: pair.submissionId,
+      evaluatorUserId: pair.evaluatorUserId,
+      status: "pending",
+      overallComment: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  await deps.auth.insertAudit({
+    id: uuidv7(),
+    eventId: input.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "Eval.BulkAssign",
+    entityType: "eval_round",
+    entityId: round.id,
+    afterJson: JSON.stringify({
+      previewId: hash,
+      mode: input.mode,
+      existing: input.existing,
+      matchedSubmissionCount: matched.length,
+      counts: value.counts,
+      capacityFailureCount: capacityFailures.length,
+    }),
+    correlationId: input.correlationId,
+    createdAt: now,
+  });
+
+  // Single-use marker: replays return this stored response, insert nothing.
+  await deps.eval.insertIdempotencyKey({
+    id: uuidv7(),
+    key: `${EVAL_BULK_ASSIGN_IDEMPOTENCY_PREFIX}${hash}`,
+    requestHash: hash,
+    responseJson: JSON.stringify(value),
+    createdAt: now,
+  });
+
+  return { ok: true, value };
 }
 
 /**

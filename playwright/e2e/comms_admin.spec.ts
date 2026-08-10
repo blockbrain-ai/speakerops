@@ -133,6 +133,45 @@ async function seedSpeakers(
   expect(res.status(), await res.text()).toBe(201);
 }
 
+/**
+ * Seed a real scheduled session (room + direct session + placement) for the
+ * Wave-2 schedule-derived ICS picker. Returns the placement + session ids.
+ */
+async function seedScheduledSession(
+  request: import("@playwright/test").APIRequestContext,
+  session: string,
+  eventId: string,
+  title: string,
+  startsAt: string,
+  endsAt: string,
+): Promise<{ placementId: string; sessionId: string; version: number }> {
+  const roomId = `room_ics_${Date.now()}`;
+  const roomRes = await request.put(
+    `/api/events/${encodeURIComponent(eventId)}/rooms/${roomId}`,
+    { headers: sessionHeaders(session), data: { name: "Main Hall" } },
+  );
+  expect([200, 201]).toContain(roomRes.status());
+  const sessionRes = await request.post(
+    `/api/events/${encodeURIComponent(eventId)}/sessions/direct`,
+    { headers: sessionHeaders(session), data: { title, speakers: [] } },
+  );
+  expect(sessionRes.status()).toBe(201);
+  const sessionId = ((await sessionRes.json()) as { session: { id: string } })
+    .session.id;
+  const placeRes = await request.post(
+    `/api/events/${encodeURIComponent(eventId)}/schedule/place`,
+    {
+      headers: sessionHeaders(session),
+      data: { sessionId, roomId, startsAt, endsAt },
+    },
+  );
+  expect(placeRes.status(), await placeRes.text()).toBe(201);
+  const placement = ((await placeRes.json()) as {
+    placement: { id: string; version: number };
+  }).placement;
+  return { placementId: placement.id, sessionId, version: placement.version };
+}
+
 async function openComms(
   page: import("@playwright/test").Page,
   eventId: string,
@@ -319,30 +358,40 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
     const email = `comms-j06-${Date.now()}@example.com`;
     const session = await loginAs(request, context, baseURL, email);
     const event = await ensureEvent(request, session, "J06 ICS Event");
+    // Wave 2: the ICS panel picks from actual scheduled sessions.
+    const scheduled = await seedScheduledSession(
+      request,
+      session,
+      event.id,
+      "Keynote Slot",
+      "2026-09-01T10:00:00.000Z",
+      "2026-09-01T11:00:00.000Z",
+    );
 
     await openComms(page, event.id);
     await expect(page.getByTestId("comms-ics-panel")).toBeVisible();
-    await page.getByTestId("comms-ics-placement-input").fill("plc_j06_1");
-    await page.getByTestId("comms-ics-summary-input").fill("Keynote Slot");
-    await page
-      .getByTestId("comms-ics-starts-input")
-      .fill("2026-09-01T10:00:00.000Z");
-    await page
-      .getByTestId("comms-ics-ends-input")
-      .fill("2026-09-01T11:00:00.000Z");
+    const picker = page.getByTestId("comms-ics-placement-select");
+    await expect(
+      picker.locator(`option[value="${scheduled.placementId}"]`),
+    ).toContainText("Keynote Slot");
+    await picker.selectOption(scheduled.placementId);
     await page.getByTestId("comms-ics-generate").click();
 
     await expect(page.getByTestId("comms-ics-status")).toContainText("UID", {
       timeout: 15_000,
     });
-    await expect(page.getByTestId("comms-ics-invite-plc_j06_1")).toBeVisible();
-    await expect(page.getByTestId("comms-ics-invite-plc_j06_1")).toHaveAttribute(
-      "data-sequence",
-      "0",
+    const invite = page.getByTestId(
+      `comms-ics-invite-${scheduled.placementId}`,
     );
-    await expect(page.getByTestId("comms-ics-body-plc_j06_1")).toContainText(
-      "BEGIN:VCALENDAR",
+    await expect(invite).toBeVisible();
+    await expect(invite).toHaveAttribute("data-sequence", "0");
+    await expect(invite).toHaveAttribute(
+      "data-starts-at",
+      "2026-09-01T10:00:00.000Z",
     );
+    await expect(
+      page.getByTestId(`comms-ics-body-${scheduled.placementId}`),
+    ).toContainText("BEGIN:VCALENDAR");
   });
 
   test("@inv:J07 e2e/comms/authz role without comms:send cannot send", async ({
@@ -509,51 +558,70 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
     const email = `comms-j10-${Date.now()}@example.com`;
     const session = await loginAs(request, context, baseURL, email);
     const event = await ensureEvent(request, session, "J10 ICS Update Event");
+    // Wave 2: seed a real scheduled session; the picker derives times/room.
+    const scheduled = await seedScheduledSession(
+      request,
+      session,
+      event.id,
+      "Talk A",
+      "2026-09-01T14:00:00.000Z",
+      "2026-09-01T14:45:00.000Z",
+    );
+    const roomId = (
+      (await (
+        await request.get(
+          `/api/events/${encodeURIComponent(event.id)}/schedule`,
+          { headers: sessionHeaders(session) },
+        )
+      ).json()) as { placements: Array<{ id: string; roomId: string }> }
+    ).placements.find((p) => p.id === scheduled.placementId)!.roomId;
 
     await openComms(page, event.id);
-    await page.getByTestId("comms-ics-placement-input").fill("plc_j10_1");
-    await page.getByTestId("comms-ics-summary-input").fill("Talk A");
-    await page
-      .getByTestId("comms-ics-starts-input")
-      .fill("2026-09-01T14:00:00.000Z");
-    await page
-      .getByTestId("comms-ics-ends-input")
-      .fill("2026-09-01T14:45:00.000Z");
+    const picker = page.getByTestId("comms-ics-placement-select");
+    await picker.selectOption(scheduled.placementId);
     await page.getByTestId("comms-ics-generate").click();
-    await expect(page.getByTestId("comms-ics-invite-plc_j10_1")).toBeVisible({
-      timeout: 15_000,
-    });
-    const uid1 = await page
-      .getByTestId("comms-ics-invite-plc_j10_1")
-      .getAttribute("data-uid");
-    expect(uid1).toBeTruthy();
-    await expect(page.getByTestId("comms-ics-invite-plc_j10_1")).toHaveAttribute(
-      "data-sequence",
-      "0",
+    const invite = page.getByTestId(
+      `comms-ics-invite-${scheduled.placementId}`,
     );
+    await expect(invite).toBeVisible({ timeout: 15_000 });
+    const uid1 = await invite.getAttribute("data-uid");
+    expect(uid1).toBeTruthy();
+    await expect(invite).toHaveAttribute("data-sequence", "0");
 
-    // Reschedule
-    await page
-      .getByTestId("comms-ics-starts-input")
-      .fill("2026-09-01T15:00:00.000Z");
-    await page
-      .getByTestId("comms-ics-ends-input")
-      .fill("2026-09-01T15:45:00.000Z");
+    // Reschedule the REAL placement, refresh the picker, regenerate.
+    const moveRes = await request.post(
+      `/api/events/${encodeURIComponent(event.id)}/schedule/move`,
+      {
+        headers: sessionHeaders(session),
+        data: {
+          placementId: scheduled.placementId,
+          roomId,
+          startsAt: "2026-09-01T15:00:00.000Z",
+          endsAt: "2026-09-01T15:45:00.000Z",
+          expectedVersion: scheduled.version,
+        },
+      },
+    );
+    expect(moveRes.status(), await moveRes.text()).toBe(200);
+    await page.getByTestId("comms-ics-refresh").click();
+    await expect(
+      picker.locator(`option[value="${scheduled.placementId}"]`),
+    ).toContainText("15:00");
+    await picker.selectOption(scheduled.placementId);
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText(
       "SEQUENCE 1",
       { timeout: 15_000 },
     );
-    await expect(page.getByTestId("comms-ics-invite-plc_j10_1")).toHaveAttribute(
-      "data-sequence",
-      "1",
+    await expect(invite).toHaveAttribute("data-sequence", "1");
+    await expect(invite).toHaveAttribute(
+      "data-starts-at",
+      "2026-09-01T15:00:00.000Z",
     );
-    const uid2 = await page
-      .getByTestId("comms-ics-invite-plc_j10_1")
-      .getAttribute("data-uid");
+    const uid2 = await invite.getAttribute("data-uid");
     expect(uid2).toBe(uid1);
-    await expect(page.getByTestId("comms-ics-body-plc_j10_1")).toContainText(
-      "SEQUENCE:1",
-    );
+    await expect(
+      page.getByTestId(`comms-ics-body-${scheduled.placementId}`),
+    ).toContainText("SEQUENCE:1");
   });
 });

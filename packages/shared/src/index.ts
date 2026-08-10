@@ -274,7 +274,29 @@ export {
   parseEventNotificationSettings,
   mergeEventNotificationSettings,
   parseNotifyEmailsInput,
+  DECISION_NOTIFY_TEMPLATES,
+  type DecisionNotifyKind,
+  isDecisionNotifyKind,
 } from "./lifecycle.js";
+
+export {
+  AGENDA_SLOT_INTERVALS,
+  type AgendaSlotInterval,
+  HHMM_REGEX,
+  HhMmSchema,
+  AGENDA_DEFAULT_DAY_START,
+  AGENDA_DEFAULT_DAY_END,
+  AGENDA_DEFAULT_SLOT_INTERVAL,
+  EventAgendaSettingsSchema,
+  type EventAgendaSettings,
+  type ResolvedEventAgendaSettings,
+  parseEventAgendaSettings,
+  hasExplicitAgendaWindow,
+  mergeEventAgendaSettings,
+  hhmmToMinutes,
+  wallMinutesInZone,
+  wallDayKeyInZone,
+} from "./agenda.js";
 
 export {
   SubmissionStatusSchema,
@@ -376,6 +398,24 @@ export {
   type SubmissionAssignBody,
   SubmissionAssignResponseSchema,
   type SubmissionAssignResponse,
+  EvalBulkAssignModeSchema,
+  type EvalBulkAssignMode,
+  EvalBulkAssignExistingSchema,
+  type EvalBulkAssignExisting,
+  EvalBulkAssignSubmissionFilterSchema,
+  type EvalBulkAssignSubmissionFilter,
+  EvalBulkAssignBodySchema,
+  type EvalBulkAssignBody,
+  EvalBulkAssignPairSchema,
+  type EvalBulkAssignPair,
+  EvalBulkAssignSkipSchema,
+  type EvalBulkAssignSkip,
+  EvalBulkAssignCapacityFailureSchema,
+  type EvalBulkAssignCapacityFailure,
+  EvalBulkAssignPerEvaluatorSchema,
+  type EvalBulkAssignPerEvaluator,
+  EvalBulkAssignResponseSchema,
+  type EvalBulkAssignResponse,
   EvalAdminSubmissionRollupSchema,
   type EvalAdminSubmissionRollup,
   EvalAdminRollupResponseSchema,
@@ -448,6 +488,8 @@ export {
 } from "./decisions.js";
 
 export {
+  isHttpsUrl,
+  TASK_LINK_URL_MAX_LENGTH,
   ParticipationProfileSchema,
   type ParticipationProfileDto,
   PortalTaskSchema,

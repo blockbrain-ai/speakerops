@@ -267,35 +267,86 @@ test.describe("5.4 comms keystone (I12)", () => {
     }
 
     // ========== J06: ICS attach for scheduled session ==========
+    // Wave 2: seed a REAL scheduled session (room + direct session +
+    // placement); the ICS panel picks it from the schedule-derived picker.
+    void PLACEMENT_ID; // legacy fixture id superseded by the real placement
+    const icsRoomId = `room_keystone54_${RUN.slice(-6)}`;
+    const icsRoomRes = await request.put(
+      `/api/events/${event.id}/rooms/${icsRoomId}`,
+      {
+        headers: sessionHeaders(admin.session),
+        data: { name: "Keystone Hall" },
+      },
+    );
+    expect([200, 201]).toContain(icsRoomRes.status());
+    const icsSessionRes = await request.post(
+      `/api/events/${event.id}/sessions/direct`,
+      {
+        headers: sessionHeaders(admin.session),
+        data: { title: "Keystone Slot", speakers: [] },
+      },
+    );
+    expect(icsSessionRes.status()).toBe(201);
+    const icsSessionId = ((await icsSessionRes.json()) as {
+      session: { id: string };
+    }).session.id;
+    const icsPlaceRes = await request.post(
+      `/api/events/${event.id}/schedule/place`,
+      {
+        headers: sessionHeaders(admin.session),
+        data: {
+          sessionId: icsSessionId,
+          roomId: icsRoomId,
+          startsAt: "2026-06-01T10:00:00.000Z",
+          endsAt: "2026-06-01T11:00:00.000Z",
+        },
+      },
+    );
+    expect(icsPlaceRes.status(), await icsPlaceRes.text()).toBe(201);
+    const icsPlacement = ((await icsPlaceRes.json()) as {
+      placement: { id: string; version: number };
+    }).placement;
+
     await expect(page.getByTestId("comms-ics-panel")).toBeVisible();
-    await page.getByTestId("comms-ics-placement-input").fill(PLACEMENT_ID);
-    await page.getByTestId("comms-ics-summary-input").fill("Keystone Slot");
-    await page
-      .getByTestId("comms-ics-starts-input")
-      .fill("2026-09-01T10:00:00.000Z");
-    await page
-      .getByTestId("comms-ics-ends-input")
-      .fill("2026-09-01T11:00:00.000Z");
+    await page.getByTestId("comms-ics-refresh").click();
+    const icsPicker = page.getByTestId("comms-ics-placement-select");
+    await expect(
+      icsPicker.locator(`option[value="${icsPlacement.id}"]`),
+    ).toContainText("Keystone Slot");
+    await icsPicker.selectOption(icsPlacement.id);
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText("UID", {
       timeout: 15_000,
     });
-    const icsInvite = page.getByTestId(`comms-ics-invite-${PLACEMENT_ID}`);
+    const icsInvite = page.getByTestId(`comms-ics-invite-${icsPlacement.id}`);
     await expect(icsInvite).toBeVisible();
     await expect(icsInvite).toHaveAttribute("data-sequence", "0");
     await expect(
-      page.getByTestId(`comms-ics-body-${PLACEMENT_ID}`),
+      page.getByTestId(`comms-ics-body-${icsPlacement.id}`),
     ).toContainText("BEGIN:VCALENDAR");
     const uid1 = await icsInvite.getAttribute("data-uid");
     expect(uid1).toBeTruthy();
 
     // ========== J10: reschedule keeps UID bumps SEQUENCE ==========
-    await page
-      .getByTestId("comms-ics-starts-input")
-      .fill("2026-09-01T15:00:00.000Z");
-    await page
-      .getByTestId("comms-ics-ends-input")
-      .fill("2026-09-01T16:00:00.000Z");
+    const icsMoveRes = await request.post(
+      `/api/events/${event.id}/schedule/move`,
+      {
+        headers: sessionHeaders(admin.session),
+        data: {
+          placementId: icsPlacement.id,
+          roomId: icsRoomId,
+          startsAt: "2026-06-01T15:00:00.000Z",
+          endsAt: "2026-06-01T16:00:00.000Z",
+          expectedVersion: icsPlacement.version,
+        },
+      },
+    );
+    expect(icsMoveRes.status(), await icsMoveRes.text()).toBe(200);
+    await page.getByTestId("comms-ics-refresh").click();
+    await expect(
+      icsPicker.locator(`option[value="${icsPlacement.id}"]`),
+    ).toContainText("15:00");
+    await icsPicker.selectOption(icsPlacement.id);
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText(
       "SEQUENCE 1",
@@ -305,7 +356,7 @@ test.describe("5.4 comms keystone (I12)", () => {
     const uid2 = await icsInvite.getAttribute("data-uid");
     expect(uid2).toBe(uid1);
     await expect(
-      page.getByTestId(`comms-ics-body-${PLACEMENT_ID}`),
+      page.getByTestId(`comms-ics-body-${icsPlacement.id}`),
     ).toContainText("SEQUENCE:1");
 
     // ========== J07: role without comms:send cannot send ==========

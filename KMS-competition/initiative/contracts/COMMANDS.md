@@ -18,7 +18,7 @@ Auth: session cookie **or** API key with scopes.
 |---------|-------|-------|--------|
 | `Event.Create` | admin / events:write | name, timezone, dates | event |
 | `Event.Get` | admin / events:read | eventId | event |
-| `Event.Update` | admin / events:write | eventId, patch, expectedVersion | event |
+| `Event.Update` | admin / events:write | eventId, patch, expectedVersion | event (settings_json carries notification keys + Wave-2 agenda keys `agendaDayStart`/`agendaDayEnd` HH:MM + `slotIntervalMin` 15\|30\|60, merged passthrough) |
 | `Event.List` | admin / events:read | — | events[] |
 | `Room.List` / `Room.Get` | admin | eventId [, roomId] | rooms[] / room |
 | `Room.Upsert` / `Track.Upsert` | admin | eventId, … | entity |
@@ -34,11 +34,12 @@ Auth: session cookie **or** API key with scopes.
 | `Form.UpdateDraftFields` | cfp:write | formId, fields[] (nodeKind input\|layout + layoutType section\|divider), rules[], submissionLimit?, perSubmitterLimit?, minSpeakers?, maxSpeakers? | formVersion draft |
 | `Form.Publish` | cfp:write | formId | formVersion immutable |
 | `Form.GetPublic` | public | eventSlug / form slug | published form + tokens |
-| `Submission.Create` | public | formVersionId, answers, speakers[], turnstile | submission (enforces submissionLimit + perSubmitterLimit; enqueues `Comms.SubmissionConfirmation`) |
+| `Submission.Create` | public | formVersionId, answers, speakers[] (Wave 2: optional per-speaker `bio` ≤8000, `company` ≤200, `title` ≤200 — stored trimmed-or-NULL on submission_speakers), turnstile | submission (enforces submissionLimit + perSubmitterLimit; enqueues `Comms.SubmissionConfirmation`; on accept the seed fields fill only EMPTY participation profile fields, never overwriting) |
 | `Submission.SaveDraft` | public | formVersionId, title (required), answers?, speakers?, draftId? | submission status=draft + form-field snapshot |
 | `Submission.GetDraft` | public | eventSlug, draftId | draft submission + snapshot (event-scoped; non-draft → 404) |
 | `Cfp.FileUpload` | public | eventSlug, filename, mime, size, contentBase64 | { fileId, mime, size, filename } — supporting file for public CFP; mime/size allowlist enforced |
 | `Submission.List` | submissions:read | eventId, filters | page |
+| `Submission.ExportCsv` | admin / submissions:read | eventId, status?, category?, q? | text/csv attachment — stable headers (base + answer field_keys sorted), speakers flattened `Name <email>; …`, layout nodes excluded, cells formula-neutralized (Wave 2) |
 | `Submission.Get` | submissions:read | submissionId | detail |
 | `Submission.AssignEvaluators` | admin | submissionId, userIds[] | assignments |
 | `Submission.BulkPreview` | admin / decisions:write | eventId, submissionIds[], decision | preview items (no writes) |
@@ -50,6 +51,7 @@ Auth: session cookie **or** API key with scopes.
 | `Eval.Score` | evaluator | assignmentId, scores[], comment | assignment (409 after round close) |
 | `Eval.Abstain` | evaluator (owner-verified) | assignmentId, reason? | assignment status=abstained (excluded from aggregates; 409 after round close / repeat) |
 | `Eval.ExportScores` | admin | eventId, sort? | CSV (scores/status/abstained counts) |
+| `Eval.BulkAssign` | admin / submissions:write | roundId, evaluatorIds[], submissionFilter{status?,category?}, mode (all_to_all\|round_robin), reviewersPerSubmission?, maxPerEvaluator?, existing (preserve\|replace), dryRun, previewId? | plan (preview → `previewId` hashed over round updated_at + matched submission ids + evaluator ids + knobs) / applied plan (commit requires previewId; 409 on estate drift; single-use idempotent via idempotency_keys `eval.bulk-assign:<previewId>`; scored/abstained never removed) (Wave 2) |
 | `Decision.Record` | decisions:write | submissionId, decision, reason | decision (+ side effects on accept; dematerialize on leave-accept) |
 | `Session.CreateDirect` | admin / decisions:write | eventId, title, description?, trackId?, speakers[] | session + participations + on_accept tasks |
 
@@ -67,16 +69,17 @@ Auth: session cookie **or** API key with scopes.
 | `Speakers.List` | admin | eventId, q?, status? | event-scoped speakers[] |
 | `Speakers.Get` | admin | eventId, participationId | detail: tasks + files meta |
 | `TaskTemplate.List` | admin | eventId | templates[] |
-| `TaskTemplate.Create` | admin | eventId, title, description?, trigger, dueOffsetDays | template |
-| `TaskTemplate.Update` | admin | eventId, templateId, patch (title?, description?, trigger?, dueOffsetDays?), **expectedVersion** (required; E1 optimistic concurrency) | template \| 409 on version conflict |
+| `TaskTemplate.Create` | admin | eventId, title, description?, trigger, dueOffsetDays, linkUrl? (https only ≤2000), required? | template |
+| `TaskTemplate.Update` | admin | eventId, templateId, patch (title?, description?, trigger?, dueOffsetDays?, linkUrl? https-only \| null clears, required?), **expectedVersion** (required; E1 optimistic concurrency) | template \| 409 on version conflict |
+| `Speakers.CompleteTask` | admin / speakers:write | eventId, participationId, taskId, **expectedVersion** | task — audited complete-on-behalf; idempotent 200 on already-completed; cancelled 400; cross-event/participation 404; 409 on version conflict (Wave 2) |
 | `TaskTemplate.Delete` | admin | eventId, templateId, **expectedVersion** (required; E1 optimistic concurrency) | { deleted: true, id } \| 409 on version conflict |
 
 ## Schedule
 | Command | Scope | Input | Output |
 |---------|-------|-------|--------|
 | `Schedule.List` | schedule:read | eventId, view | placements + unscheduled |
-| `Schedule.Place` | schedule:write | sessionId, roomId, startsAt, endsAt, expectedVersion | placement \| 409 conflicts |
-| `Schedule.Move` | schedule:write | placementId, …, expectedVersion | placement \| 409 |
+| `Schedule.Place` | schedule:write | sessionId, roomId, startsAt, endsAt, expectedVersion | placement \| 409 conflicts (incl. Wave-2 agenda day-window: conflicts[] type `hours` when outside settings_json `agendaDayStart`–`agendaDayEnd` wall time) |
+| `Schedule.Move` | schedule:write | placementId, …, expectedVersion | placement \| 409 (incl. agenda day-window `hours` conflicts, Wave 2) |
 | `Schedule.Unschedule` | schedule:write | placementId, expectedVersion | ok |
 
 ## Comms
@@ -84,7 +87,7 @@ Auth: session cookie **or** API key with scopes.
 |---------|-------|-------|--------|
 | `Comms.UpsertTemplate` | admin | eventId, key, subject, body | template |
 | `Comms.ListTemplates` | admin | eventId | templates[] |
-| `Comms.Preview` | comms:draft | templateId, segment | { recipients[], bodies[], missingFields[] } |
+| `Comms.Preview` | comms:draft | templateId, segment (status? \| participationIds? \| Wave-2 `submissionIds`? — decision hand-off audience: primary speakers of the exact decision result set, participationId NULL when none) | { recipients[], bodies[], missingFields[] } |
 | `Comms.Send` | comms:send | previewId / draftId, idempotencyKey | job |
 | `Comms.ListJobs` | admin | eventId | jobs[] (delivery log) |
 | `Comms.GetJob` | admin | eventId, jobId | job + recipients + delivery_events |
@@ -141,6 +144,7 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | GET | /api/public/cfp/:slug/drafts/:draftId | Submission.GetDraft |
 | POST | /api/public/cfp/:slug/files | Cfp.FileUpload |
 | GET | /api/events/:eventId/submissions | Submission.List |
+| GET | /api/events/:eventId/submissions/export | Submission.ExportCsv (CSV; ?status&category&q; Wave 2) |
 | GET | /api/submissions/:submissionId | Submission.Get |
 | POST | /api/submissions/:submissionId/assign | Submission.AssignEvaluators |
 | POST | /api/events/:eventId/submissions/bulk-preview | Submission.BulkPreview |
@@ -148,6 +152,7 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | GET | /api/events/:eventId/eval/rubric | Eval.GetRubric (read active round) |
 | GET | /api/events/:eventId/eval/rollup | Eval.AdminRollup (aggregate scores; ?sort=score_desc\|score_asc\|title) |
 | GET | /api/events/:eventId/eval/export | Eval.ExportScores (CSV; ?sort=score_desc\|score_asc\|title) |
+| POST | /api/events/:eventId/eval/bulk-assign | Eval.BulkAssign (dryRun=true previews → previewId; commit requires previewId; idempotent replay; Wave 2) |
 | POST | /api/assignments/:assignmentId/scores | Eval.Score |
 | POST | /api/me/eval-assignments/:assignmentId/abstain | Eval.Abstain (owner-verified; optional reason) |
 | GET | /api/me/eval-queue | Eval.GetQueue (assigned only) |
@@ -166,6 +171,7 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | GET | /api/events/:eventId/task-templates | TaskTemplate.List |
 | POST | /api/events/:eventId/task-templates | TaskTemplate.Create |
 | PATCH | /api/events/:eventId/task-templates/:templateId | TaskTemplate.Update |
+| POST | /api/events/:eventId/speakers/:participationId/tasks/:taskId/complete | Speakers.CompleteTask (Wave 2) |
 | DELETE | /api/events/:eventId/task-templates/:templateId | TaskTemplate.Delete |
 | GET | /api/events/:eventId/schedule | Schedule.List |
 | POST | /api/events/:eventId/schedule/place | Schedule.Place |

@@ -41,6 +41,8 @@ export const ReadinessOutstandingItemSchema = z.object({
   status: z.enum(["pending", "overdue"]),
   dueAt: z.string().nullable(),
   isOverdue: z.boolean(),
+  /** True when the source template marks this task required (Wave 2, additive). */
+  required: z.boolean().default(false),
   version: z.number().int().positive(),
 });
 export type ReadinessOutstandingItem = z.infer<

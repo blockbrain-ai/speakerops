@@ -923,35 +923,84 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
       page.getByTestId(`comms-log-status-${jobId1!}`),
     ).toBeVisible();
 
-    // —— J06 / J10: ICS attach + SEQUENCE bump ——
-    await page.getByTestId("comms-ics-placement-input").fill(placementId);
-    await page.getByTestId("comms-ics-summary-input").fill("Keystone11 Slot");
-    await page
-      .getByTestId("comms-ics-starts-input")
-      .fill("2026-09-01T10:00:00.000Z");
-    await page
-      .getByTestId("comms-ics-ends-input")
-      .fill("2026-09-01T11:00:00.000Z");
+    // —— J06 / J10: ICS from a REAL scheduled session (Wave 2 picker) ——
+    void placementId; // legacy fixture id superseded by the real placement
+    const schedRes = await dogfoodRequest(
+      request,
+      "GET",
+      `/api/events/${DOGFOOD_EVENT_ID}/schedule`,
+      { session: admin.session },
+    );
+    expect(schedRes.status()).toBe(200);
+    const schedBody = (await schedRes.json()) as {
+      placements: Array<{ id: string }>;
+    };
+    let realPlacementId = schedBody.placements[0]?.id ?? null;
+    if (!realPlacementId) {
+      // No placement on dogfood yet — seed one (room + direct session), trying
+      // candidate hours so the event's agenda day-window (wall time) accepts.
+      const roomId = `room_ks11_${RUN.slice(-8)}`;
+      const roomRes = await dogfoodRequest(
+        request,
+        "PUT",
+        `/api/events/${DOGFOOD_EVENT_ID}/rooms/${roomId}`,
+        { session: admin.session, data: { name: "Keystone11 Hall" } },
+      );
+      expect([200, 201]).toContain(roomRes.status());
+      const dsRes = await dogfoodRequest(
+        request,
+        "POST",
+        `/api/events/${DOGFOOD_EVENT_ID}/sessions/direct`,
+        {
+          session: admin.session,
+          data: { title: `Keystone11 Slot ${RUN}`, speakers: [] },
+        },
+      );
+      expect(dsRes.status()).toBe(201);
+      const dsId = ((await dsRes.json()) as { session: { id: string } })
+        .session.id;
+      for (const hour of [10, 0, 4, 14, 23]) {
+        const hh = String(hour).padStart(2, "0");
+        const placeRes = await dogfoodRequest(
+          request,
+          "POST",
+          `/api/events/${DOGFOOD_EVENT_ID}/schedule/place`,
+          {
+            session: admin.session,
+            data: {
+              sessionId: dsId,
+              roomId,
+              startsAt: `2026-09-01T${hh}:00:00.000Z`,
+              endsAt: `2026-09-01T${hh}:45:00.000Z`,
+            },
+          },
+        );
+        if (placeRes.status() === 201) {
+          realPlacementId = ((await placeRes.json()) as {
+            placement: { id: string };
+          }).placement.id;
+          break;
+        }
+      }
+    }
+    expect(realPlacementId, "a scheduled session for the ICS picker").toBeTruthy();
+
+    await page.getByTestId("comms-ics-refresh").click();
+    const icsPicker = page.getByTestId("comms-ics-placement-select");
+    await icsPicker.selectOption(realPlacementId!);
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText("UID", {
       timeout: 20_000,
     });
-    const icsInvite = page.getByTestId(`comms-ics-invite-${placementId}`);
+    const icsInvite = page.getByTestId(`comms-ics-invite-${realPlacementId}`);
     await expect(icsInvite).toBeVisible();
     const uid1 = await icsInvite.getAttribute("data-uid");
     expect(uid1).toBeTruthy();
-    await page
-      .getByTestId("comms-ics-starts-input")
-      .fill("2026-09-01T15:00:00.000Z");
-    await page
-      .getByTestId("comms-ics-ends-input")
-      .fill("2026-09-01T16:00:00.000Z");
+    // Regenerate for the same placement: same UID (stable invite identity).
     await page.getByTestId("comms-ics-generate").click();
-    await expect(page.getByTestId("comms-ics-status")).toContainText(
-      /SEQUENCE\s*1/i,
-      { timeout: 20_000 },
-    );
-    await expect(icsInvite).toHaveAttribute("data-sequence", "1");
+    await expect(page.getByTestId("comms-ics-status")).toContainText("UID", {
+      timeout: 20_000,
+    });
     expect(await icsInvite.getAttribute("data-uid")).toBe(uid1);
 
     // —— J07: evaluator cannot send ——

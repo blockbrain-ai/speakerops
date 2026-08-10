@@ -229,12 +229,12 @@ footer.report-footer code {
         <code>KMS-competition/initiative/BROWSER_E2E_INVENTORY.md</code>.
       </p>
       <div class="badges" role="status" aria-label="REQUIRED summary">
-        <span class="badge">REQUIRED 141</span>
-        <span class="badge pass">PASS 141</span>
+        <span class="badge">REQUIRED 150</span>
+        <span class="badge pass">PASS 150</span>
         <span class="badge fail">FAIL 0</span>
         <span class="badge defer">DEFER 0</span>
         <span class="badge other">other 0</span>
-        <span class="badge">playwright 141</span>
+        <span class="badge">playwright 150</span>
         <span class="badge">inventory 0</span>
       </div>
     </header>
@@ -254,6 +254,7 @@ footer.report-footer code {
       <a class="pass" href="#A17" title="PASS">A17</a>
       <a class="pass" href="#A18" title="PASS">A18</a>
       <a class="pass" href="#A19" title="PASS">A19</a>
+      <a class="pass" href="#A20" title="PASS">A20</a>
       <a class="pass" href="#B01" title="PASS">B01</a>
       <a class="pass" href="#B02" title="PASS">B02</a>
       <a class="pass" href="#B03" title="PASS">B03</a>
@@ -301,6 +302,9 @@ footer.report-footer code {
       <a class="pass" href="#E10" title="PASS">E10</a>
       <a class="pass" href="#E11" title="PASS">E11</a>
       <a class="pass" href="#E12" title="PASS">E12</a>
+      <a class="pass" href="#E13" title="PASS">E13</a>
+      <a class="pass" href="#E14" title="PASS">E14</a>
+      <a class="pass" href="#E15" title="PASS">E15</a>
       <a class="pass" href="#F01" title="PASS">F01</a>
       <a class="pass" href="#F02" title="PASS">F02</a>
       <a class="pass" href="#F03" title="PASS">F03</a>
@@ -314,6 +318,7 @@ footer.report-footer code {
       <a class="pass" href="#F11" title="PASS">F11</a>
       <a class="pass" href="#F12" title="PASS">F12</a>
       <a class="pass" href="#F13" title="PASS">F13</a>
+      <a class="pass" href="#F14" title="PASS">F14</a>
       <a class="pass" href="#G01" title="PASS">G01</a>
       <a class="pass" href="#G02" title="PASS">G02</a>
       <a class="pass" href="#G03" title="PASS">G03</a>
@@ -324,6 +329,7 @@ footer.report-footer code {
       <a class="pass" href="#G08" title="PASS">G08</a>
       <a class="pass" href="#G09" title="PASS">G09</a>
       <a class="pass" href="#G11" title="PASS">G11</a>
+      <a class="pass" href="#G12" title="PASS">G12</a>
       <a class="pass" href="#H01" title="PASS">H01</a>
       <a class="pass" href="#H02" title="PASS">H02</a>
       <a class="pass" href="#H03" title="PASS">H03</a>
@@ -345,6 +351,7 @@ footer.report-footer code {
       <a class="pass" href="#I14" title="PASS">I14</a>
       <a class="pass" href="#I15" title="PASS">I15</a>
       <a class="pass" href="#I16" title="PASS">I16</a>
+      <a class="pass" href="#I17" title="PASS">I17</a>
       <a class="pass" href="#J01" title="PASS">J01</a>
       <a class="pass" href="#J02" title="PASS">J02</a>
       <a class="pass" href="#J03" title="PASS">J03</a>
@@ -357,6 +364,7 @@ footer.report-footer code {
       <a class="pass" href="#J09" title="PASS">J09</a>
       <a class="pass" href="#J10" title="PASS">J10</a>
       <a class="pass" href="#J12" title="PASS">J12</a>
+      <a class="pass" href="#J13" title="PASS">J13</a>
       <a class="pass" href="#K01" title="PASS">K01</a>
       <a class="pass" href="#K02" title="PASS">K02</a>
       <a class="pass" href="#K03" title="PASS">K03</a>
@@ -375,6 +383,7 @@ footer.report-footer code {
       <a class="pass" href="#N02" title="PASS">N02</a>
       <a class="pass" href="#N03" title="PASS">N03</a>
       <a class="pass" href="#N04" title="PASS">N04</a>
+      <a class="pass" href="#N05" title="PASS">N05</a>
       <a class="pass" href="#O01" title="PASS">O01</a>
       <a class="pass" href="#O02" title="PASS">O02</a>
       <a class="pass" href="#O03" title="PASS">O03</a>
@@ -518,6 +527,15 @@ footer.report-footer code {
   <td>public</td>
   <td>CFP</td>
   <td>No operator/debug brand copy (Lumen defaults / raw file ids)<div class="muted">e2e/public/cfp-copy-clean</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="A20">
+  <td class="id"><a href="#A20">A20</a></td>
+  <td>public</td>
+  <td>CFP</td>
+  <td>Expand &quot;About this speaker&quot;; bio/company/title seed accepted speaker profile; never overwrites non-empty<div class="muted">e2e/public-cfp/speaker-about</div></td>
   <td><span class="status-pill PASS">PASS</span>
     <div class="muted">inventory: PASS · source: playwright</div>
   </td>
@@ -945,6 +963,33 @@ footer.report-footer code {
     <div class="muted">inventory: PASS · source: playwright</div>
   </td>
 </tr>
+<tr id="E13">
+  <td class="id"><a href="#E13">E13</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Decision → notify hand-off: bulk accept exact result set becomes the comms audience; typed template preselected; preview → idempotent send → delivery log<div class="muted">e2e/submissions/decision-notify</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E14">
+  <td class="id"><a href="#E14">E14</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Filtered submissions CSV export: stable headers, flattened speakers, answer columns (layout nodes excluded); bytes inspected<div class="muted">e2e/submissions/export-csv</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="E15">
+  <td class="id"><a href="#E15">E15</a></td>
+  <td>admin</td>
+  <td>Submissions</td>
+  <td>Direct/sponsor session dialog parity: repeatable speaker rows + track select; both speakers linked and track chip shown<div class="muted">e2e/submissions/direct-session-parity</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
 <tr id="F01">
   <td class="id"><a href="#F01">F01</a></td>
   <td>evaluator</td>
@@ -1062,6 +1107,15 @@ footer.report-footer code {
     <div class="muted">inventory: PASS · source: playwright</div>
   </td>
 </tr>
+<tr id="F14">
+  <td class="id"><a href="#F14">F14</a></td>
+  <td>admin</td>
+  <td>Evaluations</td>
+  <td>Bulk-assign wizard: preview deterministic plan (filters, modes, caps, preserve/replace) then apply; durable assignments match plan; stale re-commit blocked; preserve re-run adds nothing<div class="muted">e2e/eval/bulk-assign</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
 <tr id="G01">
   <td class="id"><a href="#G01">G01</a></td>
   <td>speaker</td>
@@ -1148,6 +1202,15 @@ footer.report-footer code {
   <td>speaker</td>
   <td>Portal</td>
   <td>Section nav Home/Profile/Tasks/Sessions active + focus<div class="muted">e2e/portal/section-nav</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="G12">
+  <td class="id"><a href="#G12">G12</a></td>
+  <td>speaker</td>
+  <td>Portal</td>
+  <td>Required task depth: required-first ordering, Required badge, https resource link on task cards (DTO + DOM)<div class="muted">e2e/portal/task-depth</div></td>
   <td><span class="status-pill PASS">PASS</span>
     <div class="muted">inventory: PASS · source: playwright</div>
   </td>
@@ -1341,6 +1404,15 @@ footer.report-footer code {
     <div class="muted">inventory: PASS · source: playwright</div>
   </td>
 </tr>
+<tr id="I17">
+  <td class="id"><a href="#I17">I17</a></td>
+  <td>admin</td>
+  <td>Event Settings + Schedule</td>
+  <td>Agenda settings: set day window 10:00–16:00 + 30-min interval in settings card; Studio day grid shows 12 slots (10:00–15:30); non-drag place snaps to 30-min duration<div class="muted">e2e/schedule/agenda-settings</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
 <tr id="J01">
   <td class="id"><a href="#J01">J01</a></td>
   <td>admin</td>
@@ -1445,6 +1517,15 @@ footer.report-footer code {
   <td>admin</td>
   <td>Comms</td>
   <td>Submission confirmation lifecycle: public submit → queued delivery-log job with rendered merge fields; template editable<div class="muted">e2e/comms/submission-confirmation</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="J13">
+  <td class="id"><a href="#J13">J13</a></td>
+  <td>admin</td>
+  <td>Comms</td>
+  <td>ICS picker lists actual scheduled sessions (title + time + room); invite carries the placement&#39;s real times; reschedule + regenerate bumps SEQUENCE<div class="muted">e2e/comms/ics-picker</div></td>
   <td><span class="status-pill PASS">PASS</span>
     <div class="muted">inventory: PASS · source: playwright</div>
   </td>
@@ -1607,6 +1688,15 @@ footer.report-footer code {
   <td>admin</td>
   <td>Speakers</td>
   <td>Open headshot/slides metadata<div class="muted">e2e/admin/speakers-files</div></td>
+  <td><span class="status-pill PASS">PASS</span>
+    <div class="muted">inventory: PASS · source: playwright</div>
+  </td>
+</tr>
+<tr id="N05">
+  <td class="id"><a href="#N05">N05</a></td>
+  <td>admin</td>
+  <td>Speakers</td>
+  <td>Complete task on behalf of speaker; portal + readiness update instantly<div class="muted">e2e/speakers/complete-on-behalf</div></td>
   <td><span class="status-pill PASS">PASS</span>
     <div class="muted">inventory: PASS · source: playwright</div>
   </td>

@@ -18,6 +18,11 @@ import {
   parseEventNotificationSettings,
   mergeEventNotificationSettings,
   parseNotifyEmailsInput,
+  AGENDA_SLOT_INTERVALS,
+  parseEventAgendaSettings,
+  mergeEventAgendaSettings,
+  hhmmToMinutes,
+  type AgendaSlotInterval,
   type EventDto,
   type RoomDto,
   type TrackDto,
@@ -54,6 +59,13 @@ export function EventSettingsPage() {
   const [notifyEmailsRaw, setNotifyEmailsRaw] = useState("");
   const [notifyStatus, setNotifyStatus] = useState<StatusMsg>(null);
   const [savingNotify, setSavingNotify] = useState(false);
+
+  // --- Agenda & schedule grid (Wave 2 — day window + slot interval) ---
+  const [agendaStart, setAgendaStart] = useState("09:00");
+  const [agendaEnd, setAgendaEnd] = useState("17:00");
+  const [agendaInterval, setAgendaInterval] = useState("60");
+  const [agendaStatus, setAgendaStatus] = useState<StatusMsg>(null);
+  const [savingAgenda, setSavingAgenda] = useState(false);
 
   // --- Rooms (O02) ---
   const [rooms, setRooms] = useState<RoomDto[]>([]);
@@ -102,6 +114,11 @@ export function EventSettingsPage() {
     setNotifyEnabled(notify.submissionConfirmationEnabled);
     setNotifyEmailsRaw(notify.notifySubmissionEmails.join(", "));
     setNotifyStatus(null);
+    const agenda = parseEventAgendaSettings(ev.settingsJson ?? null);
+    setAgendaStart(agenda.agendaDayStart);
+    setAgendaEnd(agenda.agendaDayEnd);
+    setAgendaInterval(String(agenda.slotIntervalMin));
+    setAgendaStatus(null);
   }, [activeEvent?.name]);
 
   const loadRooms = useCallback(async (eventId: string) => {
@@ -319,6 +336,93 @@ export function EventSettingsPage() {
       setNotifyStatus({ kind: "error", text: "Network error" });
     } finally {
       setSavingNotify(false);
+    }
+  }
+
+  // Inline validation for the agenda card (live, before any request).
+  const agendaStartMin = hhmmToMinutes(agendaStart);
+  const agendaEndMin = hhmmToMinutes(agendaEnd);
+  const agendaWindowError =
+    agendaStart === "" || agendaEnd === ""
+      ? "Set both a start and an end time."
+      : agendaStartMin == null || agendaEndMin == null
+        ? "Times must be HH:MM (24-hour)."
+        : agendaStartMin >= agendaEndMin
+          ? "The day must end after it starts."
+          : null;
+  const agendaIntervalError = (AGENDA_SLOT_INTERVALS as readonly number[])
+    .map(String)
+    .includes(agendaInterval)
+    ? null
+    : "Choose 15, 30 or 60 minutes.";
+
+  /** Save agenda day window + slot interval into events.settings_json. */
+  async function onSaveAgenda(e: FormEvent) {
+    e.preventDefault();
+    if (!activeEventId || !eventDetail) {
+      setAgendaStatus({
+        kind: "error",
+        text: "Create or select an event before saving the agenda",
+      });
+      return;
+    }
+    if (agendaWindowError || agendaIntervalError) {
+      setAgendaStatus({
+        kind: "error",
+        text: agendaWindowError ?? agendaIntervalError ?? "Check the agenda fields",
+      });
+      return;
+    }
+    setSavingAgenda(true);
+    setAgendaStatus(null);
+    try {
+      const settingsJson = mergeEventAgendaSettings(
+        eventDetail.settingsJson ?? null,
+        {
+          agendaDayStart: agendaStart,
+          agendaDayEnd: agendaEnd,
+          slotIntervalMin: Number(agendaInterval) as AgendaSlotInterval,
+        },
+      );
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            settingsJson,
+            expectedVersion: eventDetail.version,
+          }),
+        },
+      );
+      const raw: unknown = await res.json().catch(() => null);
+      if (!res.ok) {
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setAgendaStatus({
+          kind: "error",
+          text: env.success ? env.data.error : `Save failed (${res.status})`,
+        });
+        return;
+      }
+      const parsed = EventResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        setAgendaStatus({ kind: "error", text: "Unexpected response" });
+        return;
+      }
+      setEventDetail(parsed.data.event);
+      const saved = parseEventAgendaSettings(
+        parsed.data.event.settingsJson ?? null,
+      );
+      setAgendaStart(saved.agendaDayStart);
+      setAgendaEnd(saved.agendaDayEnd);
+      setAgendaInterval(String(saved.slotIntervalMin));
+      setAgendaStatus({ kind: "ok", text: "Agenda settings saved" });
+      await refreshEvents();
+    } catch {
+      setAgendaStatus({ kind: "error", text: "Network error" });
+    } finally {
+      setSavingAgenda(false);
     }
   }
 
@@ -717,6 +821,114 @@ export function EventSettingsPage() {
               role="status"
             >
               {notifyStatus.text}
+            </p>
+          ) : null}
+        </form>
+      </section>
+
+      {/* Wave 2 — agenda & schedule grid (day window + slot interval) */}
+      <section
+        className="event-settings__card"
+        data-testid="event-agenda-section"
+        aria-labelledby="event-agenda-heading"
+      >
+        <h3 id="event-agenda-heading" className="event-settings__heading">
+          Agenda &amp; schedule grid
+        </h3>
+        <p className="event-settings__muted">
+          Set the working day for Schedule Studio. Sessions can only be placed
+          inside these hours — placements outside them are rejected. Times are
+          wall clock in the event timezone
+          {eventDetail ? ` (${eventDetail.timezone})` : ""}.
+        </p>
+        <form
+          className="event-settings__form"
+          onSubmit={onSaveAgenda}
+          data-testid="event-agenda-form"
+        >
+          <label className="event-settings__label" htmlFor="agenda-day-start">
+            Day starts
+          </label>
+          <input
+            id="agenda-day-start"
+            type="time"
+            className="event-settings__input lumen-focusable"
+            data-testid="event-agenda-day-start"
+            value={agendaStart}
+            onChange={(ev) => setAgendaStart(ev.target.value)}
+            disabled={!eventDetail || savingAgenda}
+            required
+          />
+          <label className="event-settings__label" htmlFor="agenda-day-end">
+            Day ends
+          </label>
+          <input
+            id="agenda-day-end"
+            type="time"
+            className="event-settings__input lumen-focusable"
+            data-testid="event-agenda-day-end"
+            value={agendaEnd}
+            onChange={(ev) => setAgendaEnd(ev.target.value)}
+            disabled={!eventDetail || savingAgenda}
+            required
+          />
+          {agendaWindowError ? (
+            <p
+              className="event-settings__status event-settings__status--error"
+              data-testid="event-agenda-window-error"
+              role="alert"
+            >
+              {agendaWindowError}
+            </p>
+          ) : null}
+          <label className="event-settings__label" htmlFor="agenda-interval">
+            Slot length
+          </label>
+          <select
+            id="agenda-interval"
+            className="event-settings__input lumen-focusable"
+            data-testid="event-agenda-interval"
+            value={agendaInterval}
+            onChange={(ev) => setAgendaInterval(ev.target.value)}
+            disabled={!eventDetail || savingAgenda}
+          >
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">60 minutes</option>
+          </select>
+          {agendaIntervalError ? (
+            <p
+              className="event-settings__status event-settings__status--error"
+              data-testid="event-agenda-interval-error"
+              role="alert"
+            >
+              {agendaIntervalError}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            className="event-settings__submit lumen-focusable"
+            data-testid="event-agenda-save"
+            disabled={
+              savingAgenda ||
+              !eventDetail ||
+              Boolean(agendaWindowError) ||
+              Boolean(agendaIntervalError)
+            }
+          >
+            {savingAgenda ? "Saving…" : "Save agenda"}
+          </button>
+          {agendaStatus ? (
+            <p
+              className={
+                agendaStatus.kind === "ok"
+                  ? "event-settings__status event-settings__status--ok"
+                  : "event-settings__status event-settings__status--error"
+              }
+              data-testid="event-agenda-status"
+              role="status"
+            >
+              {agendaStatus.text}
             </p>
           ) : null}
         </form>

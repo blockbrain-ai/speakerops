@@ -109,7 +109,11 @@ export function pickNextIncomplete(
     return d === "pending" || d === "overdue";
   });
   if (pending.length === 0) return null;
+  // Mirrors server order: required first, then dueAt asc (null last), then id.
   pending.sort((a, b) => {
+    const ar = a.required === true ? 0 : 1;
+    const br = b.required === true ? 0 : 1;
+    if (ar !== br) return ar - br;
     const ad = a.dueAt ?? "9999";
     const bd = b.dueAt ?? "9999";
     if (ad !== bd) return ad.localeCompare(bd);

@@ -46,6 +46,7 @@ import {
   getSubmission,
   previewBulkDecision,
   commitBulkDecision,
+  exportSubmissionsCsv,
 } from "./commands.js";
 
 export type DecisionRouteOptions = {
@@ -120,6 +121,14 @@ export function createEventDecisionRoutes(
         eventsStore: events,
       }
     : {};
+  /** CSV export is a pure read — bearer submissions:read (COMMANDS.md). */
+  const bearerExport = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["submissions:read"] as const,
+        eventsStore: events,
+      }
+    : {};
 
   /**
    * GET /:eventId/submissions — Submission.List (admin)
@@ -187,6 +196,54 @@ export function createEventDecisionRoutes(
         );
       }
       return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * GET /:eventId/submissions/export — Submission.ExportCsv (Wave 2 depth).
+   * Same filters as Submission.List (status/category/q); admin session or
+   * bearer submissions:read. Stable headers; layout nodes never exported.
+   */
+  app.get(
+    "/:eventId/submissions/export",
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerExport }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const statusRaw = c.req.query("status");
+      const categoryRaw = c.req.query("category");
+      const qRaw = c.req.query("q") || c.req.query("search");
+
+      const queryParsed = SubmissionListQuerySchema.safeParse({
+        status: statusRaw || undefined,
+        category: categoryRaw || undefined,
+        q: qRaw || undefined,
+      });
+      if (!queryParsed.success) {
+        return c.json(
+          errorEnvelope("Invalid export query", VALIDATION_ERROR, {
+            issues: queryParsed.error.flatten(),
+          }),
+          400,
+        );
+      }
+
+      const result = await exportSubmissionsCsv(deps, {
+        eventId,
+        status: queryParsed.data.status,
+        category: queryParsed.data.category,
+        q: queryParsed.data.q,
+      });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+
+      c.header("Content-Type", "text/csv; charset=utf-8");
+      c.header(
+        "Content-Disposition",
+        `attachment; filename="${result.value.filename}"`,
+      );
+      c.header("Cache-Control", "no-store");
+      return c.body(result.value.csv, 200);
     },
   );
 

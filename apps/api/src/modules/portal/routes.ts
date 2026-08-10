@@ -55,6 +55,7 @@ import {
 import {
   getPortalHome,
   completeTask,
+  adminCompleteSpeakerTask,
   updateParticipationProfile,
   adminUpdateSpeakerProfile,
   listSpeakers,
@@ -530,6 +531,76 @@ export function createEventPortalRoutes(
       const parsed = SpeakersUpdateProfileResponseSchema.safeParse(
         result.value,
       );
+      if (!parsed.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(parsed.data, 200);
+    },
+  );
+
+  /**
+   * POST /:eventId/speakers/:participationId/tasks/:taskId/complete —
+   * Speakers.CompleteTask (Wave 2 N05): admin completes a task on behalf of a
+   * speaker. Body: { expectedVersion }. Idempotent on already-completed tasks.
+   */
+  app.post(
+    "/:eventId/speakers/:participationId/tasks/:taskId/complete",
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...(keys
+        ? {
+            keysStore: keys,
+            bearerScopes: ["speakers:write"] as const,
+            eventsStore: events,
+          }
+        : {}),
+    }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const participationId = c.req.param("participationId");
+      const taskId = c.req.param("taskId");
+      let bodyRaw: unknown;
+      try {
+        bodyRaw = await c.req.json();
+      } catch {
+        return c.json(
+          errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
+          400,
+        );
+      }
+      const body = TaskCompleteBodySchema.safeParse(bodyRaw);
+      if (!body.success) {
+        return c.json(
+          errorEnvelope(
+            "Validation failed",
+            VALIDATION_ERROR,
+            body.error.flatten(),
+          ),
+          400,
+        );
+      }
+      const actor = actorFromContext(c);
+      if (!actor) {
+        return c.json(
+          errorEnvelope("Authentication required", UNAUTHORIZED),
+          401,
+        );
+      }
+      const correlationId =
+        c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown";
+      const result = await adminCompleteSpeakerTask(deps, {
+        eventId,
+        participationId,
+        taskId,
+        actorUserId: actor.userId,
+        body: body.data,
+        correlationId,
+      });
+      if (!result.ok) return commandError(c, result);
+      const parsed = TaskCompleteResponseSchema.safeParse(result.value);
       if (!parsed.success) {
         return c.json(
           errorEnvelope("Response validation failed", INTERNAL_ERROR),

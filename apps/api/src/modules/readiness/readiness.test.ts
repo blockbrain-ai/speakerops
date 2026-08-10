@@ -488,6 +488,8 @@ describe("6.3 Reports.Readiness", () => {
         description: null,
         trigger: "on_accept",
         dueOffsetDays: 14,
+        linkUrl: null,
+        required: false,
         version: 1,
         createdAt: new Date().toISOString(),
       });
@@ -571,4 +573,79 @@ describe("6.3 Reports.Readiness", () => {
     expect(bodyA.stats.totalSpeakers).toBe(1);
     expect(bodyA.stats.outstandingTasks).toBeGreaterThanOrEqual(1);
   });
+
+  it("outstanding rows carry the template required flag (Wave 2)", async () => {
+    const run = Date.now();
+    const admin = await magicLinkSession(
+      "admin",
+      `ready-admin-req-${run}@example.com`,
+    );
+    const ev = await createEvent(
+      admin.app,
+      admin.cookie,
+      `Ready Required ${run}`,
+    );
+
+    // One required + one optional on_accept template (pre-seeded → no defaults)
+    const reqTpl = await admin.app.request(
+      `http://localhost/api/events/${ev.event.id}/task-templates`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: admin.cookie },
+        body: JSON.stringify({
+          title: `Required agreement ${run}`,
+          trigger: "on_accept",
+          dueOffsetDays: 14,
+          linkUrl: "https://example.com/agreement",
+          required: true,
+        }),
+      },
+      env,
+    );
+    expect(reqTpl.status).toBe(201);
+    const reqTplId = ((await reqTpl.json()) as { template: { id: string } })
+      .template.id;
+    const optTpl = await admin.app.request(
+      `http://localhost/api/events/${ev.event.id}/task-templates`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: admin.cookie },
+        body: JSON.stringify({
+          title: `Optional extras ${run}`,
+          trigger: "on_accept",
+          dueOffsetDays: 14,
+        }),
+      },
+      env,
+    );
+    expect(optTpl.status).toBe(201);
+
+    await acceptTalk(
+      admin.app,
+      admin.cookie,
+      ev.event.id,
+      ev.event.slug,
+      `ready-req-spk-${run}@example.com`,
+      "Required Speaker",
+      `Req Talk ${run}`,
+    );
+
+    const res = await admin.app.request(
+      `http://localhost/api/events/${ev.event.id}/readiness`,
+      { method: "GET", headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = ReportsReadinessResponseSchema.parse(await res.json());
+    expect(body.outstanding.length).toBe(2);
+    const requiredRow = body.outstanding.find(
+      (o) => o.templateId === reqTplId,
+    );
+    expect(requiredRow?.required).toBe(true);
+    const optionalRow = body.outstanding.find(
+      (o) => o.templateId !== reqTplId,
+    );
+    expect(optionalRow?.required).toBe(false);
+  });
+
 });

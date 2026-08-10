@@ -486,6 +486,83 @@ export async function previewComms(
 
   // Membership is enforced at route layer for event; double-check event scope.
   const segment: CommsSegment = input.body.segment ?? {};
+
+  const recipients: CommsPreviewResponse["recipients"] = [];
+  const bodies: CommsPreviewResponse["bodies"] = [];
+  const missingAll = new Set<string>();
+
+  // Decision hand-off audience (Wave 2): recipients are the primary speakers
+  // of the exact decision result set — including rejected/waitlisted
+  // proposals with no participation yet (participationId stays null).
+  if (Array.isArray(segment.submissionIds)) {
+    const byId = await deps.submissions.listSubmissionsByIds(
+      segment.submissionIds,
+    );
+    for (const submissionId of segment.submissionIds) {
+      const sub = byId.get(submissionId);
+      // Event scope: silently drop ids from other events (never leak).
+      if (!sub || sub.eventId !== template.eventId) continue;
+      const speakerRows = await deps.submissions.listSpeakers(sub.id);
+      const primary =
+        speakerRows.find((sp) => sp.isPrimary) ?? speakerRows[0] ?? null;
+      if (!primary) continue;
+      const person = await deps.submissions.findPersonById(primary.personId);
+      if (!person?.email) continue;
+      const participation = await deps.decisions.findParticipation(
+        template.eventId,
+        primary.personId,
+      );
+
+      const name = person.name ?? "";
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      const base =
+        (typeof process !== "undefined" &&
+          process.env &&
+          typeof process.env.APP_PUBLIC_BASE_URL === "string" &&
+          process.env.APP_PUBLIC_BASE_URL.trim()) ||
+        "";
+      const portalUrl = base
+        ? `${base.replace(/\/$/, "")}/login?purpose=speaker&eventId=${encodeURIComponent(template.eventId)}`
+        : `/login?purpose=speaker&eventId=${encodeURIComponent(template.eventId)}`;
+      const data: Record<string, string> = {
+        name,
+        firstName: parts[0] ?? "",
+        lastName: parts.length > 1 ? parts.slice(1).join(" ") : "",
+        email: person.email,
+        eventName: event.name,
+        submissionTitle: sub.title,
+        company: participation?.company ?? "",
+        title: participation?.title ?? "",
+        bio: participation?.bio ?? "",
+        participationId: participation?.id ?? "",
+        portalUrl,
+      };
+
+      const subj = renderMergeFields(template.subject, data);
+      const body = renderMergeFields(template.bodyMd, data);
+      for (const m of subj.missingFields) missingAll.add(m);
+      for (const m of body.missingFields) missingAll.add(m);
+
+      recipients.push({
+        participationId: participation?.id ?? null,
+        submissionId: sub.id,
+        email: person.email,
+        name: name || person.email,
+      });
+      bodies.push({
+        participationId: participation?.id ?? null,
+        submissionId: sub.id,
+        subject: subj.rendered,
+        body: body.rendered,
+      });
+    }
+    return finalizePreview(deps, input, template, segment, {
+      recipients,
+      bodies,
+      missingAll,
+    });
+  }
+
   const allParts = await deps.decisions.listParticipationsForEvent(
     template.eventId,
   );
@@ -501,10 +578,6 @@ export async function previewComms(
     const statusFilter = segment.status ?? "accepted";
     selected = allParts.filter((p) => p.status === statusFilter);
   }
-
-  const recipients: CommsPreviewResponse["recipients"] = [];
-  const bodies: CommsPreviewResponse["bodies"] = [];
-  const missingAll = new Set<string>();
 
   for (const part of selected) {
     const data = await mergeDataForParticipation(deps, {
@@ -535,6 +608,35 @@ export async function previewComms(
     });
   }
 
+  return finalizePreview(deps, input, template, segment, {
+    recipients,
+    bodies,
+    missingAll,
+  });
+}
+
+/**
+ * Shared preview tail — persist the draft job (status=preview) + audit and
+ * shape the response. Used by both participation- and submission-derived
+ * audiences so trust-before-send stays a single path.
+ */
+async function finalizePreview(
+  deps: CommsCommandDeps,
+  input: {
+    actorUserId: string;
+    actorType?: "user" | "api_key";
+    actorId?: string;
+    correlationId: string;
+  },
+  template: EmailTemplateRow,
+  segment: CommsSegment,
+  computed: {
+    recipients: CommsPreviewResponse["recipients"];
+    bodies: CommsPreviewResponse["bodies"];
+    missingAll: Set<string>;
+  },
+): Promise<CommandOk<CommsPreviewResponse> | CommandErr> {
+  const { recipients, bodies, missingAll } = computed;
   const now = new Date().toISOString();
   const missingFields = [...missingAll];
   const job = await deps.comms.insertJob({
@@ -890,9 +992,19 @@ function buildRecipientRows(
   } catch {
     bodies = [];
   }
-  const bodyByPart = new Map(bodies.map((b) => [b.participationId, b]));
-  return recipients.map((r) => {
-    const body = bodyByPart.get(r.participationId);
+  // Preview writes recipients[] and bodies[] in the same order; zip by index
+  // so submission-derived recipients (participationId null) pair correctly.
+  return recipients.map((r, i) => {
+    const body =
+      bodies[i] &&
+      bodies[i]!.participationId === r.participationId &&
+      (bodies[i]!.submissionId ?? null) === (r.submissionId ?? null)
+        ? bodies[i]!
+        : bodies.find(
+            (b) =>
+              b.participationId === r.participationId &&
+              (b.submissionId ?? null) === (r.submissionId ?? null),
+          );
     return {
       id: newMessageRecipientId(),
       jobId: job.id,

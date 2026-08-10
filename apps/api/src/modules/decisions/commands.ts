@@ -12,6 +12,7 @@ import {
   SUBMISSION_LIST_MAX_LIMIT,
   SubmissionStatusSchema,
   isSubmissionDecisionSource,
+  csvEscapeField,
   type DecisionRecordBody,
   type DecisionValue,
   type DecisionDto,
@@ -180,6 +181,8 @@ async function ensureOnAcceptTemplates(
       description: d.description,
       trigger: "on_accept",
       dueOffsetDays: d.due,
+      linkUrl: null,
+      required: false,
       version: 1,
       createdAt: now,
     });
@@ -278,6 +281,16 @@ async function materializeAccept(
       }
     }
 
+    // Wave 2 speaker-info seeding: the CFP "About this speaker" fields on the
+    // submission speaker row pre-fill the participation profile. Seeds fill
+    // ONLY empty profile fields — a non-empty bio/company/title is never
+    // overwritten (speakers and admins own their profile edits).
+    const seedBio = sp.bio?.trim() ? sp.bio.trim() : null;
+    const seedCompany = sp.company?.trim() ? sp.company.trim() : null;
+    const seedTitle = sp.title?.trim() ? sp.title.trim() : null;
+    const isEmpty = (v: string | null | undefined): boolean =>
+      v == null || v.trim() === "";
+
     let part = await deps.decisions.findParticipation(eventId, sp.personId);
     if (!part) {
       part = await deps.decisions.insertParticipation({
@@ -287,9 +300,9 @@ async function materializeAccept(
         userId: boundUserId,
         roleLabel: "speaker",
         status: "accepted",
-        bio: null,
-        company: null,
-        title: null,
+        bio: seedBio,
+        company: seedCompany,
+        title: seedTitle,
         headshotFileId: null,
         version: 1,
         createdAt: now,
@@ -299,6 +312,9 @@ async function materializeAccept(
       const patch: {
         status?: string;
         userId?: string | null;
+        bio?: string | null;
+        company?: string | null;
+        title?: string | null;
         version: number;
         updatedAt: string;
       } = {
@@ -307,8 +323,22 @@ async function materializeAccept(
       };
       if (part.status !== "accepted") patch.status = "accepted";
       if (boundUserId && part.userId !== boundUserId) patch.userId = boundUserId;
-      const updated = await deps.decisions.updateParticipation(part.id, patch);
-      if (updated) part = updated;
+      // Seed only fields that are still empty on the participation.
+      if (seedBio != null && isEmpty(part.bio)) patch.bio = seedBio;
+      if (seedCompany != null && isEmpty(part.company)) {
+        patch.company = seedCompany;
+      }
+      if (seedTitle != null && isEmpty(part.title)) patch.title = seedTitle;
+      const hasChange =
+        patch.status !== undefined ||
+        patch.userId !== undefined ||
+        patch.bio !== undefined ||
+        patch.company !== undefined ||
+        patch.title !== undefined;
+      if (hasChange) {
+        const updated = await deps.decisions.updateParticipation(part.id, patch);
+        if (updated) part = updated;
+      }
     }
     participations.push(part);
     const existingLinks = await deps.decisions.listSessionSpeakers(session.id);
@@ -1202,6 +1232,10 @@ export async function getSubmission(
       email: person?.email ?? "",
       isPrimary: s.isPrimary,
       sortOrder: s.sortOrder,
+      // Wave 2 "About this speaker" seed fields on the admin detail DTO.
+      bio: s.bio ?? null,
+      company: s.company ?? null,
+      title: s.title ?? null,
     });
   }
   speakers.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -1421,6 +1455,185 @@ export async function previewBulkDecision(
       decision: input.decision,
       items,
       count: items.length,
+    },
+  };
+}
+
+/**
+ * Submission.ExportCsv — filtered submissions as CSV (Wave 2 depth).
+ *
+ * Honors the same filters as Submission.List (status/category/q) and the same
+ * deterministic ordering (newest submitted first, id tie-break). Columns are
+ * stable: fixed base headers, then answer columns keyed by field_key in
+ * lexicographic order. Layout nodes (section/divider, Wave 1B) never appear —
+ * they carry no answers and are additionally excluded via the pinned form
+ * version's node kinds. Cell values pass csvEscapeField (RFC4180 quoting +
+ * formula neutralization).
+ */
+export async function exportSubmissionsCsv(
+  deps: DecisionCommandDeps,
+  input: {
+    eventId: string;
+    status?: SubmissionStatus;
+    category?: string;
+    q?: string;
+  },
+): Promise<CommandOk<{ csv: string; filename: string }> | CommandErr> {
+  void (await deps.events.findEventById(input.eventId));
+
+  let rows = await deps.submissions.listSubmissionsForEvent(input.eventId);
+  if (input.status) {
+    rows = rows.filter((r) => r.status === input.status);
+  }
+  if (input.category) {
+    rows = rows.filter((r) => r.category === input.category);
+  }
+  const q = input.q?.trim().toLowerCase();
+  if (q) {
+    const allNames = await deps.submissions.listPrimarySpeakerNames(
+      rows.map((r) => r.id),
+    );
+    rows = rows.filter((r) => {
+      const title = (r.title ?? "").toLowerCase();
+      const speaker = (allNames.get(r.id) ?? "").toLowerCase();
+      return title.includes(q) || speaker.includes(q);
+    });
+  }
+  rows.sort((a, b) => {
+    if (a.submittedAt < b.submittedAt) return 1;
+    if (a.submittedAt > b.submittedAt) return -1;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
+
+  // Layout-node field keys per pinned form version (excluded from columns).
+  const layoutKeysByVersion = new Map<string, Set<string>>();
+  async function layoutKeysFor(formVersionId: string): Promise<Set<string>> {
+    const cached = layoutKeysByVersion.get(formVersionId);
+    if (cached) return cached;
+    const keys = new Set<string>();
+    if (deps.forms) {
+      try {
+        const fields = await deps.forms.listFields(formVersionId);
+        for (const f of fields) {
+          if ((f as { nodeKind?: string }).nodeKind === "layout") {
+            keys.add(f.fieldKey);
+          }
+        }
+        if (fields.length === 0) {
+          const ver = await deps.forms.findVersionById(formVersionId);
+          if (ver?.snapshotJson) {
+            const snap = JSON.parse(ver.snapshotJson) as {
+              fields?: Array<{ fieldKey?: string; nodeKind?: string }>;
+            };
+            for (const f of snap.fields ?? []) {
+              if (f.fieldKey && f.nodeKind === "layout") keys.add(f.fieldKey);
+            }
+          }
+        }
+      } catch {
+        /* layout exclusion best-effort; layout nodes never store answers */
+      }
+    }
+    layoutKeysByVersion.set(formVersionId, keys);
+    return keys;
+  }
+
+  type ExportRow = {
+    sub: SubmissionRow;
+    answers: Map<string, string>;
+    speakersFlat: string;
+    primaryName: string;
+    primaryEmail: string;
+  };
+
+  const exportRows: ExportRow[] = [];
+  const answerKeys = new Set<string>();
+
+  for (const sub of rows) {
+    const layoutKeys = await layoutKeysFor(sub.formVersionId);
+    const answerRows = await deps.submissions.listAnswers(sub.id);
+    const answers = new Map<string, string>();
+    for (const a of answerRows) {
+      if (layoutKeys.has(a.fieldKey)) continue;
+      let value: unknown = a.valueJson;
+      try {
+        value = JSON.parse(a.valueJson) as unknown;
+      } catch {
+        value = a.valueJson;
+      }
+      const flat = Array.isArray(value)
+        ? value.map((v) => String(v)).join(" | ")
+        : value == null
+          ? ""
+          : typeof value === "object"
+            ? JSON.stringify(value)
+            : String(value);
+      answers.set(a.fieldKey, flat);
+      answerKeys.add(a.fieldKey);
+    }
+
+    const speakerRows = await deps.submissions.listSpeakers(sub.id);
+    speakerRows.sort((a, b) => a.sortOrder - b.sortOrder);
+    const personById = await deps.submissions.listPersonsByIds(
+      speakerRows.map((s) => s.personId),
+    );
+    const parts: string[] = [];
+    let primaryName = "";
+    let primaryEmail = "";
+    for (const s of speakerRows) {
+      const person = personById.get(s.personId);
+      if (!person) continue;
+      parts.push(`${person.name} <${person.email}>`);
+      if (s.isPrimary || (!primaryEmail && parts.length === 1)) {
+        primaryName = person.name;
+        primaryEmail = person.email;
+      }
+    }
+
+    exportRows.push({
+      sub,
+      answers,
+      speakersFlat: parts.join("; "),
+      primaryName,
+      primaryEmail,
+    });
+  }
+
+  const sortedAnswerKeys = [...answerKeys].sort();
+  const header = [
+    "submissionId",
+    "title",
+    "status",
+    "category",
+    "submittedAt",
+    "primarySpeakerName",
+    "primarySpeakerEmail",
+    "speakers",
+    ...sortedAnswerKeys,
+  ];
+
+  const lines = [header.map(csvEscapeField).join(",")];
+  for (const r of exportRows) {
+    const cells = [
+      r.sub.id,
+      r.sub.title ?? "",
+      r.sub.status ?? "",
+      r.sub.category ?? "",
+      r.sub.submittedAt ?? "",
+      r.primaryName,
+      r.primaryEmail,
+      r.speakersFlat,
+      ...sortedAnswerKeys.map((k) => r.answers.get(k) ?? ""),
+    ];
+    lines.push(cells.map(csvEscapeField).join(","));
+  }
+
+  const safeEvent = input.eventId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+  return {
+    ok: true,
+    value: {
+      csv: lines.join("\r\n") + "\r\n",
+      filename: `submissions-${safeEvent}.csv`,
     },
   };
 }

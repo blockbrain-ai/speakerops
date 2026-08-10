@@ -1379,7 +1379,29 @@ export function PortalHomePage() {
                 {nextTask.description ? (
                   <p className="portal-muted">{nextTask.description}</p>
                 ) : null}
+                {nextTask.linkUrl ? (
+                  <p className="portal-task__link">
+                    <a
+                      className="eval-queue__link lumen-focusable"
+                      data-testid="portal-next-task-link"
+                      href={nextTask.linkUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open resource
+                    </a>
+                  </p>
+                ) : null}
                 <div className="portal-row">
+                  {nextTask.required ? (
+                    <span
+                      className="portal-status-chip lumen-status lumen-status--danger"
+                      data-testid="portal-next-task-required"
+                      title="This task must be finished before you're ready"
+                    >
+                      Required
+                    </span>
+                  ) : null}
                   <span
                     className={statusBadgeClass(taskDisplayStatus(nextTask))}
                     data-testid="portal-next-task-status"
@@ -1636,6 +1658,15 @@ export function PortalHomePage() {
                     >
                       <div className="portal-task__main">
                         <span className="portal-task__title">{t.title}</span>
+                        {t.required ? (
+                          <span
+                            className="portal-status-chip lumen-status lumen-status--danger"
+                            data-testid={`portal-task-required-${t.id}`}
+                            title="This task must be finished before you're ready"
+                          >
+                            Required
+                          </span>
+                        ) : null}
                         <span
                           className={statusBadgeClass(display)}
                           data-testid={`portal-task-status-${t.id}`}
@@ -1646,6 +1677,19 @@ export function PortalHomePage() {
                       {t.dueAt ? (
                         <p className="portal-muted portal-task__due">
                           Due {new Date(t.dueAt).toLocaleString()}
+                        </p>
+                      ) : null}
+                      {t.linkUrl ? (
+                        <p className="portal-task__link">
+                          <a
+                            className="eval-queue__link lumen-focusable"
+                            data-testid={`portal-task-link-${t.id}`}
+                            href={t.linkUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open resource
+                          </a>
                         </p>
                       ) : null}
                       {display === "pending" || display === "overdue" ? (

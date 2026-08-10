@@ -516,6 +516,10 @@ export const submissionSpeakers = sqliteTable(
     personId: text("person_id").notNull(),
     isPrimary: integer("is_primary").notNull().default(0),
     sortOrder: integer("sort_order").notNull().default(0),
+    /** Optional "About this speaker" seed fields (Wave 2, 0031). */
+    bio: text("bio"),
+    company: text("company"),
+    title: text("title"),
   },
   (t) => [
     index("idx_submission_speakers_person_id").on(t.personId),
@@ -735,6 +739,10 @@ export const taskTemplates = sqliteTable(
     description: text("description"),
     trigger: text("trigger").notNull(),
     dueOffsetDays: integer("due_offset_days").notNull().default(0),
+    /** Optional https:// resource link rendered on portal task cards (0030). */
+    linkUrl: text("link_url"),
+    /** 1 = incomplete tasks block portal readiness (0030); 0 = optional. */
+    required: integer("required").notNull().default(0),
     version: integer("version").notNull().default(1),
     createdAt: text("created_at").notNull(),
   },

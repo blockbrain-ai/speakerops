@@ -22,7 +22,14 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
+  DECISION_NOTIFY_TEMPLATES,
+  isDecisionNotifyKind,
+  ScheduleListResponseSchema,
+  type SchedulePlacementDto,
+  RoomListResponseSchema,
+  type RoomDto,
   CommsUpsertTemplateResponseSchema,
   CommsPreviewResponseSchema,
   CommsSendResponseSchema,
@@ -135,17 +142,34 @@ export function CommsPage() {
   );
   const [logError, setLogError] = useState<string | null>(null);
 
-  // —— ICS attach (J06 / J10) ——
-  const [icsPlacementId, setIcsPlacementId] = useState("plc_fixture_1");
-  const [icsSummary, setIcsSummary] = useState("Opening keynote");
-  const [icsStartsAt, setIcsStartsAt] = useState("2026-09-01T10:00:00.000Z");
-  const [icsEndsAt, setIcsEndsAt] = useState("2026-09-01T11:00:00.000Z");
-  const [icsLocation, setIcsLocation] = useState("Main Hall");
+  // —— ICS attach (J06 / J10 / Wave 2 J13 schedule-derived picker) ——
+  const [icsPlacements, setIcsPlacements] = useState<SchedulePlacementDto[]>(
+    [],
+  );
+  const [icsRooms, setIcsRooms] = useState<RoomDto[]>([]);
+  const [icsSelectedPlacementId, setIcsSelectedPlacementId] = useState("");
   const [invites, setInvites] = useState<CalendarInviteDto[]>([]);
   const [icsStatus, setIcsStatus] = useState<
     { kind: "ok" | "error"; text: string } | null
   >(null);
   const [icsBusy, setIcsBusy] = useState(false);
+
+  // —— Decision → notify hand-off (Wave 2, E13) ——
+  const [searchParams, setSearchParams] = useSearchParams();
+  const notifyParam = searchParams.get("notify");
+  const notifyIdsParam = searchParams.get("submissionIds") ?? "";
+  const decisionNotify = useMemo(() => {
+    if (!isDecisionNotifyKind(notifyParam)) return null;
+    const submissionIds = notifyIdsParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (submissionIds.length === 0) return null;
+    return { kind: notifyParam, submissionIds };
+  }, [notifyParam, notifyIdsParam]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  /** One lazy-seed / preselect per event+decision (never clobber edits). */
+  const notifySeedRef = useRef<string | null>(null);
 
   const mergeFields = extractMergeFields(subject, body);
 
@@ -236,20 +260,39 @@ export function CommsPage() {
     ],
   );
 
+  /**
+   * Decision hand-off (Wave 2, E13) pins the audience to the exact decision
+   * result set; the manual segment builder is bypassed while active. The
+   * preview → send flow itself is untouched (same previewId gate).
+   */
+  const effectiveSegment = useMemo(
+    () =>
+      decisionNotify
+        ? { submissionIds: decisionNotify.submissionIds }
+        : previewSegment,
+    [decisionNotify, previewSegment],
+  );
+  const effectiveCount = decisionNotify
+    ? decisionNotify.submissionIds.length
+    : segmentCount;
+  const effectiveFingerprint = decisionNotify
+    ? `notify|${activeEventId ?? ""}|${templateId ?? ""}|${decisionNotify.kind}|${decisionNotify.submissionIds.join(",")}`
+    : currentFingerprint;
+
   const previewValid =
     preview != null &&
     previewFingerprint != null &&
-    previewFingerprint === currentFingerprint;
+    previewFingerprint === effectiveFingerprint;
 
   const previewEnabled = canRunCommsPreview({
     templateId,
-    segmentCount,
+    segmentCount: effectiveCount,
     previewing,
   });
 
   const previewBlockReason = previewDisabledReason({
     templateId,
-    segmentCount,
+    segmentCount: effectiveCount,
     previewing,
   });
 
@@ -299,9 +342,50 @@ export function CommsPage() {
         const parsed = CommsListTemplatesResponseSchema.safeParse(raw);
         if (parsed.success) {
           setTemplates(parsed.data.templates);
+          setTemplatesLoaded(true);
         }
       } catch {
         /* non-fatal */
+      }
+    },
+    [isCurrentEventLoad],
+  );
+
+  /** Scheduled sessions for the ICS picker (Wave 2 J13). */
+  const loadIcsPlacements = useCallback(
+    async (eventId: string, gen?: number) => {
+      const loadGen = gen ?? loadGenRef.current;
+      try {
+        const [schedRes, roomsRes] = await Promise.all([
+          fetch(`/api/events/${encodeURIComponent(eventId)}/schedule`, {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          }),
+          fetch(`/api/events/${encodeURIComponent(eventId)}/rooms`, {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          }),
+        ]);
+        if (!isCurrentEventLoad(eventId, loadGen)) return;
+        if (schedRes.ok) {
+          const raw: unknown = await schedRes.json();
+          if (!isCurrentEventLoad(eventId, loadGen)) return;
+          const parsed = ScheduleListResponseSchema.safeParse(raw);
+          if (parsed.success) {
+            const sorted = [...parsed.data.placements].sort((a, b) =>
+              a.startsAt < b.startsAt ? -1 : a.startsAt > b.startsAt ? 1 : 0,
+            );
+            setIcsPlacements(sorted);
+          }
+        }
+        if (roomsRes.ok) {
+          const raw: unknown = await roomsRes.json();
+          if (!isCurrentEventLoad(eventId, loadGen)) return;
+          const parsed = RoomListResponseSchema.safeParse(raw);
+          if (parsed.success) setIcsRooms(parsed.data.rooms);
+        }
+      } catch {
+        /* non-fatal — picker shows its empty state */
       }
     },
     [isCurrentEventLoad],
@@ -429,9 +513,14 @@ export function CommsPage() {
     setJobs([]);
     setInvites([]);
     setTemplates([]);
+    setTemplatesLoaded(false);
     setAudienceQuery("");
     setAudiencePage(1);
     setActiveStep("audience");
+    setIcsPlacements([]);
+    setIcsRooms([]);
+    setIcsSelectedPlacementId("");
+    notifySeedRef.current = null;
 
     if (!activeEventId) {
       return;
@@ -440,7 +529,15 @@ export function CommsPage() {
     void loadSpeakers(activeEventId, gen);
     void loadJobs(activeEventId, gen);
     void loadInvites(activeEventId, gen);
-  }, [activeEventId, loadTemplates, loadSpeakers, loadJobs, loadInvites]);
+    void loadIcsPlacements(activeEventId, gen);
+  }, [
+    activeEventId,
+    loadTemplates,
+    loadSpeakers,
+    loadJobs,
+    loadInvites,
+    loadIcsPlacements,
+  ]);
 
   const onSaveTemplate = useCallback(
     async (e: FormEvent) => {
@@ -528,6 +625,65 @@ export function CommsPage() {
     [invalidatePreview],
   );
 
+  /**
+   * Decision hand-off (Wave 2, E13): once templates are loaded, preselect the
+   * typed decision template — lazily seeding the editable default when the
+   * event does not have it yet. Runs once per event+decision; never
+   * overwrites an existing (possibly edited) template.
+   */
+  useEffect(() => {
+    if (!decisionNotify || !activeEventId || !templatesLoaded) return;
+    const seedKey = `${activeEventId}:${decisionNotify.kind}`;
+    if (notifySeedRef.current === seedKey) return;
+    notifySeedRef.current = seedKey;
+    const def = DECISION_NOTIFY_TEMPLATES[decisionNotify.kind];
+    const existing = templates.find((t) => t.key === def.key);
+    if (existing) {
+      selectTemplate(existing);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(activeEventId)}/templates/${encodeURIComponent(def.key)}`,
+          {
+            method: "PUT",
+            credentials: "include",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: JSON.stringify({ subject: def.subject, body: def.body }),
+          },
+        );
+        const raw: unknown = await res.json().catch(() => null);
+        if (!res.ok) {
+          setTemplateStatus({
+            kind: "error",
+            text: "Could not prepare the decision template — save it manually below.",
+          });
+          return;
+        }
+        const parsed = CommsUpsertTemplateResponseSchema.safeParse(raw);
+        if (!parsed.success) return;
+        selectTemplate(parsed.data.template);
+        void loadTemplates(activeEventId);
+      } catch {
+        setTemplateStatus({
+          kind: "error",
+          text: "Network error preparing the decision template.",
+        });
+      }
+    })();
+  }, [
+    decisionNotify,
+    activeEventId,
+    templatesLoaded,
+    templates,
+    selectTemplate,
+    loadTemplates,
+  ]);
+
   const onPreview = useCallback(async () => {
     if (!activeEventId || !templateId) {
       setPreviewStatus({
@@ -538,7 +694,7 @@ export function CommsPage() {
     }
     // Block zero-match audience so UI count 0 never expands to status-default
     // on the server (explicit empty participationIds is also enforced API-side).
-    if (segmentCount <= 0) {
+    if (effectiveCount <= 0) {
       setPreviewStatus({
         kind: "error",
         text: "No recipients match this audience — adjust search or status",
@@ -551,8 +707,8 @@ export function CommsPage() {
     setPreviewStatus(null);
     // Capture fingerprint for the segment we are about to preview so a concurrent
     // audience edit cannot leave a mismatched "valid" preview.
-    const fp = currentFingerprint;
-    const segment = previewSegment;
+    const fp = effectiveFingerprint;
+    const segment = effectiveSegment;
     try {
       const res = await fetch("/api/comms/preview", {
         method: "POST",
@@ -596,9 +752,9 @@ export function CommsPage() {
   }, [
     activeEventId,
     templateId,
-    currentFingerprint,
-    previewSegment,
-    segmentCount,
+    effectiveFingerprint,
+    effectiveSegment,
+    effectiveCount,
   ]);
 
   const onSend = useCallback(async () => {
@@ -695,10 +851,52 @@ export function CommsPage() {
     [activeEventId],
   );
 
+  /** Room name lookup for picker labels + ICS LOCATION. */
+  const icsRoomName = useCallback(
+    (roomId: string) =>
+      icsRooms.find((r) => r.id === roomId)?.name ?? "Unassigned room",
+    [icsRooms],
+  );
+
+  /** Human when-label for a scheduled session (never raw ISO in the UI). */
+  const icsWhenLabel = useCallback((startsAt: string, endsAt: string) => {
+    const start = new Date(startsAt);
+    const end = new Date(endsAt);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return "Time unavailable";
+    }
+    const day = start.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+    const opts: Intl.DateTimeFormatOptions = {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "UTC",
+    };
+    return `${day}, ${start.toLocaleTimeString(undefined, opts)}–${end.toLocaleTimeString(undefined, opts)} UTC`;
+  }, []);
+
+  /**
+   * Wave 2 (J13): generate the invite from the real scheduled session — the
+   * placement's own start/end/room feed Comms.IcsForPlacement, keeping
+   * UID/SEQUENCE semantics (reschedule → regenerate bumps SEQUENCE).
+   */
   const onIcsSubmit = useCallback(
     async (e: FormEvent, options?: { cancel?: boolean }) => {
       e.preventDefault();
       if (!activeEventId) return;
+      const placement = icsPlacements.find(
+        (p) => p.id === icsSelectedPlacementId,
+      );
+      if (!placement) {
+        setIcsStatus({
+          kind: "error",
+          text: "Choose a scheduled session first",
+        });
+        return;
+      }
       setIcsBusy(true);
       setIcsStatus(null);
       try {
@@ -712,11 +910,12 @@ export function CommsPage() {
               accept: "application/json",
             },
             body: JSON.stringify({
-              placementId: icsPlacementId,
-              summary: icsSummary,
-              startsAt: icsStartsAt,
-              endsAt: icsEndsAt,
-              location: icsLocation || null,
+              placementId: placement.id,
+              sessionId: placement.sessionId,
+              summary: placement.title ?? "Scheduled session",
+              startsAt: placement.startsAt,
+              endsAt: placement.endsAt,
+              location: icsRoomName(placement.roomId),
               cancel: options?.cancel ?? false,
             }),
           },
@@ -749,11 +948,9 @@ export function CommsPage() {
     },
     [
       activeEventId,
-      icsPlacementId,
-      icsSummary,
-      icsStartsAt,
-      icsEndsAt,
-      icsLocation,
+      icsPlacements,
+      icsSelectedPlacementId,
+      icsRoomName,
       loadInvites,
     ],
   );
@@ -830,10 +1027,10 @@ export function CommsPage() {
               <span
                 className="comms-campaign__summary-count"
                 data-testid="comms-summary-count"
-                data-count={String(segmentCount)}
+                data-count={String(effectiveCount)}
               >
-                <strong>{segmentCount}</strong> recipient
-                {segmentCount === 1 ? "" : "s"}
+                <strong>{effectiveCount}</strong> recipient
+                {effectiveCount === 1 ? "" : "s"}
               </span>
               <Badge
                 tone={
@@ -843,7 +1040,11 @@ export function CommsPage() {
               >
                 {previewStateLabel}
               </Badge>
-              {selectedParticipationIds.length > 0 ? (
+              {decisionNotify ? (
+                <Badge tone="brand" data-testid="comms-summary-notify-mode">
+                  Decision hand-off
+                </Badge>
+              ) : selectedParticipationIds.length > 0 ? (
                 <Badge tone="brand" data-testid="comms-summary-selection-mode">
                   Explicit selection
                 </Badge>
@@ -896,6 +1097,42 @@ export function CommsPage() {
                 Segment audience
               </h3>
             </div>
+            {decisionNotify ? (
+              <div
+                className="comms-campaign__notify-banner"
+                data-testid="comms-notify-banner"
+                data-decision={decisionNotify.kind}
+                data-count={String(decisionNotify.submissionIds.length)}
+              >
+                <p className="page-stub__body">
+                  This audience is pinned to the{" "}
+                  <strong>{decisionNotify.submissionIds.length}</strong>{" "}
+                  submission
+                  {decisionNotify.submissionIds.length === 1 ? "" : "s"} from
+                  your{" "}
+                  {decisionNotify.kind === "accept"
+                    ? "accept"
+                    : decisionNotify.kind === "reject"
+                      ? "reject"
+                      : "waitlist"}{" "}
+                  decision. The matching decision template is preselected — run
+                  the preview to see every recipient before anything is sent.
+                </p>
+                <Button
+                  type="button"
+                  variant="quiet"
+                  size="sm"
+                  data-testid="comms-notify-clear"
+                  onClick={() => {
+                    setSearchParams({}, { replace: true });
+                    invalidatePreview();
+                  }}
+                >
+                  Use manual audience instead
+                </Button>
+              </div>
+            ) : (
+              <>
             <p className="page-stub__body">
               Filter by participation status and search. Lists show at most{" "}
               {AUDIENCE_PAGE_SIZE} rows — use pagination or select-all matching.
@@ -1111,6 +1348,8 @@ export function CommsPage() {
                 </Button>
               </div>
             ) : null}
+              </>
+            )}
 
             <div className="comms-campaign__step-footer">
               <Button
@@ -1361,26 +1600,33 @@ export function CommsPage() {
                     : ""}
                 </p>
                 <ul data-testid="comms-preview-recipients">
-                  {preview.recipients.map((r) => (
-                    <li
-                      key={r.participationId}
-                      data-testid={`comms-preview-recipient-${r.participationId}`}
-                    >
-                      {r.name} &lt;{r.email}&gt;
-                    </li>
-                  ))}
+                  {preview.recipients.map((r, i) => {
+                    const rid = r.participationId ?? r.submissionId ?? `row-${i}`;
+                    return (
+                      <li
+                        key={rid}
+                        data-testid={`comms-preview-recipient-${rid}`}
+                        data-submission-id={r.submissionId ?? ""}
+                      >
+                        {r.name} &lt;{r.email}&gt;
+                      </li>
+                    );
+                  })}
                 </ul>
                 <div data-testid="comms-preview-bodies">
-                  {preview.bodies.map((b) => (
-                    <article
-                      key={b.participationId}
-                      className="event-settings__card"
-                      data-testid={`comms-preview-body-${b.participationId}`}
-                    >
-                      <h4 className="event-settings__heading">{b.subject}</h4>
-                      <pre className="eval-queue__muted">{b.body}</pre>
-                    </article>
-                  ))}
+                  {preview.bodies.map((b, i) => {
+                    const bid = b.participationId ?? b.submissionId ?? `row-${i}`;
+                    return (
+                      <article
+                        key={bid}
+                        className="event-settings__card"
+                        data-testid={`comms-preview-body-${bid}`}
+                      >
+                        <h4 className="event-settings__heading">{b.subject}</h4>
+                        <pre className="eval-queue__muted">{b.body}</pre>
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
@@ -1630,9 +1876,19 @@ export function CommsPage() {
               ICS attach (scheduled session)
             </h3>
             <p className="page-stub__body">
-              Generate a calendar invite for a scheduled session. Rescheduling
-              updates the same invite.
+              Pick a scheduled session — the invite uses its real time and
+              room. Rescheduling then regenerating updates the same invite
+              (same UID, next SEQUENCE).
             </p>
+            {icsPlacements.length === 0 ? (
+              <p
+                className="event-settings__list-empty"
+                data-testid="comms-ics-no-placements"
+              >
+                No scheduled sessions yet — place sessions in Schedule Studio
+                first, then generate invites here.
+              </p>
+            ) : null}
             <form
               className="event-settings__form"
               data-testid="comms-ics-form"
@@ -1642,75 +1898,34 @@ export function CommsPage() {
                 className="event-settings__label"
                 htmlFor="comms-ics-placement"
               >
-                Placement
+                Scheduled session
               </label>
-              <input
+              <select
                 id="comms-ics-placement"
                 className="event-settings__input lumen-focusable"
-                data-testid="comms-ics-placement-input"
-                value={icsPlacementId}
-                onChange={(e) => setIcsPlacementId(e.target.value)}
-                required
-              />
-              <label
-                className="event-settings__label"
-                htmlFor="comms-ics-summary"
+                data-testid="comms-ics-placement-select"
+                value={icsSelectedPlacementId}
+                onChange={(e) => setIcsSelectedPlacementId(e.target.value)}
+                disabled={icsPlacements.length === 0}
               >
-                Summary
-              </label>
-              <input
-                id="comms-ics-summary"
-                className="event-settings__input lumen-focusable"
-                data-testid="comms-ics-summary-input"
-                value={icsSummary}
-                onChange={(e) => setIcsSummary(e.target.value)}
-                required
-              />
-              <label
-                className="event-settings__label"
-                htmlFor="comms-ics-starts"
-              >
-                Starts (UTC)
-              </label>
-              <input
-                id="comms-ics-starts"
-                className="event-settings__input lumen-focusable"
-                data-testid="comms-ics-starts-input"
-                value={icsStartsAt}
-                onChange={(e) => setIcsStartsAt(e.target.value)}
-                required
-              />
-              <label className="event-settings__label" htmlFor="comms-ics-ends">
-                Ends (UTC)
-              </label>
-              <input
-                id="comms-ics-ends"
-                className="event-settings__input lumen-focusable"
-                data-testid="comms-ics-ends-input"
-                value={icsEndsAt}
-                onChange={(e) => setIcsEndsAt(e.target.value)}
-                required
-              />
-              <label
-                className="event-settings__label"
-                htmlFor="comms-ics-location"
-              >
-                Location
-              </label>
-              <input
-                id="comms-ics-location"
-                className="event-settings__input lumen-focusable"
-                data-testid="comms-ics-location-input"
-                value={icsLocation}
-                onChange={(e) => setIcsLocation(e.target.value)}
-              />
+                <option value="">
+                  {icsPlacements.length === 0
+                    ? "No scheduled sessions"
+                    : "Choose a session…"}
+                </option>
+                {icsPlacements.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {`${p.title ?? "Untitled session"} · ${icsWhenLabel(p.startsAt, p.endsAt)} · ${icsRoomName(p.roomId)}`}
+                  </option>
+                ))}
+              </select>
               <div className="eval-queue__row">
                 <Button
                   type="submit"
                   variant="primary"
                   data-testid="comms-ics-generate"
                   pending={icsBusy}
-                  disabled={icsBusy}
+                  disabled={icsBusy || !icsSelectedPlacementId}
                 >
                   {icsBusy ? "Saving…" : "Generate / update ICS"}
                 </Button>
@@ -1718,10 +1933,22 @@ export function CommsPage() {
                   type="button"
                   variant="secondary"
                   data-testid="comms-ics-cancel"
-                  disabled={icsBusy}
+                  disabled={icsBusy || !icsSelectedPlacementId}
                   onClick={(e) => void onIcsSubmit(e, { cancel: true })}
                 >
                   Cancel invite
+                </Button>
+                <Button
+                  type="button"
+                  variant="quiet"
+                  size="sm"
+                  data-testid="comms-ics-refresh"
+                  disabled={icsBusy}
+                  onClick={() => {
+                    if (activeEventId) void loadIcsPlacements(activeEventId);
+                  }}
+                >
+                  Refresh sessions
                 </Button>
               </div>
             </form>
@@ -1758,6 +1985,8 @@ export function CommsPage() {
                     data-uid={inv.uid}
                     data-sequence={String(inv.sequence)}
                     data-method={inv.method}
+                    data-starts-at={inv.startsAt ?? ""}
+                    data-ends-at={inv.endsAt ?? ""}
                   >
                     <p className="comms-campaign__invite-line">
                       <strong>{inv.summary ?? inv.placementId}</strong>{" "}

@@ -66,6 +66,13 @@ export const CommsSegmentSchema = z
      * Omit the field to use status (default accepted).
      */
     participationIds: z.array(z.string().min(1).max(128)).max(500).optional(),
+    /**
+     * Decision hand-off audience (Wave 2): recipients are the primary
+     * speakers of these submissions — including rejected/waitlisted proposals
+     * that have no participation yet. When present, this takes precedence
+     * over participationIds and status.
+     */
+    submissionIds: z.array(z.string().min(1).max(128)).max(200).optional(),
   })
   .default({});
 export type CommsSegment = z.infer<typeof CommsSegmentSchema>;
@@ -78,14 +85,19 @@ export const CommsPreviewBodySchema = z.object({
 export type CommsPreviewBody = z.infer<typeof CommsPreviewBodySchema>;
 
 export const CommsPreviewRecipientSchema = z.object({
-  participationId: z.string().min(1),
+  /** Null for submission-derived recipients without a participation yet. */
+  participationId: z.string().min(1).nullable(),
+  /** Source submission when the audience came from a decision hand-off. */
+  submissionId: z.string().min(1).nullable().optional(),
   email: z.string().email(),
   name: z.string(),
 });
 export type CommsPreviewRecipient = z.infer<typeof CommsPreviewRecipientSchema>;
 
 export const CommsPreviewBodyItemSchema = z.object({
-  participationId: z.string().min(1),
+  /** Null for submission-derived recipients without a participation yet. */
+  participationId: z.string().min(1).nullable(),
+  submissionId: z.string().min(1).nullable().optional(),
   subject: z.string(),
   body: z.string(),
 });

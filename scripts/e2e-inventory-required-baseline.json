@@ -143,7 +143,16 @@
     "D15",
     "D16",
     "F13",
-    "J12"
+    "J12",
+    "A20",
+    "E13",
+    "E14",
+    "E15",
+    "F14",
+    "I17",
+    "J13",
+    "G12",
+    "N05"
   ],
   "fingerprints": {
     "A01": {
@@ -709,6 +718,42 @@
     "J12": {
       "test_id": "e2e/comms/submission-confirmation",
       "journey": "Submission confirmation lifecycle: public submit \u2192 queued delivery-log job with rendered merge fields; template editable"
+    },
+    "A20": {
+      "test_id": "e2e/public-cfp/speaker-about",
+      "journey": "Expand \"About this speaker\"; bio/company/title seed accepted speaker profile; never overwrites non-empty"
+    },
+    "E13": {
+      "test_id": "e2e/submissions/decision-notify",
+      "journey": "Decision \u2192 notify hand-off: bulk accept exact result set becomes the comms audience; typed template preselected; preview \u2192 idempotent send \u2192 delivery log"
+    },
+    "E14": {
+      "test_id": "e2e/submissions/export-csv",
+      "journey": "Filtered submissions CSV export: stable headers, flattened speakers, answer columns (layout nodes excluded); bytes inspected"
+    },
+    "E15": {
+      "test_id": "e2e/submissions/direct-session-parity",
+      "journey": "Direct/sponsor session dialog parity: repeatable speaker rows + track select; both speakers linked and track chip shown"
+    },
+    "F14": {
+      "test_id": "e2e/eval/bulk-assign",
+      "journey": "Bulk-assign wizard: preview deterministic plan (filters, modes, caps, preserve/replace) then apply; durable assignments match plan; stale re-commit blocked; preserve re-run adds nothing"
+    },
+    "I17": {
+      "test_id": "e2e/schedule/agenda-settings",
+      "journey": "Agenda settings: set day window 10:00\u201316:00 + 30-min interval in settings card; Studio day grid shows 12 slots (10:00\u201315:30); non-drag place snaps to 30-min duration"
+    },
+    "J13": {
+      "test_id": "e2e/comms/ics-picker",
+      "journey": "ICS picker lists actual scheduled sessions (title + time + room); invite carries the placement's real times; reschedule + regenerate bumps SEQUENCE"
+    },
+    "G12": {
+      "test_id": "e2e/portal/task-depth",
+      "journey": "Required task depth: required-first ordering, Required badge, https resource link on task cards (DTO + DOM)"
+    },
+    "N05": {
+      "test_id": "e2e/speakers/complete-on-behalf",
+      "journey": "Complete task on behalf of speaker; portal + readiness update instantly"
     }
   }
 }

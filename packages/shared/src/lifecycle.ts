@@ -40,6 +40,58 @@ If anything in your proposal changes before then, just reply to this email.
 — The {{eventName}} team` as const;
 
 /**
+ * Decision → notify hand-off (Wave 2): typed per-decision templates,
+ * lazy-seeded into email_templates on first use and editable in Comms.
+ * The audience is the exact decision result set (segment.submissionIds);
+ * sending goes through the existing preview → send flow untouched.
+ */
+export const DECISION_NOTIFY_TEMPLATES = {
+  accept: {
+    key: "decision_accepted",
+    subject: "Your proposal was accepted — {{eventName}}",
+    body: `Hi {{name}},
+
+Great news — "{{submissionTitle}}" was accepted for {{eventName}}.
+
+Your speaker portal is ready: complete your profile and tasks so we can build the programme around you.
+
+{{portalUrl}}
+
+— The {{eventName}} team`,
+  },
+  reject: {
+    key: "decision_rejected",
+    subject: "An update on your proposal — {{eventName}}",
+    body: `Hi {{name}},
+
+Thank you for submitting "{{submissionTitle}}" to {{eventName}}. After careful review we are not able to include it in this year's programme.
+
+We would love to see you submit again — this decision is about fit for this edition, not the quality of your work.
+
+— The {{eventName}} team`,
+  },
+  waitlist: {
+    key: "decision_waitlisted",
+    subject: "Your proposal is on the waitlist — {{eventName}}",
+    body: `Hi {{name}},
+
+"{{submissionTitle}}" is on the waitlist for {{eventName}}. If a slot opens up we will contact you right away — no action is needed from you now.
+
+— The {{eventName}} team`,
+  },
+} as const;
+
+/** Decision kinds that can hand off into the notify flow. */
+export type DecisionNotifyKind = keyof typeof DECISION_NOTIFY_TEMPLATES;
+
+/** Type guard for URL/query-sourced decision notify kinds. */
+export function isDecisionNotifyKind(
+  value: string | null | undefined,
+): value is DecisionNotifyKind {
+  return value === "accept" || value === "reject" || value === "waitlist";
+}
+
+/**
  * Structured event notification settings stored inside events.settings_json.
  * Unknown keys are preserved (passthrough) so other features can share the
  * same JSON blob without clobbering each other.

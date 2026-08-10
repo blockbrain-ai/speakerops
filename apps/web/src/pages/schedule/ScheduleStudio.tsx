@@ -43,6 +43,8 @@ import {
   TrackListResponseSchema,
   ScheduleConflictErrorSchema,
   ErrorEnvelopeSchema,
+  parseEventAgendaSettings,
+  hasExplicitAgendaWindow,
   type SchedulePlacementDto,
   type UnscheduledSessionDto,
   type RoomDto,
@@ -61,7 +63,7 @@ import {
   type ScheduleViewMode,
   type UndoAction,
   type LocalScheduleConflict,
-  DEFAULT_SLOT_MINUTES,
+  type DayWindowOpts,
   addMinutesIso,
   apiConflictsToLocal,
   buildDayKeys,
@@ -189,6 +191,26 @@ export function ScheduleStudioPage() {
   const timezone = activeEvent?.timezone ?? "UTC";
   const eventStartsAt = activeEvent?.startsAt ?? null;
   const eventEndsAt = activeEvent?.endsAt ?? null;
+
+  // Wave 2 agenda settings (events.settings_json): day window + grid interval.
+  // The API enforces the window (409 "hours"); the grid mirrors the same
+  // envelope so every offered slot is placeable.
+  const agendaSettingsJson = activeEvent?.settingsJson ?? null;
+  const agenda = useMemo(
+    () => parseEventAgendaSettings(agendaSettingsJson),
+    [agendaSettingsJson],
+  );
+  const agendaWindow: DayWindowOpts | undefined = useMemo(
+    () =>
+      hasExplicitAgendaWindow(agendaSettingsJson)
+        ? {
+            startHHMM: agenda.agendaDayStart,
+            endHHMM: agenda.agendaDayEnd,
+          }
+        : undefined,
+    [agendaSettingsJson, agenda],
+  );
+  const slotMinutes = agenda.slotIntervalMin;
 
   const selectedPlacement = useMemo(
     () => placements.find((p) => p.id === selectedPlacementId) ?? null,
@@ -707,7 +729,7 @@ export function ScheduleStudioPage() {
     async (roomId: string, startsAt: string) => {
       const drag = dragPayloadRef.current;
       if (drag?.source === "tray") {
-        const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
+        const endsAt = addMinutesIso(startsAt, slotMinutes);
         await placeSession({
           sessionId: drag.sessionId,
           roomId,
@@ -718,7 +740,7 @@ export function ScheduleStudioPage() {
         return;
       }
       if (drag?.source === "placement") {
-        // Preserve existing duration on move (do not reset to DEFAULT_SLOT_MINUTES).
+        // Preserve existing duration on move (do not reset to the grid interval).
         const endsAt = addMinutesIso(
           startsAt,
           durationMinutes(drag.startsAt, drag.endsAt),
@@ -739,7 +761,7 @@ export function ScheduleStudioPage() {
         return;
       }
       if (selectedSessionId) {
-        const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
+        const endsAt = addMinutesIso(startsAt, slotMinutes);
         await placeSession({
           sessionId: selectedSessionId,
           roomId,
@@ -777,6 +799,7 @@ export function ScheduleStudioPage() {
       placeSession,
       movePlacement,
       setDrag,
+      slotMinutes,
     ],
   );
 
@@ -808,7 +831,7 @@ export function ScheduleStudioPage() {
       }
       setDrag(payload);
       if (payload.source === "tray") {
-        const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
+        const endsAt = addMinutesIso(startsAt, slotMinutes);
         void placeSession({
           sessionId: payload.sessionId,
           roomId,
@@ -835,7 +858,7 @@ export function ScheduleStudioPage() {
         }).finally(() => setDrag(null));
       }
     },
-    [movePlacement, placeSession, setDrag],
+    [movePlacement, placeSession, setDrag, slotMinutes],
   );
 
   /** Cancel any in-flight pointer drag and clear all drag chrome. */
@@ -1108,7 +1131,7 @@ export function ScheduleStudioPage() {
     // Multiple non-overlapping placements can begin in the same hour (10:00 + 10:30);
     // render all of them — never placements.find() which hides the rest.
     const occupants = placements.filter((p) =>
-      placementInSlot(p, roomId, startsAt, DEFAULT_SLOT_MINUTES),
+      placementInSlot(p, roomId, startsAt, slotMinutes),
     );
     const isOver = dragOverSlot === key;
     const hasConflict = occupants.some((o) => conflictPlacementSet.has(o.id));
@@ -1130,7 +1153,7 @@ export function ScheduleStudioPage() {
         data-testid={`schedule-slot-${key}`}
         data-room-id={roomId}
         data-starts-at={startsAt}
-        data-ends-at={addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES)}
+        data-ends-at={addMinutesIso(startsAt, slotMinutes)}
         role="button"
         tabIndex={0}
         aria-label={`Slot ${roomName(roomId)} ${formatTimeLabel(startsAt, timezone)}`}
@@ -1160,8 +1183,9 @@ export function ScheduleStudioPage() {
       eventStartsAt,
       eventEndsAt,
       timezone,
+      agendaWindow,
     );
-    const slots = buildTimeSlots(dayStart, dayEnd, DEFAULT_SLOT_MINUTES);
+    const slots = buildTimeSlots(dayStart, dayEnd, slotMinutes);
     const roomList =
       rooms.length > 0
         ? rooms
@@ -1357,10 +1381,21 @@ export function ScheduleStudioPage() {
           {/* Slots for keyboard/drag place on each week day (first room). */}
           {rooms[0]
             ? buildTimeSlots(
-                dayWindowForEvent(dk, eventStartsAt, eventEndsAt, timezone)
-                  .dayStart,
-                dayWindowForEvent(dk, eventStartsAt, eventEndsAt, timezone)
-                  .dayEnd,
+                dayWindowForEvent(
+                  dk,
+                  eventStartsAt,
+                  eventEndsAt,
+                  timezone,
+                  agendaWindow,
+                ).dayStart,
+                dayWindowForEvent(
+                  dk,
+                  eventStartsAt,
+                  eventEndsAt,
+                  timezone,
+                  agendaWindow,
+                ).dayEnd,
+                slotMinutes,
               )
                 .slice(0, 4)
                 .map((startsAt) => renderSlot(rooms[0]!.id, startsAt))
@@ -1428,13 +1463,16 @@ export function ScheduleStudioPage() {
                 eventStartsAt,
                 eventEndsAt,
                 timezone,
+                agendaWindow,
               ).dayStart,
               dayWindowForEvent(
                 primaryDay,
                 eventStartsAt,
                 eventEndsAt,
                 timezone,
+                agendaWindow,
               ).dayEnd,
+              slotMinutes,
             )
               .slice(0, 6)
               .map((startsAt) => renderSlot(r.id, startsAt))}

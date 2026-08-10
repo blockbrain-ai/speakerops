@@ -71,6 +71,10 @@ export type TaskTemplateRow = {
   description: string | null;
   trigger: "on_accept" | "manual";
   dueOffsetDays: number;
+  /** Optional https:// resource link for portal task cards (0030). */
+  linkUrl: string | null;
+  /** True when incomplete tasks from this template block readiness (0030). */
+  required: boolean;
   /** Optimistic concurrency version (E1). */
   version: number;
   createdAt: string;
@@ -166,6 +170,8 @@ export type DecisionsStore = {
       description?: string | null;
       trigger?: "on_accept" | "manual";
       dueOffsetDays?: number;
+      linkUrl?: string | null;
+      required?: boolean;
       version: number;
       expectedVersion: number;
     },
@@ -458,6 +464,8 @@ export class MemoryDecisionsStore implements DecisionsStore {
       description?: string | null;
       trigger?: "on_accept" | "manual";
       dueOffsetDays?: number;
+      linkUrl?: string | null;
+      required?: boolean;
       version: number;
       expectedVersion: number;
     },
@@ -477,6 +485,8 @@ export class MemoryDecisionsStore implements DecisionsStore {
       ...(patch.dueOffsetDays !== undefined
         ? { dueOffsetDays: patch.dueOffsetDays }
         : {}),
+      ...(patch.linkUrl !== undefined ? { linkUrl: patch.linkUrl } : {}),
+      ...(patch.required !== undefined ? { required: patch.required } : {}),
     };
     this.templates.set(id, next);
     return { ...next };
@@ -923,6 +933,8 @@ export class D1DecisionsStore implements DecisionsStore {
       description: row.description,
       trigger: row.trigger,
       dueOffsetDays: row.dueOffsetDays,
+      linkUrl: row.linkUrl,
+      required: row.required ? 1 : 0,
       version: row.version,
       createdAt: row.createdAt,
     });
@@ -944,6 +956,8 @@ export class D1DecisionsStore implements DecisionsStore {
       description: r.description,
       trigger: r.trigger as TaskTemplateRow["trigger"],
       dueOffsetDays: r.dueOffsetDays,
+      linkUrl: r.linkUrl ?? null,
+      required: r.required === 1,
       version: r.version ?? 1,
       createdAt: r.createdAt,
     };
@@ -966,6 +980,8 @@ export class D1DecisionsStore implements DecisionsStore {
         description: r.description,
         trigger: r.trigger as TaskTemplateRow["trigger"],
         dueOffsetDays: r.dueOffsetDays,
+        linkUrl: r.linkUrl ?? null,
+        required: r.required === 1,
         version: r.version ?? 1,
         createdAt: r.createdAt,
       }));
@@ -978,6 +994,8 @@ export class D1DecisionsStore implements DecisionsStore {
       description?: string | null;
       trigger?: "on_accept" | "manual";
       dueOffsetDays?: number;
+      linkUrl?: string | null;
+      required?: boolean;
       version: number;
       expectedVersion: number;
     },
@@ -989,6 +1007,8 @@ export class D1DecisionsStore implements DecisionsStore {
     if (patch.description !== undefined) set.description = patch.description;
     if (patch.trigger !== undefined) set.trigger = patch.trigger;
     if (patch.dueOffsetDays !== undefined) set.dueOffsetDays = patch.dueOffsetDays;
+    if (patch.linkUrl !== undefined) set.linkUrl = patch.linkUrl;
+    if (patch.required !== undefined) set.required = patch.required ? 1 : 0;
     const result = await this.db
       .update(taskTemplates)
       .set(set)

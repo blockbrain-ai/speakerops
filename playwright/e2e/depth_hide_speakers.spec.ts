@@ -140,21 +140,25 @@ test.describe("Wave 1B — hide speaker identities", () => {
       assignments: Array<{ id: string }>;
     }).assignments[0]!.id;
 
-    // Evaluator opens the queue; capture the proposal network response.
+    // Evaluator opens the queue. The first assignment auto-selects and the
+    // proposal loads immediately — clicking is still exercised, but the
+    // network-DTO proof must not race the auto-fetch, so the raw response
+    // body is asserted via a direct GET with the evaluator's own session.
     await page.goto("/eval");
     const queueItem = page.getByTestId(`eval-queue-item-${assignmentId}`);
     await expect(queueItem).toBeVisible({ timeout: 15_000 });
-    const [proposalRes] = await Promise.all([
-      page.waitForResponse(
-        (r) =>
-          r.url().includes(`/api/me/eval-assignments/${assignmentId}/proposal`) &&
-          r.request().method() === "GET",
-      ),
-      queueItem.click(),
-    ]);
-    expect(proposalRes.status()).toBe(200);
+    await queueItem.click();
+    await expect(
+      page.getByTestId("eval-proposal-speakers-hidden"),
+    ).toBeVisible({ timeout: 15_000 });
 
-    // Network DTO: seeded tokens absent from the raw response body.
+    // Network DTO: seeded tokens absent from the raw response body served to
+    // the evaluator credentials (same endpoint the queue consumed).
+    const proposalRes = await request.get(
+      `/api/me/eval-assignments/${assignmentId}/proposal`,
+      { headers: sessionHeaders(evaluator.session) },
+    );
+    expect(proposalRes.status()).toBe(200);
     const rawBody = await proposalRes.text();
     expect(rawBody).not.toContain(SPEAKER_NAME);
     expect(rawBody).not.toContain(SPEAKER_EMAIL);

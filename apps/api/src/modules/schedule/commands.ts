@@ -10,6 +10,11 @@
  */
 import {
   uuidv7,
+  parseEventAgendaSettings,
+  hasExplicitAgendaWindow,
+  hhmmToMinutes,
+  wallMinutesInZone,
+  wallDayKeyInZone,
   type SchedulePlaceBody,
   type ScheduleMoveBody,
   type ScheduleUnscheduleBody,
@@ -78,6 +83,66 @@ function versionErr(
     code: "VERSION",
     details: { expectedVersion, actual },
   };
+}
+
+/** Minutes since midnight → "HH:MM" label for human conflict copy. */
+function minutesToHhmm(min: number): string {
+  const clamped = Math.max(0, Math.min(24 * 60 - 1, Math.round(min)));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * Agenda day-window enforcement (Wave 2 — settings_json agendaDayStart/End).
+ * A placement must sit inside the agenda wall-clock window on one local
+ * calendar day of the event timezone. Violation → conflicts[] type "hours".
+ *
+ * Explicitly configured window → enforced strictly (the Event Settings knob
+ * is a server-side law, not a grid hint). No explicit window → defaults
+ * 09:00–17:00 widened by the event's own starts/ends wall times, mirroring
+ * the grid's legacy dayWindowForEvent clamping so pre-Wave-2 events keep
+ * their existing scheduling envelope. Parse never throws (malformed → defaults).
+ */
+async function agendaHoursConflicts(
+  deps: ScheduleCommandDeps,
+  eventId: string,
+  startsAt: string,
+  endsAt: string,
+): Promise<ScheduleConflictItem[]> {
+  const event = await deps.events.findEventById(eventId);
+  const agenda = parseEventAgendaSettings(event?.settingsJson ?? null);
+  const timeZone = event?.timezone ?? "UTC";
+  let dayStart = hhmmToMinutes(agenda.agendaDayStart);
+  let dayEnd = hhmmToMinutes(agenda.agendaDayEnd);
+  if (dayStart == null || dayEnd == null) return []; // defensive — parse guarantees valid
+  if (!hasExplicitAgendaWindow(event?.settingsJson ?? null) && event) {
+    // Legacy envelope: default window ∪ event bounds' wall times.
+    const evStartWall = event.startsAt
+      ? wallMinutesInZone(event.startsAt, timeZone)
+      : null;
+    const evEndWall = event.endsAt
+      ? wallMinutesInZone(event.endsAt, timeZone)
+      : null;
+    if (evStartWall != null) dayStart = Math.min(dayStart, evStartWall);
+    if (evEndWall != null) dayEnd = Math.max(dayEnd, evEndWall);
+  }
+  const startMin = wallMinutesInZone(startsAt, timeZone);
+  const endMin = wallMinutesInZone(endsAt, timeZone);
+  if (startMin == null || endMin == null) return []; // Zod already validated ISO
+  const startKey = wallDayKeyInZone(startsAt, timeZone);
+  const endKey = wallDayKeyInZone(endsAt, timeZone);
+  const crossesMidnight =
+    startKey == null || endKey == null || startKey !== endKey;
+  if (crossesMidnight || startMin < dayStart || endMin > dayEnd) {
+    return [
+      {
+        type: "hours",
+        message: `Outside the event day (${minutesToHhmm(dayStart)}–${minutesToHhmm(dayEnd)} ${timeZone}). Adjust the agenda window in Event Settings to schedule here.`,
+      },
+    ];
+  }
+  return [];
 }
 
 function conflictErr(conflicts: ScheduleConflictItem[]): CommandErr {
@@ -240,6 +305,17 @@ export async function placeSession(
     };
   }
 
+  // Wave 2: enforce configured agenda day window (409 "hours") server-side.
+  const hoursConflicts = await agendaHoursConflicts(
+    deps,
+    input.eventId,
+    input.startsAt,
+    input.endsAt,
+  );
+  if (hoursConflicts.length > 0) {
+    return conflictErr(hoursConflicts);
+  }
+
   const existing = await deps.schedule.findPlacementBySession(input.sessionId);
   if (existing) {
     return conflictErr([
@@ -394,6 +470,17 @@ export async function movePlacement(
       error: "Room not found",
       code: "NOT_FOUND",
     };
+  }
+
+  // Wave 2: enforce configured agenda day window (409 "hours") server-side.
+  const hoursConflicts = await agendaHoursConflicts(
+    deps,
+    input.eventId,
+    input.startsAt,
+    input.endsAt,
+  );
+  if (hoursConflicts.length > 0) {
+    return conflictErr(hoursConflicts);
   }
 
   const speakers = await deps.decisions.listSessionSpeakers(existing.sessionId);

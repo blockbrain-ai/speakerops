@@ -105,6 +105,8 @@ function toPortalTask(
     title: tpl?.title ?? "Task",
     description: tpl?.description ?? null,
     trigger: tpl?.trigger,
+    linkUrl: tpl?.linkUrl ?? null,
+    required: tpl?.required ?? false,
   };
 }
 
@@ -172,8 +174,21 @@ function toTemplateDto(row: TaskTemplateRow): TaskTemplateDto {
     description: row.description,
     trigger: row.trigger,
     dueOffsetDays: row.dueOffsetDays,
+    linkUrl: row.linkUrl,
+    required: row.required,
     version: row.version,
   };
+}
+
+/** Canonical portal task order: required first, then dueAt asc (null last), then id. */
+function comparePortalTasks(a: PortalTaskDto, b: PortalTaskDto): number {
+  const ar = a.required === true ? 0 : 1;
+  const br = b.required === true ? 0 : 1;
+  if (ar !== br) return ar - br;
+  const ad = a.dueAt ?? "9999";
+  const bd = b.dueAt ?? "9999";
+  if (ad !== bd) return ad.localeCompare(bd);
+  return a.id.localeCompare(b.id);
 }
 
 function pickNextTask(tasks: PortalTaskDto[]): PortalTaskDto | null {
@@ -181,12 +196,8 @@ function pickNextTask(tasks: PortalTaskDto[]): PortalTaskDto | null {
     (t) => t.status === "pending" || t.status === "overdue",
   );
   if (pending.length === 0) return null;
-  pending.sort((a, b) => {
-    const ad = a.dueAt ?? "9999";
-    const bd = b.dueAt ?? "9999";
-    if (ad !== bd) return ad.localeCompare(bd);
-    return a.id.localeCompare(b.id);
-  });
+  // Required incomplete tasks outrank optional ones regardless of due date.
+  pending.sort(comparePortalTasks);
   return pending[0] ?? null;
 }
 
@@ -283,6 +294,8 @@ async function tasksForParticipations(
     const tpl = await deps.decisions.findTaskTemplateById(t.templateId);
     out.push(toPortalTask(t, tpl));
   }
+  // Server-side order: required first, then dueAt asc (null last), then id.
+  out.sort(comparePortalTasks);
   return out;
 }
 
@@ -436,7 +449,13 @@ function profileFieldDone(v: string | null | undefined): boolean {
   return typeof v === "string" && v.trim().length > 0;
 }
 
-/** Single readiness contract for portal API + UI (no contradictory ready states). */
+/**
+ * Single readiness contract for portal API + UI (no contradictory ready states).
+ *
+ * Wave 2 semantics: only REQUIRED incomplete tasks keep the speaker at
+ * needs_action once the profile is complete. When only optional tasks remain
+ * the state is "ready" with an honest headline; complete means nothing open.
+ */
 export function computePortalReadiness(
   part: {
     bio?: string | null;
@@ -444,7 +463,7 @@ export function computePortalReadiness(
     title?: string | null;
     headshotFileId?: string | null;
   } | null,
-  tasks: Array<{ status: string }>,
+  tasks: Array<{ status: string; required?: boolean }>,
 ): {
   state: "needs_action" | "waiting_on_organiser" | "ready" | "complete";
   percent: number;
@@ -470,10 +489,14 @@ export function computePortalReadiness(
 
   let tasksCompleted = 0;
   let tasksPending = 0;
+  let requiredPending = 0;
   for (const t of tasks) {
     const s = (t.status ?? "").toLowerCase();
     if (s === "completed") tasksCompleted += 1;
-    else if (s !== "cancelled") tasksPending += 1;
+    else if (s !== "cancelled") {
+      tasksPending += 1;
+      if (t.required === true) requiredPending += 1;
+    }
   }
   const tasksActive = tasksCompleted + tasksPending;
   const tasksPct =
@@ -503,7 +526,7 @@ export function computePortalReadiness(
     };
   }
 
-  if (tasksPending > 0) {
+  if (requiredPending > 0) {
     return {
       state: "needs_action",
       percent,
@@ -513,8 +536,24 @@ export function computePortalReadiness(
       tasksTotal: tasks.length,
       tasksPending,
       tasksCompleted,
-      headline: "Tasks remaining",
-      detail: `${tasksPending} organiser task${tasksPending === 1 ? "" : "s"} still open.`,
+      headline: "Required tasks remaining",
+      detail: `${requiredPending} required task${requiredPending === 1 ? "" : "s"} must be finished before you're ready.`,
+    };
+  }
+
+  if (tasksPending > 0) {
+    // Only optional tasks remain — honest "ready" without pretending done.
+    return {
+      state: "ready",
+      percent,
+      profileComplete: true,
+      profileDone,
+      profileTotal,
+      tasksTotal: tasks.length,
+      tasksPending,
+      tasksCompleted,
+      headline: "Ready — optional tasks remain",
+      detail: `You're set for the programme. ${tasksPending} optional task${tasksPending === 1 ? "" : "s"} still open if you'd like to finish ${tasksPending === 1 ? "it" : "them"}.`,
     };
   }
 
@@ -655,6 +694,115 @@ export async function completeTask(
       status: updated.status,
       version: updated.version,
       completedAt: updated.completedAt,
+    }),
+    correlationId: input.correlationId,
+    createdAt: now,
+  });
+
+  return { ok: true, value: { task: toTaskDto(updated) } };
+}
+
+/**
+ * Speakers.CompleteTask — event admin completes a speaker task on their behalf
+ * (Wave 2 N05). Mirrors Task.Complete minus the own-participation check:
+ * - task must belong to :participationId and participation to :eventId → 404
+ * - cancelled → 400 · version mismatch → 409 · already completed → 200 no-op
+ * Audited as Speakers.CompleteTask with the admin as actor.
+ */
+export async function adminCompleteSpeakerTask(
+  deps: PortalCommandDeps,
+  input: {
+    eventId: string;
+    participationId: string;
+    taskId: string;
+    actorUserId: string;
+    body: TaskCompleteBody;
+    correlationId: string;
+  },
+): Promise<CommandOk<TaskCompleteResponse> | CommandErr> {
+  const task = await deps.decisions.findSpeakerTaskById(input.taskId);
+  if (!task || task.participationId !== input.participationId) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Task not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  const part = await deps.decisions.findParticipationById(
+    task.participationId,
+  );
+  if (!part || part.eventId !== input.eventId) {
+    // Cross-event probe gets the same 404 as a missing task (no existence leak).
+    return {
+      ok: false,
+      status: 404,
+      error: "Task not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  if (task.status === "cancelled") {
+    return {
+      ok: false,
+      status: 400,
+      error: "Task is cancelled",
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  if (task.version !== input.body.expectedVersion) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Task version conflict",
+      code: "CONFLICT",
+      details: {
+        expectedVersion: input.body.expectedVersion,
+        version: task.version,
+      },
+    };
+  }
+
+  if (task.status === "completed") {
+    // Idempotent replay — no extra state change, no duplicate audit row.
+    return { ok: true, value: { task: toTaskDto(task) } };
+  }
+
+  const now = new Date().toISOString();
+  const updated = await deps.decisions.updateSpeakerTask(task.id, {
+    status: "completed",
+    version: task.version + 1,
+    updatedAt: now,
+    completedAt: now,
+  });
+  if (!updated) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Task version conflict",
+      code: "CONFLICT",
+    };
+  }
+
+  await deps.auth.insertAudit({
+    id: uuidv7(),
+    eventId: part.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "Speakers.CompleteTask",
+    entityType: "speaker_task",
+    entityId: task.id,
+    beforeJson: JSON.stringify({
+      status: task.status,
+      version: task.version,
+    }),
+    afterJson: JSON.stringify({
+      status: updated.status,
+      version: updated.version,
+      completedAt: updated.completedAt,
+      onBehalfOfParticipationId: part.id,
     }),
     correlationId: input.correlationId,
     createdAt: now,
@@ -1216,6 +1364,8 @@ export async function createTaskTemplate(
         : input.body.description,
     trigger: input.body.trigger ?? "on_accept",
     dueOffsetDays: input.body.dueOffsetDays ?? 14,
+    linkUrl: input.body.linkUrl ?? null,
+    required: input.body.required ?? false,
     version: 1,
     createdAt: now,
   });
@@ -1283,6 +1433,12 @@ export async function updateTaskTemplate(
       : {}),
     ...(input.body.dueOffsetDays !== undefined
       ? { dueOffsetDays: input.body.dueOffsetDays }
+      : {}),
+    ...(input.body.linkUrl !== undefined
+      ? { linkUrl: input.body.linkUrl }
+      : {}),
+    ...(input.body.required !== undefined
+      ? { required: input.body.required }
       : {}),
     version: existing.version + 1,
     expectedVersion: input.body.expectedVersion,

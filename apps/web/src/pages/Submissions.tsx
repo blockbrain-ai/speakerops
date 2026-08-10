@@ -25,8 +25,10 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
+  TrackListResponseSchema,
+  type TrackDto,
   SubmissionListResponseSchema,
   SubmissionDetailResponseSchema,
   DecisionRecordResponseSchema,
@@ -200,12 +202,24 @@ export function SubmissionsPage() {
   const [busy, setBusy] = useState(false);
   const loadGen = useRef(0);
 
-  // Direct session form (E07)
+  // Direct session form (E07 + Wave 2 parity E15: multi-speaker + track)
   const [directOpen, setDirectOpen] = useState(false);
   const [directTitle, setDirectTitle] = useState("");
   const [directDesc, setDirectDesc] = useState("");
-  const [directSpeakerName, setDirectSpeakerName] = useState("");
-  const [directSpeakerEmail, setDirectSpeakerEmail] = useState("");
+  const [directSpeakers, setDirectSpeakers] = useState<
+    Array<{ name: string; email: string }>
+  >([{ name: "", email: "" }]);
+  const [directTrackId, setDirectTrackId] = useState("");
+  const [tracks, setTracks] = useState<TrackDto[]>([]);
+
+  // Decision → notify hand-off (Wave 2, E13): exact result set of the last
+  // committed decision, offered as a comms audience.
+  const [lastDecision, setLastDecision] = useState<{
+    decision: DecisionValue;
+    submissionIds: string[];
+  } | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const navigate = useNavigate();
 
   // Bulk preview (E08)
   const [bulkPreview, setBulkPreview] = useState<{
@@ -300,6 +314,37 @@ export function SubmissionsPage() {
     setPage(1);
     setSelected(new Set());
   }, [statusFilter, categoryFilter, searchQ, activeEventId]);
+
+  // Event switch invalidates the decision hand-off audience (cross-event safety).
+  useEffect(() => {
+    setLastDecision(null);
+  }, [activeEventId]);
+
+  /** Track options for the direct/sponsor session dialog (Wave 2 parity). */
+  useEffect(() => {
+    if (!directOpen || !activeEventId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(activeEventId)}/tracks`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (cancelled || !res.ok) return;
+        const raw: unknown = await res.json();
+        const parsed = TrackListResponseSchema.safeParse(raw);
+        if (!cancelled && parsed.success) setTracks(parsed.data.tracks);
+      } catch {
+        /* track list optional — dialog still works without it */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [directOpen, activeEventId]);
 
   useEffect(() => {
     if (activeEventId) {
@@ -455,6 +500,7 @@ export function SubmissionsPage() {
         kind: "ok",
         text: `${decision} recorded${taskNote}${parsed.data.idempotent ? " (idempotent)" : ""}`,
       });
+      setLastDecision({ decision, submissionIds: [detail.submission.id] });
       await openDetail(detail.submission.id, { clearStatus: false });
       if (activeEventId) await loadList(activeEventId, page);
     } catch {
@@ -696,6 +742,15 @@ export function SubmissionsPage() {
         return;
       }
       const failedItems = parsed.data.items.filter((i) => !i.ok);
+      const okIds = parsed.data.items
+        .filter((i) => i.ok)
+        .map((i) => i.submissionId);
+      if (okIds.length > 0) {
+        setLastDecision({
+          decision: parsed.data.decision as DecisionValue,
+          submissionIds: okIds,
+        });
+      }
       if (failedItems.length === 0) {
         setStatus({
           kind: "ok",
@@ -727,16 +782,10 @@ export function SubmissionsPage() {
     setBusy(true);
     setStatus(null);
     try {
-      const speakers =
-        directSpeakerName.trim() && directSpeakerEmail.trim()
-          ? [
-              {
-                name: directSpeakerName.trim(),
-                email: directSpeakerEmail.trim(),
-                isPrimary: true,
-              },
-            ]
-          : [];
+      const speakers = directSpeakers
+        .map((s) => ({ name: s.name.trim(), email: s.email.trim() }))
+        .filter((s) => s.name && s.email)
+        .map((s, i) => ({ ...s, isPrimary: i === 0 }));
       const res = await fetch(
         `/api/events/${encodeURIComponent(activeEventId)}/sessions/direct`,
         {
@@ -749,6 +798,7 @@ export function SubmissionsPage() {
           body: JSON.stringify({
             title: directTitle.trim(),
             description: directDesc.trim() || null,
+            trackId: directTrackId || null,
             speakers,
           }),
         },
@@ -769,14 +819,18 @@ export function SubmissionsPage() {
         setBusy(false);
         return;
       }
+      const speakerNote =
+        parsed.data.participations.length > 0
+          ? ` · ${parsed.data.participations.length} speaker${parsed.data.participations.length === 1 ? "" : "s"}`
+          : "";
       setStatus({
         kind: "ok",
-        text: `Direct session created: ${parsed.data.session.title} (${parsed.data.session.id})`,
+        text: `Direct session created: ${parsed.data.session.title} (${parsed.data.session.id})${speakerNote}`,
       });
       setDirectTitle("");
       setDirectDesc("");
-      setDirectSpeakerName("");
-      setDirectSpeakerEmail("");
+      setDirectSpeakers([{ name: "", email: "" }]);
+      setDirectTrackId("");
       setDirectOpen(false);
     } catch {
       setStatus({ kind: "error", text: "Network error" });
@@ -784,6 +838,72 @@ export function SubmissionsPage() {
       setBusy(false);
     }
   }
+
+  function updateDirectSpeaker(
+    index: number,
+    patch: Partial<{ name: string; email: string }>,
+  ) {
+    setDirectSpeakers((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, ...patch } : s)),
+    );
+  }
+
+  /** Download the filtered submissions as CSV (Wave 2 depth, E14). */
+  async function exportCsv() {
+    if (!activeEventId) return;
+    setExportBusy(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter) params.set("status", statusFilter);
+      if (categoryFilter) params.set("category", categoryFilter);
+      const qTrim = searchQ.trim();
+      if (qTrim) params.set("q", qTrim);
+      const qs = params.toString();
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}/submissions/export${qs ? `?${qs}` : ""}`,
+        {
+          credentials: "include",
+          headers: { accept: "text/csv" },
+        },
+      );
+      if (!res.ok) {
+        setStatus({
+          kind: "error",
+          text:
+            res.status === 401
+              ? "Session expired — sign in again to export"
+              : res.status === 403
+                ? "You need admin access to export submissions"
+                : `Export failed (${res.status})`,
+        });
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? "submissions.csv";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.rel = "noopener";
+      anchor.dataset.testid = "submissions-export-download-anchor";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setStatus({ kind: "error", text: "Network error during export" });
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  const decisionAudienceLabel: Record<DecisionValue, string> = {
+    accept: "accepted",
+    reject: "rejected",
+    waitlist: "waitlisted",
+  };
 
   const columns: DataTableColumn<SubmissionListItem>[] = [
     {
@@ -912,6 +1032,38 @@ export function SubmissionsPage() {
         </Alert>
       ) : null}
 
+      {/* Decision → notify hand-off (Wave 2, E13) */}
+      {lastDecision && lastDecision.submissionIds.length > 0 ? (
+        <div
+          className="submissions-page__notify-handoff"
+          data-testid="submissions-notify-handoff"
+          data-decision={lastDecision.decision}
+          data-count={lastDecision.submissionIds.length}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid={`submissions-notify-${lastDecision.decision}`}
+            onClick={() =>
+              navigate(
+                `/admin/comms?notify=${lastDecision.decision}&submissionIds=${lastDecision.submissionIds
+                  .map(encodeURIComponent)
+                  .join(",")}`,
+              )
+            }
+          >
+            Notify {lastDecision.submissionIds.length}{" "}
+            {decisionAudienceLabel[lastDecision.decision]} speaker
+            {lastDecision.submissionIds.length === 1 ? "" : "s"}
+          </Button>
+          <span className="eval-queue__muted">
+            Opens Comms with exactly this audience and the{" "}
+            {decisionAudienceLabel[lastDecision.decision]} template — preview
+            before anything is sent.
+          </span>
+        </div>
+      ) : null}
+
       {/* Toolbar + filter chips (E01) */}
       <section
         className="submissions-page__toolbar-card"
@@ -1034,6 +1186,16 @@ export function SubmissionsPage() {
             >
               Preview bulk waitlist
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="submissions-export-csv"
+              disabled={exportBusy || !activeEventId}
+              pending={exportBusy}
+              onClick={() => void exportCsv()}
+            >
+              Export CSV
+            </Button>
           </div>
         </div>
 
@@ -1099,27 +1261,104 @@ export function SubmissionsPage() {
                 rows={2}
               />
             </label>
-            <div className="eval-queue__row">
-              <label className="event-settings__field">
-                <span className="event-settings__label">Speaker name</span>
-                <input
-                  className="event-settings__input lumen-focusable"
-                  data-testid="direct-session-speaker-name"
-                  value={directSpeakerName}
-                  onChange={(e) => setDirectSpeakerName(e.target.value)}
-                />
-              </label>
-              <label className="event-settings__field">
-                <span className="event-settings__label">Speaker email</span>
-                <input
-                  className="event-settings__input lumen-focusable"
-                  data-testid="direct-session-speaker-email"
-                  type="email"
-                  value={directSpeakerEmail}
-                  onChange={(e) => setDirectSpeakerEmail(e.target.value)}
-                />
-              </label>
-            </div>
+            <label className="event-settings__field">
+              <span className="event-settings__label">Track</span>
+              <select
+                className="event-settings__input lumen-focusable"
+                data-testid="direct-session-track"
+                value={directTrackId}
+                onChange={(e) => setDirectTrackId(e.target.value)}
+              >
+                <option value="">No track</option>
+                {tracks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <fieldset
+              className="submissions-page__direct-speakers"
+              data-testid="direct-session-speakers"
+            >
+              <legend className="event-settings__label">
+                Speakers (first is primary)
+              </legend>
+              {directSpeakers.map((sp, i) => (
+                <div
+                  className="eval-queue__row"
+                  key={i}
+                  data-testid={`direct-session-speaker-row-${i}`}
+                >
+                  <label className="event-settings__field">
+                    <span className="event-settings__label">
+                      {i === 0 ? "Speaker name" : `Speaker ${i + 1} name`}
+                    </span>
+                    <input
+                      className="event-settings__input lumen-focusable"
+                      data-testid={
+                        i === 0
+                          ? "direct-session-speaker-name"
+                          : `direct-session-speaker-name-${i}`
+                      }
+                      value={sp.name}
+                      onChange={(e) =>
+                        updateDirectSpeaker(i, { name: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="event-settings__field">
+                    <span className="event-settings__label">
+                      {i === 0 ? "Speaker email" : `Speaker ${i + 1} email`}
+                    </span>
+                    <input
+                      className="event-settings__input lumen-focusable"
+                      data-testid={
+                        i === 0
+                          ? "direct-session-speaker-email"
+                          : `direct-session-speaker-email-${i}`
+                      }
+                      type="email"
+                      value={sp.email}
+                      onChange={(e) =>
+                        updateDirectSpeaker(i, { email: e.target.value })
+                      }
+                    />
+                  </label>
+                  {directSpeakers.length > 1 ? (
+                    <Button
+                      type="button"
+                      variant="quiet"
+                      size="sm"
+                      data-testid={`direct-session-speaker-remove-${i}`}
+                      disabled={busy}
+                      onClick={() =>
+                        setDirectSpeakers((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        )
+                      }
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="direct-session-speaker-add"
+                disabled={busy || directSpeakers.length >= 20}
+                onClick={() =>
+                  setDirectSpeakers((prev) => [
+                    ...prev,
+                    { name: "", email: "" },
+                  ])
+                }
+              >
+                Add another speaker
+              </Button>
+            </fieldset>
             <Button
               type="submit"
               variant="primary"

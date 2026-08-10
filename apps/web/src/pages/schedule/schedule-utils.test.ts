@@ -182,6 +182,106 @@ describe("schedule-utils", () => {
     expect(single.dayEnd).toBe("2026-09-01T16:00:00.000Z");
   });
 
+  it("dayWindowUtc honors configured wall-time params (Wave 2 agenda)", () => {
+    expect(dayWindowUtc("2026-09-01", "UTC", "10:00", "16:00")).toEqual({
+      dayStart: "2026-09-01T10:00:00.000Z",
+      dayEnd: "2026-09-01T16:00:00.000Z",
+    });
+    expect(dayWindowUtc("2026-09-01", "UTC", "07:30", "18:15")).toEqual({
+      dayStart: "2026-09-01T07:30:00.000Z",
+      dayEnd: "2026-09-01T18:15:00.000Z",
+    });
+    // America/New_York EDT: 10:00 local = 14:00Z
+    const ny = dayWindowUtc("2026-09-02", "America/New_York", "10:00", "16:00");
+    expect(ny.dayStart).toBe("2026-09-02T14:00:00.000Z");
+    expect(ny.dayEnd).toBe("2026-09-02T20:00:00.000Z");
+    // Malformed wall times fall back to 09:00/17:00 defaults
+    expect(dayWindowUtc("2026-09-01", "UTC", "nope", "24:99")).toEqual({
+      dayStart: "2026-09-01T09:00:00.000Z",
+      dayEnd: "2026-09-01T17:00:00.000Z",
+    });
+  });
+
+  it("dayWindowForEvent: explicit agenda window wins over event clamping", () => {
+    // Without opts (legacy): first day clamps start to event startsAt.
+    const legacy = dayWindowForEvent(
+      "2026-09-01",
+      "2026-09-01T07:00:00.000Z",
+      "2026-09-03T17:00:00.000Z",
+      "UTC",
+    );
+    expect(legacy.dayStart).toBe("2026-09-01T07:00:00.000Z");
+    // With an explicit window, the configured hours are authoritative —
+    // matches the server-side "hours" enforcement.
+    const explicit = dayWindowForEvent(
+      "2026-09-01",
+      "2026-09-01T07:00:00.000Z",
+      "2026-09-03T17:00:00.000Z",
+      "UTC",
+      { startHHMM: "10:00", endHHMM: "16:00" },
+    );
+    expect(explicit).toEqual({
+      dayStart: "2026-09-01T10:00:00.000Z",
+      dayEnd: "2026-09-01T16:00:00.000Z",
+    });
+    // Explicit window also applies when event bounds are missing
+    expect(
+      dayWindowForEvent("2026-09-01", null, null, "UTC", {
+        startHHMM: "10:00",
+        endHHMM: "16:00",
+      }),
+    ).toEqual({
+      dayStart: "2026-09-01T10:00:00.000Z",
+      dayEnd: "2026-09-01T16:00:00.000Z",
+    });
+  });
+
+  it("buildTimeSlots at 30-minute interval matches the configured window", () => {
+    const slots = buildTimeSlots(
+      "2026-09-01T10:00:00.000Z",
+      "2026-09-01T16:00:00.000Z",
+      30,
+    );
+    expect(slots).toHaveLength(12);
+    expect(slots[0]).toBe("2026-09-01T10:00:00.000Z");
+    expect(slots[11]).toBe("2026-09-01T15:30:00.000Z");
+    // 15-minute interval quadruples the hourly density
+    expect(
+      buildTimeSlots(
+        "2026-09-01T10:00:00.000Z",
+        "2026-09-01T11:00:00.000Z",
+        15,
+      ),
+    ).toEqual([
+      "2026-09-01T10:00:00.000Z",
+      "2026-09-01T10:15:00.000Z",
+      "2026-09-01T10:30:00.000Z",
+      "2026-09-01T10:45:00.000Z",
+    ]);
+  });
+
+  it("placementInSlot stays parameterized by stepMinutes", () => {
+    const half: SchedulePlacementDto = {
+      ...sample,
+      startsAt: "2026-09-01T10:15:00.000Z",
+      endsAt: "2026-09-01T10:45:00.000Z",
+    };
+    // 30-min grid: 10:15 belongs to the 10:00 slot, not 10:30
+    expect(
+      placementInSlot(half, "room_a", "2026-09-01T10:00:00.000Z", 30),
+    ).toBe(true);
+    expect(
+      placementInSlot(half, "room_a", "2026-09-01T10:30:00.000Z", 30),
+    ).toBe(false);
+    // 15-min grid: it belongs exactly to the 10:15 slot
+    expect(
+      placementInSlot(half, "room_a", "2026-09-01T10:15:00.000Z", 15),
+    ).toBe(true);
+    expect(
+      placementInSlot(half, "room_a", "2026-09-01T10:00:00.000Z", 15),
+    ).toBe(false);
+  });
+
   it("slot helpers and grouping; off-hour placement still matches hour slot", () => {
     expect(slotKey("room_a", "2026-09-01T10:00:00.000Z")).toBe(
       "room_a|2026-09-01T10:00:00.000Z",

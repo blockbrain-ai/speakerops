@@ -68,9 +68,12 @@ export async function getReadiness(
       ? []
       : await deps.decisions.listSpeakerTasksForParticipations(partIds);
 
-  // Template titles for outstanding rows
+  // Template titles + required flag for outstanding rows
   const templates = await deps.decisions.listTaskTemplates(input.eventId);
   const titleByTemplate = new Map(templates.map((t) => [t.id, t.title]));
+  const requiredByTemplate = new Map(
+    templates.map((t) => [t.id, t.required === true]),
+  );
 
   const partById = new Map(parts.map((p) => [p.id, p]));
 
@@ -116,6 +119,7 @@ export async function getReadiness(
       status: overdue ? "overdue" : "pending",
       dueAt: task.dueAt,
       isOverdue: overdue,
+      required: requiredByTemplate.get(task.templateId) ?? false,
       version: task.version,
     });
   }

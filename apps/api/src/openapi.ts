@@ -552,7 +552,27 @@ export const FORM_OPENAPI_PATHS = {
                 formVersionId: { type: "string" },
                 title: { type: "string" },
                 answers: { type: "array" },
-                speakers: { type: "array" },
+                speakers: {
+                  type: "array",
+                  description:
+                    "Speaker blocks. Optional bio/company/title ('About this speaker') seed the event_participation profile on accept — only where the profile field is still empty; non-empty profile values are never overwritten.",
+                  items: {
+                    type: "object",
+                    required: ["name", "email"],
+                    properties: {
+                      name: { type: "string", maxLength: 200 },
+                      email: { type: "string", maxLength: 320 },
+                      isPrimary: { type: "boolean" },
+                      bio: { type: "string", maxLength: 8000, nullable: true },
+                      company: {
+                        type: "string",
+                        maxLength: 200,
+                        nullable: true,
+                      },
+                      title: { type: "string", maxLength: 200, nullable: true },
+                    },
+                  },
+                },
                 turnstileToken: { type: "string" },
                 category: { type: "string", nullable: true },
               },
@@ -943,6 +963,87 @@ export const EVAL_OPENAPI_PATHS = {
       },
     },
   },
+  "/api/events/{eventId}/eval/bulk-assign": {
+    post: {
+      operationId: "Eval.BulkAssign",
+      summary: "Eval.BulkAssign",
+      description:
+        "Admin bulk-assign wizard: preview (dryRun=true) computes a deterministic plan + previewId (estate hash); commit (dryRun=false) requires the previewId, 409s when the estate drifted, and is single-use/idempotent via idempotency_keys",
+      tags: ["Eval"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["roundId", "evaluatorIds", "mode", "existing", "dryRun"],
+              properties: {
+                roundId: { type: "string" },
+                evaluatorIds: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 1,
+                  maxItems: 100,
+                },
+                submissionFilter: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string" },
+                    category: { type: "string" },
+                  },
+                },
+                mode: {
+                  type: "string",
+                  enum: ["all_to_all", "round_robin"],
+                },
+                reviewersPerSubmission: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 20,
+                  description: "round_robin only (default 1)",
+                },
+                maxPerEvaluator: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 500,
+                },
+                existing: {
+                  type: "string",
+                  enum: ["preserve", "replace"],
+                  description:
+                    "preserve keeps existing pairs (skipped: already assigned); replace removes pending assignments not in the plan — scored/abstained are never removed",
+                },
+                dryRun: { type: "boolean" },
+                previewId: {
+                  type: "string",
+                  description: "Required when dryRun=false (from the preview)",
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description:
+            "Plan (preview) or applied plan (commit; idempotent replay carries idempotent: true)",
+        },
+        "400": { description: "Validation error / bad evaluator ids (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Round not found / wrong event" },
+        "409": { description: "Round closed / stale preview (estate drifted)" },
+      },
+    },
+  },
   "/api/submissions/{submissionId}/assign": {
     post: {
       operationId: "Submission.AssignEvaluators",
@@ -1102,6 +1203,55 @@ export const DECISION_OPENAPI_PATHS = {
         "400": { description: "Invalid query (E4 VALIDATION_ERROR)" },
         "401": { description: "Unauthenticated" },
         "403": { description: "Forbidden role" },
+        "404": { description: "Event not found" },
+      },
+    },
+  },
+  "/api/events/{eventId}/submissions/export": {
+    get: {
+      operationId: "Submission.ExportCsv",
+      summary: "Submission.ExportCsv",
+      description:
+        "Filtered submissions as CSV (Wave 2 depth). Same filters as " +
+        "Submission.List (status/category/q); stable headers (base columns + " +
+        "answer field_keys sorted); speakers flattened `Name <email>; …`; " +
+        "layout nodes (Wave 1B) never exported; cells formula-neutralized. " +
+        "Admin session or bearer submissions:read.",
+      tags: ["Decision"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "status",
+          in: "query",
+          required: false,
+          schema: { type: "string" },
+        },
+        {
+          name: "category",
+          in: "query",
+          required: false,
+          schema: { type: "string" },
+        },
+        {
+          name: "q",
+          in: "query",
+          required: false,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": {
+          description:
+            "text/csv attachment (Content-Disposition submissions-<eventId>.csv)",
+        },
+        "400": { description: "Invalid export query (E4 VALIDATION_ERROR)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role / missing submissions:read scope" },
         "404": { description: "Event not found" },
       },
     },
@@ -1433,6 +1583,57 @@ export const PORTAL_OPENAPI_PATHS = {
       },
     },
   },
+  "/api/events/{eventId}/speakers/{participationId}/tasks/{taskId}/complete": {
+    post: {
+      operationId: "Speakers.CompleteTask",
+      summary: "Speakers.CompleteTask",
+      description:
+        "Admin completes a speaker task on the speaker's behalf (Wave 2 N05). Idempotent on already-completed tasks.",
+      tags: ["Speakers"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "participationId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "taskId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["expectedVersion"],
+              properties: {
+                expectedVersion: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Task completed (idempotent on replay)" },
+        "400": { description: "Validation error / cancelled task" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden role" },
+        "404": { description: "Task not in this event/participation" },
+        "409": { description: "expectedVersion conflict" },
+      },
+    },
+  },
   "/api/events/{eventId}/task-templates": {
     get: {
       operationId: "TaskTemplate.List",
@@ -1478,6 +1679,13 @@ export const PORTAL_OPENAPI_PATHS = {
                 description: { type: "string", nullable: true },
                 trigger: { type: "string", enum: ["on_accept", "manual"] },
                 dueOffsetDays: { type: "integer" },
+                linkUrl: {
+                  type: "string",
+                  nullable: true,
+                  maxLength: 2000,
+                  description: "https:// resource link (http rejected)",
+                },
+                required: { type: "boolean", default: false },
               },
             },
           },
@@ -1523,6 +1731,14 @@ export const PORTAL_OPENAPI_PATHS = {
                 description: { type: "string", nullable: true },
                 trigger: { type: "string", enum: ["on_accept", "manual"] },
                 dueOffsetDays: { type: "integer" },
+                linkUrl: {
+                  type: "string",
+                  nullable: true,
+                  maxLength: 2000,
+                  description:
+                    "https:// resource link (http rejected); null clears",
+                },
+                required: { type: "boolean" },
                 expectedVersion: { type: "integer" },
               },
             },
@@ -1955,6 +2171,15 @@ export const COMMS_OPENAPI_PATHS = {
                       type: "array",
                       items: { type: "string" },
                     },
+                    submissionIds: {
+                      type: "array",
+                      items: { type: "string" },
+                      description:
+                        "Decision hand-off audience (Wave 2): primary " +
+                        "speakers of these submissions — including " +
+                        "rejected/waitlisted proposals with no participation " +
+                        "yet. Takes precedence over participationIds/status.",
+                    },
                   },
                 },
               },
@@ -2030,10 +2255,12 @@ export const OPENAPI_COMMANDS = [
   "Eval.Score",
   "Eval.Abstain",
   "Eval.GetQueue",
+  "Eval.BulkAssign",
   "Submission.AssignEvaluators",
   "Decision.Record",
   "Submission.Get",
   "Submission.List",
+  "Submission.ExportCsv",
   "Session.CreateDirect",
   "Decision.BulkPreview",
   "Portal.GetHome",
@@ -2042,6 +2269,7 @@ export const OPENAPI_COMMANDS = [
   "Speakers.List",
   "Speakers.Get",
   "Speakers.UpdateProfile",
+  "Speakers.CompleteTask",
   "TaskTemplate.List",
   "TaskTemplate.Create",
   "TaskTemplate.Update",
@@ -2256,7 +2484,7 @@ export const SCHEDULE_OPENAPI_PATHS = {
       operationId: "Schedule.Place",
       summary: "Schedule.Place",
       description:
-        "Place unscheduled session into room/time; hard room/speaker conflict → 409 CONFLICT with conflicts[]",
+        "Place unscheduled session into room/time; hard room/speaker conflict or placement outside the configured agenda day window (settings_json agendaDayStart/agendaDayEnd, event timezone) → 409 CONFLICT with conflicts[]",
       tags: ["Schedule"],
       parameters: [
         {
@@ -2292,7 +2520,7 @@ export const SCHEDULE_OPENAPI_PATHS = {
         "404": { description: "Session/room not found" },
         "409": {
           description:
-            "CONFLICT with conflicts[] (room/speaker) or VERSION stale",
+            "CONFLICT with conflicts[] (room/speaker overlap, or type \"hours\" when outside the agenda day window) or VERSION stale",
         },
       },
     },
@@ -2302,7 +2530,7 @@ export const SCHEDULE_OPENAPI_PATHS = {
       operationId: "Schedule.Move",
       summary: "Schedule.Move",
       description:
-        "Move placement; expectedVersion required; 409 VERSION on stale; 409 CONFLICT on overlap",
+        "Move placement; expectedVersion required; 409 VERSION on stale; 409 CONFLICT on overlap or outside the agenda day window (conflicts[] type \"hours\")",
       tags: ["Schedule"],
       parameters: [
         {
@@ -2342,7 +2570,10 @@ export const SCHEDULE_OPENAPI_PATHS = {
         "401": { description: "Unauthenticated" },
         "403": { description: "Forbidden role" },
         "404": { description: "Placement not found" },
-        "409": { description: "CONFLICT or VERSION" },
+        "409": {
+          description:
+            "CONFLICT (room/speaker overlap or agenda day-window \"hours\") or VERSION",
+        },
       },
     },
   },

@@ -120,7 +120,26 @@ type SpeakerDraft = {
   clientId: string;
   name: string;
   email: string;
+  /** Optional "About this speaker" seed fields (Wave 2). */
+  bio: string;
+  company: string;
+  title: string;
+  /** Collapsible about-section open state (collapsed by default). */
+  aboutOpen: boolean;
 };
+
+/** Fresh empty speaker block (about section collapsed). */
+function emptySpeaker(): SpeakerDraft {
+  return {
+    clientId: newSpeakerId(),
+    name: "",
+    email: "",
+    bio: "",
+    company: "",
+    title: "",
+    aboutOpen: false,
+  };
+}
 
 function newSpeakerId(): string {
   return `sp_${Math.random().toString(36).slice(2, 10)}`;
@@ -199,9 +218,7 @@ export function PublicCfpPage() {
 
   const [title, setTitle] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [speakers, setSpeakers] = useState<SpeakerDraft[]>([
-    { clientId: newSpeakerId(), name: "", email: "" },
-  ]);
+  const [speakers, setSpeakers] = useState<SpeakerDraft[]>([emptySpeaker()]);
   /** True when captcha completed (widget callback or local test control). */
   const [turnstileChecked, setTurnstileChecked] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -424,7 +441,7 @@ export function PublicCfpPage() {
             .slice()
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((s) => ({
-              clientId: newSpeakerId(),
+              ...emptySpeaker(),
               name: s.name,
               email: s.email,
             })),
@@ -504,10 +521,7 @@ export function PublicCfpPage() {
 
   const addSpeaker = () => {
     if (speakers.length >= maxSpeakers) return;
-    setSpeakers((prev) => [
-      ...prev,
-      { clientId: newSpeakerId(), name: "", email: "" },
-    ]);
+    setSpeakers((prev) => [...prev, emptySpeaker()]);
   };
 
   const removeSpeaker = (clientId: string) => {
@@ -517,7 +531,7 @@ export function PublicCfpPage() {
 
   const updateSpeaker = (
     clientId: string,
-    patch: Partial<Pick<SpeakerDraft, "name" | "email">>,
+    patch: Partial<Omit<SpeakerDraft, "clientId">>,
   ) => {
     setSpeakers((prev) =>
       prev.map((s) => (s.clientId === clientId ? { ...s, ...patch } : s)),
@@ -796,6 +810,9 @@ export function PublicCfpPage() {
         name: s.name.trim(),
         email: s.email.trim(),
         isPrimary: i === 0,
+        bio: s.bio.trim() || undefined,
+        company: s.company.trim() || undefined,
+        title: s.title.trim() || undefined,
       }));
 
     const answerPayload = Object.entries(answers)
@@ -897,6 +914,9 @@ export function PublicCfpPage() {
       name: s.name.trim(),
       email: s.email.trim(),
       isPrimary: i === 0,
+      bio: s.bio.trim() || undefined,
+      company: s.company.trim() || undefined,
+      title: s.title.trim() || undefined,
     }));
 
     const answerPayload = visibleFields
@@ -1603,6 +1623,114 @@ export function PublicCfpPage() {
                         {fieldErrors[`speaker-email-${i}`]}
                       </p>
                     ) : null}
+                    <div className="public-cfp__about">
+                      <button
+                        type="button"
+                        className="public-cfp__about-toggle lumen-focusable"
+                        data-testid={`cfp-speaker-about-toggle-${i}`}
+                        aria-expanded={s.aboutOpen}
+                        aria-controls={`sp-about-${i}`}
+                        disabled={submitState === "submitting"}
+                        onClick={() =>
+                          updateSpeaker(s.clientId, { aboutOpen: !s.aboutOpen })
+                        }
+                      >
+                        <span
+                          className="public-cfp__about-chevron"
+                          aria-hidden="true"
+                        >
+                          ▸
+                        </span>
+                        About this speaker (optional)
+                      </button>
+                      {!s.aboutOpen &&
+                      (s.bio.trim() || s.company.trim() || s.title.trim()) ? (
+                        <p
+                          className="public-cfp__about-summary"
+                          data-testid={`cfp-speaker-about-summary-${i}`}
+                        >
+                          {[
+                            s.title.trim() && "job title",
+                            s.company.trim() && "company",
+                            s.bio.trim() && "bio",
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}{" "}
+                          added
+                        </p>
+                      ) : null}
+                      {s.aboutOpen ? (
+                        <div
+                          className="public-cfp__about-fields"
+                          id={`sp-about-${i}`}
+                        >
+                          <p className="public-cfp__about-hint">
+                            A short bio, job title, and company help the
+                            organisers introduce this speaker — and pre-fill
+                            their speaker profile if the talk is accepted.
+                          </p>
+                          <label
+                            className="public-cfp__label"
+                            htmlFor={`sp-title-${i}`}
+                          >
+                            Job title
+                          </label>
+                          <input
+                            id={`sp-title-${i}`}
+                            className="public-cfp__input lumen-focusable"
+                            data-testid={`cfp-speaker-title-${i}`}
+                            value={s.title}
+                            maxLength={200}
+                            placeholder="e.g. Head of Platform Engineering"
+                            disabled={submitState === "submitting"}
+                            onChange={(e) =>
+                              updateSpeaker(s.clientId, {
+                                title: e.target.value,
+                              })
+                            }
+                          />
+                          <label
+                            className="public-cfp__label"
+                            htmlFor={`sp-company-${i}`}
+                          >
+                            Company
+                          </label>
+                          <input
+                            id={`sp-company-${i}`}
+                            className="public-cfp__input lumen-focusable"
+                            data-testid={`cfp-speaker-company-${i}`}
+                            value={s.company}
+                            maxLength={200}
+                            placeholder="Where do they work?"
+                            disabled={submitState === "submitting"}
+                            onChange={(e) =>
+                              updateSpeaker(s.clientId, {
+                                company: e.target.value,
+                              })
+                            }
+                          />
+                          <label
+                            className="public-cfp__label"
+                            htmlFor={`sp-bio-${i}`}
+                          >
+                            Short bio
+                          </label>
+                          <textarea
+                            id={`sp-bio-${i}`}
+                            className="public-cfp__input lumen-focusable"
+                            data-testid={`cfp-speaker-bio-${i}`}
+                            value={s.bio}
+                            maxLength={8000}
+                            rows={4}
+                            placeholder="A few sentences about this speaker (plain text)"
+                            disabled={submitState === "submitting"}
+                            onChange={(e) =>
+                              updateSpeaker(s.clientId, { bio: e.target.value })
+                            }
+                          />
+                        </div>
+                      ) : null}
+                    </div>
                     {speakers.length > minSpeakers ? (
                       <button
                         type="button"

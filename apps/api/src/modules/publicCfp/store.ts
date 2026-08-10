@@ -50,6 +50,10 @@ export type SubmissionSpeakerRow = {
   personId: string;
   isPrimary: boolean;
   sortOrder: number;
+  /** Optional "About this speaker" seed fields (Wave 2); null when omitted. */
+  bio?: string | null;
+  company?: string | null;
+  title?: string | null;
 };
 
 export type SubmissionsStore = {
@@ -216,7 +220,12 @@ export class MemorySubmissionsStore implements SubmissionsStore {
   async insertSpeakers(rows: SubmissionSpeakerRow[]): Promise<void> {
     for (const row of rows) {
       const list = this.speakers.get(row.submissionId) ?? [];
-      list.push({ ...row });
+      list.push({
+        ...row,
+        bio: row.bio ?? null,
+        company: row.company ?? null,
+        title: row.title ?? null,
+      });
       this.speakers.set(row.submissionId, list);
     }
   }
@@ -329,7 +338,12 @@ export class MemorySubmissionsStore implements SubmissionsStore {
   ): Promise<void> {
     this.speakers.set(
       submissionId,
-      rows.map((r) => ({ ...r })),
+      rows.map((r) => ({
+        ...r,
+        bio: r.bio ?? null,
+        company: r.company ?? null,
+        title: r.title ?? null,
+      })),
     );
   }
 
@@ -504,6 +518,9 @@ export class D1SubmissionsStore implements SubmissionsStore {
         personId: r.personId,
         isPrimary: r.isPrimary ? 1 : 0,
         sortOrder: r.sortOrder,
+        bio: r.bio ?? null,
+        company: r.company ?? null,
+        title: r.title ?? null,
       })),
     );
   }
@@ -600,6 +617,9 @@ export class D1SubmissionsStore implements SubmissionsStore {
       personId: r.personId,
       isPrimary: r.isPrimary === 1,
       sortOrder: r.sortOrder,
+      bio: r.bio ?? null,
+      company: r.company ?? null,
+      title: r.title ?? null,
     }));
   }
 
@@ -758,6 +778,9 @@ export class D1SubmissionsStore implements SubmissionsStore {
         personId: r.personId,
         isPrimary: r.isPrimary ? 1 : 0,
         sortOrder: r.sortOrder,
+        bio: r.bio ?? null,
+        company: r.company ?? null,
+        title: r.title ?? null,
       })),
     );
   }
