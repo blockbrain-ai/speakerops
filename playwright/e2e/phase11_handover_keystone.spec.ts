@@ -1025,11 +1025,17 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     await page.goto(url(`/portal?eventId=${DOGFOOD_EVENT_ID}`), {
       waitUntil: "domcontentloaded",
     });
-    const portal =
-      (await page.getByTestId("page-portal").count()) +
-      (await page.getByTestId("portal-next-task").count()) +
-      (await page.getByTestId("portal-home").count()) +
-      (await page.locator("[data-testid*='portal']").count());
+    // Terminal state, not presence-at-domcontentloaded: live D1 fetch may
+    // outlast the initial paint. Home, wizard-first onboarding, or the empty
+    // recovery panel are all real terminal portal states.
+    await expect(
+      page
+        .getByTestId("portal-home")
+        .or(page.getByTestId("portal-wizard-step"))
+        .or(page.getByTestId("portal-bio-no-participation"))
+        .first(),
+    ).toBeVisible({ timeout: 30_000 });
+    const portal = await page.locator("[data-testid*='portal']").count();
     expect(portal).toBeGreaterThan(0);
   });
 
