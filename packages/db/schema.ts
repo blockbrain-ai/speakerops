@@ -805,6 +805,8 @@ export const messageJobs = sqliteTable(
     bodiesJson: text("bodies_json"),
     missingFieldsJson: text("missing_fields_json"),
     idempotencyKey: text("idempotency_key"),
+    /** Optional ICS attach carrier — set only by Comms.Send. */
+    calendarInviteId: text("calendar_invite_id"),
     createdBy: text("created_by").notNull(),
     version: integer("version").notNull().default(1),
     createdAt: text("created_at").notNull(),

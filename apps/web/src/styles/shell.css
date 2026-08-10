@@ -585,13 +585,26 @@
   display: flex;
   flex-direction: column;
   gap: var(--lumen-space-4);
-  max-width: 960px;
+  max-width: 1200px;
 }
 
 .eval-queue__layout {
   display: grid;
-  grid-template-columns: minmax(180px, 280px) 1fr;
+  grid-template-columns: minmax(160px, 240px) 1fr;
   gap: var(--lumen-space-4);
+}
+
+.eval-queue__review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--lumen-space-4);
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .eval-queue__review {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -644,8 +657,44 @@
   color: var(--lumen-text-secondary);
 }
 
-.eval-queue__score-panel {
+.eval-queue__score-panel,
+.eval-queue__proposal-panel {
   min-width: 0;
+}
+
+.eval-queue__proposal-heading {
+  margin: var(--lumen-space-3) 0 var(--lumen-space-2);
+  font-size: var(--lumen-text-ui);
+  font-weight: 600;
+}
+
+.eval-queue__proposal-speaker-list,
+.eval-queue__proposal-answer-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.eval-queue__proposal-answer {
+  display: grid;
+  gap: var(--lumen-space-1);
+  padding-bottom: var(--lumen-space-2);
+  border-bottom: 1px solid var(--lumen-border);
+}
+
+.eval-queue__proposal-answer dt {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.eval-queue__proposal-answer dd {
+  margin: 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .eval-queue__criterion {
@@ -1012,7 +1061,7 @@
 
 /* Evaluator queue low-distraction (11.4) */
 .eval-queue--l2 {
-  max-width: 1040px;
+  max-width: 1200px;
 }
 
 .eval-queue__progress-card {
@@ -1251,6 +1300,21 @@
   outline: none;
   box-shadow: var(--lumen-focus-ring);
   border-color: var(--lumen-focus);
+}
+
+.public-cfp__multiselect {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-2);
+}
+
+.public-cfp__multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  font-size: 14px;
+  color: var(--lumen-text);
+  cursor: pointer;
 }
 
 .public-cfp__error {

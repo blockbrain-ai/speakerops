@@ -189,6 +189,43 @@ speakerops openapi --json
 - **HTTP:** `GET /openapi.json` (public discovery document)
 - **Assert:** paths include `/api/events`, schedule, readiness, design, keys, …
 
+### Program loop — `forms` (cfp:read / cfp:write)
+
+```bash
+speakerops forms list --event <eventId> --json
+speakerops forms get --form <formId> --json
+speakerops forms create --event <eventId> --name "CFP 2026" --json
+speakerops forms draft --form <formId> --fields '[{"fieldKey":"title","type":"text","label":"Title","required":true}]'
+speakerops forms publish --form <formId>
+```
+
+- **Scopes:** list/get → `cfp:read` (or `cfp:write`); create/draft/publish → `cfp:write`
+- **HTTP:** `GET/POST /api/events/:eventId/forms`, `GET /api/forms/:formId`, `PUT .../draft`, `POST .../publish`
+
+### Program loop — `submissions`
+
+```bash
+speakerops submissions list --event <eventId> [--status submitted] [--q "title"] --json
+speakerops submissions get --submission <id> --json
+speakerops submissions assign --submission <id> --users <userId[,userId…]>
+speakerops submissions decision --submission <id> --decision accept|reject|waitlist [--reason R]
+speakerops submissions bulk-decision --event <eventId> --decision accept|reject|waitlist --ids id1,id2
+```
+
+- **Scopes:** list/get → `submissions:read`; assign → `submissions:write`; decision/bulk-decision → `decisions:write`
+- **HTTP:** Submission.List/Get, AssignEvaluators, Decision.Record, bulk-decision
+
+### Program loop — `eval`
+
+```bash
+speakerops eval rollup --event <eventId> [--sort score_desc|score_asc|title] --json
+speakerops eval export --event <eventId> [--sort score_desc]   # CSV on stdout
+```
+
+- **Scope:** `submissions:read`
+- **HTTP:** `GET /api/events/:eventId/eval/rollup`, `.../eval/export`
+- Export includes evaluator emails + overall comments (Area 3 deliberation export).
+
 ## Agent notes
 
 1. Prefer `--json` for all automation.

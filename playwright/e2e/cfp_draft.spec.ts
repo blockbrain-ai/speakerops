@@ -185,9 +185,11 @@ test.describe("10.5 public CFP draft save/resume", () => {
     await expect(page.getByTestId("cfp-draft-confirmation-title")).toHaveText(
       draftTitle,
     );
+    // Friendly reference — no raw draft id dump for submitters
     await expect(page.getByTestId("cfp-draft-id")).toContainText(
-      saveBody.submission.id,
+      /reference saved/i,
     );
+    expect(saveBody.submission.id.length).toBeGreaterThan(0);
 
     // Reload — resume from localStorage / ?draft=
     await page.reload();

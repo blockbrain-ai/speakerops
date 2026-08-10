@@ -4,7 +4,7 @@
  * Lumen 2: DataTable, toolbar, sticky bulk bar, filter chips, detail hierarchy.
  *
  * Inventory: E01 list filters · E02 detail · E03 assign · E04 accept
- * · E05 reject · E06 waitlist · E07 direct session · E08 bulk preview
+ * · E05 reject · E06 waitlist · E07 direct session · E08 bulk preview/commit
  * · L02/L03 empty/error/loading · S-SUB-LIST page window
  *
  * Wired to real APIs:
@@ -14,6 +14,7 @@
  * POST /api/submissions/:id/assign
  * POST /api/events/:eventId/sessions/direct
  * POST /api/events/:eventId/submissions/bulk-preview
+ * POST /api/events/:eventId/submissions/bulk-decision
  */
 import {
   useCallback,
@@ -30,13 +31,18 @@ import {
   DecisionRecordResponseSchema,
   DirectSessionResponseSchema,
   BulkDecisionPreviewResponseSchema,
+  BulkDecisionCommitResponseSchema,
   SubmissionAssignResponseSchema,
+  EventMembersResponseSchema,
+  EvalReviewsResponseSchema,
   ErrorEnvelopeSchema,
   SUBMISSION_LIST_DEFAULT_LIMIT,
   type SubmissionListItem,
   type SubmissionDetailResponse,
   type BulkDecisionPreviewItem,
   type DecisionValue,
+  type EventMember,
+  type EvalReviewsResponse,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
 import {
@@ -151,13 +157,18 @@ export function SubmissionsPage() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [searchQ, setSearchQ] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detail, setDetail] = useState<SubmissionDetailResponse | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailReviews, setDetailReviews] =
+    useState<EvalReviewsResponse | null>(null);
   const [status, setStatus] = useState<StatusMsg>(null);
   const [reason, setReason] = useState("");
-  const [assignUserId, setAssignUserId] = useState("");
+  /** Selected evaluator user ids for assign (multi-select picker). */
+  const [assignUserIds, setAssignUserIds] = useState<Set<string>>(new Set());
+  const [evaluators, setEvaluators] = useState<EventMember[]>([]);
   const [busy, setBusy] = useState(false);
   const loadGen = useRef(0);
 
@@ -194,6 +205,8 @@ export function SubmissionsPage() {
         const params = new URLSearchParams();
         if (statusFilter) params.set("status", statusFilter);
         if (categoryFilter) params.set("category", categoryFilter);
+        const qTrim = searchQ.trim();
+        if (qTrim) params.set("q", qTrim);
         params.set("limit", String(SUBMISSION_LIST_DEFAULT_LIMIT));
         params.set("offset", String(offset));
         const qs = params.toString();
@@ -251,14 +264,14 @@ export function SubmissionsPage() {
         }
       }
     },
-    [statusFilter, categoryFilter],
+    [statusFilter, categoryFilter, searchQ],
   );
 
   // Reset to page 1 when filters or event change (keep filters when paging)
   useEffect(() => {
     setPage(1);
     setSelected(new Set());
-  }, [statusFilter, categoryFilter, activeEventId]);
+  }, [statusFilter, categoryFilter, searchQ, activeEventId]);
 
   useEffect(() => {
     if (activeEventId) {
@@ -271,6 +284,43 @@ export function SubmissionsPage() {
     }
   }, [activeEventId, loadList, page]);
 
+  /** Load evaluator roster for assign picker. */
+  useEffect(() => {
+    if (!activeEventId) {
+      setEvaluators([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(activeEventId)}/members?role=evaluator`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (cancelled) return;
+        if (!res.ok) {
+          setEvaluators([]);
+          return;
+        }
+        const raw: unknown = await res.json();
+        const parsed = EventMembersResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          setEvaluators([]);
+          return;
+        }
+        setEvaluators(parsed.data.members);
+      } catch {
+        if (!cancelled) setEvaluators([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEventId]);
+
   async function openDetail(id: string, opts?: { clearStatus?: boolean }) {
     setDetailId(id);
     if (opts?.clearStatus !== false) {
@@ -278,6 +328,7 @@ export function SubmissionsPage() {
       setStatus(null);
     }
     setReason("");
+    setDetailReviews(null);
     try {
       const res = await fetch(`/api/submissions/${encodeURIComponent(id)}`, {
         credentials: "include",
@@ -301,6 +352,23 @@ export function SubmissionsPage() {
         return;
       }
       setDetail(parsed.data);
+      // Individual reviews for deliberation (admin).
+      try {
+        const revRes = await fetch(
+          `/api/submissions/${encodeURIComponent(id)}/eval-reviews`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (revRes.ok) {
+          const revRaw: unknown = await revRes.json();
+          const revParsed = EvalReviewsResponseSchema.safeParse(revRaw);
+          if (revParsed.success) setDetailReviews(revParsed.data);
+        }
+      } catch {
+        /* reviews optional for detail view */
+      }
     } catch {
       setStatus({ kind: "error", text: "Network error" });
     }
@@ -368,12 +436,60 @@ export function SubmissionsPage() {
     }
   }
 
+  function toggleAssignUser(userId: string) {
+    setAssignUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  async function assignToSubmissionIds(
+    submissionIds: string[],
+    userIds: string[],
+  ): Promise<{ ok: number; failed: number }> {
+    let ok = 0;
+    let failed = 0;
+    for (const submissionId of submissionIds) {
+      try {
+        const res = await fetch(
+          `/api/submissions/${encodeURIComponent(submissionId)}/assign`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: JSON.stringify({ userIds }),
+          },
+        );
+        const raw: unknown = await res.json().catch(() => null);
+        if (!res.ok) {
+          failed += 1;
+          continue;
+        }
+        const parsed = SubmissionAssignResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          failed += 1;
+          continue;
+        }
+        ok += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    return { ok, failed };
+  }
+
   async function assignEvaluator(e: FormEvent) {
     e.preventDefault();
-    if (!detail || !assignUserId.trim()) return;
+    if (!detail || assignUserIds.size === 0) return;
     setBusy(true);
     setStatus(null);
     try {
+      const userIds = [...assignUserIds];
       const res = await fetch(
         `/api/submissions/${encodeURIComponent(detail.submission.id)}/assign`,
         {
@@ -383,7 +499,7 @@ export function SubmissionsPage() {
             "content-type": "application/json",
             accept: "application/json",
           },
-          body: JSON.stringify({ userIds: [assignUserId.trim()] }),
+          body: JSON.stringify({ userIds }),
         },
       );
       const raw: unknown = await res.json().catch(() => null);
@@ -406,9 +522,40 @@ export function SubmissionsPage() {
         kind: "ok",
         text: `Assigned ${parsed.data.assignments.length} evaluator(s)`,
       });
-      setAssignUserId("");
+      setAssignUserIds(new Set());
     } catch {
       setStatus({ kind: "error", text: "Network error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function batchAssignSelected() {
+    if (selected.size === 0 || assignUserIds.size === 0) {
+      setStatus({
+        kind: "error",
+        text: "Select submissions and at least one evaluator",
+      });
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const result = await assignToSubmissionIds(
+        [...selected],
+        [...assignUserIds],
+      );
+      if (result.failed === 0) {
+        setStatus({
+          kind: "ok",
+          text: `Assigned evaluators to ${result.ok} submission(s)`,
+        });
+      } else {
+        setStatus({
+          kind: "error",
+          text: `Assigned ${result.ok}, failed ${result.failed}`,
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -466,13 +613,79 @@ export function SubmissionsPage() {
         return;
       }
       setBulkPreview({
-        decision: parsed.data.decision,
+        decision: parsed.data.decision as DecisionValue,
         items: parsed.data.items,
       });
       setStatus({
         kind: "ok",
         text: `Preview: ${parsed.data.count} submission(s) → ${parsed.data.decision}`,
       });
+    } catch {
+      setStatus({ kind: "error", text: "Network error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runBulkCommit() {
+    if (!activeEventId || !bulkPreview) return;
+    if (bulkPreview.items.length === 0) {
+      setStatus({ kind: "error", text: "Nothing to apply" });
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}/submissions/bulk-decision`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({
+            submissionIds: bulkPreview.items.map((i) => i.submissionId),
+            decision: bulkPreview.decision,
+          }),
+        },
+      );
+      const raw: unknown = await res.json().catch(() => null);
+      if (!res.ok) {
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setStatus({
+          kind: "error",
+          text: env.success ? env.data.error : `Failed (${res.status})`,
+        });
+        setBusy(false);
+        return;
+      }
+      const parsed = BulkDecisionCommitResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        setStatus({ kind: "error", text: "Unexpected commit response" });
+        setBusy(false);
+        return;
+      }
+      const failedItems = parsed.data.items.filter((i) => !i.ok);
+      if (failedItems.length === 0) {
+        setStatus({
+          kind: "ok",
+          text: `Applied ${parsed.data.applied} ${parsed.data.decision} decision(s)`,
+        });
+      } else {
+        const names = failedItems
+          .map((i) => `${i.submissionId}: ${i.error ?? "failed"}`)
+          .slice(0, 5)
+          .join("; ");
+        setStatus({
+          kind: "error",
+          text: `Applied ${parsed.data.applied}, failed ${parsed.data.failed}. ${names}`,
+        });
+      }
+      setBulkPreview(null);
+      setSelected(new Set());
+      if (activeEventId) void loadList(activeEventId, page);
     } catch {
       setStatus({ kind: "error", text: "Network error" });
     } finally {
@@ -610,6 +823,13 @@ export function SubmissionsPage() {
           clear: () => setCategoryFilter(""),
         }
       : null,
+    searchQ.trim()
+      ? {
+          key: "q",
+          label: `Search: ${searchQ.trim()}`,
+          clear: () => setSearchQ(""),
+        }
+      : null,
   ].filter(Boolean) as Array<{
     key: string;
     label: string;
@@ -732,6 +952,19 @@ export function SubmissionsPage() {
             </select>
           </label>
 
+          <label className="event-settings__field submissions-page__search-field">
+            <span className="event-settings__label">Search</span>
+            <input
+              type="search"
+              className="event-settings__input lumen-focusable"
+              data-testid="submissions-filter-q"
+              placeholder="Title or speaker…"
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              aria-label="Search submissions by title or speaker"
+            />
+          </label>
+
           {/* Always-available bulk preview controls (E08 empty selection) */}
           <div
             className="submissions-page__toolbar-actions"
@@ -791,6 +1024,7 @@ export function SubmissionsPage() {
               onClick={() => {
                 setStatusFilter("");
                 setCategoryFilter("");
+                setSearchQ("");
               }}
             >
               Clear filters
@@ -884,6 +1118,27 @@ export function SubmissionsPage() {
               </li>
             ))}
           </ul>
+          <div className="eval-queue__row" style={{ marginTop: "0.75rem" }}>
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="submissions-bulk-commit"
+              pending={busy}
+              disabled={busy || bulkPreview.items.length === 0}
+              onClick={() => void runBulkCommit()}
+            >
+              Confirm apply ({bulkPreview.items.length})
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              data-testid="submissions-bulk-preview-dismiss"
+              disabled={busy}
+              onClick={() => setBulkPreview(null)}
+            >
+              Dismiss
+            </Button>
+          </div>
         </Card>
       ) : null}
 
@@ -1159,6 +1414,60 @@ export function SubmissionsPage() {
 
               <section
                 className="submissions-page__detail-section"
+                data-testid="submission-detail-section-reviews"
+                aria-labelledby="detail-reviews-heading"
+              >
+                <h4
+                  id="detail-reviews-heading"
+                  className="submissions-page__subhead"
+                >
+                  Reviews
+                </h4>
+                {!detailReviews || detailReviews.reviews.length === 0 ? (
+                  <p
+                    className="eval-queue__muted"
+                    data-testid="submission-detail-reviews-empty"
+                  >
+                    No evaluation reviews yet.
+                  </p>
+                ) : (
+                  <ul
+                    className="eval-reviews-list"
+                    data-testid="submission-detail-reviews"
+                  >
+                    {detailReviews.reviews.map((r) => (
+                      <li
+                        key={r.assignmentId}
+                        className="eval-reviews-list__item"
+                        data-testid={`submission-detail-review-${r.assignmentId}`}
+                      >
+                        <div className="eval-reviews-list__meta">
+                          <strong>
+                            {r.evaluatorEmail ?? r.evaluatorUserId}
+                          </strong>
+                          <span className="eval-queue__muted">
+                            {" "}
+                            · {r.status}
+                            {r.aggregateScore != null
+                              ? ` · ${r.aggregateScore.toFixed(1)}`
+                              : ""}
+                          </span>
+                        </div>
+                        {r.overallComment ? (
+                          <p className="eval-reviews-list__comment">
+                            {r.overallComment}
+                          </p>
+                        ) : (
+                          <p className="eval-queue__muted">No overall comment</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section
+                className="submissions-page__detail-section"
                 data-testid="submission-detail-section-speakers"
                 aria-labelledby="detail-speakers-heading"
               >
@@ -1271,27 +1580,75 @@ export function SubmissionsPage() {
                   data-testid="submission-assign-form"
                   onSubmit={(e) => void assignEvaluator(e)}
                 >
-                  <label className="event-settings__field">
-                    <span className="event-settings__label">
-                      Assign evaluator (user id)
-                    </span>
-                    <input
-                      className="event-settings__input lumen-focusable"
-                      data-testid="submission-assign-user-id"
-                      value={assignUserId}
-                      onChange={(e) => setAssignUserId(e.target.value)}
-                      placeholder="Evaluator user id"
-                    />
-                  </label>
-                  <Button
-                    type="submit"
-                    variant="secondary"
-                    data-testid="submission-assign-submit"
-                    disabled={busy || !assignUserId.trim()}
-                    pending={busy}
+                  <fieldset
+                    className="submissions-page__evaluator-picker"
+                    data-testid="submission-assign-evaluator-picker"
                   >
-                    Assign
-                  </Button>
+                    <legend className="event-settings__label">
+                      Assign evaluator(s)
+                    </legend>
+                    {evaluators.length === 0 ? (
+                      <p
+                        className="eval-queue__muted"
+                        data-testid="submission-assign-no-evaluators"
+                      >
+                        No evaluators on this event. Invite evaluators first.
+                      </p>
+                    ) : (
+                      <ul className="submissions-page__evaluator-list">
+                        {evaluators.map((m) => {
+                          const checked = assignUserIds.has(m.userId);
+                          return (
+                            <li key={m.userId}>
+                              <label
+                                className="submissions-page__evaluator-option lumen-focusable"
+                                data-testid={`submission-assign-evaluator-${m.userId}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleAssignUser(m.userId)}
+                                  data-testid={`submission-assign-check-${m.userId}`}
+                                />
+                                <span>
+                                  {m.email}
+                                  <span className="eval-queue__muted">
+                                    {" "}
+                                    · {m.assignmentCount} assigned
+                                  </span>
+                                </span>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </fieldset>
+                  <div className="eval-queue__row">
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      data-testid="submission-assign-submit"
+                      disabled={busy || assignUserIds.size === 0}
+                      pending={busy}
+                    >
+                      Assign to this submission
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      data-testid="submission-assign-batch"
+                      disabled={
+                        busy ||
+                        assignUserIds.size === 0 ||
+                        selected.size === 0
+                      }
+                      pending={busy}
+                      onClick={() => void batchAssignSelected()}
+                    >
+                      Assign to selected ({selected.size})
+                    </Button>
+                  </div>
                 </form>
               </section>
 

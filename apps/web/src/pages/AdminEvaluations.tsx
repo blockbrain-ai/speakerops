@@ -52,6 +52,17 @@ export function AdminEvaluationsPage() {
   const [sort, setSort] = useState<EvalScoreSort>("score_desc");
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  /** Expanded submission ids for individual review visibility. */
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(submissionId: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(submissionId)) next.delete(submissionId);
+      else next.add(submissionId);
+      return next;
+    });
+  }
 
   const load = useCallback(async (eventId: string) => {
     setLoading(true);
@@ -301,6 +312,23 @@ export function AdminEvaluationsPage() {
         </span>
       ),
     },
+    {
+      id: "reviews",
+      header: "Reviews",
+      cell: (row) => (
+        <Button
+          type="button"
+          variant="quiet"
+          size="sm"
+          data-testid={`eval-reviews-toggle-${row.submissionId}`}
+          aria-expanded={expanded.has(row.submissionId)}
+          disabled={row.assignments.length === 0}
+          onClick={() => toggleExpanded(row.submissionId)}
+        >
+          {expanded.has(row.submissionId) ? "Hide reviews" : "Show reviews"}
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -452,6 +480,71 @@ export function AdminEvaluationsPage() {
                 }}
                 density="comfortable"
               />
+
+              {sortedRows
+                .filter((r) => expanded.has(r.submissionId))
+                .map((row) => (
+                  <Card
+                    key={`reviews-${row.submissionId}`}
+                    className="eval-admin-page__reviews"
+                    data-testid={`eval-reviews-panel-${row.submissionId}`}
+                    title={`Reviews · ${row.title}`}
+                    meta={`${row.assignments.length} assignment(s)`}
+                  >
+                    {row.assignments.length === 0 ? (
+                      <p className="eval-queue__muted">No assignments yet.</p>
+                    ) : (
+                      <ul
+                        className="eval-reviews-list"
+                        data-testid={`eval-reviews-list-${row.submissionId}`}
+                      >
+                        {row.assignments.map((a) => (
+                          <li
+                            key={a.id}
+                            className="eval-reviews-list__item"
+                            data-testid={`eval-review-${a.id}`}
+                            data-status={a.status}
+                          >
+                            <div className="eval-reviews-list__meta">
+                              <strong>
+                                {a.evaluatorEmail?.trim() || a.evaluatorUserId}
+                              </strong>
+                              <Badge
+                                tone={
+                                  a.status === "scored" ? "success" : "neutral"
+                                }
+                              >
+                                {a.status}
+                              </Badge>
+                              <span className="eval-queue__muted">
+                                {a.aggregateScore != null
+                                  ? `score ${a.aggregateScore.toFixed(2)}`
+                                  : "no score"}
+                              </span>
+                            </div>
+                            {a.overallComment ? (
+                              <p
+                                className="eval-reviews-list__comment"
+                                data-testid={`eval-review-comment-${a.id}`}
+                              >
+                                {a.overallComment}
+                              </p>
+                            ) : (
+                              <p className="eval-queue__muted">No comment.</p>
+                            )}
+                            {a.scores && a.scores.length > 0 ? (
+                              <p className="eval-queue__muted eval-reviews-list__scores">
+                                {a.scores
+                                  .map((s) => `${s.criterionId}: ${s.value}`)
+                                  .join(" · ")}
+                              </p>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </Card>
+                ))}
             </>
           ) : null}
         </section>

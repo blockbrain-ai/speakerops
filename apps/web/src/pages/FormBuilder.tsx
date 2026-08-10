@@ -7,7 +7,8 @@
  * Lumen 2 composition: outline + canvas + inspector; progressive advanced controls;
  * Build / Public preview / Publish summary views.
  *
- * Wired to Form.Create / Form.UpdateDraftFields / Form.Publish only (COMMANDS.md).
+ * Wired to Form.Create / Form.List / Form.GetAdmin / Form.UpdateDraftFields / Form.Publish.
+ * On event mount, reloads existing form draft so the builder is not blank after refresh.
  */
 import {
   useCallback,
@@ -17,15 +18,20 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   FormCreateBodySchema,
   FormCreateResponseSchema,
   FormUpdateDraftResponseSchema,
   FormPublishResponseSchema,
+  FormListResponseSchema,
+  FormAdminGetResponseSchema,
   ErrorEnvelopeSchema,
   type FormDto,
   type FormVersionDto,
   type FormFieldType,
+  type FormFieldDto,
+  type FormRuleDto,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
 import { FormPreview } from "../components/forms/FormPreview.js";
@@ -48,6 +54,29 @@ import { Button } from "../components/ui/Button.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Alert } from "../components/ui/Alert.js";
 
+function draftFieldsToBuilder(fields: FormFieldDto[]): BuilderField[] {
+  return [...fields]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((f, i) => ({
+      clientId: newClientId(),
+      fieldKey: f.fieldKey,
+      type: f.type,
+      label: f.label,
+      required: f.required,
+      options: f.options,
+      sortOrder: f.sortOrder ?? i,
+      conditions: f.conditions,
+    }));
+}
+
+function draftRulesToBuilder(rules: FormRuleDto[]): BuilderRule[] {
+  return rules.map((r) => ({
+    clientId: newClientId(),
+    when: r.when,
+    routeToCategory: r.routeToCategory,
+  }));
+}
+
 type StatusMsg = { kind: "ok" | "error" | "warn"; text: string } | null;
 
 type BuilderView = "build" | "preview" | "publish";
@@ -69,6 +98,7 @@ function reasonMessage(reasons: ReturnType<typeof publishBlockReasons>): string 
 
 export function FormBuilderPage() {
   const { activeEventId, activeEvent } = useEventContext();
+  const [searchParams] = useSearchParams();
 
   const [formName, setFormName] = useState("CFP form");
   const [form, setForm] = useState<FormDto | null>(null);
@@ -90,6 +120,7 @@ export function FormBuilderPage() {
   const [publishStatus, setPublishStatus] = useState<StatusMsg>(null);
   const [linkStatus, setLinkStatus] = useState<StatusMsg>(null);
   const [busy, setBusy] = useState(false);
+  const [loadExistingStatus, setLoadExistingStatus] = useState<StatusMsg>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   /** Lumen 2 view mode (page-atlas: Build / Public preview / Version summary). */
@@ -104,10 +135,37 @@ export function FormBuilderPage() {
     [fields, selectedClientId],
   );
 
+  const applyAdminForm = useCallback(
+    (payload: {
+      form: FormDto;
+      draft: FormVersionDto;
+      published?: FormVersionDto | null;
+    }) => {
+      setForm(payload.form);
+      setFormName(payload.form.name);
+      setDraftMeta(payload.draft);
+      setPublishedVersion(payload.published ?? null);
+      setFields(draftFieldsToBuilder(payload.draft.fields ?? []));
+      setRules(draftRulesToBuilder(payload.draft.rules ?? []));
+      setWelcomeMd(payload.draft.welcomeMd ?? "");
+      setThankYouMd(payload.draft.thankYouMd ?? "");
+      setOpensAt(payload.draft.opensAt ?? "");
+      setClosesAt(payload.draft.closesAt ?? "");
+      setSubmissionLimit(
+        payload.draft.submissionLimit != null
+          ? String(payload.draft.submissionLimit)
+          : "",
+      );
+      setSelectedClientId(null);
+      setBuilderView("build");
+    },
+    [],
+  );
+
   /**
    * Reset builder state when the active event changes so Save/Publish cannot
    * mutate a form belonging to a previous event while Copy public link uses
-   * the newly selected event slug.
+   * the newly selected event slug. Then load existing forms for the event.
    */
   useEffect(() => {
     setFormName("CFP form");
@@ -126,12 +184,96 @@ export function FormBuilderPage() {
     setSaveStatus(null);
     setPublishStatus(null);
     setLinkStatus(null);
+    setLoadExistingStatus(null);
     setBusy(false);
     setDragIndex(null);
     setBuilderView("build");
     setFormAdvancedOpen(true);
     setFieldAdvancedOpen(true);
-  }, [activeEventId]);
+
+    if (!activeEventId) return;
+
+    let cancelled = false;
+    const preferFormId = searchParams.get("form");
+
+    (async () => {
+      setBusy(true);
+      try {
+        const listRes = await fetch(
+          `/api/events/${encodeURIComponent(activeEventId)}/forms`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (cancelled) return;
+        if (!listRes.ok) {
+          // Empty builder is fine when list fails (auth / no forms).
+          setLoadExistingStatus(null);
+          return;
+        }
+        const listRaw: unknown = await listRes.json();
+        const listParsed = FormListResponseSchema.safeParse(listRaw);
+        if (!listParsed.success || listParsed.data.forms.length === 0) {
+          return;
+        }
+        const forms = listParsed.data.forms;
+        const target =
+          (preferFormId
+            ? forms.find((f) => f.id === preferFormId)
+            : undefined) ?? forms[0]!;
+
+        const getRes = await fetch(
+          `/api/forms/${encodeURIComponent(target.id)}`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (cancelled) return;
+        if (!getRes.ok) {
+          setLoadExistingStatus({
+            kind: "error",
+            text: "Could not load existing form draft",
+          });
+          return;
+        }
+        const getRaw: unknown = await getRes.json();
+        const getParsed = FormAdminGetResponseSchema.safeParse(getRaw);
+        if (!getParsed.success) {
+          setLoadExistingStatus({
+            kind: "error",
+            text: "Unexpected form detail response",
+          });
+          return;
+        }
+        applyAdminForm({
+          form: getParsed.data.form,
+          draft: getParsed.data.draft,
+          published: getParsed.data.published ?? null,
+        });
+        setLoadExistingStatus({
+          kind: "ok",
+          text: `Loaded “${getParsed.data.form.name}”`,
+        });
+      } catch {
+        if (!cancelled) {
+          setLoadExistingStatus({
+            kind: "error",
+            text: "Network error loading forms",
+          });
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // searchParams form is intentional for ?form= deep link
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- remount load on event / ?form=
+  }, [activeEventId, searchParams, applyAdminForm]);
 
   const blockReasons = useMemo(
     () =>
@@ -559,6 +701,15 @@ export function FormBuilderPage() {
             role="status"
           >
             {createStatus.text}
+          </p>
+        ) : null}
+        {loadExistingStatus ? (
+          <p
+            className={`form-builder__status form-builder__status--${loadExistingStatus.kind}`}
+            data-testid="form-load-status"
+            role="status"
+          >
+            {loadExistingStatus.text}
           </p>
         ) : null}
         {form ? (

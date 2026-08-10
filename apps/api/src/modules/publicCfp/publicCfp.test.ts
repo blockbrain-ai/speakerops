@@ -1138,6 +1138,113 @@ describe("10.5 public CFP draft save/resume", () => {
   });
 });
 
+describe("thin-area: multiselect array validation", () => {
+  it("rejects non-array multiselect answer; accepts string[]", async () => {
+    const { app, cookie } = await magicLinkSession("cfp-ms-admin@example.com");
+    const event = await createEvent(app, cookie, "Multiselect Event");
+
+    const create = await app.request(
+      `http://localhost/api/events/${event.id}/forms`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ name: "MS CFP" }),
+      },
+      env,
+    );
+    expect(create.status).toBe(201);
+    const created = FormCreateResponseSchema.parse(await create.json());
+    const draft = await app.request(
+      `http://localhost/api/forms/${created.form.id}/draft`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({
+          fields: [
+            {
+              fieldKey: "tracks",
+              type: "multiselect",
+              label: "Tracks",
+              required: true,
+              sortOrder: 0,
+              options: [
+                { value: "a", label: "A" },
+                { value: "b", label: "B" },
+              ],
+            },
+          ],
+          rules: [],
+        }),
+      },
+      env,
+    );
+    expect(draft.status).toBe(200);
+    const publish = await app.request(
+      `http://localhost/api/forms/${created.form.id}/publish`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    expect(publish.status).toBe(200);
+    const published = FormPublishResponseSchema.parse(await publish.json());
+
+    const bad = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          formVersionId: published.formVersion.id,
+          title: "MS Talk Bad",
+          answers: [{ fieldKey: "tracks", value: "a" }],
+          speakers: [
+            { name: "S", email: "ms-bad@example.com", isPrimary: true },
+          ],
+          turnstileToken: TURNSTILE_DEV_PASS_TOKEN,
+        }),
+      },
+      env,
+    );
+    expect(bad.status).toBe(400);
+    const envBad = ErrorEnvelopeSchema.parse(await bad.json());
+    expect(envBad.error).toMatch(/array/i);
+
+    const good = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          formVersionId: published.formVersion.id,
+          title: "MS Talk Good",
+          answers: [{ fieldKey: "tracks", value: ["a", "b"] }],
+          speakers: [
+            { name: "S", email: "ms-good@example.com", isPrimary: true },
+          ],
+          turnstileToken: TURNSTILE_DEV_PASS_TOKEN,
+        }),
+      },
+      env,
+    );
+    expect(good.status).toBe(201);
+    const body = SubmissionCreateResponseSchema.parse(await good.json());
+    const tracks = body.answers.find((a) => a.fieldKey === "tracks");
+    expect(tracks?.value).toEqual(["a", "b"]);
+  });
+});
+
 describe("3.3 rate limiter unit", () => {
   beforeEach(() => {
     // isolated instances — no shared state

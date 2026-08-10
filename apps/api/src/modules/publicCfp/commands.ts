@@ -324,7 +324,20 @@ export async function createSubmission(
   for (const f of fieldDtos) {
     if (!isFieldVisible(f, fieldDtos, answerMap)) continue;
     if (!(f.fieldKey in answerMap)) continue;
-    storedAnswers.push({ fieldKey: f.fieldKey, value: answerMap[f.fieldKey] });
+    const val = answerMap[f.fieldKey];
+    // Multiselect must be string[] (competition field fidelity).
+    if (f.type === "multiselect") {
+      if (!Array.isArray(val) || !val.every((x) => typeof x === "string")) {
+        return {
+          ok: false,
+          status: 400,
+          error: "Multiselect answers must be an array of strings",
+          code: "VALIDATION_ERROR",
+          details: { fieldKey: f.fieldKey },
+        };
+      }
+    }
+    storedAnswers.push({ fieldKey: f.fieldKey, value: val });
   }
   // Also allow unknown? No — only published field keys
   // Extra keys not in form are dropped (XSS/noise).

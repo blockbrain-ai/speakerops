@@ -2,6 +2,8 @@
  * Form builder HTTP routes (section 3.1).
  *
  * POST /api/events/:eventId/forms   → Form.Create
+ * GET  /api/events/:eventId/forms   → Form.List (admin)
+ * GET  /api/forms/:formId           → Form.GetAdmin (admin draft detail)
  * PUT  /api/forms/:formId/draft     → Form.UpdateDraftFields
  * POST /api/forms/:formId/publish   → Form.Publish
  * GET  /api/public/cfp/:slug        → Form.GetPublic
@@ -15,6 +17,8 @@ import {
   FormUpdateDraftBodySchema,
   FormUpdateDraftResponseSchema,
   FormPublishResponseSchema,
+  FormListResponseSchema,
+  FormAdminGetResponseSchema,
   PublicCfpResponseSchema,
   TURNSTILE_TEST_SITE_KEY,
   errorEnvelope,
@@ -28,18 +32,23 @@ import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { FormsStore } from "./store.js";
+import type { KeysStore } from "../keys/store.js";
 import { requireRole } from "../../middleware/authz.js";
 import {
   createForm,
   updateDraftFields,
   publishForm,
   getPublicForm,
+  listFormsForEvent,
+  getFormAdmin,
 } from "./commands.js";
 
 export type FormsRouteOptions = {
   store: AuthStore;
   events: EventsStore;
   forms: FormsStore;
+  /** Bearer cfp:read / cfp:write for CLI (7.2). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -56,22 +65,59 @@ function commandError(
 }
 
 /**
- * Form.Create mounted under /api/events
- * Path: POST /:eventId/forms
+ * Form.Create / Form.List mounted under /api/events
+ * Paths: POST /:eventId/forms, GET /:eventId/forms
  */
 export function createEventFormsRoutes(
   options: FormsRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, forms } = options;
+  const { store, events, forms, keys } = options;
   const deps = { forms, events, auth: store };
+  const bearerRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["cfp:read", "cfp:write"] as const,
+        eventsStore: events,
+      }
+    : {};
+  const bearerWrite = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["cfp:write"] as const,
+        eventsStore: events,
+      }
+    : {};
 
   /**
-   * POST /:eventId/forms — Form.Create (admin / cfp:write via admin role)
+   * GET /:eventId/forms — Form.List (admin / cfp:read; builder reload)
+   */
+  app.get(
+    "/:eventId/forms",
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const result = await listFormsForEvent(deps, eventId);
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = FormListResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * POST /:eventId/forms — Form.Create (admin / cfp:write)
    */
   app.post(
     "/:eventId/forms",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -129,15 +175,29 @@ export function createEventFormsRoutes(
 
 /**
  * Form draft/publish routes mounted at /api/forms
- * Paths: PUT /:formId/draft, POST /:formId/publish
+ * Paths: GET /:formId, PUT /:formId/draft, POST /:formId/publish
  */
 export function createFormsRoutes(options: FormsRouteOptions): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, forms } = options;
+  const { store, events, forms, keys } = options;
   const deps = { forms, events, auth: store };
+  const bearerRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["cfp:read", "cfp:write"] as const,
+        eventsStore: events,
+      }
+    : {};
+  const bearerWrite = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["cfp:write"] as const,
+        eventsStore: events,
+      }
+    : {};
 
   /**
-   * Resolve form → event membership for formId-scoped routes.
+   * Resolve form → event membership (session) or API key event binding (Bearer).
    */
   async function requireAdminOnForm(
     c: Context<ApiEnv>,
@@ -146,6 +206,38 @@ export function createFormsRoutes(options: FormsRouteOptions): Hono<ApiEnv> {
     | { ok: true; user: { id: string; email: string }; eventId: string }
     | { ok: false; response: Response }
   > {
+    const form = await forms.findFormById(formId);
+    if (!form) {
+      return {
+        ok: false,
+        response: c.json(errorEnvelope("Not found", NOT_FOUND), 404),
+      };
+    }
+
+    const apiKey = c.get("apiKey");
+    if (apiKey) {
+      if (apiKey.eventId && apiKey.eventId !== form.eventId) {
+        return {
+          ok: false,
+          response: c.json(errorEnvelope("Not found", NOT_FOUND), 404),
+        };
+      }
+      if (!apiKey.eventId) {
+        const event = await events.findEventById(form.eventId);
+        if (!event || event.orgId !== apiKey.orgId) {
+          return {
+            ok: false,
+            response: c.json(errorEnvelope("Not found", NOT_FOUND), 404),
+          };
+        }
+      }
+      return {
+        ok: true,
+        user: { id: apiKey.createdBy, email: "" },
+        eventId: form.eventId,
+      };
+    }
+
     const user = c.get("user");
     if (!user) {
       return {
@@ -154,14 +246,6 @@ export function createFormsRoutes(options: FormsRouteOptions): Hono<ApiEnv> {
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,
         ),
-      };
-    }
-
-    const form = await forms.findFormById(formId);
-    if (!form) {
-      return {
-        ok: false,
-        response: c.json(errorEnvelope("Not found", NOT_FOUND), 404),
       };
     }
 
@@ -190,11 +274,38 @@ export function createFormsRoutes(options: FormsRouteOptions): Hono<ApiEnv> {
   }
 
   /**
+   * GET /:formId — Form.GetAdmin (draft detail for builder reload)
+   */
+  app.get(
+    "/:formId",
+    requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerRead }),
+    async (c) => {
+      const formId = c.req.param("formId");
+      const gate = await requireAdminOnForm(c, formId);
+      if (!gate.ok) return gate.response;
+
+      const result = await getFormAdmin(deps, formId);
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+
+      const out = FormAdminGetResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
+  /**
    * PUT /:formId/draft — Form.UpdateDraftFields
    */
   app.put(
     "/:formId/draft",
-    requireRole(store, ["admin"], { eventIdFrom: "none" }),
+    requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerWrite }),
     async (c) => {
       const formId = c.req.param("formId");
       const gate = await requireAdminOnForm(c, formId);
@@ -247,7 +358,7 @@ export function createFormsRoutes(options: FormsRouteOptions): Hono<ApiEnv> {
    */
   app.post(
     "/:formId/publish",
-    requireRole(store, ["admin"], { eventIdFrom: "none" }),
+    requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerWrite }),
     async (c) => {
       const formId = c.req.param("formId");
       const gate = await requireAdminOnForm(c, formId);

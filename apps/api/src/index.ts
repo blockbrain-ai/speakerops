@@ -397,22 +397,26 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   );
 
   // Section 3.1 — Form.Create under /api/events/:eventId/forms
+  // Section 7.2 — Bearer cfp:read|write for CLI
   app.route(
     "/api/events",
     createEventFormsRoutes({
       store: authStore,
       events: eventsStore,
       forms: formsStore,
+      keys: keysStore,
     }),
   );
 
   // Section 3.1 — Form.UpdateDraftFields / Form.Publish
+  // Section 7.2 — Bearer cfp:read|write for CLI
   app.route(
     "/api/forms",
     createFormsRoutes({
       store: authStore,
       events: eventsStore,
       forms: formsStore,
+      keys: keysStore,
     }),
   );
 
@@ -448,6 +452,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     events: eventsStore,
     submissions: submissionsStore,
     eval: evalStore,
+    forms: formsStore,
+    keys: keysStore,
   };
 
   // Section 3.4 — Eval.UpsertRubric + admin rollup under /api/events/:eventId/eval/*
@@ -462,6 +468,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   // Section 3.4 — Submission.AssignEvaluators
   app.route("/api/submissions", createSubmissionAssignRoutes(evalRouteOpts));
 
+  const magicLinkMail = options.magicLinkMail ?? null;
   const decisionRouteOpts = {
     store: authStore,
     events: eventsStore,
@@ -469,6 +476,49 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     decisions: decisionsStore,
     forms: formsStore,
     keys: keysStore,
+    programInvite: magicLinkMail
+      ? {
+          issue: async (input: {
+            email: string;
+            userId: string;
+            eventId: string;
+            correlationId: string;
+          }) => {
+            const { issueProgramInviteMagicLink } = await import(
+              "./modules/auth/commands.js"
+            );
+            // Minimal AuthCommandDeps for program invite only.
+            return issueProgramInviteMagicLink(
+              {
+                store: authStore,
+                outbox: magicLinkOutbox,
+                magicLinkMail,
+              },
+              input,
+            );
+          },
+        }
+      : // Always issue magic_links rows even without mail (test outbox capture).
+        {
+          issue: async (input: {
+            email: string;
+            userId: string;
+            eventId: string;
+            correlationId: string;
+          }) => {
+            const { issueProgramInviteMagicLink } = await import(
+              "./modules/auth/commands.js"
+            );
+            return issueProgramInviteMagicLink(
+              {
+                store: authStore,
+                outbox: magicLinkOutbox,
+                magicLinkMail: null,
+              },
+              input,
+            );
+          },
+        },
   };
 
   // Section 3.5 — Submission.List + Session.CreateDirect + bulk preview

@@ -181,6 +181,19 @@ export async function requestMagicLink(
   let grantedMembershipId: string | null = null;
   let grantedRole: EventRole | null = null;
   let isBootstrapCreate = false;
+  const membershipEventIdEarly = input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID;
+
+  /** Provisioned program user: has membership or will be checked for participation by caller event. */
+  let programReentry = false;
+  if (user && policy === "controlled" && allowlist.length > 0 && !onAllowlist) {
+    const membership = await deps.store.findMembership(
+      membershipEventIdEarly,
+      user.id,
+    );
+    if (membership) {
+      programReentry = true;
+    }
+  }
 
   if (!user) {
     // Controlled + allowlist: testers may self-register only when listed.
@@ -210,9 +223,11 @@ export async function requestMagicLink(
   } else if (
     policy === "controlled" &&
     allowlist.length > 0 &&
-    !onAllowlist
+    !onAllowlist &&
+    !programReentry
   ) {
-    // Existing user but not on dogfood tester allowlist — silent no-op.
+    // Existing user but not on dogfood tester allowlist and not a provisioned
+    // event member — silent no-op (no open self-serve for strangers).
     return response;
   }
 
@@ -305,6 +320,8 @@ export async function requestMagicLink(
           magicLinkId: magicId,
           email,
           enc,
+          purpose: input.purpose,
+          eventId: input.eventId ?? membershipEventId,
         }),
         createdAt,
         processedAt: null,
@@ -335,8 +352,7 @@ export async function requestMagicLink(
     eventId: membershipEventId,
     actorType: "system",
     actorId: "auth",
-    action: "Auth.RequestMagicLink",
-    entityType: "magic_link",
+    action: "Auth.RequestMagicLink",    entityType: "magic_link",
     entityId: magicId,
     // after_json must not include plaintext token
     afterJson: JSON.stringify({
@@ -355,6 +371,111 @@ export async function requestMagicLink(
   });
 
   return response;
+}
+
+/**
+ * Program invite after accept — creates magic link + optional outbox for an
+ * already-provisioned user. Bypasses allowlist/bootstrap (not open registration).
+ * Does not create users or change memberships.
+ */
+export async function issueProgramInviteMagicLink(
+  deps: AuthCommandDeps,
+  input: {
+    email: string;
+    userId: string;
+    eventId: string;
+    purpose?: MagicLinkPurpose;
+    correlationId: string;
+  },
+): Promise<{ magicLinkId: string; mailEnqueued: boolean }> {
+  const email = normalizeEmail(input.email);
+  const purpose: MagicLinkPurpose = input.purpose ?? "speaker";
+  const plaintext = generateToken(32);
+  const tokenHash = await hashToken(plaintext);
+  const now = new Date();
+  const magicId = uuidv7();
+  const createdAt = now.toISOString();
+
+  await deps.store.insertMagicLink({
+    id: magicId,
+    userId: input.userId,
+    eventId: input.eventId,
+    purpose,
+    tokenHash,
+    expiresAt: expiresAtMinutesFromNow(MAGIC_LINK_TTL_MINUTES, now),
+    usedAt: null,
+    createdAt,
+  });
+
+  deps.outbox.capture({
+    email,
+    purpose,
+    token: plaintext,
+    eventId: input.eventId,
+    userId: input.userId,
+    magicLinkId: magicId,
+    createdAt,
+  });
+
+  let mailEnqueued = false;
+  if (deps.magicLinkMail?.authLinkEncryptionKey?.trim()) {
+    try {
+      const enc = await encryptMagicLinkToken(
+        plaintext,
+        deps.magicLinkMail.authLinkEncryptionKey,
+      );
+      await deps.magicLinkMail.comms.insertOutbox({
+        id: uuidv7(),
+        topic: AUTH_MAGIC_LINK_OUTBOX_TOPIC,
+        payloadJson: JSON.stringify({
+          magicLinkId: magicId,
+          email,
+          enc,
+          purpose,
+          eventId: input.eventId,
+        }),
+        createdAt,
+        processedAt: null,
+        attempts: 0,
+        lastError: null,
+      });
+      mailEnqueued = true;
+      const kick = deps.magicLinkMail.queueKick;
+      if (kick && typeof kick.send === "function") {
+        try {
+          await kick.send({
+            kind: "auth.magic_link",
+            outboxTopic: AUTH_MAGIC_LINK_OUTBOX_TOPIC,
+          });
+        } catch {
+          /* cron drains */
+        }
+      }
+    } catch {
+      mailEnqueued = false;
+    }
+  }
+
+  await deps.store.insertAudit({
+    id: uuidv7(),
+    eventId: input.eventId,
+    actorType: "system",
+    actorId: "auth",
+    action: "Auth.ProgramInviteMagicLink",
+    entityType: "magic_link",
+    entityId: magicId,
+    afterJson: JSON.stringify({
+      email,
+      purpose,
+      userId: input.userId,
+      mailEnqueued,
+      programInvite: true,
+    }),
+    correlationId: input.correlationId,
+    createdAt,
+  });
+
+  return { magicLinkId: magicId, mailEnqueued };
 }
 
 /**

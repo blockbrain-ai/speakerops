@@ -40,6 +40,8 @@
 | A10 | public | CFP | XSS string in abstract renders as text not script | e2e/public/cfp-xss | Script not executed | REQUIRED | PASS |
 | A11 | public | CFP | Keyboard-only complete valid submit | e2e/public/cfp-keyboard | — | REQUIRED | PASS |
 | A17 | public | CFP | Save as draft (title-only); resume restores fields; disabled when closed | e2e/public/cfp-draft | Closed rejects draft save | REQUIRED | PASS |
+| A18 | public | CFP | Multiselect multi-value + URL field is text (not file) | e2e/public/cfp-multiselect-url | Non-array multiselect rejected API | REQUIRED | IMPLEMENTED |
+| A19 | public | CFP | No operator/debug brand copy (Lumen defaults / raw file ids) | e2e/public/cfp-copy-clean | — | REQUIRED | IMPLEMENTED |
 
 ---
 
@@ -88,6 +90,7 @@
 | D08 | admin | Forms | Publish version; pin version on new submission | e2e/admin/form-publish-version | Edit published creates new version | REQUIRED | PASS |
 | D09 | admin | Forms | Open/close + submission limit | e2e/admin/form-limits | Over limit rejected | REQUIRED | PASS |
 | D10 | admin | Forms | Copy public link | e2e/admin/form-link | — | REQUIRED | PASS |
+| D11 | admin | Forms | Reload builder restores draft after refresh | e2e/admin/form-reload | — | REQUIRED | IMPLEMENTED |
 
 ---
 
@@ -103,6 +106,10 @@
 | E06 | admin | Submissions | Waitlist status | e2e/admin/sub-waitlist | — | REQUIRED | PASS |
 | E07 | admin | Submissions | Direct/sponsor session entry (no CFP) | e2e/admin/session-direct | — | REQUIRED | PASS |
 | E08 | admin | Submissions | Bulk select + preview bulk status change | e2e/admin/sub-bulk | Empty selection blocked | REQUIRED | PASS |
+| E09 | admin | Submissions | Bulk preview → Confirm apply (commit) | e2e/admin/sub-bulk-commit | Partial failures listed | REQUIRED | IMPLEMENTED |
+| E10 | admin | Submissions | Search list by title/speaker (`submissions-filter-q`) | e2e/admin/sub-search | Empty results honest | REQUIRED | IMPLEMENTED |
+| E11 | admin | Submissions | Assign via evaluator picker (not raw user id) | e2e/admin/sub-assign-picker | No evaluators empty state | REQUIRED | IMPLEMENTED |
+| E12 | admin | Submissions | Detail Reviews panel (individual comments) | e2e/admin/sub-detail-reviews | Empty when none | REQUIRED | IMPLEMENTED |
 
 ---
 
@@ -115,6 +122,10 @@
 | F03 | evaluator | Score | Cannot accept/reject | e2e/eval/no-decide | Control absent/403 | REQUIRED | PASS |
 | F04 | evaluator | Score | Keyboard-only complete score | e2e/eval/a11y-keyboard | — | REQUIRED | PASS |
 | F05 | admin | Evaluations | Sort by aggregate score; export CSV of scores/status | e2e/eval/export | Unauth 401; evaluator 403 | REQUIRED | PASS |
+| F06 | evaluator | Queue | Proposal panel shows speakers + answers beside rubric | e2e/eval/proposal-panel | Unassigned 404 | REQUIRED | IMPLEMENTED |
+| F07 | evaluator | Queue | Next unreviewed + search/filter | e2e/eval/queue-nav | — | REQUIRED | IMPLEMENTED |
+| F08 | evaluator | Queue | Peer reviews reveal-after-submit | e2e/eval/peer-reviews | Pending peer hidden | REQUIRED | IMPLEMENTED |
+| F09 | admin | Evaluations | Expand individual reviewer comments | e2e/eval/admin-reviews | — | REQUIRED | IMPLEMENTED |
 
 ---
 
@@ -178,6 +189,7 @@
 | J04 | admin | Comms | Send once; second send idempotent | e2e/comms/send-idempotent | — | REQUIRED | PASS |
 | J05 | admin | Comms | Delivery log visible | e2e/comms/log | — | REQUIRED | PASS |
 | J06 | admin | Comms | ICS attach for scheduled session | e2e/comms/ics | — | REQUIRED | PASS |
+| J11 | admin | Comms | Send with calendar invite attached from picker | e2e/comms/ics-attach-send | Send without invite still works | REQUIRED | IMPLEMENTED |
 | J07 | admin | Comms | Role without comms:send cannot send | e2e/comms/authz | 403 | REQUIRED | PASS |
 | J08 | admin | Comms | Send without completed preview blocked | e2e/comms/preview-required | Blocked | REQUIRED | PASS |
 | J09 | admin | Comms | Edit audience invalidates preview | e2e/comms/preview-invalidate | — | REQUIRED | PASS |

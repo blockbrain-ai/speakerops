@@ -218,6 +218,16 @@ export class CloudflareEmailProvider implements EmailProvider {
   async send(message: EmailMessage): Promise<EmailSendResult> {
     const fromRaw = message.from ?? this.defaultFrom;
     try {
+      // Fail closed: CF path does not support program ICS attachments.
+      if (message.attachments && message.attachments.length > 0) {
+        return {
+          ok: false,
+          provider: "cloudflare",
+          providerMessageId: null,
+          status: "failed",
+          error: "cloudflare_attachments_unsupported",
+        };
+      }
       if (this.binding?.send) {
         // Workers binding form: from.email (not address).
         const parsed = parseFromAddress(fromRaw);
@@ -339,10 +349,12 @@ export function createEmailProvider(
 export async function hashSendRequest(input: {
   previewId: string;
   idempotencyKey: string;
+  calendarInviteId?: string | null;
 }): Promise<string> {
   const payload = JSON.stringify({
     idempotencyKey: input.idempotencyKey,
     previewId: input.previewId,
+    calendarInviteId: input.calendarInviteId ?? null,
   });
   const data = new TextEncoder().encode(payload);
   const digest = await crypto.subtle.digest("SHA-256", data);

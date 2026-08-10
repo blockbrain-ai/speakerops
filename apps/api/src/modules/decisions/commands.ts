@@ -48,6 +48,19 @@ export type DecisionCommandDeps = {
   submissions: SubmissionsStore;
   /** Optional — when present, Submission.Get enriches answers with form labels. */
   forms?: FormsStore;
+  /**
+   * Optional program invite after accept (magic link outbox).
+   * When set, accepted speakers with email receive a speaker-purpose invite.
+   */
+  programInvite?: {
+    issue: (input: {
+      email: string;
+      userId: string;
+      eventId: string;
+      correlationId: string;
+    }) => Promise<unknown>;
+    correlationId?: string;
+  } | null;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -224,20 +237,54 @@ async function materializeAccept(
   const participations: ParticipationRow[] = [];
 
   for (const sp of speakers) {
+    // Ensure person exists (should from CFP)
+    const person = await deps.submissions.findPersonById(sp.personId);
+    if (!person) {
+      // Orphan speaker row — skip
+      continue;
+    }
+    void orgId;
+
+    // Provision auth user + bind participation (closed accept → portal loop).
+    let boundUserId: string | null = null;
+    const personEmail = (person.email ?? "").trim().toLowerCase();
+    if (personEmail.includes("@")) {
+      let user = await deps.auth.findUserByEmail(personEmail);
+      if (!user) {
+        user = await deps.auth.createUser({ email: personEmail });
+      }
+      boundUserId = user.id;
+      // Single-role membership: grant speaker only when no row; never demote.
+      const existingMem = await deps.auth.findMembership(eventId, user.id);
+      if (!existingMem) {
+        await deps.auth.upsertMembership({
+          eventId,
+          userId: user.id,
+          role: "speaker",
+        });
+      }
+      if (deps.programInvite) {
+        try {
+          await deps.programInvite.issue({
+            email: personEmail,
+            userId: user.id,
+            eventId,
+            correlationId:
+              deps.programInvite.correlationId ?? `accept-${submission.id}`,
+          });
+        } catch {
+          // Provisioning must not fail accept if invite enqueue fails.
+        }
+      }
+    }
+
     let part = await deps.decisions.findParticipation(eventId, sp.personId);
     if (!part) {
-      // Ensure person exists (should from CFP)
-      const person = await deps.submissions.findPersonById(sp.personId);
-      if (!person) {
-        // Orphan speaker row — skip
-        continue;
-      }
-      void orgId;
       part = await deps.decisions.insertParticipation({
         id: newParticipationId(),
         eventId,
         personId: sp.personId,
-        userId: null,
+        userId: boundUserId,
         roleLabel: "speaker",
         status: "accepted",
         bio: null,
@@ -248,12 +295,19 @@ async function materializeAccept(
         createdAt: now,
         updatedAt: now,
       });
-    } else if (part.status !== "accepted") {
-      const updated = await deps.decisions.updateParticipation(part.id, {
-        status: "accepted",
+    } else {
+      const patch: {
+        status?: string;
+        userId?: string | null;
+        version: number;
+        updatedAt: string;
+      } = {
         version: part.version + 1,
         updatedAt: now,
-      });
+      };
+      if (part.status !== "accepted") patch.status = "accepted";
+      if (boundUserId && part.userId !== boundUserId) patch.userId = boundUserId;
+      const updated = await deps.decisions.updateParticipation(part.id, patch);
       if (updated) part = updated;
     }
     participations.push(part);
@@ -836,13 +890,44 @@ export async function createDirectSession(
       await deps.submissions.updatePersonName(person.id, sp.name, now);
     }
 
+    // Direct session speakers: same closed-loop provision as accept materialize.
+    let boundUserId: string | null = null;
+    if (email.includes("@")) {
+      let user = await deps.auth.findUserByEmail(email);
+      if (!user) {
+        user = await deps.auth.createUser({ email });
+      }
+      boundUserId = user.id;
+      const existingMem = await deps.auth.findMembership(event.id, user.id);
+      if (!existingMem) {
+        await deps.auth.upsertMembership({
+          eventId: event.id,
+          userId: user.id,
+          role: "speaker",
+        });
+      }
+      if (deps.programInvite) {
+        try {
+          await deps.programInvite.issue({
+            email,
+            userId: user.id,
+            eventId: event.id,
+            correlationId:
+              deps.programInvite.correlationId ?? `direct-${session.id}`,
+          });
+        } catch {
+          /* non-fatal */
+        }
+      }
+    }
+
     let part = await deps.decisions.findParticipation(event.id, person.id);
     if (!part) {
       part = await deps.decisions.insertParticipation({
         id: newParticipationId(),
         eventId: event.id,
         personId: person.id,
-        userId: null,
+        userId: boundUserId,
         roleLabel: "speaker",
         status: "accepted",
         bio: null,
@@ -853,6 +938,13 @@ export async function createDirectSession(
         createdAt: now,
         updatedAt: now,
       });
+    } else if (boundUserId && part.userId !== boundUserId) {
+      const updated = await deps.decisions.updateParticipation(part.id, {
+        userId: boundUserId,
+        version: part.version + 1,
+        updatedAt: now,
+      });
+      if (updated) part = updated;
     }
     participations.push(part);
     const isPrimary =
@@ -933,6 +1025,7 @@ export async function listSubmissions(
     eventId: string;
     status?: SubmissionStatus;
     category?: string;
+    q?: string;
     limit?: number;
     offset?: number;
   },
@@ -968,6 +1061,19 @@ export async function listSubmissions(
 
   if (input.category) {
     rows = rows.filter((r) => r.category === input.category);
+  }
+
+  // Search before paging: title + primary speaker name (case-insensitive).
+  const q = input.q?.trim().toLowerCase();
+  if (q) {
+    const allNames = await deps.submissions.listPrimarySpeakerNames(
+      rows.map((r) => r.id),
+    );
+    rows = rows.filter((r) => {
+      const title = (r.title ?? "").toLowerCase();
+      const speaker = (allNames.get(r.id) ?? "").toLowerCase();
+      return title.includes(q) || speaker.includes(q);
+    });
   }
 
   // Stable order: newest submitted first (tie-break by id for determinism)
@@ -1112,6 +1218,109 @@ export async function getSubmission(
       speakers,
       decision: decision ? toDecisionDto(decision) : null,
       session: session ? toSessionDto(session) : null,
+    },
+  };
+}
+
+/**
+ * Bulk decision commit — loops recordDecision; partial success allowed.
+ */
+export async function commitBulkDecision(
+  deps: DecisionCommandDeps,
+  input: {
+    eventId: string;
+    submissionIds: string[];
+    decision: DecisionValue;
+    reason?: string | null;
+    expectedVersions?: Record<string, number>;
+    actorUserId: string;
+    correlationId: string;
+  },
+): Promise<
+  CommandOk<{
+    decision: DecisionValue;
+    items: Array<{
+      submissionId: string;
+      ok: boolean;
+      error?: string;
+      code?: string;
+    }>;
+    applied: number;
+    failed: number;
+  }> | CommandErr
+> {
+  const event = await deps.events.findEventById(input.eventId);
+  if (!event) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Event not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  if (input.submissionIds.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Empty selection",
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  const items: Array<{
+    submissionId: string;
+    ok: boolean;
+    error?: string;
+    code?: string;
+  }> = [];
+  let applied = 0;
+  let failed = 0;
+
+  for (const submissionId of input.submissionIds) {
+    const sub = await deps.submissions.findSubmissionById(submissionId);
+    if (!sub || sub.eventId !== input.eventId) {
+      items.push({
+        submissionId,
+        ok: false,
+        error: "Submission not in event",
+        code: "VALIDATION_ERROR",
+      });
+      failed += 1;
+      continue;
+    }
+
+    const expectedVersion = input.expectedVersions?.[submissionId];
+    const result = await recordDecision(deps, {
+      submissionId,
+      decision: input.decision,
+      reason: input.reason ?? null,
+      expectedVersion,
+      actorUserId: input.actorUserId,
+      correlationId: input.correlationId,
+    });
+
+    if (result.ok) {
+      items.push({ submissionId, ok: true });
+      applied += 1;
+    } else {
+      items.push({
+        submissionId,
+        ok: false,
+        error: result.error,
+        code: result.code,
+      });
+      failed += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      decision: input.decision,
+      items,
+      applied,
+      failed,
     },
   };
 }

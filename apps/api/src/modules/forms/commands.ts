@@ -647,6 +647,66 @@ function publicMeta(
 }
 
 /**
+ * Form.List — admin list of form shells for an event (builder reload).
+ */
+export async function listFormsForEvent(
+  deps: FormCommandDeps,
+  eventId: string,
+): Promise<CommandOk<{ forms: FormDto[] }> | CommandErr> {
+  const event = await deps.events.findEventById(eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+  const rows = await deps.forms.findFormsByEventId(eventId);
+  // Newest first so builder defaults to latest form.
+  rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return {
+    ok: true,
+    value: { forms: rows.map(toFormDto) },
+  };
+}
+
+/**
+ * Form.GetAdmin — form shell + draft version (fields/rules) + optional published.
+ * Used by FormBuilder to reopen after reload.
+ */
+export async function getFormAdmin(
+  deps: FormCommandDeps,
+  formId: string,
+): Promise<
+  CommandOk<{
+    form: FormDto;
+    draft: FormVersionDto;
+    published: FormVersionDto | null;
+  }> | CommandErr
+> {
+  const form = await deps.forms.findFormById(formId);
+  if (!form) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+  const draft = await deps.forms.findDraftVersion(formId);
+  if (!draft) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Form has no draft version",
+      code: "VALIDATION_ERROR",
+    };
+  }
+  const publishedRow = await deps.forms.findLatestPublishedVersion(formId);
+  return {
+    ok: true,
+    value: {
+      form: toFormDto(form),
+      draft: await toVersionDto(deps, draft),
+      published: publishedRow
+        ? await toVersionDto(deps, publishedRow)
+        : null,
+    },
+  };
+}
+
+/**
  * Form.GetPublic — latest published form for event slug (never draft).
  * Section 3.3 enriches with windowState + speaker/file meta for public SPA.
  */

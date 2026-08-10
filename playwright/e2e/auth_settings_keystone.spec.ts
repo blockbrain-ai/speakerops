@@ -223,8 +223,13 @@ test.describe("2.5 auth settings keystone (I12)", () => {
     await expect(page.getByTestId("page-public-cfp")).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByTestId("public-cfp-brand-value")).not.toContainText(
-      brandHex,
+    await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+      "data-has-published",
+      "false",
+    );
+    await expect(page.getByTestId("public-cfp-brand")).not.toHaveAttribute(
+      "data-brand",
+      new RegExp(brandHex, "i"),
     );
 
     // Publish
@@ -242,9 +247,14 @@ test.describe("2.5 auth settings keystone (I12)", () => {
     await expect(page.getByTestId("page-public-cfp")).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.getByTestId("public-cfp-brand-value")).toContainText(
-      new RegExp(brandHex, "i"),
+    await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+      "data-has-published",
+      "true",
       { timeout: 10_000 },
+    );
+    await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+      "data-brand",
+      new RegExp(brandHex, "i"),
     );
     await expect(page.getByTestId("public-cfp-title")).toContainText(wordmark);
 

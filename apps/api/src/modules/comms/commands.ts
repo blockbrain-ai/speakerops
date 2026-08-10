@@ -292,6 +292,15 @@ async function mergeDataForParticipation(
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const firstName = parts[0] ?? "";
   const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+  const base =
+    (typeof process !== "undefined" &&
+      process.env &&
+      typeof process.env.APP_PUBLIC_BASE_URL === "string" &&
+      process.env.APP_PUBLIC_BASE_URL.trim()) ||
+    "";
+  const portalUrl = base
+    ? `${base.replace(/\/$/, "")}/login?purpose=speaker&eventId=${encodeURIComponent(input.eventId)}`
+    : `/login?purpose=speaker&eventId=${encodeURIComponent(input.eventId)}`;
   return {
     name,
     firstName,
@@ -302,6 +311,7 @@ async function mergeDataForParticipation(
     title: input.title ?? "",
     bio: input.bio ?? "",
     participationId: input.participationId,
+    portalUrl,
   };
 }
 
@@ -537,6 +547,7 @@ export async function previewComms(
     bodiesJson: JSON.stringify(bodies),
     missingFieldsJson: JSON.stringify(missingFields),
     idempotencyKey: null,
+    calendarInviteId: null,
     createdBy: input.actorUserId,
     version: 1,
     createdAt: now,
@@ -595,9 +606,11 @@ export async function sendComms(
   },
 ): Promise<CommandOk<CommsSendResponse> | CommandErr> {
   const storageKey = commsSendIdempotencyStorageKey(input.body.idempotencyKey);
+  const calendarInviteId = input.body.calendarInviteId ?? null;
   const requestHash = await hashSendRequest({
     previewId: input.body.previewId,
     idempotencyKey: input.body.idempotencyKey,
+    calendarInviteId,
   });
 
   // Primary idempotency replay via idempotency_keys (SCHEMA / E7).
@@ -673,6 +686,20 @@ export async function sendComms(
     };
   }
 
+  if (calendarInviteId) {
+    const invites = await deps.comms.listCalendarInvitesForEvent(job.eventId);
+    const inviteRow = invites.find((i) => i.id === calendarInviteId) ?? null;
+    if (!inviteRow) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Calendar invite not found for event",
+        code: "VALIDATION_ERROR",
+        details: { calendarInviteId },
+      };
+    }
+  }
+
   const now = new Date().toISOString();
   const nextVersion = job.version + 1;
 
@@ -704,6 +731,7 @@ export async function sendComms(
     ...job,
     status: "queued",
     idempotencyKey: input.body.idempotencyKey,
+    calendarInviteId: calendarInviteId ?? job.calendarInviteId ?? null,
     version: nextVersion,
     updatedAt: now,
   };
@@ -722,6 +750,7 @@ export async function sendComms(
         jobId: job.id,
         status: "queued",
         idempotencyKey: input.body.idempotencyKey,
+        calendarInviteId: calendarInviteId ?? undefined,
         version: nextVersion,
         expectedVersion: job.version,
         updatedAt: now,
@@ -735,6 +764,7 @@ export async function sendComms(
             templateId: job.templateId,
             idempotencyKey: input.body.idempotencyKey,
             correlationId: input.correlationId,
+            calendarInviteId: calendarInviteId,
           }),
           createdAt: now,
           processedAt: null,

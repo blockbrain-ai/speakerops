@@ -14,12 +14,24 @@ import {
   cmdDesignPublish,
   cmdDesignSet,
   cmdEventsList,
+  cmdEvalExport,
+  cmdEvalRollup,
   cmdFilesUpload,
+  cmdFormsCreate,
+  cmdFormsDraft,
+  cmdFormsGet,
+  cmdFormsList,
+  cmdFormsPublish,
   cmdKeysCreate,
   cmdOpenApi,
   cmdReportsReadiness,
   cmdSchedulePlace,
   cmdSpeakersUpdateProfile,
+  cmdSubmissionsAssign,
+  cmdSubmissionsBulkDecision,
+  cmdSubmissionsDecision,
+  cmdSubmissionsGet,
+  cmdSubmissionsList,
   parseArgs,
   resolveClient,
   setClientFactoryForTests,
@@ -82,6 +94,21 @@ Commands (CLI_INVENTORY.md):
   comms send --preview-id P [--idempotency-key K]         CLI10  comms:send
   keys create --name N --scopes s1,s2                     CLI11  keys:admin
   openapi [--json]                                        CLI12  GET /openapi.json
+
+  forms list --event E                                    cfp:read
+  forms get --form F                                      cfp:read
+  forms create --event E --name N                         cfp:write
+  forms draft --form F --fields '[...]'                   cfp:write
+  forms publish --form F                                  cfp:write
+  submissions list --event E [--status S] [--q Q]         submissions:read
+  submissions get --submission S                          submissions:read
+  submissions assign --submission S --users u1,u2         submissions:write
+  submissions decision --submission S --decision accept|reject|waitlist
+                                                          decisions:write
+  submissions bulk-decision --event E --decision D --ids a,b
+                                                          decisions:write
+  eval rollup --event E [--sort score_desc]               submissions:read
+  eval export --event E [--sort score_desc]               submissions:read
 
 Exit codes: 0 ok · 1 validation · 2 authz · 3 conflict · 4 network
 
@@ -211,6 +238,26 @@ async function dispatch(
       break;
     case "keys":
       if (verb === "create") return cmdKeysCreate(ctx);
+      break;
+    case "forms":
+      if (verb === "list") return cmdFormsList(ctx);
+      if (verb === "get") return cmdFormsGet(ctx);
+      if (verb === "create") return cmdFormsCreate(ctx);
+      if (verb === "draft") return cmdFormsDraft(ctx);
+      if (verb === "publish") return cmdFormsPublish(ctx);
+      break;
+    case "submissions":
+      if (verb === "list") return cmdSubmissionsList(ctx);
+      if (verb === "get") return cmdSubmissionsGet(ctx);
+      if (verb === "assign") return cmdSubmissionsAssign(ctx);
+      if (verb === "decision") return cmdSubmissionsDecision(ctx);
+      if (verb === "bulk-decision" || verb === "bulk") {
+        return cmdSubmissionsBulkDecision(ctx);
+      }
+      break;
+    case "eval":
+      if (verb === "rollup") return cmdEvalRollup(ctx);
+      if (verb === "export") return cmdEvalExport(ctx);
       break;
     case "openapi":
       return cmdOpenApi(ctx);

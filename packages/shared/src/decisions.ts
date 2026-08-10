@@ -147,6 +147,8 @@ export const SUBMISSION_LIST_MAX_LIMIT = 100 as const;
 export const SubmissionListQuerySchema = z.object({
   status: SubmissionStatusSchema.optional(),
   category: z.string().min(1).max(128).optional(),
+  /** Case-insensitive contains on title or primary speaker name. */
+  q: z.string().min(1).max(200).optional(),
   limit: z.coerce
     .number()
     .int()
@@ -229,4 +231,41 @@ export const BulkDecisionPreviewResponseSchema = z.object({
 });
 export type BulkDecisionPreviewResponse = z.infer<
   typeof BulkDecisionPreviewResponseSchema
+>;
+
+/**
+ * Bulk decision commit — loops Decision.Record per submission.
+ * Partial success allowed; each item reports ok/error.
+ */
+export const BulkDecisionCommitBodySchema = z.object({
+  submissionIds: z.array(z.string().min(1).max(128)).min(1).max(200),
+  decision: DecisionValueSchema,
+  reason: z.string().max(4000).nullable().optional(),
+  /** Optional per-submission expectedVersion for optimistic concurrency. */
+  expectedVersions: z
+    .record(z.string().min(1), z.number().int().positive())
+    .optional(),
+});
+export type BulkDecisionCommitBody = z.infer<
+  typeof BulkDecisionCommitBodySchema
+>;
+
+export const BulkDecisionCommitItemSchema = z.object({
+  submissionId: z.string().min(1),
+  ok: z.boolean(),
+  error: z.string().optional(),
+  code: z.string().optional(),
+});
+export type BulkDecisionCommitItem = z.infer<
+  typeof BulkDecisionCommitItemSchema
+>;
+
+export const BulkDecisionCommitResponseSchema = z.object({
+  decision: DecisionValueSchema,
+  items: z.array(BulkDecisionCommitItemSchema),
+  applied: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+});
+export type BulkDecisionCommitResponse = z.infer<
+  typeof BulkDecisionCommitResponseSchema
 >;

@@ -14,6 +14,8 @@ import {
   FormCreateResponseSchema,
   FormUpdateDraftResponseSchema,
   FormPublishResponseSchema,
+  FormListResponseSchema,
+  FormAdminGetResponseSchema,
   PublicCfpResponseSchema,
   EventResponseSchema,
   VALIDATION_ERROR,
@@ -820,5 +822,111 @@ describe("3.1 form builder API", () => {
     expect(res.status).toBe(404);
     const body = ErrorEnvelopeSchema.parse(await res.json());
     expect(body.code).toBe(NOT_FOUND);
+  });
+
+  it("Form.List and Form.GetAdmin reload draft fields/rules", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin",
+      "admin-forms-list-get@example.com",
+    );
+    const { id: eventId } = await createEvent(app, cookie, "List Get Forms");
+
+    const emptyList = await app.request(
+      `http://localhost/api/events/${eventId}/forms`,
+      { method: "GET", headers: { cookie } },
+      env,
+    );
+    expect(emptyList.status).toBe(200);
+    expect(FormListResponseSchema.parse(await emptyList.json()).forms).toEqual(
+      [],
+    );
+
+    const createRes = await app.request(
+      `http://localhost/api/events/${eventId}/forms`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ name: "Reloadable CFP" }),
+      },
+      env,
+    );
+    const created = FormCreateResponseSchema.parse(await createRes.json());
+
+    await app.request(
+      `http://localhost/api/forms/${created.form.id}/draft`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({
+          fields: sampleFields,
+          rules: sampleRules,
+          welcomeMd: "Welcome reload",
+          thankYouMd: "Thanks reload",
+        }),
+      },
+      env,
+    );
+
+    const listRes = await app.request(
+      `http://localhost/api/events/${eventId}/forms`,
+      { method: "GET", headers: { cookie } },
+      env,
+    );
+    expect(listRes.status).toBe(200);
+    const listed = FormListResponseSchema.parse(await listRes.json());
+    expect(listed.forms).toHaveLength(1);
+    expect(listed.forms[0]!.id).toBe(created.form.id);
+    expect(listed.forms[0]!.name).toBe("Reloadable CFP");
+
+    const getRes = await app.request(
+      `http://localhost/api/forms/${created.form.id}`,
+      { method: "GET", headers: { cookie } },
+      env,
+    );
+    expect(getRes.status).toBe(200);
+    const detail = FormAdminGetResponseSchema.parse(await getRes.json());
+    expect(detail.form.id).toBe(created.form.id);
+    expect(detail.draft.fields.map((f) => f.fieldKey)).toEqual(
+      expect.arrayContaining(["talk_title", "category", "gpu_notes"]),
+    );
+    expect(detail.draft.rules).toHaveLength(2);
+    expect(detail.draft.welcomeMd).toBe("Welcome reload");
+    expect(detail.published ?? null).toBeNull();
+
+    // Publish then GetAdmin includes published meta
+    await app.request(
+      `http://localhost/api/forms/${created.form.id}/publish`,
+      {
+        method: "POST",
+        headers: { cookie },
+      },
+      env,
+    );
+    const getPublished = await app.request(
+      `http://localhost/api/forms/${created.form.id}`,
+      { method: "GET", headers: { cookie } },
+      env,
+    );
+    const afterPub = FormAdminGetResponseSchema.parse(
+      await getPublished.json(),
+    );
+    expect(afterPub.form.status).toBe("published");
+    expect(afterPub.published).not.toBeNull();
+    expect(afterPub.published!.immutable).toBe(true);
+    expect(afterPub.draft.fields.length).toBeGreaterThan(0);
+
+    // Authz: unauthenticated list 401
+    const unauth = await app.request(
+      `http://localhost/api/events/${eventId}/forms`,
+      { method: "GET" },
+      env,
+    );
+    expect(unauth.status).toBe(401);
   });
 });

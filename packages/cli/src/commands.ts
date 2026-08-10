@@ -707,5 +707,519 @@ export async function cmdOpenApi(ctx: CommandContext): Promise<CliExitCode> {
   return emitResult(ctx.io, result, ctx.json || true, () => "");
 }
 
+// ─── forms (cfp:read / cfp:write) ────────────────────────────────────────────
+
+export async function cmdFormsList(ctx: CommandContext): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  if (!eventId) {
+    return emitError(
+      ctx.io,
+      "forms list requires --event <eventId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.get(
+    `/api/events/${encodeURIComponent(eventId)}/forms`,
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const forms =
+      body &&
+      typeof body === "object" &&
+      "forms" in body &&
+      Array.isArray((body as { forms: unknown }).forms)
+        ? (body as { forms: Array<{ id: string; name: string; status?: string }> })
+            .forms
+        : [];
+    if (forms.length === 0) return "No forms.\n";
+    return (
+      forms.map((f) => `${f.id}\t${f.name}\t${f.status ?? ""}`).join("\n") +
+      "\n"
+    );
+  });
+}
+
+export async function cmdFormsGet(ctx: CommandContext): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const formId =
+    requireOption(ctx.args, "form", ["formId", "id"]) ??
+    ctx.args.positionals[0];
+  if (!formId) {
+    return emitError(
+      ctx.io,
+      "forms get requires --form <formId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.get(`/api/forms/${encodeURIComponent(formId)}`);
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as {
+      form?: { id?: string; name?: string; status?: string };
+      draft?: { fields?: unknown[] };
+    };
+    return `form=${b.form?.id ?? formId} name=${b.form?.name ?? "?"} status=${b.form?.status ?? "?"} fields=${b.draft?.fields?.length ?? 0}\n`;
+  });
+}
+
+export async function cmdFormsCreate(ctx: CommandContext): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  const name = requireOption(ctx.args, "name");
+  if (!eventId || !name) {
+    return emitError(
+      ctx.io,
+      "forms create requires --event <eventId> --name <name>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.post(
+    `/api/events/${encodeURIComponent(eventId)}/forms`,
+    { name },
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as { form?: { id?: string; name?: string } };
+    return `created ${b.form?.id ?? "ok"} name=${b.form?.name ?? name}\n`;
+  });
+}
+
+export async function cmdFormsDraft(ctx: CommandContext): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const formId =
+    requireOption(ctx.args, "form", ["formId", "id"]) ??
+    ctx.args.positionals[0];
+  const fieldsJson = requireOption(ctx.args, "fields", ["fields-json"]);
+  if (!formId || !fieldsJson) {
+    return emitError(
+      ctx.io,
+      "forms draft requires --form <formId> --fields <json-array>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  let fields: unknown;
+  try {
+    fields = JSON.parse(fieldsJson);
+  } catch {
+    return emitError(
+      ctx.io,
+      "forms draft --fields must be valid JSON",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const body: Record<string, unknown> = { fields };
+  const rulesJson = requireOption(ctx.args, "rules", ["rules-json"]);
+  if (rulesJson) {
+    try {
+      body.rules = JSON.parse(rulesJson);
+    } catch {
+      return emitError(
+        ctx.io,
+        "forms draft --rules must be valid JSON",
+        "VALIDATION_ERROR",
+        EXIT_VALIDATION,
+        ctx.json,
+      );
+    }
+  }
+  const welcomeMd = requireOption(ctx.args, "welcome-md", ["welcomeMd"]);
+  if (welcomeMd !== undefined && welcomeMd !== null) body.welcomeMd = welcomeMd;
+  const thankYouMd = requireOption(ctx.args, "thank-you-md", ["thankYouMd"]);
+  if (thankYouMd !== undefined && thankYouMd !== null) {
+    body.thankYouMd = thankYouMd;
+  }
+  const opensAt = requireOption(ctx.args, "opens-at", ["opensAt"]);
+  if (opensAt !== undefined && opensAt !== null) body.opensAt = opensAt;
+  const closesAt = requireOption(ctx.args, "closes-at", ["closesAt"]);
+  if (closesAt !== undefined && closesAt !== null) body.closesAt = closesAt;
+  const submissionLimit = requireOption(ctx.args, "submission-limit", [
+    "submissionLimit",
+  ]);
+  if (submissionLimit) {
+    const n = Number(submissionLimit);
+    if (!Number.isFinite(n) || n < 1) {
+      return emitError(
+        ctx.io,
+        "forms draft --submission-limit must be a positive integer",
+        "VALIDATION_ERROR",
+        EXIT_VALIDATION,
+        ctx.json,
+      );
+    }
+    body.submissionLimit = Math.trunc(n);
+  }
+  const result = await client.request(
+    "PUT",
+    `/api/forms/${encodeURIComponent(formId)}/draft`,
+    { body },
+  );
+  return emitResult(ctx.io, result, ctx.json, () => `draft updated ${formId}\n`);
+}
+
+export async function cmdFormsPublish(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const formId =
+    requireOption(ctx.args, "form", ["formId", "id"]) ??
+    ctx.args.positionals[0];
+  if (!formId) {
+    return emitError(
+      ctx.io,
+      "forms publish requires --form <formId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.post(
+    `/api/forms/${encodeURIComponent(formId)}/publish`,
+    {},
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as {
+      formVersion?: { id?: string; versionNum?: number };
+    };
+    return `published ${formId} version=${b.formVersion?.versionNum ?? "?"}\n`;
+  });
+}
+
+// ─── submissions (submissions:read / write / decisions:write) ────────────────
+
+export async function cmdSubmissionsList(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  if (!eventId) {
+    return emitError(
+      ctx.io,
+      "submissions list requires --event <eventId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const query: Record<string, string | undefined> = {
+    status: requireOption(ctx.args, "status") ?? undefined,
+    category: requireOption(ctx.args, "category") ?? undefined,
+    q: requireOption(ctx.args, "q", ["search"]) ?? undefined,
+    limit: requireOption(ctx.args, "limit") ?? undefined,
+    offset: requireOption(ctx.args, "offset") ?? undefined,
+  };
+  const result = await client.get(
+    `/api/events/${encodeURIComponent(eventId)}/submissions`,
+    query,
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as {
+      submissions?: Array<{
+        id: string;
+        title: string;
+        status: string;
+        category?: string | null;
+      }>;
+      total?: number;
+    };
+    const rows = b.submissions ?? [];
+    if (rows.length === 0) return `total=${b.total ?? 0}\n(no rows)\n`;
+    return (
+      `total=${b.total ?? rows.length}\n` +
+      rows
+        .map(
+          (r) =>
+            `${r.id}\t${r.status}\t${r.category ?? ""}\t${r.title}`,
+        )
+        .join("\n") +
+      "\n"
+    );
+  });
+}
+
+export async function cmdSubmissionsGet(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const submissionId =
+    requireOption(ctx.args, "submission", ["submissionId", "id"]) ??
+    ctx.args.positionals[0];
+  if (!submissionId) {
+    return emitError(
+      ctx.io,
+      "submissions get requires --submission <id>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.get(
+    `/api/submissions/${encodeURIComponent(submissionId)}`,
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as {
+      submission?: { id?: string; title?: string; status?: string };
+    };
+    return `id=${b.submission?.id ?? submissionId} status=${b.submission?.status ?? "?"} title=${b.submission?.title ?? "?"}\n`;
+  });
+}
+
+export async function cmdSubmissionsAssign(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const submissionId =
+    requireOption(ctx.args, "submission", ["submissionId", "id"]) ??
+    ctx.args.positionals[0];
+  const usersRaw =
+    requireOption(ctx.args, "users", ["user-ids", "userIds"]) ??
+    requireOption(ctx.args, "user", ["user-id", "userId"]);
+  if (!submissionId || !usersRaw) {
+    return emitError(
+      ctx.io,
+      "submissions assign requires --submission <id> --users <userId[,userId…]>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const userIds = usersRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (userIds.length === 0) {
+    return emitError(
+      ctx.io,
+      "submissions assign --users must list at least one user id",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.post(
+    `/api/submissions/${encodeURIComponent(submissionId)}/assign`,
+    { userIds },
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as { assignments?: unknown[] };
+    return `assigned ${b.assignments?.length ?? 0} on ${submissionId}\n`;
+  });
+}
+
+export async function cmdSubmissionsDecision(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const submissionId =
+    requireOption(ctx.args, "submission", ["submissionId", "id"]) ??
+    ctx.args.positionals[0];
+  const decision = requireOption(ctx.args, "decision", ["value"]);
+  if (!submissionId || !decision) {
+    return emitError(
+      ctx.io,
+      "submissions decision requires --submission <id> --decision accept|reject|waitlist",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  if (!["accept", "reject", "waitlist"].includes(decision)) {
+    return emitError(
+      ctx.io,
+      "submissions decision --decision must be accept|reject|waitlist",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const reason = requireOption(ctx.args, "reason");
+  const body: Record<string, unknown> = { decision };
+  if (reason !== undefined) body.reason = reason;
+  const result = await client.post(
+    `/api/submissions/${encodeURIComponent(submissionId)}/decision`,
+    body,
+  );
+  return emitResult(ctx.io, result, ctx.json, (b) => {
+    const p = b as {
+      decision?: { value?: string };
+      idempotent?: boolean;
+    };
+    return `decision=${p.decision?.value ?? decision}${p.idempotent ? " (idempotent)" : ""}\n`;
+  });
+}
+
+export async function cmdSubmissionsBulkDecision(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  const decision = requireOption(ctx.args, "decision", ["value"]);
+  const idsRaw =
+    requireOption(ctx.args, "ids", ["submission-ids", "submissionIds"]) ??
+    requireOption(ctx.args, "submissions");
+  if (!eventId || !decision || !idsRaw) {
+    return emitError(
+      ctx.io,
+      "submissions bulk-decision requires --event --decision accept|reject|waitlist --ids id1,id2",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  if (!["accept", "reject", "waitlist"].includes(decision)) {
+    return emitError(
+      ctx.io,
+      "submissions bulk-decision --decision must be accept|reject|waitlist",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const submissionIds = idsRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (submissionIds.length === 0) {
+    return emitError(
+      ctx.io,
+      "submissions bulk-decision --ids must list at least one id",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const reason = requireOption(ctx.args, "reason");
+  const body: Record<string, unknown> = { submissionIds, decision };
+  if (reason !== undefined) body.reason = reason;
+  const result = await client.post(
+    `/api/events/${encodeURIComponent(eventId)}/submissions/bulk-decision`,
+    body,
+  );
+  return emitResult(ctx.io, result, ctx.json, (b) => {
+    const p = b as { applied?: number; failed?: number; decision?: string };
+    return `applied=${p.applied ?? 0} failed=${p.failed ?? 0} decision=${p.decision ?? decision}\n`;
+  });
+}
+
+// ─── eval (submissions:read) ─────────────────────────────────────────────────
+
+export async function cmdEvalRollup(ctx: CommandContext): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  if (!eventId) {
+    return emitError(
+      ctx.io,
+      "eval rollup requires --event <eventId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const sort = requireOption(ctx.args, "sort") ?? undefined;
+  const result = await client.get(
+    `/api/events/${encodeURIComponent(eventId)}/eval/rollup`,
+    { sort },
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as {
+      submissions?: Array<{
+        submissionId: string;
+        title: string;
+        aggregateScore?: number | null;
+        status?: string;
+      }>;
+      round?: { id?: string } | null;
+    };
+    const rows = b.submissions ?? [];
+    if (rows.length === 0) {
+      return `round=${b.round?.id ?? "none"} submissions=0\n`;
+    }
+    return (
+      `round=${b.round?.id ?? "none"} submissions=${rows.length}\n` +
+      rows
+        .map(
+          (r) =>
+            `${r.submissionId}\t${r.aggregateScore ?? ""}\t${r.status ?? ""}\t${r.title}`,
+        )
+        .join("\n") +
+      "\n"
+    );
+  });
+}
+
+export async function cmdEvalExport(ctx: CommandContext): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  if (!eventId) {
+    return emitError(
+      ctx.io,
+      "eval export requires --event <eventId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const sort = requireOption(ctx.args, "sort") ?? "score_desc";
+  // CSV response: client wraps non-JSON as { raw: text }
+  const result = await client.request(
+    "GET",
+    `/api/events/${encodeURIComponent(eventId)}/eval/export`,
+    { query: { sort } },
+  );
+  if (!result.ok) {
+    return emitResult(ctx.io, result, ctx.json);
+  }
+  let csv = "";
+  if (typeof result.body === "string") {
+    csv = result.body;
+  } else if (
+    result.body &&
+    typeof result.body === "object" &&
+    "raw" in result.body &&
+    typeof (result.body as { raw: unknown }).raw === "string"
+  ) {
+    csv = (result.body as { raw: string }).raw;
+  } else {
+    csv = JSON.stringify(result.body);
+  }
+  if (ctx.json) {
+    ctx.io.writeOut(`${JSON.stringify({ csv, eventId, sort })}\n`);
+  } else {
+    ctx.io.writeOut(csv.endsWith("\n") ? csv : `${csv}\n`);
+  }
+  return EXIT_OK;
+}
+
 /** Re-export parseArgs for main. */
 export { parseArgs };

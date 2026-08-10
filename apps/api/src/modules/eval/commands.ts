@@ -25,10 +25,14 @@ import {
   type EvalAssignmentStatus,
   type EvalRoundStatus,
   type EvalScoreSort,
+  type EvalProposalResponse,
+  type EvalReviewsResponse,
+  type EvalReviewItem,
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
+import type { FormsStore } from "../forms/store.js";
 import {
   type EvalStore,
   type EvalRoundRow,
@@ -46,6 +50,8 @@ export type EvalCommandDeps = {
   events: EventsStore;
   auth: AuthStore;
   submissions: SubmissionsStore;
+  /** Optional — enriches proposal answers with form field labels. */
+  forms?: FormsStore;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -614,6 +620,117 @@ export async function getEvalQueue(
 }
 
 /**
+ * GET /api/me/eval-assignments/:assignmentId/proposal
+ * Full proposal (answers + speakers) for an assignment owned by the evaluator.
+ */
+export async function getEvalAssignmentProposal(
+  deps: EvalCommandDeps,
+  assignmentId: string,
+  evaluatorUserId: string,
+): Promise<CommandOk<EvalProposalResponse> | CommandErr> {
+  const assignment = await deps.eval.findAssignmentById(assignmentId);
+  if (!assignment) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Assignment not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  // Ownership: only the assigned evaluator may read the proposal (404, not 403).
+  if (assignment.evaluatorUserId !== evaluatorUserId) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Assignment not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  const submission = await deps.submissions.findSubmissionById(
+    assignment.submissionId,
+  );
+  if (!submission) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Submission not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  const labelByKey = new Map<string, string>();
+  if (deps.forms) {
+    try {
+      const fields = await deps.forms.listFields(submission.formVersionId);
+      for (const f of fields) {
+        if (f.label?.trim()) labelByKey.set(f.fieldKey, f.label.trim());
+      }
+      if (labelByKey.size === 0) {
+        const ver = await deps.forms.findVersionById(submission.formVersionId);
+        if (ver?.snapshotJson) {
+          const snap = JSON.parse(ver.snapshotJson) as {
+            fields?: Array<{ fieldKey?: string; label?: string }>;
+          };
+          for (const f of snap.fields ?? []) {
+            if (f.fieldKey && f.label?.trim()) {
+              labelByKey.set(f.fieldKey, f.label.trim());
+            }
+          }
+        }
+      }
+    } catch {
+      /* labels optional */
+    }
+  }
+
+  const answerRows = await deps.submissions.listAnswers(submission.id);
+  const answers = answerRows.map((a) => {
+    let value: unknown = a.valueJson;
+    try {
+      value = JSON.parse(a.valueJson) as unknown;
+    } catch {
+      value = a.valueJson;
+    }
+    const label = labelByKey.get(a.fieldKey);
+    return label
+      ? { fieldKey: a.fieldKey, value, label }
+      : { fieldKey: a.fieldKey, value };
+  });
+
+  const speakerRows = await deps.submissions.listSpeakers(submission.id);
+  const speakers = [];
+  for (const s of speakerRows) {
+    const person = await deps.submissions.findPersonById(s.personId);
+    speakers.push({
+      personId: s.personId,
+      name: person?.name ?? "",
+      email: person?.email ?? "",
+      isPrimary: s.isPrimary,
+      sortOrder: s.sortOrder,
+    });
+  }
+  speakers.sort((a, b) => a.sortOrder - b.sortOrder);
+
+  return {
+    ok: true,
+    value: {
+      assignmentId: assignment.id,
+      submission: {
+        id: submission.id,
+        title: submission.title,
+        eventId: submission.eventId,
+        category: submission.category,
+        status: submission.status,
+      },
+      answers,
+      speakers,
+    },
+  };
+}
+
+/**
  * Admin rollup: aggregate scores visible to admin per submission.
  *
  * Reliability (S-EVAL-UI / 10.2):
@@ -677,11 +794,20 @@ export async function getAdminEvalRollup(
       const safeAgg =
         agg != null && Number.isFinite(agg) ? agg : null;
       if (safeAgg != null) aggregates.push(safeAgg);
+      const scoreRows = await deps.eval.listScores(a.id);
+      const scores = scoreRows.map((s) => ({
+        criterionId: s.criterionId,
+        value: finiteOr(s.value, 0),
+      }));
+      const evaluator = await deps.auth.findUserById(a.evaluatorUserId);
       assignmentSummaries.push({
         id: a.id,
         evaluatorUserId: a.evaluatorUserId,
+        evaluatorEmail: evaluator?.email ?? null,
         status: asAssignmentStatus(a.status),
         aggregateScore: safeAgg,
+        overallComment: a.overallComment ?? null,
+        scores,
       });
     }
     const mean =
@@ -706,6 +832,114 @@ export async function getAdminEvalRollup(
       criteria: criteria.map(toCriterionDto),
       submissions: rollups,
     },
+  };
+}
+
+/**
+ * Individual reviews for a submission (deliberation visibility).
+ * Policy: admins see all reviews; evaluators with an assignment on the
+ * submission see their own always and peers only when peer status is `scored`.
+ * No discussion threads.
+ */
+export async function getSubmissionEvalReviews(
+  deps: EvalCommandDeps,
+  input: {
+    submissionId: string;
+    actorUserId: string;
+    isAdmin: boolean;
+  },
+): Promise<CommandOk<EvalReviewsResponse> | CommandErr> {
+  const submission = await deps.submissions.findSubmissionById(
+    input.submissionId,
+  );
+  if (!submission) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Submission not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  const allForSubmission = await deps.eval.listAssignmentsForSubmission(
+    input.submissionId,
+  );
+
+  if (!input.isAdmin) {
+    const owns = allForSubmission.some(
+      (a) => a.evaluatorUserId === input.actorUserId,
+    );
+    if (!owns) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Not assigned to this submission",
+        code: "FORBIDDEN",
+      };
+    }
+  }
+
+  // Prefer active-round assignments when a round exists; else all.
+  const activeRound = await deps.eval.findActiveRoundForEvent(
+    submission.eventId,
+  );
+  const assignments =
+    activeRound != null
+      ? allForSubmission.filter((a) => a.roundId === activeRound.id)
+      : allForSubmission;
+
+  const criteriaByRound = new Map<string, EvalCriterionRow[]>();
+  const reviews: EvalReviewItem[] = [];
+
+  for (const a of assignments) {
+    const status = asAssignmentStatus(a.status);
+    const isSelf = a.evaluatorUserId === input.actorUserId;
+
+    // Non-admin: reveal peers only after they have submitted (scored).
+    if (!input.isAdmin && !isSelf && status !== "scored") {
+      continue;
+    }
+
+    let criteria = criteriaByRound.get(a.roundId);
+    if (!criteria) {
+      criteria = await deps.eval.listCriteria(a.roundId);
+      criteriaByRound.set(a.roundId, criteria);
+    }
+
+    const agg = await assignmentAggregate(deps, a, criteria);
+    const scoreRows = await deps.eval.listScores(a.id);
+    const evaluator = await deps.auth.findUserById(a.evaluatorUserId);
+
+    reviews.push({
+      assignmentId: a.id,
+      evaluatorUserId: a.evaluatorUserId,
+      evaluatorEmail: evaluator?.email ?? null,
+      status,
+      overallComment: a.overallComment ?? null,
+      aggregateScore:
+        agg != null && Number.isFinite(agg) ? agg : null,
+      scores: scoreRows.map((s) => ({
+        criterionId: s.criterionId,
+        value: finiteOr(s.value, 0),
+      })),
+      isSelf,
+    });
+  }
+
+  // Stable order: self first, then scored, then by evaluator email/id
+  reviews.sort((x, y) => {
+    if (x.isSelf && !y.isSelf) return -1;
+    if (!x.isSelf && y.isSelf) return 1;
+    if (x.status === "scored" && y.status !== "scored") return -1;
+    if (x.status !== "scored" && y.status === "scored") return 1;
+    const ex = (x.evaluatorEmail ?? x.evaluatorUserId).toLowerCase();
+    const ey = (y.evaluatorEmail ?? y.evaluatorUserId).toLowerCase();
+    return ex.localeCompare(ey);
+  });
+
+  return {
+    ok: true,
+    value: { submissionId: input.submissionId, reviews },
   };
 }
 

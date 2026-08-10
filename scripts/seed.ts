@@ -652,7 +652,7 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedResult> {
       );
     }
 
-    // Email template for comms demos
+    // Email template for comms demos (portalUrl merge for accept handoff demos)
     run(
       db,
       `INSERT INTO email_templates (
@@ -664,8 +664,388 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedResult> {
         "etpl_seed_welcome",
         SEED_EVENT_ID,
         "welcome",
-        "Welcome to {{eventName}}, {{speakerName}}",
-        "Hi {{speakerName}},\n\nYou are confirmed for **{{eventName}}**.\n\n— Programme team",
+        "Welcome to {{eventName}}, {{name}}",
+        "Hi {{name}},\n\nYou are confirmed for **{{eventName}}**.\n\nPortal: {{portalUrl}}\n\n— Programme team",
+        FIXED_NOW,
+        FIXED_NOW,
+      ],
+    );
+
+    // --- Competition thin-area graph: published CFP, submissions, eval queue ---
+    // Second evaluator for peer-review deliberation demos
+    run(
+      db,
+      `INSERT INTO users (id, email, name, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET email = excluded.email, name = excluded.name,
+         updated_at = excluded.updated_at`,
+      [
+        "user_demo_evaluator_b",
+        "evaluator-b@demo.speakerops.local",
+        "Demo Evaluator B",
+        FIXED_NOW,
+        FIXED_NOW,
+      ],
+    );
+    run(
+      db,
+      `INSERT INTO event_memberships (id, event_id, user_id, role, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(event_id, user_id) DO UPDATE SET role = excluded.role`,
+      [
+        "mem_evaluator_b_demo",
+        SEED_EVENT_ID,
+        "user_demo_evaluator_b",
+        "evaluator",
+        FIXED_NOW,
+      ],
+    );
+
+    const SEED_FORM_ID = "form_seed_cfp";
+    const SEED_FORM_DRAFT_ID = "fv_seed_cfp_draft";
+    const SEED_FORM_PUB_ID = "fv_seed_cfp_v1";
+    const snapshot = {
+      welcomeMd: "Welcome to Dogfood CFP 2026",
+      thankYouMd: "Thanks for submitting — we'll be in touch.",
+      opensAt: null,
+      closesAt: null,
+      submissionLimit: null,
+      fields: [
+        {
+          id: "ff_seed_title",
+          fieldKey: "talk_title",
+          type: "text",
+          label: "Talk title",
+          required: true,
+          options: null,
+          sortOrder: 0,
+          conditions: null,
+        },
+        {
+          id: "ff_seed_abstract",
+          fieldKey: "abstract",
+          type: "textarea",
+          label: "Abstract",
+          required: true,
+          options: null,
+          sortOrder: 1,
+          conditions: null,
+        },
+        {
+          id: "ff_seed_tracks",
+          fieldKey: "tracks",
+          type: "multiselect",
+          label: "Tracks",
+          required: false,
+          options: [
+            { value: "core", label: "Core AI" },
+            { value: "ops", label: "Ops" },
+            { value: "product", label: "Product" },
+          ],
+          sortOrder: 2,
+          conditions: null,
+        },
+        {
+          id: "ff_seed_url",
+          fieldKey: "slides_url",
+          type: "url",
+          label: "Slides URL",
+          required: false,
+          options: null,
+          sortOrder: 3,
+          conditions: null,
+        },
+      ],
+      rules: [],
+    };
+
+    run(
+      db,
+      `INSERT INTO forms (id, event_id, name, status, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, status = excluded.status`,
+      [SEED_FORM_ID, SEED_EVENT_ID, "Dogfood CFP 2026", "published", FIXED_NOW],
+    );
+    run(
+      db,
+      `INSERT INTO form_versions (
+         id, form_id, version_num, welcome_md, thank_you_md, opens_at, closes_at,
+         submission_limit, published_at, snapshot_json
+       ) VALUES (?, ?, 0, ?, ?, NULL, NULL, NULL, NULL, NULL)
+       ON CONFLICT(id) DO UPDATE SET welcome_md = excluded.welcome_md`,
+      [
+        SEED_FORM_DRAFT_ID,
+        SEED_FORM_ID,
+        snapshot.welcomeMd,
+        snapshot.thankYouMd,
+      ],
+    );
+    run(
+      db,
+      `INSERT INTO form_versions (
+         id, form_id, version_num, welcome_md, thank_you_md, opens_at, closes_at,
+         submission_limit, published_at, snapshot_json
+       ) VALUES (?, ?, 1, ?, ?, NULL, NULL, NULL, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET snapshot_json = excluded.snapshot_json,
+         published_at = excluded.published_at`,
+      [
+        SEED_FORM_PUB_ID,
+        SEED_FORM_ID,
+        snapshot.welcomeMd,
+        snapshot.thankYouMd,
+        FIXED_NOW,
+        JSON.stringify(snapshot),
+      ],
+    );
+    // Draft fields (builder reload) + published fields
+    for (const verId of [SEED_FORM_DRAFT_ID, SEED_FORM_PUB_ID]) {
+      for (const f of snapshot.fields) {
+        run(
+          db,
+          `INSERT INTO form_fields (
+             id, form_version_id, field_key, type, label, required, options_json,
+             sort_order, conditions_json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+           ON CONFLICT(form_version_id, field_key) DO UPDATE SET
+             label = excluded.label, type = excluded.type, required = excluded.required,
+             options_json = excluded.options_json, sort_order = excluded.sort_order`,
+          [
+            `${f.id}_${verId === SEED_FORM_PUB_ID ? "pub" : "draft"}`,
+            verId,
+            f.fieldKey,
+            f.type,
+            f.label,
+            f.required ? 1 : 0,
+            f.options ? JSON.stringify(f.options) : null,
+            f.sortOrder,
+          ],
+        );
+      }
+    }
+
+    // Eval round + criteria
+    const SEED_ROUND_ID = "round_seed_main";
+    run(
+      db,
+      `INSERT INTO eval_rounds (
+         id, event_id, name, status, closes_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, NULL, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET status = excluded.status, name = excluded.name,
+         updated_at = excluded.updated_at`,
+      [
+        SEED_ROUND_ID,
+        SEED_EVENT_ID,
+        "Main review",
+        "active",
+        FIXED_NOW,
+        FIXED_NOW,
+      ],
+    );
+    const criteria = [
+      ["crit_seed_impact", "Impact", 5, 1, 0],
+      ["crit_seed_clarity", "Clarity", 5, 1, 1],
+      ["crit_seed_novelty", "Novelty", 5, 1, 2],
+    ] as const;
+    for (const [id, name, max, weight, sort] of criteria) {
+      run(
+        db,
+        `INSERT INTO eval_criteria (id, round_id, name, max_score, weight, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, max_score = excluded.max_score`,
+        [id, SEED_ROUND_ID, name, max, weight, sort],
+      );
+    }
+
+    // 12 submitted CFP proposals for triage / assign / bulk / eval demos
+    for (let i = 0; i < 12; i++) {
+      const idx = pad3(i);
+      const subId = `sub_seed_${idx}`;
+      const personId = `person_cfp_seed_${idx}`;
+      const email = `cfp-speaker${idx}@demo.speakerops.local`;
+      const name = `CFP Speaker ${idx}`;
+      const title = `CFP Proposal ${idx}: Thin Area Demo Talk`;
+      run(
+        db,
+        `INSERT INTO people (id, org_id, email, name, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET email = excluded.email, name = excluded.name,
+           updated_at = excluded.updated_at`,
+        [personId, SEED_ORG_ID, email, name, FIXED_NOW, FIXED_NOW],
+      );
+      run(
+        db,
+        `INSERT INTO submissions (
+           id, event_id, form_version_id, title, category, status, submitted_at, version
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+         ON CONFLICT(id) DO UPDATE SET title = excluded.title, status = excluded.status`,
+        [
+          subId,
+          SEED_EVENT_ID,
+          SEED_FORM_PUB_ID,
+          title,
+          i % 2 === 0 ? "core" : "ops",
+          "submitted",
+          FIXED_NOW,
+        ],
+      );
+      run(
+        db,
+        `INSERT INTO submission_answers (id, submission_id, field_key, value_json)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(submission_id, field_key) DO UPDATE SET value_json = excluded.value_json`,
+        [
+          `sa_seed_${idx}_title`,
+          subId,
+          "talk_title",
+          JSON.stringify(title),
+        ],
+      );
+      run(
+        db,
+        `INSERT INTO submission_answers (id, submission_id, field_key, value_json)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(submission_id, field_key) DO UPDATE SET value_json = excluded.value_json`,
+        [
+          `sa_seed_${idx}_abstract`,
+          subId,
+          "abstract",
+          JSON.stringify(
+            `Abstract for ${title}. Enough detail for evaluators to score responsibly.`,
+          ),
+        ],
+      );
+      run(
+        db,
+        `INSERT INTO submission_answers (id, submission_id, field_key, value_json)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(submission_id, field_key) DO UPDATE SET value_json = excluded.value_json`,
+        [
+          `sa_seed_${idx}_tracks`,
+          subId,
+          "tracks",
+          JSON.stringify(i % 2 === 0 ? ["core", "ops"] : ["product"]),
+        ],
+      );
+      run(
+        db,
+        `INSERT INTO submission_speakers (submission_id, person_id, is_primary, sort_order)
+         VALUES (?, ?, 1, 0)
+         ON CONFLICT(submission_id, person_id) DO UPDATE SET is_primary = 1`,
+        [subId, personId],
+      );
+
+      // Assign first 8 to demo evaluator; first 4 also to evaluator B (peer demos)
+      if (i < 8) {
+        const asnA = `asn_seed_a_${idx}`;
+        const statusA = i < 2 ? "scored" : "pending";
+        run(
+          db,
+          `INSERT INTO eval_assignments (
+             id, round_id, submission_id, evaluator_user_id, status, overall_comment,
+             created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET status = excluded.status,
+             overall_comment = excluded.overall_comment, updated_at = excluded.updated_at`,
+          [
+            asnA,
+            SEED_ROUND_ID,
+            subId,
+            SEED_DEMO_USERS.evaluator.id,
+            statusA,
+            statusA === "scored" ? `Strong talk ${idx} — clear impact.` : null,
+            FIXED_NOW,
+            FIXED_NOW,
+          ],
+        );
+        if (statusA === "scored") {
+          for (const [critId, val] of [
+            ["crit_seed_impact", 4],
+            ["crit_seed_clarity", 5],
+            ["crit_seed_novelty", 3],
+          ] as const) {
+            run(
+              db,
+              `INSERT INTO scores (id, assignment_id, criterion_id, value, comment)
+               VALUES (?, ?, ?, ?, NULL)
+               ON CONFLICT(assignment_id, criterion_id) DO UPDATE SET value = excluded.value`,
+              [`score_${asnA}_${critId}`, asnA, critId, val],
+            );
+          }
+        }
+      }
+      if (i < 4) {
+        const asnB = `asn_seed_b_${idx}`;
+        const statusB = i < 1 ? "scored" : "pending";
+        run(
+          db,
+          `INSERT INTO eval_assignments (
+             id, round_id, submission_id, evaluator_user_id, status, overall_comment,
+             created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET status = excluded.status,
+             overall_comment = excluded.overall_comment, updated_at = excluded.updated_at`,
+          [
+            asnB,
+            SEED_ROUND_ID,
+            subId,
+            "user_demo_evaluator_b",
+            statusB,
+            statusB === "scored" ? `Peer B comment on ${idx}.` : null,
+            FIXED_NOW,
+            FIXED_NOW,
+          ],
+        );
+        if (statusB === "scored") {
+          run(
+            db,
+            `INSERT INTO scores (id, assignment_id, criterion_id, value, comment)
+             VALUES (?, ?, ?, ?, NULL)
+             ON CONFLICT(assignment_id, criterion_id) DO UPDATE SET value = excluded.value`,
+            [
+              `score_${asnB}_crit_seed_impact`,
+              asnB,
+              "crit_seed_impact",
+              4,
+            ],
+          );
+        }
+      }
+    }
+
+    // Calendar invite for ICS attach-on-send demos (placement from schedule seed)
+    run(
+      db,
+      `INSERT INTO calendar_invites (
+         id, event_id, placement_id, session_id, uid, sequence, method,
+         summary, starts_at, ends_at, location, ics_body, version, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET ics_body = excluded.ics_body, updated_at = excluded.updated_at`,
+      [
+        "cinv_seed_main",
+        SEED_EVENT_ID,
+        "plc_seed_000",
+        "sess_seed_000",
+        `${SEED_EVENT_ID}-plc_seed_000@speakerops.local`,
+        "REQUEST",
+        "Talk 000: Deterministic Demo Session",
+        "2026-09-15T09:00:00.000Z",
+        "2026-09-15T09:50:00.000Z",
+        "Main Hall",
+        [
+          "BEGIN:VCALENDAR",
+          "VERSION:2.0",
+          "PRODID:-//SpeakerOps//Seed//EN",
+          "METHOD:REQUEST",
+          "BEGIN:VEVENT",
+          `UID:${SEED_EVENT_ID}-plc_seed_000@speakerops.local`,
+          "SEQUENCE:0",
+          "SUMMARY:Talk 000: Deterministic Demo Session",
+          "DTSTART:20260915T090000Z",
+          "DTEND:20260915T095000Z",
+          "LOCATION:Main Hall",
+          "END:VEVENT",
+          "END:VCALENDAR",
+        ].join("\r\n"),
         FIXED_NOW,
         FIXED_NOW,
       ],
@@ -695,6 +1075,14 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedResult> {
           section: "8.4",
           missingHeadshots: SEED_SPEAKER_COUNT - HEADSHOT_COUNT,
           scheduleConflict: true,
+          thinAreas: {
+            publishedCfpForm: true,
+            cfpSubmissions: 12,
+            evalRound: true,
+            evalAssignments: true,
+            calendarInvite: true,
+            secondEvaluator: true,
+          },
         }),
         SEED_CORRELATION_ID,
         FIXED_NOW,

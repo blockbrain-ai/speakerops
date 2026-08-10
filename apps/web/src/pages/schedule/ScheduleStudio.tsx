@@ -1763,7 +1763,7 @@ export function ScheduleStudioPage() {
                   unscheduled.map((s) => (
                     <li key={s.id}>
                       {/*
-                        Use a div, not <button draggable> — native HTML5 drag on
+                        Use a div, not a native button with draggable — HTML5 drag on
                         buttons is flaky in Chromium (often fails first grab).
                       */}
                       <div

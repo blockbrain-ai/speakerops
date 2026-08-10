@@ -113,7 +113,13 @@ export function LoginPage() {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email: email.trim(), purpose }),
+        body: JSON.stringify({
+          email: email.trim(),
+          purpose,
+          ...(eventIdFromUrl && eventIdFromUrl.trim().length > 0
+            ? { eventId: eventIdFromUrl.trim() }
+            : {}),
+        }),
       });
       const raw: unknown = await res.json().catch(() => null);
       if (!res.ok) {

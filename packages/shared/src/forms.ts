@@ -218,5 +218,26 @@ export const PublicCfpResponseSchema = z.object({
 });
 export type PublicCfpResponse = z.infer<typeof PublicCfpResponseSchema>;
 
+/**
+ * Form.List response — GET /api/events/:eventId/forms (admin).
+ * Shell rows only; use Form.GetAdmin for draft fields/rules.
+ */
+export const FormListResponseSchema = z.object({
+  forms: z.array(FormSchema),
+});
+export type FormListResponse = z.infer<typeof FormListResponseSchema>;
+
+/**
+ * Form.GetAdmin response — GET /api/forms/:formId (admin).
+ * Draft version always present (fields/rules); optional latest published meta.
+ */
+export const FormAdminGetResponseSchema = z.object({
+  form: FormSchema,
+  draft: FormVersionSchema,
+  /** Latest published version when form has been published; null otherwise. */
+  published: FormVersionSchema.nullable().optional(),
+});
+export type FormAdminGetResponse = z.infer<typeof FormAdminGetResponseSchema>;
+
 /** Draft version_num sentinel (never published). */
 export const FORM_DRAFT_VERSION_NUM = 0 as const;

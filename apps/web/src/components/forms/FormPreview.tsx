@@ -2,6 +2,7 @@
  * Side-by-side live preview of the draft CFP form (D07 / 11.3).
  * Used in Build workspace canvas and Public preview view mode.
  * Shows welcome copy and visible fields; conditional showWhen applied.
+ * Multiselect = checkbox group (matches public CFP); URL = type=url text.
  */
 import { useMemo, useState } from "react";
 import type { BuilderField } from "./form-builder-utils.js";
@@ -12,6 +13,17 @@ export type FormPreviewProps = {
   welcomeMd: string;
   thankYouMd: string;
 };
+
+function parseMultiselect(raw: string | undefined): string[] {
+  if (raw == null || raw === "") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch {
+    /* single legacy value */
+  }
+  return [raw];
+}
 
 export function FormPreview({
   fields,
@@ -66,7 +78,11 @@ export function FormPreview({
             >
               <label
                 className="form-builder__preview-label"
-                htmlFor={`preview-${f.fieldKey}`}
+                htmlFor={
+                  f.type === "multiselect"
+                    ? undefined
+                    : `preview-${f.fieldKey}`
+                }
               >
                 <span data-testid={`form-preview-label-${f.fieldKey}`}>
                   {f.label}
@@ -92,7 +108,7 @@ export function FormPreview({
                   }
                   data-testid={`form-preview-input-${f.fieldKey}`}
                 />
-              ) : f.type === "select" || f.type === "multiselect" ? (
+              ) : f.type === "select" ? (
                 <select
                   id={`preview-${f.fieldKey}`}
                   className="form-builder__input lumen-focusable"
@@ -112,6 +128,43 @@ export function FormPreview({
                     </option>
                   ))}
                 </select>
+              ) : f.type === "multiselect" ? (
+                <div
+                  className="form-builder__preview-multiselect"
+                  id={`preview-${f.fieldKey}`}
+                  data-testid={`form-preview-input-${f.fieldKey}`}
+                  role="group"
+                  aria-label={f.label}
+                >
+                  {(f.options ?? []).map((o) => {
+                    const selected = parseMultiselect(answers[f.fieldKey]);
+                    const checked = selected.includes(o.value);
+                    return (
+                      <label
+                        key={o.value}
+                        className="form-builder__preview-multiselect-option"
+                      >
+                        <input
+                          type="checkbox"
+                          className="lumen-focusable"
+                          data-testid={`form-preview-input-${f.fieldKey}-${o.value}`}
+                          checked={checked}
+                          onChange={(e) => {
+                            const cur = parseMultiselect(answers[f.fieldKey]);
+                            const next = e.target.checked
+                              ? [...new Set([...cur, o.value])]
+                              : cur.filter((v) => v !== o.value);
+                            setAnswers((prev) => ({
+                              ...prev,
+                              [f.fieldKey]: JSON.stringify(next),
+                            }));
+                          }}
+                        />
+                        <span>{o.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               ) : f.type === "checkbox" ? (
                 <input
                   id={`preview-${f.fieldKey}`}

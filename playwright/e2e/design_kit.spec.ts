@@ -223,9 +223,14 @@ test("@inv:C05 e2e/admin/design-publish publish; public CFP shows brand", async 
   await expect(page.getByTestId("page-public-cfp")).toBeVisible({
     timeout: 10_000,
   });
-  await expect(page.getByTestId("public-cfp-brand-value")).toContainText(
-    /#3366cc/i,
+  await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+    "data-has-published",
+    "true",
     { timeout: 10_000 },
+  );
+  await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+    "data-brand",
+    /#3366cc/i,
   );
   await expect(page.getByTestId("public-cfp-title")).toContainText("C05 Summit");
 
@@ -302,13 +307,19 @@ test("@inv:C08 e2e/admin/design-contrast near-white brand safe fg or block", asy
 
   if (/Published/i.test(text)) {
     await page.goto(`/cfp/${event.slug}`);
-    await expect(page.getByTestId("public-cfp-brand-value")).toContainText(
-      /#fffffe/i,
+    await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+      "data-has-published",
+      "true",
       { timeout: 10_000 },
     );
+    await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+      "data-brand",
+      /#fffffe/i,
+    );
+    // Public surface must not dump brandFg token text
     const brandText =
       (await page.getByTestId("public-cfp-brand-value").textContent()) ?? "";
-    expect(brandText.toLowerCase()).toMatch(/fg\s+#1d1d1f|fg\s+#000/);
+    expect(brandText.toLowerCase()).not.toMatch(/fg\s+#/);
   }
 });
 
@@ -391,12 +402,18 @@ test("@inv:C10 e2e/admin/design-draft-isolation draft not on public until publis
   await expect(page.getByTestId("page-public-cfp")).toBeVisible({
     timeout: 10_000,
   });
-  await expect(page.getByTestId("public-cfp-brand-value")).toContainText(
-    /no published brand/i,
+  // Draft isolation: unpublished brand must not appear on public surface
+  await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+    "data-has-published",
+    "false",
     { timeout: 10_000 },
   );
-  await expect(page.getByTestId("public-cfp-brand-value")).not.toContainText(
+  await expect(page.getByTestId("public-cfp-brand")).not.toHaveAttribute(
+    "data-brand",
     "#abcdef",
+  );
+  await expect(page.getByTestId("public-cfp-title")).not.toContainText(
+    "DraftSecret",
   );
 
   await page.goto("/admin/settings/design");
@@ -409,8 +426,16 @@ test("@inv:C10 e2e/admin/design-draft-isolation draft not on public until publis
   );
 
   await page.goto(`/cfp/${event.slug}`);
-  await expect(page.getByTestId("public-cfp-brand-value")).toContainText(
-    /#abcdef/i,
+  await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+    "data-has-published",
+    "true",
     { timeout: 10_000 },
+  );
+  await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+    "data-brand",
+    /#abcdef/i,
+  );
+  await expect(page.getByTestId("public-cfp-title")).toContainText(
+    "DraftSecret",
   );
 });

@@ -85,6 +85,24 @@ export const EventListResponseFullSchema = z.object({
 });
 export type EventListResponseFull = z.infer<typeof EventListResponseFullSchema>;
 
+/**
+ * Event members roster — GET /api/events/:eventId/members?role=evaluator
+ * Admin cohort ops (assignment picker + workload counts).
+ */
+export const EventMemberSchema = z.object({
+  userId: z.string().min(1),
+  email: z.string().min(1),
+  role: z.enum(["admin", "evaluator", "speaker"]),
+  /** Assignments on the event's active eval round; 0 when no round. */
+  assignmentCount: z.number().int().nonnegative(),
+});
+export type EventMember = z.infer<typeof EventMemberSchema>;
+
+export const EventMembersResponseSchema = z.object({
+  members: z.array(EventMemberSchema),
+});
+export type EventMembersResponse = z.infer<typeof EventMembersResponseSchema>;
+
 /** Room entity (SCHEMA.md rooms). */
 export const RoomSchema = z.object({
   id: z.string().min(1),

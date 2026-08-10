@@ -32,6 +32,7 @@ import {
   createEmailProvider,
   resolveEmailProviderMode,
   SandboxEmailProvider,
+  CloudflareEmailProvider,
   hashSendRequest,
   commsSendIdempotencyStorageKey,
 } from "./send.js";
@@ -1642,6 +1643,125 @@ describe("5.2 Comms send idempotent + ICS", () => {
         (r) => r.id === "out_preflight_race",
       ),
     ).toBeUndefined();
+  });
+
+  it("thin-area: hashSendRequest includes calendarInviteId", async () => {
+    const a = await hashSendRequest({
+      previewId: "pv1",
+      idempotencyKey: "k1",
+      calendarInviteId: null,
+    });
+    const b = await hashSendRequest({
+      previewId: "pv1",
+      idempotencyKey: "k1",
+    });
+    const c = await hashSendRequest({
+      previewId: "pv1",
+      idempotencyKey: "k1",
+      calendarInviteId: "inv_x",
+    });
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+  });
+
+  it("thin-area: CloudflareEmailProvider fails closed on attachments", async () => {
+    const cf = new CloudflareEmailProvider({
+      from: "SpeakerOps <noreply@example.com>",
+      accountId: "acct",
+      apiToken: "tok",
+      fetchImpl: async () => {
+        throw new Error("must not call CF HTTP when attachments present");
+      },
+    });
+    const result = await cf.send({
+      to: "a@example.com",
+      subject: "Hi",
+      body: "Body",
+      attachments: [
+        {
+          filename: "invite.ics",
+          contentType: "text/calendar",
+          content: "BEGIN:VCALENDAR\nEND:VCALENDAR",
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("cloudflare_attachments_unsupported");
+  });
+
+  it("thin-area: Comms.Send + calendarInviteId attaches invite.ics in sandbox drain", async () => {
+    const admin = await magicLinkSession(
+      "admin",
+      "comms-ics-attach@example.com",
+    );
+    const event = await createEvent(admin.app, admin.cookie, "ICS Attach Event");
+    await seedAcceptedSpeaker(admin, event.id, "ics-attach");
+    const { preview } = await upsertAndPreview(
+      admin,
+      event.id,
+      "ics-attach-nudge",
+    );
+
+    const ics = await icsForPlacementCommand(
+      {
+        comms: admin.comms,
+        events: admin.events,
+        auth: admin.store,
+        submissions: admin.submissions,
+        decisions: admin.decisions,
+      },
+      {
+        placement: {
+          eventId: event.id,
+          placementId: "plc_attach_1",
+          summary: "Keynote",
+          startsAt: "2026-09-01T10:00:00.000Z",
+          endsAt: "2026-09-01T11:00:00.000Z",
+          location: "Main",
+        },
+        actorUserId: admin.userId,
+        correlationId: "corr-ics-attach",
+      },
+    );
+    expect(ics.ok).toBe(true);
+    if (!ics.ok) return;
+    const inviteId = ics.value.invite.id;
+
+    const sendRes = await admin.app.request(
+      "http://localhost/api/comms/send",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          previewId: preview.previewId,
+          idempotencyKey: "idem-ics-attach-1",
+          calendarInviteId: inviteId,
+        }),
+      },
+      env,
+    );
+    expect(sendRes.status).toBe(201);
+    const sendBody = CommsSendResponseSchema.parse(await sendRes.json());
+
+    const job = await admin.comms.findJobById(sendBody.job.id);
+    expect(job?.calendarInviteId).toBe(inviteId);
+
+    const sandbox = new SandboxEmailProvider();
+    const result = await processCommsOutbox({
+      comms: admin.comms,
+      auth: admin.store,
+      provider: sandbox,
+    });
+    expect(result.processed).toBeGreaterThanOrEqual(1);
+    expect(sandbox.sent.length).toBeGreaterThanOrEqual(1);
+    const att = sandbox.sent[0]!.attachments;
+    expect(att?.length).toBe(1);
+    expect(att![0]!.filename).toBe("invite.ics");
+    expect(att![0]!.contentType).toBe("text/calendar");
+    expect(att![0]!.content).toContain("BEGIN:VCALENDAR");
   });
 
 });

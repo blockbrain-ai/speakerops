@@ -1,6 +1,6 @@
 {
   "ratified_section": "0.3",
-  "ratified_date": "2026-08-08",
+  "ratified_date": "2026-08-10",
   "description": "Exact REQUIRED inventory ID set ratified at section 0.3. Anti-shrinkage: every ID must remain present; omission only via owner DEFER status on that row. IDs must not be deleted or reused for different behavior. fingerprints lock stable test_id + journey per ID (anti-reuse).",
   "required_ids": [
     "A01",
@@ -15,6 +15,8 @@
     "A10",
     "A11",
     "A17",
+    "A18",
+    "A19",
     "B01",
     "B02",
     "B03",
@@ -42,6 +44,7 @@
     "D08",
     "D09",
     "D10",
+    "D11",
     "E01",
     "E02",
     "E03",
@@ -50,11 +53,19 @@
     "E06",
     "E07",
     "E08",
+    "E09",
+    "E10",
+    "E11",
+    "E12",
     "F01",
     "F02",
     "F03",
     "F04",
     "F05",
+    "F06",
+    "F07",
+    "F08",
+    "F09",
     "G01",
     "G02",
     "G03",
@@ -94,12 +105,18 @@
     "J08",
     "J09",
     "J10",
+    "J11",
     "K01",
     "K02",
     "K03",
     "K04",
     "L01",
     "L02",
+    "L2-01",
+    "L2-02",
+    "L2-03",
+    "L2-04",
+    "L2-05",
     "L03",
     "L04",
     "L05",
@@ -112,12 +129,7 @@
     "O03",
     "O04",
     "O05",
-    "O06",
-    "L2-01",
-    "L2-02",
-    "L2-03",
-    "L2-04",
-    "L2-05"
+    "O06"
   ],
   "fingerprints": {
     "A01": {
@@ -166,11 +178,11 @@
     },
     "B01": {
       "test_id": "e2e/auth/admin-login",
-      "journey": "Magic/invite login \u2192 session cookie set HttpOnly path"
+      "journey": "Magic/invite login → session cookie set HttpOnly path"
     },
     "B02": {
       "test_id": "e2e/auth/speaker-magic",
-      "journey": "Single-use link \u2192 portal; second use fails"
+      "journey": "Single-use link → portal; second use fails"
     },
     "B03": {
       "test_id": "e2e/auth/logout",
@@ -218,7 +230,7 @@
     },
     "C08": {
       "test_id": "e2e/admin/design-contrast",
-      "journey": "Near-white brand \u2192 contrast warn/block or derived text on public CFP"
+      "journey": "Near-white brand → contrast warn/block or derived text on public CFP"
     },
     "C09": {
       "test_id": "e2e/admin/design-logo-xss",
@@ -230,7 +242,7 @@
     },
     "C11": {
       "test_id": "e2e/admin/event-isolation",
-      "journey": "Switch event A\u2192B; no A data in B lists"
+      "journey": "Switch event A→B; no A data in B lists"
     },
     "D01": {
       "test_id": "e2e/admin/form-create",
@@ -370,7 +382,7 @@
     },
     "H04": {
       "test_id": "e2e/dash/live",
-      "journey": "Live update after portal complete (same session or poll \u22645s)"
+      "journey": "Live update after portal complete (same session or poll ≤5s)"
     },
     "H05": {
       "test_id": "e2e/dash/empty",
@@ -566,7 +578,7 @@
     },
     "L2-02": {
       "test_id": "e2e/lumen2/session-expired",
-      "journey": "Session expired \u2192 focused recovery panel (no auth alert in shell)"
+      "journey": "Session expired → focused recovery panel (no auth alert in shell)"
     },
     "L2-03": {
       "test_id": "e2e/lumen2/settings-two-pane",
@@ -579,6 +591,54 @@
     "L2-05": {
       "test_id": "e2e/lumen2/settings-a11y-keyboard",
       "journey": "Keyboard focus journey + 390px usable settings"
+    },
+    "A18": {
+      "test_id": "e2e/public/cfp-multiselect-url",
+      "journey": "Multiselect multi-value + URL field is text (not file)"
+    },
+    "A19": {
+      "test_id": "e2e/public/cfp-copy-clean",
+      "journey": "No operator/debug brand copy (Lumen defaults / raw file ids)"
+    },
+    "D11": {
+      "test_id": "e2e/admin/form-reload",
+      "journey": "Reload builder restores draft after refresh"
+    },
+    "E09": {
+      "test_id": "e2e/admin/sub-bulk-commit",
+      "journey": "Bulk preview → Confirm apply (commit)"
+    },
+    "E10": {
+      "test_id": "e2e/admin/sub-search",
+      "journey": "Search list by title/speaker (`submissions-filter-q`)"
+    },
+    "E11": {
+      "test_id": "e2e/admin/sub-assign-picker",
+      "journey": "Assign via evaluator picker (not raw user id)"
+    },
+    "E12": {
+      "test_id": "e2e/admin/sub-detail-reviews",
+      "journey": "Detail Reviews panel (individual comments)"
+    },
+    "F06": {
+      "test_id": "e2e/eval/proposal-panel",
+      "journey": "Proposal panel shows speakers + answers beside rubric"
+    },
+    "F07": {
+      "test_id": "e2e/eval/queue-nav",
+      "journey": "Next unreviewed + search/filter"
+    },
+    "F08": {
+      "test_id": "e2e/eval/peer-reviews",
+      "journey": "Peer reviews reveal-after-submit"
+    },
+    "F09": {
+      "test_id": "e2e/eval/admin-reviews",
+      "journey": "Expand individual reviewer comments"
+    },
+    "J11": {
+      "test_id": "e2e/comms/ics-attach-send",
+      "journey": "Send with calendar invite attached from picker"
     }
   }
 }

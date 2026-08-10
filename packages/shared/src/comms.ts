@@ -110,6 +110,8 @@ export type CommsPreviewResponse = z.infer<typeof CommsPreviewResponseSchema>;
 export const CommsSendBodySchema = z.object({
   previewId: z.string().min(1).max(128),
   idempotencyKey: z.string().min(1).max(200),
+  /** Optional calendar invite to attach as invite.ics on send. */
+  calendarInviteId: z.string().min(1).max(128).optional().nullable(),
 });
 export type CommsSendBody = z.infer<typeof CommsSendBodySchema>;
 

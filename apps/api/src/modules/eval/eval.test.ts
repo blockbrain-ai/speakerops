@@ -20,6 +20,7 @@ import {
   EvalRubricResponseSchema,
   EvalScoreResponseSchema,
   EvalQueueResponseSchema,
+  EvalProposalResponseSchema,
   SubmissionAssignResponseSchema,
   EvalAdminRollupResponseSchema,
   SubmissionCreateResponseSchema,
@@ -29,6 +30,7 @@ import {
   VALIDATION_ERROR,
   UNAUTHORIZED,
   FORBIDDEN,
+  NOT_FOUND,
   SESSION_COOKIE_NAME,
   TURNSTILE_DEV_PASS_TOKEN,
 } from "@speakerops/shared";
@@ -1144,5 +1146,304 @@ describe("3.4 evaluation scoring", () => {
     expect(csv).not.toContain(draftId);
     expect(csv).not.toContain("Title-only Draft Must Not Eval");
     expect(csv).toContain(submittedId);
+  });
+
+  it("Eval.GetProposal returns answers/speakers; wrong evaluator forbidden", async () => {
+    const shared = createAppWithAuth({ cookieSecure: true });
+    const admin = await magicLinkSession(
+      "admin",
+      "eval-admin-proposal@example.com",
+      undefined,
+      shared,
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Proposal Event");
+    const evaluator = await magicLinkSession(
+      "evaluator",
+      "eval-owner-proposal@example.com",
+      event.id,
+      shared,
+    );
+    const otherEval = await magicLinkSession(
+      "evaluator",
+      "eval-other-proposal@example.com",
+      event.id,
+      shared,
+    );
+
+    await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rubric`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          criteria: [{ name: "Clarity", maxScore: 5, weight: 1 }],
+        }),
+      },
+      env,
+    );
+
+    const submissionId = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Proposal Talk With Body",
+    );
+
+    const assign = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/assign`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ userIds: [evaluator.userId] }),
+      },
+      env,
+    );
+    expect(assign.status).toBe(200);
+    const assignBody = SubmissionAssignResponseSchema.parse(
+      await assign.json(),
+    );
+    const assignmentId = assignBody.assignments[0]!.id;
+
+    // Owner can load proposal with answers + speakers
+    const okRes = await admin.app.request(
+      `http://localhost/api/me/eval-assignments/${assignmentId}/proposal`,
+      { method: "GET", headers: { cookie: evaluator.cookie } },
+      env,
+    );
+    expect(okRes.status).toBe(200);
+    const proposal = EvalProposalResponseSchema.parse(await okRes.json());
+    expect(proposal.assignmentId).toBe(assignmentId);
+    expect(proposal.submission.id).toBe(submissionId);
+    expect(proposal.submission.title).toBe("Proposal Talk With Body");
+    expect(proposal.answers.length).toBeGreaterThan(0);
+    expect(proposal.answers.some((a) => a.fieldKey === "talk_title")).toBe(
+      true,
+    );
+    expect(proposal.speakers.length).toBeGreaterThanOrEqual(1);
+    expect(proposal.speakers[0]!.email).toContain("@");
+
+    // Different evaluator on same event cannot read this assignment (404, no leak)
+    const forbidden = await admin.app.request(
+      `http://localhost/api/me/eval-assignments/${assignmentId}/proposal`,
+      { method: "GET", headers: { cookie: otherEval.cookie } },
+      env,
+    );
+    expect(forbidden.status).toBe(404);
+    const forbBody = ErrorEnvelopeSchema.parse(await forbidden.json());
+    expect(forbBody.code).toBe(NOT_FOUND);
+
+    // Unknown assignment 404
+    const missing = await admin.app.request(
+      "http://localhost/api/me/eval-assignments/assign_does_not_exist/proposal",
+      { method: "GET", headers: { cookie: evaluator.cookie } },
+      env,
+    );
+    expect(missing.status).toBe(404);
+
+    // Unauthenticated 401
+    const unauth = await admin.app.request(
+      `http://localhost/api/me/eval-assignments/${assignmentId}/proposal`,
+      { method: "GET" },
+      env,
+    );
+    expect(unauth.status).toBe(401);
+  });
+
+  it("thin-area: peer reviews reveal-after-submit only", async () => {
+    const shared = createAppWithAuth({ cookieSecure: true });
+    const admin = await magicLinkSession(
+      "admin",
+      "eval-peer-admin@example.com",
+      undefined,
+      shared,
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Peer Reveal Event");
+    const evalA = await magicLinkSession(
+      "evaluator",
+      "eval-peer-a@example.com",
+      event.id,
+      shared,
+    );
+    const evalB = await magicLinkSession(
+      "evaluator",
+      "eval-peer-b@example.com",
+      event.id,
+      shared,
+    );
+
+    const submissionId = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Peer Talk",
+    );
+
+    // Rubric required before assign (matches existing eval tests)
+    const rubric = await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rubric`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          name: "Peer Round",
+          criteria: [{ name: "Impact", maxScore: 5, weight: 1 }],
+        }),
+      },
+      env,
+    );
+    expect(rubric.status).toBe(200);
+    const rubricBody = EvalRubricResponseSchema.parse(await rubric.json());
+
+    const assignRes = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/assign`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          userIds: [evalA.userId, evalB.userId],
+        }),
+      },
+      env,
+    );
+    expect(assignRes.status).toBe(200);
+    void rubricBody;
+
+    // A scores first
+    const queueA = await admin.app.request(
+      "http://localhost/api/me/eval-queue",
+      { method: "GET", headers: { cookie: evalA.cookie } },
+      env,
+    );
+    const queueABody = await queueA.json();
+    const itemA = (
+      queueABody as {
+        items: Array<{
+          assignment: { id: string };
+          criteria: Array<{ id: string; maxScore: number }>;
+        }>;
+      }
+    ).items.find((i) => i.assignment);
+    expect(itemA).toBeTruthy();
+
+    // Before B scores, A should not see B's pending peer comment
+    const reviewsBefore = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/eval-reviews`,
+      { method: "GET", headers: { cookie: evalA.cookie } },
+      env,
+    );
+    expect(reviewsBefore.status).toBe(200);
+    const beforeBody = (await reviewsBefore.json()) as {
+      reviews: Array<{
+        evaluatorUserId: string;
+        status: string;
+        overallComment: string | null;
+      }>;
+    };
+    const peerBBefore = beforeBody.reviews.find(
+      (r) => r.evaluatorUserId === evalB.userId,
+    );
+    expect(peerBBefore).toBeUndefined();
+
+    // Score A
+    const crit = itemA!.criteria[0];
+    if (crit) {
+      await admin.app.request(
+        `http://localhost/api/assignments/${itemA!.assignment.id}/scores`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: evalA.cookie,
+          },
+          body: JSON.stringify({
+            scores: [{ criterionId: crit.id, value: crit.maxScore }],
+            comment: "A says great",
+          }),
+        },
+        env,
+      );
+    }
+
+    // Score B
+    const queueB = await admin.app.request(
+      "http://localhost/api/me/eval-queue",
+      { method: "GET", headers: { cookie: evalB.cookie } },
+      env,
+    );
+    const queueBBody = await queueB.json();
+    const itemB = (
+      queueBBody as {
+        items: Array<{
+          assignment: { id: string };
+          criteria: Array<{ id: string; maxScore: number }>;
+        }>;
+      }
+    ).items[0];
+    expect(itemB).toBeTruthy();
+    const critB = itemB!.criteria[0];
+    if (critB) {
+      await admin.app.request(
+        `http://localhost/api/assignments/${itemB!.assignment.id}/scores`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: evalB.cookie,
+          },
+          body: JSON.stringify({
+            scores: [{ criterionId: critB.id, value: 1 }],
+            comment: "B says solid",
+          }),
+        },
+        env,
+      );
+    }
+
+    // After B scored, A can see B's review
+    const reviewsAfter = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/eval-reviews`,
+      { method: "GET", headers: { cookie: evalA.cookie } },
+      env,
+    );
+    expect(reviewsAfter.status).toBe(200);
+    const afterBody = (await reviewsAfter.json()) as {
+      reviews: Array<{
+        evaluatorUserId: string;
+        overallComment: string | null;
+        evaluatorEmail: string | null;
+      }>;
+    };
+    const peerBAfter = afterBody.reviews.find(
+      (r) => r.evaluatorUserId === evalB.userId,
+    );
+    expect(peerBAfter).toBeTruthy();
+    expect(peerBAfter!.overallComment).toBe("B says solid");
+    expect(peerBAfter!.evaluatorEmail).toContain("@");
+
+    // Admin sees all
+    const adminReviews = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/eval-reviews`,
+      { method: "GET", headers: { cookie: admin.cookie } },
+      env,
+    );
+    expect(adminReviews.status).toBe(200);
+    const adminBody = (await adminReviews.json()) as {
+      reviews: unknown[];
+    };
+    expect(adminBody.reviews.length).toBeGreaterThanOrEqual(2);
   });
 });

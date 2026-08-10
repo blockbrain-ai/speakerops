@@ -122,6 +122,10 @@ export function CommsPage() {
     null,
   );
   const [lastJobId, setLastJobId] = useState<string | null>(null);
+  /** Optional ICS attach on Comms.Send (calendar_invite_id). */
+  const [attachCalendarInviteId, setAttachCalendarInviteId] = useState<
+    string | null
+  >(null);
 
   // —— Delivery log (J05) ——
   const [jobs, setJobs] = useState<CommsJobSummary[]>([]);
@@ -609,6 +613,9 @@ export function CommsPage() {
         body: JSON.stringify({
           previewId: preview.previewId,
           idempotencyKey,
+          ...(attachCalendarInviteId
+            ? { calendarInviteId: attachCalendarInviteId }
+            : {}),
         }),
       });
       const raw: unknown = await res.json().catch(() => null);
@@ -645,6 +652,7 @@ export function CommsPage() {
     previewValid,
     preview,
     lastIdempotencyKey,
+    attachCalendarInviteId,
     activeEventId,
     loadJobs,
     sending,
@@ -1409,6 +1417,31 @@ export function CommsPage() {
               audience and message. Double-submit is guarded; retries reuse the
               same idempotency key.
             </p>
+            <label
+              className="event-settings__label"
+              htmlFor="comms-attach-invite"
+            >
+              Attach calendar invite (optional)
+            </label>
+            <select
+              id="comms-attach-invite"
+              className="event-settings__input lumen-focusable"
+              data-testid="comms-attach-calendar-invite"
+              value={attachCalendarInviteId ?? ""}
+              onChange={(e) =>
+                setAttachCalendarInviteId(
+                  e.target.value.trim() === "" ? null : e.target.value,
+                )
+              }
+            >
+              <option value="">— none —</option>
+              {invites.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {(inv.summary ?? inv.placementId) +
+                    ` · seq ${inv.sequence}`}
+                </option>
+              ))}
+            </select>
             <div className="eval-queue__row">
               <Button
                 type="button"

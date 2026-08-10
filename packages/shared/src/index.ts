@@ -119,6 +119,10 @@ export {
   type TrackResponse,
   TrackListResponseSchema,
   type TrackListResponse,
+  EventMemberSchema,
+  type EventMember,
+  EventMembersResponseSchema,
+  type EventMembersResponse,
 } from "./events.js";
 
 export {
@@ -231,6 +235,10 @@ export {
   type FormPublishResponse,
   PublicCfpResponseSchema,
   type PublicCfpResponse,
+  FormListResponseSchema,
+  type FormListResponse,
+  FormAdminGetResponseSchema,
+  type FormAdminGetResponse,
   FORM_DRAFT_VERSION_NUM,
 } from "./forms.js";
 
@@ -318,6 +326,12 @@ export {
   type EvalQueueItem,
   EvalQueueResponseSchema,
   type EvalQueueResponse,
+  EvalProposalAnswerSchema,
+  type EvalProposalAnswer,
+  EvalProposalSpeakerSchema,
+  type EvalProposalSpeaker,
+  EvalProposalResponseSchema,
+  type EvalProposalResponse,
   SubmissionAssignBodySchema,
   type SubmissionAssignBody,
   SubmissionAssignResponseSchema,
@@ -326,6 +340,12 @@ export {
   type EvalAdminSubmissionRollup,
   EvalAdminRollupResponseSchema,
   type EvalAdminRollupResponse,
+  EvalReviewScoreSchema,
+  type EvalReviewScore,
+  EvalReviewItemSchema,
+  type EvalReviewItem,
+  EvalReviewsResponseSchema,
+  type EvalReviewsResponse,
   computeWeightedAggregate,
   coerceFiniteNumber,
   EvalScoreSortSchema,
@@ -377,6 +397,12 @@ export {
   type BulkDecisionPreviewItem,
   BulkDecisionPreviewResponseSchema,
   type BulkDecisionPreviewResponse,
+  BulkDecisionCommitBodySchema,
+  type BulkDecisionCommitBody,
+  BulkDecisionCommitItemSchema,
+  type BulkDecisionCommitItem,
+  BulkDecisionCommitResponseSchema,
+  type BulkDecisionCommitResponse,
 } from "./decisions.js";
 
 export {

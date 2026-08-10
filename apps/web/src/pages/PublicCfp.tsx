@@ -136,6 +136,43 @@ function cssVarsFromString(
 
 type DraftSaveState = "idle" | "saving" | "saved" | "error";
 
+/** Multiselect UI stores JSON array string; empty → []. */
+function parseMultiselectValues(raw: string | undefined): string[] {
+  if (raw == null || raw === "") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch {
+    /* legacy single value */
+  }
+  return [raw];
+}
+
+/** Coerce answer state for condition/routing maps (parse JSON arrays). */
+function coerceAnswerForMap(raw: string): unknown {
+  if (raw.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      /* keep string */
+    }
+  }
+  return raw;
+}
+
+/** Build submit/draft answer value; multiselect → string[]. */
+function answerValueForPayload(
+  fieldKey: string,
+  raw: string,
+  fieldTypes: Map<string, string>,
+): unknown {
+  if (fieldTypes.get(fieldKey) === "multiselect") {
+    return parseMultiselectValues(raw);
+  }
+  return raw;
+}
+
 export function PublicCfpPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -283,9 +320,15 @@ export function PublicCfpPage() {
     [fields],
   );
 
+  const fieldTypeByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const f of fields) m.set(f.fieldKey, f.type);
+    return m;
+  }, [fields]);
+
   const answerMap = useMemo(() => {
     const m: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(answers)) m[k] = v;
+    for (const [k, v] of Object.entries(answers)) m[k] = coerceAnswerForMap(v);
     return m;
   }, [answers]);
 
@@ -333,8 +376,13 @@ export function PublicCfpPage() {
       const nextAnswers: Record<string, string> = {};
       for (const a of snap.answers) {
         if (a.value == null) continue;
-        nextAnswers[a.fieldKey] =
-          typeof a.value === "string" ? a.value : String(a.value);
+        if (Array.isArray(a.value)) {
+          nextAnswers[a.fieldKey] = JSON.stringify(a.value.map(String));
+        } else if (typeof a.value === "string") {
+          nextAnswers[a.fieldKey] = a.value;
+        } else {
+          nextAnswers[a.fieldKey] = String(a.value);
+        }
       }
       setAnswers(nextAnswers);
       if (snap.speakers.length > 0) {
@@ -448,6 +496,13 @@ export function PublicCfpPage() {
     if (!title.trim()) errs.title = "Title is required";
     for (const f of visibleFields) {
       if (!f.required) continue;
+      if (f.type === "multiselect") {
+        const selected = parseMultiselectValues(answers[f.fieldKey]);
+        if (selected.length === 0) {
+          errs[`field:${f.fieldKey}`] = `${f.label} is required`;
+        }
+        continue;
+      }
       const v = answers[f.fieldKey] ?? "";
       if (!v.trim()) errs[`field:${f.fieldKey}`] = `${f.label} is required`;
     }
@@ -697,8 +752,17 @@ export function PublicCfpPage() {
       }));
 
     const answerPayload = Object.entries(answers)
-      .filter(([, v]) => v != null && v !== "")
-      .map(([fieldKey, value]) => ({ fieldKey, value }));
+      .filter(([fieldKey, v]) => {
+        if (v == null || v === "") return false;
+        if (fieldTypeByKey.get(fieldKey) === "multiselect") {
+          return parseMultiselectValues(v).length > 0;
+        }
+        return true;
+      })
+      .map(([fieldKey, value]) => ({
+        fieldKey,
+        value: answerValueForPayload(fieldKey, value, fieldTypeByKey),
+      }));
 
     const body: Record<string, unknown> = {
       formVersionId: formVersion.id,
@@ -789,10 +853,21 @@ export function PublicCfpPage() {
     }));
 
     const answerPayload = visibleFields
-      .filter((f) => answers[f.fieldKey] != null && answers[f.fieldKey] !== "")
+      .filter((f) => {
+        const raw = answers[f.fieldKey];
+        if (raw == null || raw === "") return false;
+        if (f.type === "multiselect") {
+          return parseMultiselectValues(raw).length > 0;
+        }
+        return true;
+      })
       .map((f) => ({
         fieldKey: f.fieldKey,
-        value: answers[f.fieldKey],
+        value: answerValueForPayload(
+          f.fieldKey,
+          answers[f.fieldKey] ?? "",
+          fieldTypeByKey,
+        ),
       }));
 
     const body = {
@@ -946,34 +1021,25 @@ export function PublicCfpPage() {
           <div
             className="public-cfp__brand-panel"
             data-testid="public-cfp-brand"
+            data-has-published={published ? "true" : "false"}
+            data-brand={published?.tokens.brand ?? ""}
           >
+            {/* Friendly brand strip only — no token dumps or raw file ids. */}
             <p
               className="event-settings__meta"
               data-testid="public-cfp-brand-value"
             >
-              {published
-                ? `published brand ${published.tokens.brand}${
-                    published.tokens.brandFg
-                      ? ` · fg ${published.tokens.brandFg}`
-                      : ""
-                  }`
-                : "no published brand (Lumen defaults)"}
+              {published?.tokens.wordmark?.trim()
+                ? published.tokens.wordmark.trim()
+                : wordmark}
             </p>
             {published?.tokens.logoFileId ? (
-              <>
-                <img
-                  src={`/api/public/files/${encodeURIComponent(published.tokens.logoFileId)}`}
-                  alt=""
-                  className="public-cfp__logo"
-                  data-testid="public-cfp-logo"
-                />
-                <p
-                  className="event-settings__meta"
-                  data-testid="public-cfp-logo-id"
-                >
-                  logo {published.tokens.logoFileId}
-                </p>
-              </>
+              <img
+                src={`/api/public/files/${encodeURIComponent(published.tokens.logoFileId)}`}
+                alt=""
+                className="public-cfp__logo"
+                data-testid="public-cfp-logo"
+              />
             ) : null}
           </div>
 
@@ -1084,8 +1150,11 @@ export function PublicCfpPage() {
                   Thank you — your proposal has been submitted.
                 </p>
               )}
-              <p className="event-settings__meta" data-testid="public-cfp-submission-id">
-                Reference {confirmation.id}
+              <p
+                className="event-settings__meta"
+                data-testid="public-cfp-submission-id"
+              >
+                We&apos;ve saved your submission
               </p>
               <p data-testid="public-cfp-confirmation-title">
                 {confirmation.title}
@@ -1176,7 +1245,7 @@ export function PublicCfpPage() {
                         fieldErrors[`field:${f.fieldKey}`] ? "true" : undefined
                       }
                     />
-                  ) : f.type === "select" || f.type === "multiselect" ? (
+                  ) : f.type === "select" ? (
                     <select
                       id={`cfp-field-${f.fieldKey}`}
                       className="public-cfp__input lumen-focusable"
@@ -1194,6 +1263,47 @@ export function PublicCfpPage() {
                         </option>
                       ))}
                     </select>
+                  ) : f.type === "multiselect" ? (
+                    <div
+                      className="public-cfp__multiselect"
+                      id={`cfp-field-${f.fieldKey}`}
+                      data-testid={`cfp-field-${f.fieldKey}`}
+                      role="group"
+                      aria-label={f.label}
+                      aria-invalid={
+                        fieldErrors[`field:${f.fieldKey}`] ? "true" : undefined
+                      }
+                    >
+                      {(f.options ?? []).map((o) => {
+                        const selected = parseMultiselectValues(
+                          answers[f.fieldKey],
+                        );
+                        const checked = selected.includes(o.value);
+                        return (
+                          <label
+                            key={o.value}
+                            className="public-cfp__multiselect-option"
+                          >
+                            <input
+                              type="checkbox"
+                              className="lumen-focusable"
+                              data-testid={`cfp-field-${f.fieldKey}-${o.value}`}
+                              checked={checked}
+                              onChange={(e) => {
+                                const cur = parseMultiselectValues(
+                                  answers[f.fieldKey],
+                                );
+                                const next = e.target.checked
+                                  ? [...new Set([...cur, o.value])]
+                                  : cur.filter((v) => v !== o.value);
+                                setAnswer(f.fieldKey, JSON.stringify(next));
+                              }}
+                            />
+                            <span>{o.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   ) : f.type === "checkbox" ? (
                     <input
                       id={`cfp-field-${f.fieldKey}`}
@@ -1206,6 +1316,19 @@ export function PublicCfpPage() {
                       }
                     />
                   ) : f.type === "url" ? (
+                    <input
+                      id={`cfp-field-${f.fieldKey}`}
+                      type="url"
+                      className="public-cfp__input lumen-focusable"
+                      data-testid={`cfp-field-${f.fieldKey}`}
+                      value={answers[f.fieldKey] ?? ""}
+                      onChange={(e) => setAnswer(f.fieldKey, e.target.value)}
+                      placeholder="https://"
+                      aria-invalid={
+                        fieldErrors[`field:${f.fieldKey}`] ? "true" : undefined
+                      }
+                    />
+                  ) : (f.type as string) === "file" ? (
                     <div className="public-cfp__file-row">
                       <input
                         id={`cfp-field-${f.fieldKey}`}
@@ -1228,7 +1351,7 @@ export function PublicCfpPage() {
                           className="event-settings__meta"
                           data-testid={`cfp-file-id-${f.fieldKey}`}
                         >
-                          {answers[f.fieldKey]}
+                          Uploaded
                         </p>
                       ) : null}
                     </div>
@@ -1482,14 +1605,13 @@ export function PublicCfpPage() {
                     className="event-settings__meta"
                     data-testid="cfp-draft-id"
                   >
-                    Reference {draftConfirmation.id}
+                    Reference saved
                   </p>
                   <p data-testid="cfp-draft-confirmation-title">
                     {draftConfirmation.title}
                   </p>
                   <p className="event-settings__meta">
-                    Reload this page or open the link with{" "}
-                    <code>?draft=…</code> to resume.
+                    You can reload this page to continue where you left off.
                   </p>
                 </div>
               ) : null}

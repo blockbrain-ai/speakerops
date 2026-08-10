@@ -594,10 +594,171 @@ describe("7.2 CLI01–CLI12 inventory", () => {
     expect(await main(["--help"], { io: h.io })).toBe(EXIT_OK);
     expect(h.out).toMatch(/speakerops/);
     expect(h.out).toMatch(/CLI01|events list|reports readiness/);
+    expect(h.out).toMatch(/forms list|submissions list|eval rollup/);
 
     const v = captureIo();
     expect(await main(["--version"], { io: v.io })).toBe(EXIT_OK);
     expect(v.out).toMatch(/0\.1\.0/);
+  });
+
+  it("forms list/create/get with cfp scopes", async () => {
+    const { app, cookie, eventId } = await adminSession("cli-forms@example.com");
+    const key = await mintKey(
+      app,
+      cookie,
+      "cfp-write",
+      ["cfp:read", "cfp:write"],
+      eventId,
+    );
+    setClientFactoryForTests(() => clientFor(app, key.secret));
+
+    const createCap = captureIo();
+    const createCode = await main(
+      [
+        "forms",
+        "create",
+        "--event",
+        eventId,
+        "--name",
+        "CLI Form",
+        "--json",
+      ],
+      { io: createCap.io },
+    );
+    expect(createCode).toBe(EXIT_OK);
+    const created = JSON.parse(createCap.out) as {
+      form?: { id?: string; name?: string };
+    };
+    expect(created.form?.id).toBeTruthy();
+    expect(created.form?.name).toBe("CLI Form");
+
+    const listCap = captureIo();
+    const listCode = await main(
+      ["forms", "list", "--event", eventId, "--json"],
+      { io: listCap.io },
+    );
+    expect(listCode).toBe(EXIT_OK);
+    const listed = JSON.parse(listCap.out) as { forms?: unknown[] };
+    expect(Array.isArray(listed.forms)).toBe(true);
+    expect(listed.forms!.length).toBeGreaterThan(0);
+
+    const getCap = captureIo();
+    const getCode = await main(
+      ["forms", "get", "--form", created.form!.id!, "--json"],
+      { io: getCap.io },
+    );
+    expect(getCode).toBe(EXIT_OK);
+    const got = JSON.parse(getCap.out) as {
+      form?: { id?: string };
+      draft?: unknown;
+    };
+    expect(got.form?.id).toBe(created.form!.id);
+    expect(got.draft).toBeTruthy();
+
+    // create → draft (fields + meta) → publish with cfp:write
+    const fields = JSON.stringify([
+      {
+        fieldKey: "title",
+        type: "text",
+        label: "Talk title",
+        required: true,
+        sortOrder: 0,
+      },
+    ]);
+    const draftCap = captureIo();
+    const draftCode = await main(
+      [
+        "forms",
+        "draft",
+        "--form",
+        created.form!.id!,
+        "--fields",
+        fields,
+        "--welcome-md",
+        "Welcome from CLI",
+        "--json",
+      ],
+      { io: draftCap.io },
+    );
+    expect(draftCode).toBe(EXIT_OK);
+
+    const pubCap = captureIo();
+    const pubCode = await main(
+      ["forms", "publish", "--form", created.form!.id!, "--json"],
+      { io: pubCap.io },
+    );
+    expect(pubCode).toBe(EXIT_OK);
+  });
+
+  it("submissions list with submissions:read", async () => {
+    const { app, cookie, eventId } = await adminSession("cli-subs@example.com");
+    const key = await mintKey(
+      app,
+      cookie,
+      "subs-read",
+      ["submissions:read"],
+      eventId,
+    );
+    const cap = captureIo();
+    setClientFactoryForTests(() => clientFor(app, key.secret));
+
+    const code = await main(
+      ["submissions", "list", "--event", eventId, "--json"],
+      { io: cap.io },
+    );
+    expect(code).toBe(EXIT_OK);
+    const body = JSON.parse(cap.out) as {
+      submissions?: unknown[];
+      total?: number;
+    };
+    expect(Array.isArray(body.submissions)).toBe(true);
+    expect(typeof body.total).toBe("number");
+  });
+
+  it("eval rollup with submissions:read", async () => {
+    const { app, cookie, eventId } = await adminSession("cli-eval@example.com");
+    const key = await mintKey(
+      app,
+      cookie,
+      "eval-read",
+      ["submissions:read"],
+      eventId,
+    );
+    const cap = captureIo();
+    setClientFactoryForTests(() => clientFor(app, key.secret));
+
+    const code = await main(
+      ["eval", "rollup", "--event", eventId, "--json"],
+      { io: cap.io },
+    );
+    expect(code).toBe(EXIT_OK);
+    const body = JSON.parse(cap.out) as {
+      submissions?: unknown[];
+      criteria?: unknown[];
+    };
+    expect(Array.isArray(body.submissions)).toBe(true);
+    expect(Array.isArray(body.criteria)).toBe(true);
+  });
+
+  it("forms list without cfp scope → exit 2", async () => {
+    const { app, cookie, eventId } = await adminSession(
+      "cli-forms-deny@example.com",
+    );
+    const key = await mintKey(
+      app,
+      cookie,
+      "reports-only",
+      ["reports:read", "events:read"],
+      eventId,
+    );
+    const cap = captureIo();
+    setClientFactoryForTests(() => clientFor(app, key.secret));
+
+    const code = await main(
+      ["forms", "list", "--event", eventId, "--json"],
+      { io: cap.io },
+    );
+    expect(code).toBe(EXIT_AUTHZ);
   });
 });
 

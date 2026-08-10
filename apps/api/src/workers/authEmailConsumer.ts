@@ -52,6 +52,8 @@ type AuthMagicLinkPayload = {
   email?: string;
   enc?: EncryptedMagicLinkPayload;
   redacted?: boolean;
+  purpose?: string;
+  eventId?: string;
 };
 
 async function deliverAuthEmail(
@@ -175,7 +177,11 @@ export async function processAuthMagicLinkOutbox(
         payload.enc,
         deps.authLinkEncryptionKey,
       );
-      const loginUrl = `${base}/login?token=${encodeURIComponent(plaintext)}`;
+      const params = new URLSearchParams();
+      params.set("token", plaintext);
+      if (payload.purpose) params.set("purpose", String(payload.purpose));
+      if (payload.eventId) params.set("eventId", String(payload.eventId));
+      const loginUrl = `${base}/login?${params.toString()}`;
       const subject = "Your SpeakerOps login link";
       const text = [
         "Use this one-time link to sign in to SpeakerOps:",

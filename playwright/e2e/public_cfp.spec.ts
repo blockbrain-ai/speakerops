@@ -16,9 +16,6 @@
  * Requires E2E_WEB_SERVER=1 (pnpm test:e2e).
  */
 import { test, expect } from "@playwright/test";
-import path from "node:path";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
 
 async function requestMagicLink(
   request: import("@playwright/test").APIRequestContext,
@@ -260,9 +257,11 @@ test("@inv:A01 e2e/public/cfp-load public CFP loads form and brand tokens", asyn
   await expect(page.getByTestId("public-cfp-welcome")).toContainText(
     "Welcome to A01 CFP",
   );
-  await expect(page.getByTestId("public-cfp-brand-value")).toContainText(
-    "published brand",
+  await expect(page.getByTestId("public-cfp-brand")).toHaveAttribute(
+    "data-has-published",
+    "true",
   );
+  await expect(page.getByTestId("public-cfp-brand")).toBeVisible();
   await expect(page.getByTestId("public-cfp-title")).toContainText(
     "AIE Public CFP",
   );
@@ -391,30 +390,39 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type reject
   const event = await ensureEvent(request, session, "A05 File Event");
   await publishCfp(request, session, event.id);
 
-  const dir = path.join(tmpdir(), "speakerops-a05");
-  mkdirSync(dir, { recursive: true });
-  const pdfPath = path.join(dir, "ok.pdf");
-  writeFileSync(pdfPath, "%PDF-1.4 tiny");
-  const svgPath = path.join(dir, "bad.svg");
-  writeFileSync(svgPath, '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
-
+  // URL fields are text inputs (type=url); file upload is the public files API.
   await page.goto(`${baseURL ?? ""}/cfp/${event.slug}`);
   await expect(page.getByTestId("cfp-field-file_url")).toBeVisible({
     timeout: 15_000,
   });
-
-  // Reject SVG
-  await page.getByTestId("cfp-field-file_url").setInputFiles(svgPath);
-  await expect(page.getByTestId("cfp-error-file_url")).toBeVisible({
-    timeout: 10_000,
-  });
-
-  // Accept PDF
-  await page.getByTestId("cfp-field-file_url").setInputFiles(pdfPath);
-  await expect(page.getByTestId("cfp-file-id-file_url")).toContainText(
-    "file:",
-    { timeout: 10_000 },
+  await expect(page.getByTestId("cfp-field-file_url")).toHaveAttribute(
+    "type",
+    "url",
   );
+
+  // Accept PDF via public upload API
+  const okPdf = await request.post(`/api/public/cfp/${event.slug}/files`, {
+    data: {
+      filename: "ok.pdf",
+      mime: "application/pdf",
+      size: 12,
+      contentBase64: btoa("%PDF-1.4 tiny"),
+    },
+  });
+  expect(okPdf.status(), "PDF upload accepted").toBe(201);
+  const okBody = (await okPdf.json()) as { fileId?: string };
+  expect(okBody.fileId, "fileId returned").toBeTruthy();
+
+  // Reject SVG / bad type via API
+  const badSvg = await request.post(`/api/public/cfp/${event.slug}/files`, {
+    data: {
+      filename: "bad.svg",
+      mime: "image/svg+xml",
+      size: 40,
+      contentBase64: btoa('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+    },
+  });
+  expect(badSvg.status()).toBe(400);
 
   // Oversize via API negative
   const oversize = await request.post(`/api/public/cfp/${event.slug}/files`, {

@@ -100,19 +100,19 @@ describe("10.6 eval export/sort", () => {
     const csv = evalRollupToCsv(rows, { sort: "score_desc" });
     const lines = csv.trimEnd().split(/\r?\n/);
     expect(lines[0]).toBe(
-      "submissionId,title,status,category,aggregateScore,assignmentCount,scoredCount",
+      "submissionId,title,status,category,aggregateScore,assignmentCount,scoredCount,evaluatorEmails,overallComments",
     );
     // High score first
     expect(lines[1]).toContain("sub_high");
     expect(lines[1]).toContain("9");
     expect(lines[1]).toContain("keynote");
-    // Null score still present with empty aggregateScore field
+    // Null score still present with empty aggregateScore field (+ empty email/comment cols)
     const noneLine = lines.find((l) => l.startsWith("sub_none,"));
     expect(noneLine).toBeTruthy();
-    expect(noneLine).toMatch(/sub_none,Beta Pending,submitted,,,1,0$/);
+    expect(noneLine).toMatch(/sub_none,Beta Pending,submitted,,,1,0,,$/);
     // Scored count for mid: 1 of 2
     const midLine = lines.find((l) => l.startsWith("sub_mid,"));
-    expect(midLine).toMatch(/,5,2,1$/);
+    expect(midLine).toMatch(/,5,2,1,,$/);
   });
 
   it("evalRollupToCsv neutralizes malicious title/category formula injection", () => {

@@ -97,6 +97,8 @@ export type EnqueueSendAtomicInput = {
   jobId: string;
   status: string;
   idempotencyKey: string;
+  /** Optional ICS attach carrier (Comms.Send only). */
+  calendarInviteId?: string | null;
   version: number;
   expectedVersion: number;
   updatedAt: string;
@@ -127,6 +129,7 @@ export type MessageJobRow = {
   bodiesJson: string | null;
   missingFieldsJson: string | null;
   idempotencyKey: string | null;
+  calendarInviteId: string | null;
   createdBy: string;
   version: number;
   createdAt: string;
@@ -878,6 +881,9 @@ export class MemoryCommsStore implements CommsStore {
         version: input.version,
         updatedAt: input.updatedAt,
         idempotencyKey: input.idempotencyKey,
+        ...(input.calendarInviteId !== undefined
+          ? { calendarInviteId: input.calendarInviteId }
+          : {}),
       };
 
       // 3) Provisional fence only — do NOT publish to committed maps yet.
@@ -1056,6 +1062,7 @@ export class D1CommsStore implements CommsStore {
       bodiesJson: row.bodiesJson,
       missingFieldsJson: row.missingFieldsJson,
       idempotencyKey: row.idempotencyKey,
+      calendarInviteId: row.calendarInviteId ?? null,
       createdBy: row.createdBy,
       version: row.version,
       createdAt: row.createdAt,
@@ -1648,6 +1655,9 @@ export class D1CommsStore implements CommsStore {
       .set({
         status: input.status,
         idempotencyKey: input.idempotencyKey,
+        ...(input.calendarInviteId !== undefined
+          ? { calendarInviteId: input.calendarInviteId }
+          : {}),
         version: input.version,
         updatedAt: transitionStamp,
       })
@@ -1879,6 +1889,7 @@ function mapJob(r: {
   bodiesJson: string | null;
   missingFieldsJson: string | null;
   idempotencyKey: string | null;
+  calendarInviteId?: string | null;
   createdBy: string;
   version: number;
   createdAt: string;
@@ -1894,6 +1905,7 @@ function mapJob(r: {
     bodiesJson: r.bodiesJson,
     missingFieldsJson: r.missingFieldsJson,
     idempotencyKey: r.idempotencyKey,
+    calendarInviteId: r.calendarInviteId ?? null,
     createdBy: r.createdBy,
     version: r.version,
     createdAt: r.createdAt,

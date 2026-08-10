@@ -172,6 +172,44 @@ export const EvalQueueResponseSchema = z.object({
 });
 export type EvalQueueResponse = z.infer<typeof EvalQueueResponseSchema>;
 
+/**
+ * Proposal payload for an assigned evaluation — answers + speakers beside the rubric.
+ * GET /api/me/eval-assignments/:assignmentId/proposal (session evaluator owns assignment).
+ */
+export const EvalProposalAnswerSchema = z.object({
+  fieldKey: z.string().min(1),
+  /** Human label from pinned form version when available. */
+  label: z.string().min(1).max(256).optional(),
+  value: z.unknown(),
+});
+export type EvalProposalAnswer = z.infer<typeof EvalProposalAnswerSchema>;
+
+export const EvalProposalSpeakerSchema = z.object({
+  personId: z.string().min(1),
+  name: z.string(),
+  email: z.string(),
+  isPrimary: z.boolean(),
+  sortOrder: z.preprocess((v) => {
+    const n = coerceFiniteNumber(v);
+    return n === undefined ? v : Math.trunc(n);
+  }, z.number().int()),
+});
+export type EvalProposalSpeaker = z.infer<typeof EvalProposalSpeakerSchema>;
+
+export const EvalProposalResponseSchema = z.object({
+  assignmentId: z.string().min(1),
+  submission: z.object({
+    id: z.string().min(1),
+    title: z.string(),
+    eventId: z.string().min(1),
+    category: NullableStringSchema,
+    status: z.string(),
+  }),
+  answers: z.array(EvalProposalAnswerSchema),
+  speakers: z.array(EvalProposalSpeakerSchema),
+});
+export type EvalProposalResponse = z.infer<typeof EvalProposalResponseSchema>;
+
 /** Submission.AssignEvaluators body. */
 export const SubmissionAssignBodySchema = z.object({
   userIds: z.array(z.string().min(1).max(128)).min(1).max(50),
@@ -186,8 +224,17 @@ export type SubmissionAssignResponse = z.infer<
 >;
 
 /**
+ * Per-criterion score summary on admin rollup / peer reviews (value only).
+ */
+export const EvalReviewScoreSchema = z.object({
+  criterionId: z.string().min(1),
+  value: FiniteNumberSchema,
+});
+export type EvalReviewScore = z.infer<typeof EvalReviewScoreSchema>;
+
+/**
  * Admin rollup for a submission under an event's active round.
- * Aggregate score visible to admin (section 3.4 AC / 10.2 S-EVAL-UI).
+ * Aggregate score + individual review visibility (deliberation / Area 3).
  */
 export const EvalAdminSubmissionRollupSchema = z.object({
   submissionId: z.string().min(1),
@@ -200,8 +247,12 @@ export const EvalAdminSubmissionRollupSchema = z.object({
     z.object({
       id: z.string().min(1),
       evaluatorUserId: z.string().min(1),
+      /** Resolved from users store when available. */
+      evaluatorEmail: NullableStringSchema.optional(),
       status: EvalAssignmentStatusSchema,
       aggregateScore: NullableFiniteNumberSchema,
+      overallComment: NullableStringSchema.optional(),
+      scores: z.array(EvalReviewScoreSchema).optional(),
     }),
   ),
 });
@@ -217,6 +268,29 @@ export const EvalAdminRollupResponseSchema = z.object({
 export type EvalAdminRollupResponse = z.infer<
   typeof EvalAdminRollupResponseSchema
 >;
+
+/**
+ * Individual reviews for a submission (admin always; evaluator peers after scored).
+ * GET /api/submissions/:submissionId/eval-reviews
+ */
+export const EvalReviewItemSchema = z.object({
+  assignmentId: z.string().min(1),
+  evaluatorUserId: z.string().min(1),
+  evaluatorEmail: NullableStringSchema,
+  status: EvalAssignmentStatusSchema,
+  overallComment: NullableStringSchema,
+  aggregateScore: NullableFiniteNumberSchema,
+  scores: z.array(EvalReviewScoreSchema),
+  /** True when this assignment belongs to the requesting evaluator. */
+  isSelf: z.boolean().optional(),
+});
+export type EvalReviewItem = z.infer<typeof EvalReviewItemSchema>;
+
+export const EvalReviewsResponseSchema = z.object({
+  submissionId: z.string().min(1),
+  reviews: z.array(EvalReviewItemSchema),
+});
+export type EvalReviewsResponse = z.infer<typeof EvalReviewsResponseSchema>;
 
 /**
  * Weighted aggregate: sum(value * weight) / sum(weight).
@@ -322,12 +396,17 @@ export type EvalCsvRow = {
   status: string;
   category?: string | null;
   aggregateScore: number | null;
-  assignments: readonly { status: string }[];
+  assignments: readonly {
+    status: string;
+    overallComment?: string | null;
+    evaluatorEmail?: string | null;
+  }[];
 };
 
 /**
  * Build CSV of scores/status for an event (single-round admin export).
- * Columns: submissionId,title,status,category,aggregateScore,assignmentCount,scoredCount
+ * Columns: submissionId,title,status,category,aggregateScore,assignmentCount,scoredCount,
+ *          evaluatorEmails,overallComments
  */
 export function evalRollupToCsv(
   rows: readonly EvalCsvRow[],
@@ -350,6 +429,8 @@ export function evalRollupToCsv(
     "aggregateScore",
     "assignmentCount",
     "scoredCount",
+    "evaluatorEmails",
+    "overallComments",
   ].join(",");
   const lines = [header];
   for (const key of sorted) {
@@ -361,6 +442,14 @@ export function evalRollupToCsv(
       r.aggregateScore != null && Number.isFinite(r.aggregateScore)
         ? String(r.aggregateScore)
         : "";
+    const emails = r.assignments
+      .map((a) => (a.evaluatorEmail ?? "").trim())
+      .filter((e) => e.length > 0)
+      .join(" | ");
+    const comments = r.assignments
+      .map((a) => (a.overallComment ?? "").trim())
+      .filter((c) => c.length > 0)
+      .join(" | ");
     lines.push(
       [
         csvEscapeField(r.submissionId),
@@ -370,6 +459,8 @@ export function evalRollupToCsv(
         score,
         String(r.assignments.length),
         String(scoredCount),
+        csvEscapeField(emails),
+        csvEscapeField(comments),
       ].join(","),
     );
   }

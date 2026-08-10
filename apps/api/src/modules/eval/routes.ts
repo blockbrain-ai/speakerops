@@ -5,9 +5,11 @@
  * GET  /api/events/:eventId/eval/rubric          → get rubric
  * GET  /api/events/:eventId/eval/rollup          → admin aggregates
  * GET  /api/events/:eventId/eval/export          → Eval.ExportScores (CSV)
+ * GET  /api/events/:eventId/members              → evaluator roster + workload
  * POST /api/assignments/:assignmentId/scores     → Eval.Score
  * GET  /api/me/eval-queue                        → assigned queue only
  * POST /api/submissions/:submissionId/assign     → Submission.AssignEvaluators
+ * GET  /api/submissions/:submissionId/eval-reviews → individual reviews
  *
  * Canonical registry: KMS-competition/initiative/contracts/COMMANDS.md
  */
@@ -18,10 +20,14 @@ import {
   EvalScoreBodySchema,
   EvalScoreResponseSchema,
   EvalQueueResponseSchema,
+  EvalProposalResponseSchema,
   SubmissionAssignBodySchema,
   SubmissionAssignResponseSchema,
   EvalAdminRollupResponseSchema,
+  EvalReviewsResponseSchema,
   EvalScoreSortSchema,
+  EventMembersResponseSchema,
+  EventRoleSchema,
   sortEvalSubmissionsByScore,
   errorEnvelope,
   VALIDATION_ERROR,
@@ -35,6 +41,8 @@ import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
+import type { FormsStore } from "../forms/store.js";
+import type { KeysStore } from "../keys/store.js";
 import type { EvalStore } from "./store.js";
 import { requireRole, requireSession } from "../../middleware/authz.js";
 import {
@@ -43,8 +51,10 @@ import {
   scoreAssignment,
   assignEvaluators,
   getEvalQueue,
+  getEvalAssignmentProposal,
   getAdminEvalRollup,
   exportAdminEvalCsv,
+  getSubmissionEvalReviews,
 } from "./commands.js";
 
 export type EvalRouteOptions = {
@@ -52,6 +62,9 @@ export type EvalRouteOptions = {
   events: EventsStore;
   submissions: SubmissionsStore;
   eval: EvalStore;
+  forms?: FormsStore;
+  /** Bearer submissions:read / submissions:write for CLI (7.2). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -82,20 +95,102 @@ export function createEventEvalRoutes(
   options: EvalRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, eval: evalStore } = options;
+  const { store, events, submissions, eval: evalStore, keys } = options;
   const deps = {
     eval: evalStore,
     events,
     auth: store,
     submissions,
   };
+  const bearerRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["submissions:read"] as const,
+        eventsStore: events,
+      }
+    : {};
+  const bearerWrite = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["submissions:write"] as const,
+        eventsStore: events,
+      }
+    : {};
+
+  /**
+   * GET /:eventId/members — event roster (admin).
+   * Query: role? = evaluator|admin|speaker (default all when omitted).
+   * assignmentCount from active eval round (0 if none).
+   */
+  app.get(
+    "/:eventId/members",
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const roleRaw = c.req.query("role");
+      let roleFilter: string | undefined;
+      if (roleRaw != null && roleRaw !== "") {
+        const parsedRole = EventRoleSchema.safeParse(roleRaw);
+        if (!parsedRole.success) {
+          return c.json(
+            errorEnvelope("Invalid role filter", VALIDATION_ERROR, {
+              role: roleRaw,
+              allowed: EventRoleSchema.options,
+            }),
+            400,
+          );
+        }
+        roleFilter = parsedRole.data;
+      }
+
+      const memberships = (await store.listMemberships()).filter(
+        (m) => m.eventId === eventId,
+      );
+      const filtered = roleFilter
+        ? memberships.filter((m) => m.role === roleFilter)
+        : memberships;
+
+      const round = await evalStore.findActiveRoundForEvent(eventId);
+      const roundAssignments = round
+        ? await evalStore.listAssignmentsForRound(round.id)
+        : [];
+      const countByUser = new Map<string, number>();
+      for (const a of roundAssignments) {
+        countByUser.set(
+          a.evaluatorUserId,
+          (countByUser.get(a.evaluatorUserId) ?? 0) + 1,
+        );
+      }
+
+      const members = [];
+      for (const m of filtered) {
+        const user = await store.findUserById(m.userId);
+        members.push({
+          userId: m.userId,
+          email: user?.email ?? m.userId,
+          role: m.role,
+          assignmentCount: countByUser.get(m.userId) ?? 0,
+        });
+      }
+      members.sort((a, b) => a.email.localeCompare(b.email));
+
+      const out = EventMembersResponseSchema.safeParse({ members });
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
 
   /**
    * PUT /:eventId/eval/rubric — Eval.UpsertRubric (admin)
    */
   app.put(
     "/:eventId/eval/rubric",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -153,7 +248,7 @@ export function createEventEvalRoutes(
    */
   app.get(
     "/:eventId/eval/rubric",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const result = await getRubric(deps, eventId);
@@ -182,7 +277,7 @@ export function createEventEvalRoutes(
    */
   app.get(
     "/:eventId/eval/rollup",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const sortRaw = c.req.query("sort");
@@ -237,7 +332,7 @@ export function createEventEvalRoutes(
    */
   app.get(
     "/:eventId/eval/export",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const sortRaw = c.req.query("sort") ?? "score_desc";
@@ -373,16 +468,17 @@ export function createAssignmentRoutes(
 
 /**
  * Me routes mounted at /api/me
- * Path: GET /eval-queue
+ * Paths: GET /eval-queue, GET /eval-assignments/:assignmentId/proposal
  */
 export function createMeEvalRoutes(options: EvalRouteOptions): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, eval: evalStore } = options;
+  const { store, events, submissions, eval: evalStore, forms } = options;
   const deps = {
     eval: evalStore,
     events,
     auth: store,
     submissions,
+    forms,
   };
 
   /**
@@ -422,6 +518,42 @@ export function createMeEvalRoutes(options: EvalRouteOptions): Hono<ApiEnv> {
     return c.json(out.data, 200);
   });
 
+  /**
+   * GET /eval-assignments/:assignmentId/proposal — full proposal for scoring.
+   * Assignment must be owned by the session evaluator.
+   */
+  app.get(
+    "/eval-assignments/:assignmentId/proposal",
+    requireSession(store),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+
+      const assignmentId = c.req.param("assignmentId");
+      const result = await getEvalAssignmentProposal(
+        deps,
+        assignmentId,
+        user.id,
+      );
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = EvalProposalResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
   return app;
 }
 
@@ -433,20 +565,123 @@ export function createSubmissionAssignRoutes(
   options: EvalRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, eval: evalStore } = options;
+  const { store, events, submissions, eval: evalStore, keys } = options;
   const deps = {
     eval: evalStore,
     events,
     auth: store,
     submissions,
   };
+  const bearerWrite = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["submissions:write"] as const,
+        eventsStore: events,
+      }
+    : {};
+  const bearerRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["submissions:read"] as const,
+        eventsStore: events,
+      }
+    : {};
 
   /**
-   * POST /:submissionId/assign — Submission.AssignEvaluators (admin)
+   * GET /:submissionId/eval-reviews — individual reviews (admin or assigned evaluator).
+   * Peers reveal-after-submit for non-admin (status === scored only).
+   */
+  app.get(
+    "/:submissionId/eval-reviews",
+    requireRole(store, ["admin", "evaluator"], {
+      eventIdFrom: "none",
+      ...bearerRead,
+    }),
+    async (c) => {
+      const submissionId = c.req.param("submissionId");
+      const submission = await submissions.findSubmissionById(submissionId);
+      if (!submission) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+
+      const apiKey = c.get("apiKey");
+      let isAdmin = false;
+      let actorUserId: string | null = null;
+
+      if (apiKey) {
+        if (apiKey.eventId && apiKey.eventId !== submission.eventId) {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
+        if (!apiKey.eventId) {
+          const event = await events.findEventById(submission.eventId);
+          if (!event || event.orgId !== apiKey.orgId) {
+            return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+          }
+        }
+        // Bearer with submissions:read is admin-equivalent for review visibility.
+        isAdmin = true;
+        actorUserId = apiKey.createdBy;
+      } else {
+        const user = c.get("user");
+        if (!user) {
+          return c.json(
+            errorEnvelope("Authentication required", "UNAUTHORIZED"),
+            401,
+          );
+        }
+        actorUserId = user.id;
+        const membership = await store.findMembership(
+          submission.eventId,
+          user.id,
+        );
+        if (!membership) {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
+        if (membership.role === "admin") {
+          isAdmin = true;
+        } else if (membership.role !== "evaluator") {
+          return c.json(
+            errorEnvelope("Insufficient role", FORBIDDEN, {
+              required: ["admin", "evaluator"],
+              role: membership.role,
+            }),
+            403,
+          );
+        }
+      }
+
+      if (!actorUserId) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+
+      const result = await getSubmissionEvalReviews(deps, {
+        submissionId,
+        actorUserId,
+        isAdmin,
+      });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = EvalReviewsResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * POST /:submissionId/assign — Submission.AssignEvaluators (admin / submissions:write)
    */
   app.post(
     "/:submissionId/assign",
-    requireSession(store),
+    requireRole(store, ["admin"], { eventIdFrom: "none", ...bearerWrite }),
     async (c) => {
       const user = c.get("user");
       if (!user) {
@@ -462,21 +697,34 @@ export function createSubmissionAssignRoutes(
         return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
       }
 
-      const membership = await store.findMembership(
-        submission.eventId,
-        user.id,
-      );
-      if (!membership) {
-        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
-      }
-      if (membership.role !== "admin") {
-        return c.json(
-          errorEnvelope("Insufficient role", FORBIDDEN, {
-            required: ["admin"],
-            role: membership.role,
-          }),
-          403,
+      const apiKey = c.get("apiKey");
+      if (apiKey) {
+        if (apiKey.eventId && apiKey.eventId !== submission.eventId) {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
+        if (!apiKey.eventId) {
+          const event = await events.findEventById(submission.eventId);
+          if (!event || event.orgId !== apiKey.orgId) {
+            return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+          }
+        }
+      } else {
+        const membership = await store.findMembership(
+          submission.eventId,
+          user.id,
         );
+        if (!membership) {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
+        if (membership.role !== "admin") {
+          return c.json(
+            errorEnvelope("Insufficient role", FORBIDDEN, {
+              required: ["admin"],
+              role: membership.role,
+            }),
+            403,
+          );
+        }
       }
 
       let raw: unknown;

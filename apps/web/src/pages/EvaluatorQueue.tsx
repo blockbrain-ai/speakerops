@@ -1,10 +1,11 @@
 /**
  * Evaluator queue + scoring UI (section 3.4 / S-EVAL + 11.4 S-L2-SUB).
  *
- * Low-distraction review workspace: progress, focused score panel, no admin chrome.
+ * Low-distraction review workspace: progress, proposal panel, focused score panel.
  *
  * Inventory: F01 queue assigned-only · F02 score save · F03 no accept · F04 keyboard.
- * Wired to GET /api/me/eval-queue and POST /api/assignments/:id/scores.
+ * Wired to GET /api/me/eval-queue, GET /api/me/eval-assignments/:id/proposal,
+ * and POST /api/assignments/:id/scores.
  * No Decision.Record / accept-reject controls (F03).
  */
 import {
@@ -18,9 +19,13 @@ import {
 import {
   EvalQueueResponseSchema,
   EvalScoreResponseSchema,
+  EvalProposalResponseSchema,
+  EvalReviewsResponseSchema,
   ErrorEnvelopeSchema,
   type EvalQueueItem,
   type EvalCriterionDto,
+  type EvalProposalResponse,
+  type EvalReviewItem,
 } from "@speakerops/shared";
 import {
   Alert,
@@ -44,6 +49,23 @@ function isAssignmentComplete(item: EvalQueueItem): boolean {
   );
 }
 
+function formatAnswerValue(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "string") {
+    if (value.startsWith("file:")) return "Uploaded";
+    return value;
+  }
+  if (typeof value === "boolean" || typeof value === "number") {
+    return String(value);
+  }
+  if (Array.isArray(value)) return value.map(String).join(", ");
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 export function EvaluatorQueuePage() {
   const [items, setItems] = useState<EvalQueueItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -53,6 +75,17 @@ export function EvaluatorQueuePage() {
   const [comment, setComment] = useState("");
   const [status, setStatus] = useState<StatusMsg>(null);
   const [saving, setSaving] = useState(false);
+
+  const [proposal, setProposal] = useState<EvalProposalResponse | null>(null);
+  const [proposalLoading, setProposalLoading] = useState(false);
+  const [proposalError, setProposalError] = useState<string | null>(null);
+  /** True after a successful proposal load for the current assignment (empty ok). */
+  const [proposalReady, setProposalReady] = useState(false);
+
+  const [peerOpen, setPeerOpen] = useState(false);
+  const [peerReviews, setPeerReviews] = useState<EvalReviewItem[]>([]);
+  const [peerLoading, setPeerLoading] = useState(false);
+  const [peerError, setPeerError] = useState<string | null>(null);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
@@ -115,7 +148,143 @@ export function EvaluatorQueuePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount load
   }, []);
 
+  /** Load proposal when active assignment changes. */
+  useEffect(() => {
+    if (!activeId) {
+      setProposal(null);
+      setProposalReady(false);
+      setProposalError(null);
+      setProposalLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setProposal(null);
+    setProposalReady(false);
+    setProposalError(null);
+    setProposalLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/me/eval-assignments/${encodeURIComponent(activeId)}/proposal`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (cancelled) return;
+        if (!res.ok) {
+          const raw: unknown = await res.json().catch(() => null);
+          const env = ErrorEnvelopeSchema.safeParse(raw);
+          setProposalError(
+            env.success ? env.data.error : `Failed (${res.status})`,
+          );
+          setProposal(null);
+          setProposalReady(false);
+          return;
+        }
+        const raw: unknown = await res.json();
+        const parsed = EvalProposalResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          setProposalError("Unexpected proposal response");
+          setProposal(null);
+          setProposalReady(false);
+          return;
+        }
+        setProposal(parsed.data);
+        setProposalReady(true);
+        setProposalError(null);
+      } catch {
+        if (!cancelled) {
+          setProposalError("Network error loading proposal");
+          setProposal(null);
+          setProposalReady(false);
+        }
+      } finally {
+        if (!cancelled) setProposalLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId]);
+
   const active = items.find((i) => i.assignment.id === activeId) ?? null;
+
+  /** Peer reviews (reveal-after-submit) for the active submission. */
+  useEffect(() => {
+    if (!active || !peerOpen) {
+      if (!active) {
+        setPeerReviews([]);
+        setPeerError(null);
+        setPeerLoading(false);
+      }
+      return;
+    }
+    let cancelled = false;
+    setPeerLoading(true);
+    setPeerError(null);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/submissions/${encodeURIComponent(active.submission.id)}/eval-reviews`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (cancelled) return;
+        if (!res.ok) {
+          const raw: unknown = await res.json().catch(() => null);
+          const env = ErrorEnvelopeSchema.safeParse(raw);
+          setPeerError(
+            env.success ? env.data.error : `Failed (${res.status})`,
+          );
+          setPeerReviews([]);
+          return;
+        }
+        const raw: unknown = await res.json();
+        const parsed = EvalReviewsResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          setPeerError("Unexpected peer reviews response");
+          setPeerReviews([]);
+          return;
+        }
+        // Peers only (exclude self) for the collapsible panel label.
+        setPeerReviews(
+          parsed.data.reviews.filter((r) => r.isSelf !== true),
+        );
+        setPeerError(null);
+      } catch {
+        if (!cancelled) {
+          setPeerError("Network error loading peer reviews");
+          setPeerReviews([]);
+        }
+      } finally {
+        if (!cancelled) setPeerLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, peerOpen]);
+
+  const [queueSearch, setQueueSearch] = useState("");
+  const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "scored">(
+    "all",
+  );
+
+  const filteredItems = useMemo(() => {
+    const q = queueSearch.trim().toLowerCase();
+    return items.filter((item) => {
+      if (queueFilter === "pending" && isAssignmentComplete(item)) return false;
+      if (queueFilter === "scored" && !isAssignmentComplete(item)) return false;
+      if (!q) return true;
+      return (
+        item.submission.title.toLowerCase().includes(q) ||
+        (item.submission.category ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [items, queueSearch, queueFilter]);
 
   const progress = useMemo(() => {
     const total = items.length;
@@ -129,9 +298,24 @@ export function EvaluatorQueuePage() {
     seedScores(item);
   }
 
+  function goNextUnreviewed() {
+    const pending = items.filter((i) => !isAssignmentComplete(i));
+    if (pending.length === 0) return;
+    const idx = pending.findIndex((i) => i.assignment.id === activeId);
+    const next = pending[(idx + 1) % pending.length]!;
+    selectItem(next);
+  }
+
   async function onSave(e?: FormEvent) {
     e?.preventDefault();
     if (!active) return;
+    if (!proposalReady) {
+      setStatus({
+        kind: "error",
+        text: "Wait for the proposal to load before scoring",
+      });
+      return;
+    }
     setSaving(true);
     setStatus(null);
 
@@ -283,12 +467,45 @@ export function EvaluatorQueuePage() {
       ) : null}
 
       <div className="eval-queue__layout">
+        <div className="eval-queue__list-tools" data-testid="eval-queue-tools">
+          <input
+            type="search"
+            className="event-settings__input lumen-focusable"
+            placeholder="Search titles…"
+            value={queueSearch}
+            onChange={(e) => setQueueSearch(e.target.value)}
+            data-testid="eval-queue-search"
+            aria-label="Search queue"
+          />
+          <select
+            className="event-settings__input lumen-focusable"
+            value={queueFilter}
+            onChange={(e) =>
+              setQueueFilter(e.target.value as "all" | "pending" | "scored")
+            }
+            data-testid="eval-queue-filter"
+            aria-label="Filter by review state"
+          >
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="scored">Scored</option>
+          </select>
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="eval-queue-next-unreviewed"
+            onClick={goNextUnreviewed}
+            disabled={!items.some((i) => !isAssignmentComplete(i))}
+          >
+            Next unreviewed
+          </Button>
+        </div>
         <ul
           className="eval-queue__list"
           data-testid="eval-queue-list"
           aria-label="Assigned submissions"
         >
-          {items.map((item) => {
+          {filteredItems.map((item) => {
             const done = isAssignmentComplete(item);
             return (
               <li key={item.assignment.id}>
@@ -330,97 +547,280 @@ export function EvaluatorQueuePage() {
         </ul>
 
         {active ? (
-          <Card
-            className="eval-queue__score-panel"
-            data-testid="eval-score-panel"
-            title={`Score: ${active.submission.title}`}
-            meta={active.event.name}
-            raised
+          <div
+            className="eval-queue__review"
+            data-testid="eval-queue-review"
           >
-            <p className="eval-queue__muted" data-testid="eval-score-event">
-              {active.event.name}
-            </p>
-
-            <form
-              className="event-settings__form eval-queue__score-form"
-              onSubmit={onSave}
-              onKeyDown={onScoreKeyDown}
-              data-testid="eval-score-form"
+            <Card
+              className="eval-queue__proposal-panel"
+              data-testid="eval-proposal-panel"
+              title={
+                proposal?.submission.title ?? active.submission.title
+              }
+              meta={active.event.name}
+              raised
             >
-              <p
-                className="eval-queue__hint"
-                data-testid="eval-score-keyboard-hint"
-              >
-                Tip: Ctrl/Cmd+Enter saves without leaving the keyboard.
-              </p>
-
-              {active.criteria.map((c: EvalCriterionDto) => (
-                <div key={c.id} className="eval-queue__criterion">
-                  <label
-                    className="event-settings__label"
-                    htmlFor={`score-${c.id}`}
-                  >
-                    {c.name}{" "}
-                    <span className="eval-queue__muted">
-                      (max {c.maxScore}, weight {c.weight})
-                    </span>
-                  </label>
-                  <input
-                    id={`score-${c.id}`}
-                    type="number"
-                    min={0}
-                    max={c.maxScore}
-                    step="any"
-                    className="event-settings__input lumen-focusable"
-                    data-testid={`eval-score-input-${c.id}`}
-                    data-criterion-id={c.id}
-                    data-max-score={c.maxScore}
-                    value={values[c.id] ?? ""}
-                    onChange={(ev) =>
-                      setValues((prev) => ({
-                        ...prev,
-                        [c.id]: ev.target.value,
-                      }))
-                    }
-                    required
-                  />
-                </div>
-              ))}
-
-              <label className="event-settings__label" htmlFor="eval-comment">
-                Comment
-              </label>
-              <textarea
-                id="eval-comment"
-                className="event-settings__input lumen-focusable"
-                data-testid="eval-score-comment"
-                rows={3}
-                value={comment}
-                onChange={(ev) => setComment(ev.target.value)}
-                maxLength={4000}
-              />
-
-              <Button
-                type="submit"
-                variant="primary"
-                data-testid="eval-score-save"
-                disabled={saving}
-                pending={saving}
-              >
-                {saving ? "Saving…" : "Save scores"}
-              </Button>
-
-              {/* F03: no accept / reject / decide controls for evaluator */}
-              {status ? (
-                <Alert
-                  tone={status.kind === "ok" ? "success" : "danger"}
-                  data-testid="eval-score-status"
+              {proposalLoading ? (
+                <p
+                  className="eval-queue__muted"
+                  data-testid="eval-proposal-loading"
                 >
-                  {status.text}
+                  Loading proposal…
+                </p>
+              ) : null}
+              {proposalError ? (
+                <Alert tone="danger" data-testid="eval-proposal-error">
+                  {proposalError}
                 </Alert>
               ) : null}
-            </form>
-          </Card>
+              {proposalReady && proposal ? (
+                <>
+                  {proposal.submission.category ? (
+                    <p
+                      className="eval-queue__muted"
+                      data-testid="eval-proposal-category"
+                    >
+                      Category: {proposal.submission.category}
+                    </p>
+                  ) : null}
+
+                  <section
+                    className="eval-queue__proposal-speakers"
+                    data-testid="eval-proposal-speakers"
+                    aria-label="Speakers"
+                  >
+                    <h3 className="eval-queue__proposal-heading">Speakers</h3>
+                    {proposal.speakers.length === 0 ? (
+                      <p className="eval-queue__muted">No speakers listed.</p>
+                    ) : (
+                      <ul className="eval-queue__proposal-speaker-list">
+                        {proposal.speakers.map((s) => (
+                          <li
+                            key={`${s.personId}-${s.sortOrder}`}
+                            data-testid={`eval-proposal-speaker-${s.sortOrder}`}
+                          >
+                            <strong>{s.name || "Unnamed"}</strong>
+                            {s.email ? (
+                              <span className="eval-queue__muted">
+                                {" "}
+                                · {s.email}
+                              </span>
+                            ) : null}
+                            {s.isPrimary ? (
+                              <Badge tone="info">Primary</Badge>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+
+                  <section
+                    className="eval-queue__proposal-answers"
+                    data-testid="eval-proposal-answers"
+                    aria-label="Proposal answers"
+                  >
+                    <h3 className="eval-queue__proposal-heading">Answers</h3>
+                    {proposal.answers.length === 0 ? (
+                      <p
+                        className="eval-queue__muted"
+                        data-testid="eval-proposal-answers-empty"
+                      >
+                        No form answers on this submission.
+                      </p>
+                    ) : (
+                      <dl className="eval-queue__proposal-answer-list">
+                        {proposal.answers.map((a) => (
+                          <div
+                            key={a.fieldKey}
+                            className="eval-queue__proposal-answer"
+                            data-testid={`eval-proposal-answer-${a.fieldKey}`}
+                          >
+                            <dt>{a.label ?? a.fieldKey}</dt>
+                            <dd>{formatAnswerValue(a.value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                  </section>
+                </>
+              ) : null}
+            </Card>
+
+            <Card
+              className="eval-queue__score-panel"
+              data-testid="eval-score-panel"
+              title={`Score: ${active.submission.title}`}
+              meta={active.event.name}
+              raised
+            >
+              <p className="eval-queue__muted" data-testid="eval-score-event">
+                {active.event.name}
+              </p>
+
+              <form
+                className="event-settings__form eval-queue__score-form"
+                onSubmit={onSave}
+                onKeyDown={onScoreKeyDown}
+                data-testid="eval-score-form"
+              >
+                <p
+                  className="eval-queue__hint"
+                  data-testid="eval-score-keyboard-hint"
+                >
+                  Tip: Ctrl/Cmd+Enter saves without leaving the keyboard.
+                </p>
+
+                {active.criteria.map((c: EvalCriterionDto) => (
+                  <div key={c.id} className="eval-queue__criterion">
+                    <label
+                      className="event-settings__label"
+                      htmlFor={`score-${c.id}`}
+                    >
+                      {c.name}{" "}
+                      <span className="eval-queue__muted">
+                        (max {c.maxScore}, weight {c.weight})
+                      </span>
+                    </label>
+                    <input
+                      id={`score-${c.id}`}
+                      type="number"
+                      min={0}
+                      max={c.maxScore}
+                      step="any"
+                      className="event-settings__input lumen-focusable"
+                      data-testid={`eval-score-input-${c.id}`}
+                      data-criterion-id={c.id}
+                      data-max-score={c.maxScore}
+                      value={values[c.id] ?? ""}
+                      onChange={(ev) =>
+                        setValues((prev) => ({
+                          ...prev,
+                          [c.id]: ev.target.value,
+                        }))
+                      }
+                      required
+                      disabled={!proposalReady || proposalLoading}
+                    />
+                  </div>
+                ))}
+
+                <label className="event-settings__label" htmlFor="eval-comment">
+                  Comment
+                </label>
+                <textarea
+                  id="eval-comment"
+                  className="event-settings__input lumen-focusable"
+                  data-testid="eval-score-comment"
+                  rows={3}
+                  value={comment}
+                  onChange={(ev) => setComment(ev.target.value)}
+                  maxLength={4000}
+                  disabled={!proposalReady || proposalLoading}
+                />
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  data-testid="eval-score-save"
+                  disabled={saving || !proposalReady || proposalLoading}
+                  pending={saving}
+                >
+                  {saving
+                    ? "Saving…"
+                    : proposalLoading
+                      ? "Loading proposal…"
+                      : "Save scores"}
+                </Button>
+
+                {/* F03: no accept / reject / decide controls for evaluator */}
+                {status ? (
+                  <Alert
+                    tone={status.kind === "ok" ? "success" : "danger"}
+                    data-testid="eval-score-status"
+                  >
+                    {status.text}
+                  </Alert>
+                ) : null}
+              </form>
+            </Card>
+
+            <details
+              className="eval-queue__peer-reviews"
+              data-testid="eval-peer-reviews"
+              open={peerOpen}
+              onToggle={(e) => {
+                setPeerOpen((e.target as HTMLDetailsElement).open);
+              }}
+            >
+              <summary
+                className="eval-queue__peer-reviews-summary lumen-focusable"
+                data-testid="eval-peer-reviews-toggle"
+              >
+                Peer reviews
+              </summary>
+              {peerLoading ? (
+                <p
+                  className="eval-queue__muted"
+                  data-testid="eval-peer-reviews-loading"
+                >
+                  Loading peer reviews…
+                </p>
+              ) : null}
+              {peerError ? (
+                <Alert tone="danger" data-testid="eval-peer-reviews-error">
+                  {peerError}
+                </Alert>
+              ) : null}
+              {!peerLoading && !peerError && peerReviews.length === 0 ? (
+                <p
+                  className="eval-queue__muted"
+                  data-testid="eval-peer-reviews-empty"
+                >
+                  No peer reviews revealed yet. Peers appear after they submit
+                  scores.
+                </p>
+              ) : null}
+              {!peerLoading && peerReviews.length > 0 ? (
+                <ul
+                  className="eval-reviews-list"
+                  data-testid="eval-peer-reviews-list"
+                >
+                  {peerReviews.map((r) => (
+                    <li
+                      key={r.assignmentId}
+                      className="eval-reviews-list__item"
+                      data-testid={`eval-peer-review-${r.assignmentId}`}
+                      data-status={r.status}
+                    >
+                      <div className="eval-reviews-list__meta">
+                        <strong>
+                          {r.evaluatorEmail?.trim() || r.evaluatorUserId}
+                        </strong>
+                        <Badge
+                          tone={r.status === "scored" ? "success" : "neutral"}
+                        >
+                          {r.status}
+                        </Badge>
+                        <span className="eval-queue__muted">
+                          {r.aggregateScore != null
+                            ? `score ${r.aggregateScore.toFixed(2)}`
+                            : "no score"}
+                        </span>
+                      </div>
+                      {r.overallComment ? (
+                        <p className="eval-reviews-list__comment">
+                          {r.overallComment}
+                        </p>
+                      ) : (
+                        <p className="eval-queue__muted">No comment.</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </details>
+          </div>
         ) : null}
       </div>
     </div>

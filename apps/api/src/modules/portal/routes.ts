@@ -108,47 +108,61 @@ export function createPortalRoutes(
   const deps = { decisions, events, auth: store, submissions, design };
 
   /**
-   * GET /home — Portal.GetHome (speaker role on event)
+   * GET /home — Portal.GetHome
+   * Authz: speaker/admin membership OR bound event_participation for user
+   * (accepted speakers who retain evaluator/admin role still access portal).
    * Query: eventId (required)
    */
-  app.get(
-    "/home",
-    requireRole(store, ["speaker", "admin"], {
-      eventIdFrom: (c) => c.req.query("eventId") ?? undefined,
-    }),
-    async (c) => {
-      const q = PortalHomeQuerySchema.safeParse({
-        eventId: c.req.query("eventId"),
-      });
-      if (!q.success) {
-        return c.json(
-          errorEnvelope("Invalid query", VALIDATION_ERROR, q.error.flatten()),
-          400,
-        );
+  app.get("/home", requireSession(store), async (c) => {
+    const q = PortalHomeQuerySchema.safeParse({
+      eventId: c.req.query("eventId"),
+    });
+    if (!q.success) {
+      return c.json(
+        errorEnvelope("Invalid query", VALIDATION_ERROR, q.error.flatten()),
+        400,
+      );
+    }
+    const user = c.get("user");
+    if (!user) {
+      return c.json(errorEnvelope("Authentication required", UNAUTHORIZED), 401);
+    }
+    const membership = await store.findMembership(q.data.eventId, user.id);
+    const parts = await decisions.listParticipationsForEvent(q.data.eventId);
+    const bound = parts.some((p) => p.userId === user.id);
+    const roleOk =
+      membership != null &&
+      (membership.role === "speaker" || membership.role === "admin");
+    if (!roleOk && !bound) {
+      if (!membership) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
       }
-      const user = c.get("user");
-      if (!user) {
-        return c.json(errorEnvelope("Authentication required", UNAUTHORIZED), 401);
-      }
-      const result = await getPortalHome(deps, {
-        eventId: q.data.eventId,
-        userId: user.id,
-        userEmail: user.email,
-        correlationId:
-          c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown",
-      });
-      if (!result.ok) return commandError(c, result);
+      return c.json(
+        errorEnvelope("Insufficient role", FORBIDDEN, {
+          required: ["speaker"],
+          role: membership.role,
+        }),
+        403,
+      );
+    }
+    const result = await getPortalHome(deps, {
+      eventId: q.data.eventId,
+      userId: user.id,
+      userEmail: user.email,
+      correlationId:
+        c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown",
+    });
+    if (!result.ok) return commandError(c, result);
 
-      const parsed = PortalHomeResponseSchema.safeParse(result.value);
-      if (!parsed.success) {
-        return c.json(
-          errorEnvelope("Response validation failed", INTERNAL_ERROR),
-          500,
-        );
-      }
-      return c.json(parsed.data, 200);
-    },
-  );
+    const parsed = PortalHomeResponseSchema.safeParse(result.value);
+    if (!parsed.success) {
+      return c.json(
+        errorEnvelope("Response validation failed", INTERNAL_ERROR),
+        500,
+      );
+    }
+    return c.json(parsed.data, 200);
+  });
 
   /**
    * PATCH /participations/:id — Participation.UpdateProfile
@@ -186,10 +200,14 @@ export function createPortalRoutes(
         return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
       }
       const membership = await store.findMembership(part.eventId, user.id);
-      if (!membership) {
-        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
-      }
-      if (membership.role !== "speaker" && membership.role !== "admin") {
+      const ownsParticipation = part.userId === user.id;
+      const roleOk =
+        membership != null &&
+        (membership.role === "speaker" || membership.role === "admin");
+      if (!roleOk && !ownsParticipation) {
+        if (!membership) {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
         return c.json(
           errorEnvelope("Insufficient role", FORBIDDEN, {
             required: ["speaker"],
@@ -262,10 +280,14 @@ export function createPortalRoutes(
         return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
       }
       const membership = await store.findMembership(part.eventId, user.id);
-      if (!membership) {
-        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
-      }
-      if (membership.role !== "speaker" && membership.role !== "admin") {
+      const ownsPart = part.userId === user.id;
+      const roleOk =
+        membership != null &&
+        (membership.role === "speaker" || membership.role === "admin");
+      if (!roleOk && !ownsPart) {
+        if (!membership) {
+          return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+        }
         return c.json(
           errorEnvelope("Insufficient role", FORBIDDEN, {
             required: ["speaker"],

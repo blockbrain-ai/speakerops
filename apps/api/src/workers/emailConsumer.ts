@@ -45,6 +45,7 @@ type CommsSendPayload = {
   templateId?: string;
   idempotencyKey?: string | null;
   correlationId?: string;
+  calendarInviteId?: string | null;
 };
 
 /**
@@ -209,6 +210,30 @@ export async function processCommsOutbox(
         continue;
       }
 
+      // ICS attach: job column or outbox payload carrier from Comms.Send.
+      const inviteId =
+        (job as { calendarInviteId?: string | null }).calendarInviteId ??
+        payload.calendarInviteId ??
+        null;
+      let attachments:
+        | { filename: string; contentType: string; content: string }[]
+        | undefined;
+      if (inviteId) {
+        const invites = await deps.comms.listCalendarInvitesForEvent(
+          job.eventId,
+        );
+        const invite = invites.find((i) => i.id === inviteId);
+        if (invite?.icsBody) {
+          attachments = [
+            {
+              filename: "invite.ics",
+              contentType: "text/calendar",
+              content: invite.icsBody,
+            },
+          ];
+        }
+      }
+
       const result = await provider.send({
         to: recipient.toEmail,
         subject: recipient.subject ?? "",
@@ -216,6 +241,7 @@ export async function processCommsOutbox(
         jobId: job.id,
         recipientId: recipient.id,
         correlationId: payload.correlationId ?? options.correlationId,
+        attachments,
       });
 
       await deps.comms.insertDeliveryEvent({
