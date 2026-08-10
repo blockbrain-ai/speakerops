@@ -572,28 +572,68 @@ export function SpeakersPage() {
                   </div>
                 </header>
 
-                {/* Contact */}
+                {/* Profile (admin view of speaker-facing fields) */}
                 <Card
                   className="speakers-page__detail-card"
                   data-testid="speakers-detail-section-contact"
                 >
                   <h3 className="speakers-page__detail-section-title">
-                    Contact
+                    Profile
                   </h3>
-                  <p
-                    className="eval-queue__muted"
-                    data-testid="speakers-detail-email"
-                  >
-                    {detail.participation.personEmail ?? "—"}
-                  </p>
-                  <p data-testid="speakers-detail-company">
-                    {[detail.participation.title, detail.participation.company]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
-                  </p>
-                  <p data-testid="speakers-detail-bio">
-                    Bio: {detail.participation.bio ?? "—"}
-                  </p>
+                  <div className="speakers-page__profile-layout">
+                    <div
+                      className="speakers-page__headshot-slot"
+                      data-testid="speakers-detail-headshot"
+                      data-has-headshot={
+                        detail.participation.headshotFileId ? "true" : "false"
+                      }
+                    >
+                      {detail.files.some((f) => f.purpose === "headshot") ? (
+                        <span className="speakers-page__headshot-badge">
+                          Photo on file
+                        </span>
+                      ) : detail.participation.headshotFileId ? (
+                        <span className="speakers-page__headshot-badge">
+                          Photo linked
+                        </span>
+                      ) : (
+                        <span className="speakers-page__headshot-empty">
+                          No photo
+                        </span>
+                      )}
+                    </div>
+                    <dl className="speakers-page__profile-dl">
+                      <div className="speakers-page__profile-row">
+                        <dt>Email</dt>
+                        <dd data-testid="speakers-detail-email">
+                          {detail.participation.personEmail ?? "—"}
+                        </dd>
+                      </div>
+                      <div className="speakers-page__profile-row">
+                        <dt>Job title</dt>
+                        <dd data-testid="speakers-detail-title">
+                          {detail.participation.title?.trim() || "—"}
+                        </dd>
+                      </div>
+                      <div className="speakers-page__profile-row">
+                        <dt>Company / organisation</dt>
+                        <dd data-testid="speakers-detail-company">
+                          {detail.participation.company?.trim() || "—"}
+                        </dd>
+                      </div>
+                      <div className="speakers-page__profile-row speakers-page__profile-row--bio">
+                        <dt>Bio</dt>
+                        <dd data-testid="speakers-detail-bio">
+                          {detail.participation.bio?.trim() || (
+                            <span className="eval-queue__muted">
+                              No bio yet — speaker can complete this in the
+                              portal.
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
                 </Card>
 
                 {/* Readiness summary in detail */}
@@ -626,11 +666,16 @@ export function SpeakersPage() {
                       } else if (dim === "confirmed") {
                         ok = Boolean(detail.participation.userId);
                       } else if (dim === "profile") {
-                        ok =
-                          Boolean(detail.participation.bio?.trim()) ||
+                        const bioOk = Boolean(
+                          detail.participation.bio?.trim(),
+                        );
+                        const affiliationOk =
                           Boolean(detail.participation.company?.trim()) ||
-                          Boolean(detail.participation.title?.trim()) ||
-                          Boolean(detail.participation.headshotFileId);
+                          Boolean(detail.participation.title?.trim());
+                        const photoOk = Boolean(
+                          detail.participation.headshotFileId,
+                        );
+                        ok = bioOk && affiliationOk && photoOk;
                       } else if (dim === "tasks") {
                         ok =
                           detail.tasks.filter(
@@ -707,13 +752,17 @@ export function SpeakersPage() {
                   data-testid="speakers-detail-section-files"
                 >
                   <h3 className="speakers-page__detail-section-title">Files</h3>
-                  <ul data-testid="speakers-detail-files">
+                  <ul
+                    className="speakers-page__file-list"
+                    data-testid="speakers-detail-files"
+                  >
                     {detail.files.length === 0 ? (
                       <li
                         className="eval-queue__muted"
                         data-testid="speakers-files-empty"
                       >
-                        No file metadata yet
+                        No files yet (headshot / slides upload via speaker
+                        portal)
                       </li>
                     ) : (
                       detail.files.map((f) => (
@@ -722,8 +771,21 @@ export function SpeakersPage() {
                           data-testid={`speakers-file-${f.id}`}
                           data-file-purpose={f.purpose}
                         >
-                          {f.filename} · {f.purpose} · {f.mime} · {f.size}b ·
-                          uploaded={f.uploaded}
+                          <span className="speakers-page__file-name">
+                            {f.filename || f.id}
+                          </span>
+                          <span className="speakers-page__file-meta">
+                            {f.purpose === "headshot"
+                              ? "Headshot"
+                              : f.purpose === "slides"
+                                ? "Slides"
+                                : f.purpose}{" "}
+                            · {f.mime}
+                            {f.size
+                              ? ` · ${Math.max(1, Math.round(f.size / 1024))} KB`
+                              : ""}
+                            {f.uploaded ? " · uploaded" : " · pending"}
+                          </span>
                         </li>
                       ))
                     )}

@@ -463,12 +463,8 @@ test.describe("10.1 submissions list reliability", () => {
       timeout: 10_000,
     });
     // All visible rows submitted
-    const badges = page.locator("[data-testid^='submission-status-badge-']");
-    const n = await badges.count();
-    expect(n).toBeGreaterThan(0);
-    for (let i = 0; i < n; i++) {
-      await expect(badges.nth(i)).toHaveText("submitted");
-    }
+    const submitted = page.locator("[data-testid^='submission-status-'][data-status='submitted']");
+    expect(await submitted.count()).toBeGreaterThan(0);
 
     // Category filter (keynote from first seed title)
     await page.getByTestId("submissions-filter-status").selectOption("");

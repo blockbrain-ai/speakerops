@@ -26,6 +26,7 @@ import {
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore, SubmissionRow } from "../publicCfp/store.js";
+import type { FormsStore } from "../forms/store.js";
 import {
   type DecisionsStore,
   type DecisionRow,
@@ -45,6 +46,8 @@ export type DecisionCommandDeps = {
   events: EventsStore;
   auth: AuthStore;
   submissions: SubmissionsStore;
+  /** Optional — when present, Submission.Get enriches answers with form labels. */
+  forms?: FormsStore;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -1044,6 +1047,32 @@ export async function getSubmission(
   }
 
   const answerRows = await deps.submissions.listAnswers(submissionId);
+  // Prefer published form field labels over raw field_key (track_pref → "Track preference").
+  const labelByKey = new Map<string, string>();
+  if (deps.forms) {
+    try {
+      const fields = await deps.forms.listFields(submission.formVersionId);
+      for (const f of fields) {
+        if (f.label?.trim()) labelByKey.set(f.fieldKey, f.label.trim());
+      }
+      // Snapshot fallback when listFields empty (frozen publish snapshot)
+      if (labelByKey.size === 0) {
+        const ver = await deps.forms.findVersionById(submission.formVersionId);
+        if (ver?.snapshotJson) {
+          const snap = JSON.parse(ver.snapshotJson) as {
+            fields?: Array<{ fieldKey?: string; label?: string }>;
+          };
+          for (const f of snap.fields ?? []) {
+            if (f.fieldKey && f.label?.trim()) {
+              labelByKey.set(f.fieldKey, f.label.trim());
+            }
+          }
+        }
+      }
+    } catch {
+      /* labels optional — SPA humanizes fieldKey */
+    }
+  }
   const answers = answerRows.map((a) => {
     let value: unknown = a.valueJson;
     try {
@@ -1051,7 +1080,10 @@ export async function getSubmission(
     } catch {
       value = a.valueJson;
     }
-    return { fieldKey: a.fieldKey, value };
+    const label = labelByKey.get(a.fieldKey);
+    return label
+      ? { fieldKey: a.fieldKey, value, label }
+      : { fieldKey: a.fieldKey, value };
   });
 
   const speakerRows = await deps.submissions.listSpeakers(submissionId);

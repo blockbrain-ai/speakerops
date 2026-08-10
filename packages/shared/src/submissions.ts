@@ -150,6 +150,11 @@ export type SubmissionSpeakerDto = z.infer<typeof SubmissionSpeakerDtoSchema>;
 export const SubmissionAnswerDtoSchema = z.object({
   fieldKey: FieldKeySchema,
   value: z.unknown(),
+  /**
+   * Human label from the pinned form version when available.
+   * Clients must not show raw fieldKey as the primary heading when label is set.
+   */
+  label: z.string().min(1).max(256).optional(),
 });
 export type SubmissionAnswerDto = z.infer<typeof SubmissionAnswerDtoSchema>;
 

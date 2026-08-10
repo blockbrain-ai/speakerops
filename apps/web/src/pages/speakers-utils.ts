@@ -64,10 +64,11 @@ export function deriveSpeakerReadiness(
   const confirmed = Boolean(p.userId);
   const hasText = (v: string | null | undefined) =>
     typeof v === "string" && v.trim().length > 0;
+  // Align with portal steps: require bio + at least one of company/title + headshot
+  // so "profile ready" is not a single optional field.
   const profile =
-    hasText(p.bio) ||
-    hasText(p.company) ||
-    hasText(p.title) ||
+    hasText(p.bio) &&
+    (hasText(p.company) || hasText(p.title)) &&
     Boolean(p.headshotFileId);
   const tasks = item.pendingTaskCount <= 0;
   const session = item.sessionCount > 0;

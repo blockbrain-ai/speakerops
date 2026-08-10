@@ -285,7 +285,8 @@ test.describe("3.6 cfp eval keystone (I12)", () => {
       /accept recorded/i,
       { timeout: 10_000 },
     );
-    await expect(page.getByTestId("submission-detail-status")).toHaveText(
+    await expect(page.getByTestId("submission-detail-status")).toHaveAttribute(
+      "data-status",
       "accepted",
     );
     await expect(page.getByTestId("submission-detail-session")).toBeVisible();

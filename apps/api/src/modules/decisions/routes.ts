@@ -49,6 +49,8 @@ export type DecisionRouteOptions = {
   events: EventsStore;
   submissions: SubmissionsStore;
   decisions: DecisionsStore;
+  /** When set, Submission.Get includes human field labels on answers. */
+  forms?: import("../forms/store.js").FormsStore;
   /** Bearer decisions:write / submissions:read (COMMANDS.md / CLI 7.2). */
   keys?: import("../keys/store.js").KeysStore;
 };
@@ -81,12 +83,13 @@ export function createEventDecisionRoutes(
   options: DecisionRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions, keys } = options;
+  const { store, events, submissions, decisions, keys, forms } = options;
   const deps = {
     decisions,
     events,
     auth: store,
     submissions,
+    forms,
   };
   const bearerRead = keys
     ? {
@@ -287,12 +290,13 @@ export function createSubmissionDecisionRoutes(
   options: DecisionRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions, keys } = options;
+  const { store, events, submissions, decisions, keys, forms } = options;
   const deps = {
     decisions,
     events,
     auth: store,
     submissions,
+    forms,
   };
   const bearerWrite = keys
     ? {

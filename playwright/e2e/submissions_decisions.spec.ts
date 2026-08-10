@@ -240,8 +240,8 @@ test.describe("3.5 submissions decisions", () => {
 
     await page.getByTestId("submissions-filter-status").selectOption("accepted");
     await expect(
-      page.getByTestId(`submission-status-badge-${idA}`),
-    ).toHaveText("accepted", { timeout: 10_000 });
+      page.getByTestId(`submission-status-${idA}`),
+    ).toHaveAttribute("data-status", "accepted", { timeout: 10_000 });
 
     // Reset status filter so both rows load (categories come from list rows)
     await page.getByTestId("submissions-filter-status").selectOption("");
@@ -367,7 +367,8 @@ test.describe("3.5 submissions decisions", () => {
       "accept recorded",
       { timeout: 10_000 },
     );
-    await expect(page.getByTestId("submission-detail-status")).toHaveText(
+    await expect(page.getByTestId("submission-detail-status")).toHaveAttribute(
+      "data-status",
       "accepted",
     );
     await expect(page.getByTestId("submission-detail-session")).toBeVisible();
@@ -436,7 +437,8 @@ test.describe("3.5 submissions decisions", () => {
     await expect(page.getByTestId("submissions-status")).toContainText(
       "reject recorded",
     );
-    await expect(page.getByTestId("submission-detail-status")).toHaveText(
+    await expect(page.getByTestId("submission-detail-status")).toHaveAttribute(
+      "data-status",
       "rejected",
     );
   });
@@ -468,7 +470,8 @@ test.describe("3.5 submissions decisions", () => {
     await expect(page.getByTestId("submissions-status")).toContainText(
       "waitlist recorded",
     );
-    await expect(page.getByTestId("submission-detail-status")).toHaveText(
+    await expect(page.getByTestId("submission-detail-status")).toHaveAttribute(
+      "data-status",
       "waitlist",
     );
   });

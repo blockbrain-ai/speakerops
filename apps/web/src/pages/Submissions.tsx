@@ -87,15 +87,54 @@ function statusTone(status: string): BadgeTone {
 
 function formatAnswerValue(value: unknown): string {
   if (value == null) return "—";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    // File answers are stored as file:<id>
+    if (value.startsWith("file:")) return "File attached";
+    return value;
+  }
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => formatAnswerValue(v)).join(", ");
   }
   try {
     return JSON.stringify(value);
   } catch {
     return String(value);
   }
+}
+
+/** Human heading when API omits label — never show raw track_pref as the primary UI. */
+export function humanizeFieldKey(fieldKey: string): string {
+  const cleaned = fieldKey
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return fieldKey;
+  return cleaned
+    .split(" ")
+    .map((w) => (w.length ? w[0]!.toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+function answerHeading(a: { fieldKey: string; label?: string }): string {
+  const label = a.label?.trim();
+  if (label) return label;
+  return humanizeFieldKey(a.fieldKey);
+}
+
+function statusDisplayLabel(status: string): string {
+  const map: Record<string, string> = {
+    submitted: "Submitted",
+    in_review: "In review",
+    accepted: "Accepted",
+    rejected: "Rejected",
+    waitlist: "Waitlist",
+    withdrawn: "Withdrawn",
+    draft: "Draft",
+  };
+  return map[status] ?? humanizeFieldKey(status);
 }
 
 export function SubmissionsPage() {
@@ -535,7 +574,12 @@ export function SubmissionsPage() {
           showDot
           data-testid={`submission-status-badge-${row.id}`}
         >
-          <span data-testid={`submission-status-${row.id}`}>{row.status}</span>
+          <span
+            data-testid={`submission-status-${row.id}`}
+            data-status={row.status}
+          >
+            {statusDisplayLabel(row.status)}
+          </span>
         </Badge>
       ),
     },
@@ -1077,8 +1121,11 @@ export function SubmissionsPage() {
                     showDot
                     data-testid="submission-detail-status-badge"
                   >
-                    <span data-testid="submission-detail-status">
-                      {detail.submission.status}
+                    <span
+                      data-testid="submission-detail-status"
+                      data-status={detail.submission.status}
+                    >
+                      {statusDisplayLabel(detail.submission.status)}
                     </span>
                   </Badge>
                   {detail.submission.category ? (
@@ -1091,7 +1138,7 @@ export function SubmissionsPage() {
                       tone={statusTone(detail.decision.decision)}
                       data-testid="submission-detail-decision-badge"
                     >
-                      decided: {detail.decision.decision}
+                      Decision: {statusDisplayLabel(detail.decision.decision)}
                     </Badge>
                   ) : null}
                 </div>
@@ -1100,12 +1147,12 @@ export function SubmissionsPage() {
                   data-testid="submission-detail-meta"
                 >
                   Status:{" "}
-                  <span>{detail.submission.status}</span>
+                  <span>{statusDisplayLabel(detail.submission.status)}</span>
                   {detail.submission.category
                     ? ` · ${detail.submission.category}`
                     : ""}
                   {detail.decision
-                    ? ` · decided: ${detail.decision.decision}`
+                    ? ` · Decision: ${statusDisplayLabel(detail.decision.decision)}`
                     : ""}
                 </p>
               </header>
@@ -1158,25 +1205,38 @@ export function SubmissionsPage() {
                 >
                   Answers
                 </h4>
-                <dl
-                  className="submissions-page__answer-list"
-                  data-testid="submission-detail-answers"
-                >
-                  {detail.answers.map((a) => (
-                    <div
-                      key={a.fieldKey}
-                      className="submissions-page__answer-row"
-                      data-testid={`answer-${a.fieldKey}`}
-                    >
-                      <dt className="submissions-page__answer-key">
-                        {a.fieldKey}
-                      </dt>
-                      <dd className="submissions-page__answer-value">
-                        {formatAnswerValue(a.value)}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+                {detail.answers.length === 0 ? (
+                  <p
+                    className="eval-queue__muted"
+                    data-testid="submission-detail-answers-empty"
+                  >
+                    No form answers recorded for this submission.
+                  </p>
+                ) : (
+                  <dl
+                    className="submissions-page__answer-list"
+                    data-testid="submission-detail-answers"
+                  >
+                    {detail.answers.map((a) => (
+                      <div
+                        key={a.fieldKey}
+                        className="submissions-page__answer-row"
+                        data-testid={`answer-${a.fieldKey}`}
+                        data-field-key={a.fieldKey}
+                      >
+                        <dt
+                          className="submissions-page__answer-key"
+                          data-testid={`answer-label-${a.fieldKey}`}
+                        >
+                          {answerHeading(a)}
+                        </dt>
+                        <dd className="submissions-page__answer-value">
+                          {formatAnswerValue(a.value)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
               </section>
 
               {detail.session ? (
@@ -1186,7 +1246,11 @@ export function SubmissionsPage() {
                 >
                   <h4 className="submissions-page__subhead">Programme session</h4>
                   <p data-testid="submission-detail-session">
-                    Session: {detail.session.title} ({detail.session.id})
+                    {detail.session.title}
+                    <span className="eval-queue__muted">
+                      {" "}
+                      · {statusDisplayLabel(detail.session.status)}
+                    </span>
                   </p>
                 </section>
               ) : null}

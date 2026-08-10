@@ -1158,6 +1158,17 @@ describe("3.5 Decision.Record", () => {
     const body = SubmissionDetailResponseSchema.parse(await res.json());
     expect(body.submission.id).toBe(submissionId);
     expect(body.answers.length).toBeGreaterThan(0);
+    // Operator-facing labels from form fields (not raw field_key only)
+    for (const a of body.answers) {
+      expect(a.fieldKey.length).toBeGreaterThan(0);
+      if (a.label) {
+        expect(a.label).not.toMatch(/_/);
+      }
+    }
+    const titled = body.answers.find((a) => a.fieldKey === "talk_title");
+    if (titled) {
+      expect(titled.label?.toLowerCase()).toMatch(/title|talk/);
+    }
     expect(body.speakers.length).toBe(1);
     expect(body.speakers[0]!.name).toBe("Speaker One");
     expect(body.decision).toBeNull();

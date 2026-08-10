@@ -65,20 +65,37 @@ describe("11.6 speakers-utils readiness", () => {
     expect(readinessScore(r)).toBe(1);
   });
 
-  it("marks profile ready when bio or headshot present", () => {
+  it("marks profile ready only with bio + affiliation + headshot", () => {
     expect(
       deriveSpeakerReadiness(
         item({ participation: { bio: "Hello" } }),
       ).profile,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       deriveSpeakerReadiness(
         item({ participation: { headshotFileId: "file_1" } }),
       ).profile,
+    ).toBe(false);
+    expect(
+      deriveSpeakerReadiness(
+        item({
+          participation: {
+            bio: "Hello",
+            company: "Acme",
+            headshotFileId: "file_1",
+          },
+        }),
+      ).profile,
     ).toBe(true);
     expect(
       deriveSpeakerReadiness(
-        item({ participation: { company: "Acme", title: "Eng" } }),
+        item({
+          participation: {
+            bio: "Hello",
+            title: "Eng",
+            headshotFileId: "file_1",
+          },
+        }),
       ).profile,
     ).toBe(true);
   });
@@ -105,6 +122,7 @@ describe("11.6 speakers-utils readiness", () => {
         id: "p2",
         userId: "usr_2",
         bio: "Done",
+        company: "Acme",
         headshotFileId: "f1",
       },
       pendingTaskCount: 0,
