@@ -373,6 +373,9 @@ export const formVersions = sqliteTable(
     opensAt: text("opens_at"),
     closesAt: text("closes_at"),
     submissionLimit: integer("submission_limit"),
+    /** Configurable speaker bounds (post-11.9 depth; 0024). Defaults preserve 1–5. */
+    minSpeakers: integer("min_speakers").notNull().default(1),
+    maxSpeakers: integer("max_speakers").notNull().default(5),
     publishedAt: text("published_at"),
     /** Immutable JSON snapshot of fields+rules+meta at publish time. */
     snapshotJson: text("snapshot_json"),
@@ -398,6 +401,12 @@ export const formFields = sqliteTable(
     optionsJson: text("options_json"),
     sortOrder: integer("sort_order").notNull().default(0),
     conditionsJson: text("conditions_json"),
+    /** Author guidance under the label (post-11.9 depth; 0023). */
+    helpText: text("help_text"),
+    /** Input placeholder copy (post-11.9 depth; 0023). */
+    placeholder: text("placeholder"),
+    /** Character cap for text/textarea answers (post-11.9 depth; 0023). */
+    maxChars: integer("max_chars"),
   },
   (t) => [
     index("idx_form_fields_form_version_id").on(t.formVersionId),
@@ -528,6 +537,8 @@ export const evalRounds = sqliteTable(
     name: text("name").notNull(),
     status: text("status").notNull(),
     closesAt: text("closes_at"),
+    /** Evaluator guidance rendered as plain text in the queue (0026). */
+    instructionsMd: text("instructions_md"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -564,6 +575,8 @@ export const evalAssignments = sqliteTable(
     evaluatorUserId: text("evaluator_user_id").notNull(),
     status: text("status").notNull(),
     overallComment: text("overall_comment"),
+    /** Optional evaluator-provided abstain reason (0025). */
+    abstainReason: text("abstain_reason"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

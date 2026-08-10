@@ -19,6 +19,8 @@ import {
   EvalRubricResponseSchema,
   EvalScoreBodySchema,
   EvalScoreResponseSchema,
+  EvalAbstainBodySchema,
+  EvalAbstainResponseSchema,
   EvalQueueResponseSchema,
   EvalProposalResponseSchema,
   SubmissionAssignBodySchema,
@@ -49,6 +51,7 @@ import {
   upsertRubric,
   getRubric,
   scoreAssignment,
+  abstainAssignment,
   assignEvaluators,
   getEvalQueue,
   getEvalAssignmentProposal,
@@ -518,6 +521,64 @@ export function createMeEvalRoutes(options: EvalRouteOptions): Hono<ApiEnv> {
     }
     return c.json(out.data, 200);
   });
+
+  /**
+   * POST /eval-assignments/:assignmentId/abstain — Eval.Abstain.
+   * Owner-verified; optional reason; 409 after round close.
+   */
+  app.post(
+    "/eval-assignments/:assignmentId/abstain",
+    requireSession(store),
+    async (c) => {
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+
+      const assignmentId = c.req.param("assignmentId");
+      let raw: unknown = {};
+      try {
+        const text = await c.req.text();
+        raw = text.trim() === "" ? {} : (JSON.parse(text) as unknown);
+      } catch {
+        return c.json(
+          errorEnvelope("Invalid JSON body", VALIDATION_ERROR),
+          400,
+        );
+      }
+
+      const parsed = EvalAbstainBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        return c.json(
+          errorEnvelope("Validation failed", VALIDATION_ERROR, {
+            issues: parsed.error.flatten(),
+          }),
+          400,
+        );
+      }
+
+      const result = await abstainAssignment(deps, {
+        ...parsed.data,
+        assignmentId,
+        actorUserId: user.id,
+        correlationId: c.get("correlationId"),
+      });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      const out = EvalAbstainResponseSchema.safeParse(result.value);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      return c.json(out.data, 200);
+    },
+  );
 
   /**
    * GET /eval-assignments/:assignmentId/proposal — full proposal for scoring.

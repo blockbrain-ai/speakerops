@@ -238,23 +238,29 @@ export async function createSubmission(
     }
   }
 
+  // Speaker bounds come from the PINNED published version (configurable 1–15).
+  const minSpeakers = version.minSpeakers ?? CFP_MIN_SPEAKERS;
+  const maxSpeakers = version.maxSpeakers ?? CFP_MAX_SPEAKERS;
   const speakers = input.speakers;
-  if (speakers.length < CFP_MIN_SPEAKERS) {
+  if (speakers.length < minSpeakers) {
     return {
       ok: false,
       status: 400,
-      error: `At least ${CFP_MIN_SPEAKERS} speaker required`,
+      error:
+        minSpeakers === 1
+          ? "At least 1 speaker required"
+          : `This form requires at least ${minSpeakers} speakers`,
       code: "VALIDATION_ERROR",
-      details: { minSpeakers: CFP_MIN_SPEAKERS, count: speakers.length },
+      details: { minSpeakers, count: speakers.length },
     };
   }
-  if (speakers.length > CFP_MAX_SPEAKERS) {
+  if (speakers.length > maxSpeakers) {
     return {
       ok: false,
       status: 400,
-      error: `At most ${CFP_MAX_SPEAKERS} speakers allowed`,
+      error: `At most ${maxSpeakers} speaker${maxSpeakers === 1 ? "" : "s"} allowed on this form`,
       code: "VALIDATION_ERROR",
-      details: { maxSpeakers: CFP_MAX_SPEAKERS, count: speakers.length },
+      details: { maxSpeakers, count: speakers.length },
     };
   }
 
@@ -278,6 +284,7 @@ export async function createSubmission(
     options: FormFieldDto["options"];
     sortOrder: number;
     conditions: FormFieldDto["conditions"];
+    maxChars?: number | null;
   }>;
   const rules = (await deps.forms.listRules(version.id)) as Array<{
     id: string;
@@ -297,6 +304,7 @@ export async function createSubmission(
     options: f.options,
     sortOrder: f.sortOrder,
     conditions: f.conditions,
+    maxChars: f.maxChars ?? null,
   }));
 
   // Required visible fields
@@ -325,6 +333,25 @@ export async function createSubmission(
     if (!isFieldVisible(f, fieldDtos, answerMap)) continue;
     if (!(f.fieldKey in answerMap)) continue;
     const val = answerMap[f.fieldKey];
+    // Per-field character cap (text/textarea only; authored knob).
+    if (
+      f.maxChars != null &&
+      (f.type === "text" || f.type === "textarea") &&
+      typeof val === "string" &&
+      val.length > f.maxChars
+    ) {
+      return {
+        ok: false,
+        status: 400,
+        error: `“${f.label}” is limited to ${f.maxChars} characters`,
+        code: "VALIDATION_ERROR",
+        details: {
+          fieldKey: f.fieldKey,
+          maxChars: f.maxChars,
+          length: val.length,
+        },
+      };
+    }
     // Multiselect must be string[] (competition field fidelity).
     if (f.type === "multiselect") {
       if (!Array.isArray(val) || !val.every((x) => typeof x === "string")) {
@@ -907,13 +934,14 @@ export async function saveDraft(
   const { event, version } = resolved.value;
 
   const speakers = input.speakers ?? [];
-  if (speakers.length > CFP_MAX_SPEAKERS) {
+  const draftMaxSpeakers = version.maxSpeakers ?? CFP_MAX_SPEAKERS;
+  if (speakers.length > draftMaxSpeakers) {
     return {
       ok: false,
       status: 400,
-      error: `At most ${CFP_MAX_SPEAKERS} speakers allowed`,
+      error: `At most ${draftMaxSpeakers} speaker${draftMaxSpeakers === 1 ? "" : "s"} allowed on this form`,
       code: "VALIDATION_ERROR",
-      details: { maxSpeakers: CFP_MAX_SPEAKERS, count: speakers.length },
+      details: { maxSpeakers: draftMaxSpeakers, count: speakers.length },
     };
   }
   if (speakers.length > 0) {

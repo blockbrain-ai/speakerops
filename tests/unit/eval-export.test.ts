@@ -100,19 +100,46 @@ describe("10.6 eval export/sort", () => {
     const csv = evalRollupToCsv(rows, { sort: "score_desc" });
     const lines = csv.trimEnd().split(/\r?\n/);
     expect(lines[0]).toBe(
-      "submissionId,title,status,category,aggregateScore,assignmentCount,scoredCount,evaluatorEmails,overallComments",
+      "submissionId,title,status,category,aggregateScore,assignmentCount,scoredCount,abstainedCount,evaluatorEmails,overallComments,abstainReasons",
     );
     // High score first
     expect(lines[1]).toContain("sub_high");
     expect(lines[1]).toContain("9");
     expect(lines[1]).toContain("keynote");
-    // Null score still present with empty aggregateScore field (+ empty email/comment cols)
+    // Null score still present with empty aggregateScore field (+ empty email/comment/reason cols)
     const noneLine = lines.find((l) => l.startsWith("sub_none,"));
     expect(noneLine).toBeTruthy();
-    expect(noneLine).toMatch(/sub_none,Beta Pending,submitted,,,1,0,,$/);
-    // Scored count for mid: 1 of 2
+    expect(noneLine).toMatch(/sub_none,Beta Pending,submitted,,,1,0,0,,,$/);
+    // Scored count for mid: 1 of 2, none abstained
     const midLine = lines.find((l) => l.startsWith("sub_mid,"));
-    expect(midLine).toMatch(/,5,2,1,,$/);
+    expect(midLine).toMatch(/,5,2,1,0,,,$/);
+  });
+
+  it("evalRollupToCsv counts abstentions distinctly with reasons (post-11.9)", () => {
+    const withAbstain: EvalCsvRow[] = [
+      {
+        submissionId: "sub_abst",
+        title: "Has Abstain",
+        status: "in_review",
+        category: "talk",
+        aggregateScore: 4,
+        assignments: [
+          { status: "scored", evaluatorEmail: "a@example.com" },
+          {
+            status: "abstained",
+            evaluatorEmail: "b@example.com",
+            abstainReason: "Conflict of interest",
+          },
+        ],
+      },
+    ];
+    const csv = evalRollupToCsv(withAbstain, { sort: "score_desc" });
+    const lines = csv.trimEnd().split(/\r?\n/);
+    const line = lines.find((l) => l.startsWith("sub_abst,"));
+    expect(line).toBeTruthy();
+    // assignmentCount=2, scoredCount=1, abstainedCount=1
+    expect(line).toContain(",4,2,1,1,");
+    expect(line).toContain("Conflict of interest");
   });
 
   it("evalRollupToCsv neutralizes malicious title/category formula injection", () => {

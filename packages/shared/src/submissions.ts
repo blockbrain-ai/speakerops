@@ -55,9 +55,13 @@ export function isSubmissionDecisionSource(status: string): boolean {
   );
 }
 
-/** Multi-speaker bounds on public CFP (A04). */
+/** Default multi-speaker bounds on public CFP (A04). Per-version knob (D14)
+ * may override within CFP_SPEAKERS_HARD_MIN..CFP_SPEAKERS_HARD_MAX. */
 export const CFP_MIN_SPEAKERS = 1 as const;
 export const CFP_MAX_SPEAKERS = 5 as const;
+/** Hard envelope for the configurable per-form speaker bounds (1–15). */
+export const CFP_SPEAKERS_HARD_MIN = 1 as const;
+export const CFP_SPEAKERS_HARD_MAX = 15 as const;
 
 /**
  * Cloudflare Turnstile test keys (docs — not secrets).
@@ -124,10 +128,12 @@ export const SubmissionCreateBodySchema = z.object({
   formVersionId: z.string().min(1),
   title: z.string().min(1).max(500),
   answers: z.array(SubmissionAnswerInputSchema).max(200).default([]),
+  /** Hard envelope only — the pinned form version's min/max speakers is
+   * enforced server-side in Submission.Create (configurable 1–15). */
   speakers: z
     .array(SubmissionSpeakerInputSchema)
-    .min(CFP_MIN_SPEAKERS)
-    .max(CFP_MAX_SPEAKERS),
+    .min(CFP_SPEAKERS_HARD_MIN)
+    .max(CFP_SPEAKERS_HARD_MAX),
   /** Turnstile response token (required). */
   turnstileToken: z.string().min(1).max(4096),
   /**
@@ -195,7 +201,7 @@ export const SubmissionSaveDraftBodySchema = z.object({
   /** Optional speakers; empty allowed on draft (unlike full submit). */
   speakers: z
     .array(SubmissionSpeakerInputSchema)
-    .max(CFP_MAX_SPEAKERS)
+    .max(CFP_SPEAKERS_HARD_MAX)
     .default([]),
   /**
    * When set, update an existing draft (status must remain draft).

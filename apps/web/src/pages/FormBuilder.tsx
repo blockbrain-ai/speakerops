@@ -53,6 +53,7 @@ import { PageHeader } from "../components/ui/PageHeader.js";
 import { Button } from "../components/ui/Button.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Alert } from "../components/ui/Alert.js";
+import { Field } from "../components/ui/Field.js";
 
 function draftFieldsToBuilder(fields: FormFieldDto[]): BuilderField[] {
   return [...fields]
@@ -66,6 +67,9 @@ function draftFieldsToBuilder(fields: FormFieldDto[]): BuilderField[] {
       options: f.options,
       sortOrder: f.sortOrder ?? i,
       conditions: f.conditions,
+      helpText: f.helpText ?? null,
+      placeholder: f.placeholder ?? null,
+      maxChars: f.maxChars ?? null,
     }));
 }
 
@@ -116,6 +120,9 @@ export function FormBuilderPage() {
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
   const [submissionLimit, setSubmissionLimit] = useState("");
+  /** Form settings — configurable speaker bounds (1–15; defaults 1/5). */
+  const [minSpeakers, setMinSpeakers] = useState("1");
+  const [maxSpeakers, setMaxSpeakers] = useState("5");
 
   const [createStatus, setCreateStatus] = useState<StatusMsg>(null);
   const [saveStatus, setSaveStatus] = useState<StatusMsg>(null);
@@ -158,6 +165,8 @@ export function FormBuilderPage() {
           ? String(payload.draft.submissionLimit)
           : "",
       );
+      setMinSpeakers(String(payload.draft.minSpeakers ?? 1));
+      setMaxSpeakers(String(payload.draft.maxSpeakers ?? 5));
       setSelectedClientId(null);
       setBuilderView("build");
     },
@@ -183,6 +192,8 @@ export function FormBuilderPage() {
     setOpensAt("");
     setClosesAt("");
     setSubmissionLimit("");
+    setMinSpeakers("1");
+    setMaxSpeakers("5");
     setCreateStatus(null);
     setSaveStatus(null);
     setPublishStatus(null);
@@ -295,6 +306,22 @@ export function FormBuilderPage() {
   });
   const circular = hasCircularConditions(fields);
 
+  /** Human validation for the speaker-bounds knob (1–15, min ≤ max). */
+  const speakerBoundsError = useMemo(() => {
+    const min = Number(minSpeakers);
+    const max = Number(maxSpeakers);
+    if (!Number.isInteger(min) || min < 1 || min > 15) {
+      return "Minimum speakers must be a whole number between 1 and 15";
+    }
+    if (!Number.isInteger(max) || max < 1 || max > 15) {
+      return "Maximum speakers must be a whole number between 1 and 15";
+    }
+    if (min > max) {
+      return "Minimum speakers cannot exceed maximum speakers";
+    }
+    return null;
+  }, [minSpeakers, maxSpeakers]);
+
   const eventSlug = activeEvent?.slug ?? null;
 
   const updateField = useCallback(
@@ -405,6 +432,8 @@ export function FormBuilderPage() {
       setOpensAt("");
       setClosesAt("");
       setSubmissionLimit("");
+      setMinSpeakers(String(parsed.data.draft.minSpeakers ?? 1));
+      setMaxSpeakers(String(parsed.data.draft.maxSpeakers ?? 5));
       setSelectedClientId(null);
       setCreateStatus({
         kind: "ok",
@@ -432,6 +461,10 @@ export function FormBuilderPage() {
       });
       return null;
     }
+    if (speakerBoundsError) {
+      setSaveStatus({ kind: "error", text: speakerBoundsError });
+      return null;
+    }
     const body = toDraftBody({
       fields,
       rules,
@@ -440,6 +473,8 @@ export function FormBuilderPage() {
       opensAt,
       closesAt,
       submissionLimit,
+      minSpeakers,
+      maxSpeakers,
     });
     const res = await fetch(`/api/forms/${encodeURIComponent(form.id)}/draft`, {
       method: "PUT",
@@ -1125,6 +1160,68 @@ export function FormBuilderPage() {
                         <span>Required</span>
                       </label>
 
+                      {/* Post-11.9 depth — help text / placeholder / character limit */}
+                      <Field
+                        id="field-edit-help"
+                        as="textarea"
+                        label="Help text"
+                        hint="Guidance shown under the label on the public form."
+                        inputProps={{
+                          rows: 2,
+                          maxLength: 500,
+                          value: selected.helpText ?? "",
+                          onChange: (e) =>
+                            updateField(selected.clientId, {
+                              helpText: e.target.value,
+                            }),
+                          "data-testid": "field-edit-help",
+                        }}
+                      />
+                      <Field
+                        id="field-edit-placeholder"
+                        label="Placeholder"
+                        hint="Ghost copy inside the empty input."
+                        inputProps={{
+                          maxLength: 200,
+                          value: selected.placeholder ?? "",
+                          onChange: (e) =>
+                            updateField(selected.clientId, {
+                              placeholder: e.target.value,
+                            }),
+                          "data-testid": "field-edit-placeholder",
+                        }}
+                      />
+                      {selected.type === "text" ||
+                      selected.type === "textarea" ? (
+                        <Field
+                          id="field-edit-maxchars"
+                          label="Character limit"
+                          hint="Longer answers are rejected — submitters see a live counter."
+                          inputProps={{
+                            type: "number",
+                            min: 1,
+                            max: 50_000,
+                            value:
+                              selected.maxChars != null
+                                ? String(selected.maxChars)
+                                : "",
+                            onChange: (e) => {
+                              const raw = e.target.value.trim();
+                              const n = Number(raw);
+                              updateField(selected.clientId, {
+                                maxChars:
+                                  raw.length > 0 &&
+                                  Number.isInteger(n) &&
+                                  n > 0
+                                    ? n
+                                    : null,
+                              });
+                            },
+                            "data-testid": "field-edit-maxchars",
+                          }}
+                        />
+                      ) : null}
+
                       {(selected.type === "select" ||
                         selected.type === "multiselect") && (
                         <>
@@ -1356,6 +1453,63 @@ export function FormBuilderPage() {
               </section>
             </div>
           ) : null}
+
+          {/* Form settings — configurable knobs frozen into the next published
+              version. New home for future per-form settings (post-11.9 depth). */}
+          <section
+            className="form-builder__card form-builder__settings"
+            data-testid="form-settings-panel"
+            aria-labelledby="form-settings-heading"
+          >
+            <div className="form-builder__settings-head">
+              <h3 id="form-settings-heading" className="form-builder__heading">
+                Form settings
+              </h3>
+              <p className="form-builder__muted">
+                How submitters propose speakers on this form. Saved with the
+                draft and frozen into the next published version.
+              </p>
+            </div>
+            <div className="form-builder__settings-grid">
+              <Field
+                id="form-min-speakers"
+                label="Minimum speakers"
+                hint="Fewest speakers a proposal must include (1–15)."
+                inputProps={{
+                  type: "number",
+                  min: 1,
+                  max: 15,
+                  inputMode: "numeric",
+                  value: minSpeakers,
+                  onChange: (e) => setMinSpeakers(e.target.value),
+                  "data-testid": "form-min-speakers",
+                }}
+              />
+              <Field
+                id="form-max-speakers"
+                label="Maximum speakers"
+                hint="Most speakers a proposal can include (1–15)."
+                inputProps={{
+                  type: "number",
+                  min: 1,
+                  max: 15,
+                  inputMode: "numeric",
+                  value: maxSpeakers,
+                  onChange: (e) => setMaxSpeakers(e.target.value),
+                  "data-testid": "form-max-speakers",
+                }}
+              />
+            </div>
+            {speakerBoundsError ? (
+              <Alert
+                tone="warn"
+                title="Check speaker bounds"
+                data-testid="form-settings-error"
+              >
+                {speakerBoundsError}
+              </Alert>
+            ) : null}
+          </section>
 
           {/* Progressive: form-level advanced (routing, copy, limits) — open by default for inventory */}
           <div

@@ -47,6 +47,9 @@
     "D09",
     "D10",
     "D11",
+    "D12",
+    "D13",
+    "D14",
     "E01",
     "E02",
     "E03",
@@ -68,6 +71,9 @@
     "F07",
     "F08",
     "F09",
+    "F10",
+    "F11",
+    "F12",
     "G01",
     "G02",
     "G03",
@@ -608,6 +614,18 @@
       "test_id": "e2e/admin/form-reload",
       "journey": "Reload builder restores draft after refresh"
     },
+    "D12": {
+      "test_id": "e2e/admin/form-field-help",
+      "journey": "Field help text, placeholder & character cap render on public CFP with live counter"
+    },
+    "D13": {
+      "test_id": "e2e/admin/form-file-field",
+      "journey": "File field from palette; publish; public PDF upload; admin detail shows working file link"
+    },
+    "D14": {
+      "test_id": "e2e/admin/form-speaker-bounds",
+      "journey": "Form settings speaker min/max (1–15) enforced on public CFP"
+    },
     "E09": {
       "test_id": "e2e/admin/sub-bulk-commit",
       "journey": "Bulk preview → Confirm apply (commit)"
@@ -639,6 +657,18 @@
     "F09": {
       "test_id": "e2e/eval/admin-reviews",
       "journey": "Expand individual reviewer comments"
+    },
+    "F10": {
+      "test_id": "e2e/eval/abstain",
+      "journey": "Abstain with reason; leaves pending flow; admin rollup counts distinctly + shows reason; aggregate unchanged"
+    },
+    "F11": {
+      "test_id": "e2e/eval/round-close",
+      "journey": "Round deadline in banner; closed round locks scoring server-side + shows closed state"
+    },
+    "F12": {
+      "test_id": "e2e/eval/insights",
+      "journey": "Insights: completion bar, top 10 by aggregate (linked), divergence spread list"
     },
     "J11": {
       "test_id": "e2e/comms/ics-attach-send",

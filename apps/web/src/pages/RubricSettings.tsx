@@ -7,11 +7,33 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   EvalRubricResponseSchema,
   ErrorEnvelopeSchema,
+  isEvalRoundClosed,
   type EvalCriterionDto,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
+import { Alert, Field } from "../components/ui/index.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
+
+/** ISO-8601 → datetime-local input value (local time, minute precision). */
+export function isoToDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
+/** datetime-local input value → ISO-8601 (null when empty/invalid). */
+export function datetimeLocalToIso(value: string): string | null {
+  const t = value.trim();
+  if (!t) return null;
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
 
 type CriterionDraft = {
   localId: string;
@@ -38,6 +60,11 @@ export function RubricSettingsPage() {
   const [status, setStatus] = useState<StatusMsg>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Review deadline (datetime-local input value; "" = no deadline). */
+  const [closesAtLocal, setClosesAtLocal] = useState("");
+  /** Evaluator guidance shown in the queue banner (plain text). */
+  const [instructions, setInstructions] = useState("");
+  const [roundStatus, setRoundStatus] = useState<"open" | "closed">("open");
 
   const loadRubric = useCallback(async (eventId: string) => {
     setLoadError(null);
@@ -67,6 +94,9 @@ export function RubricSettingsPage() {
         setRoundId(null);
         setRoundName("Default rubric");
         setCriteria([emptyCriterion()]);
+        setClosesAtLocal("");
+        setInstructions("");
+        setRoundStatus("open");
         return;
       }
       const parsed = EvalRubricResponseSchema.safeParse(raw);
@@ -76,6 +106,9 @@ export function RubricSettingsPage() {
       }
       setRoundId(parsed.data.round.id);
       setRoundName(parsed.data.round.name);
+      setClosesAtLocal(isoToDatetimeLocal(parsed.data.round.closesAt));
+      setInstructions(parsed.data.round.instructionsMd ?? "");
+      setRoundStatus(parsed.data.round.status);
       if (parsed.data.criteria.length === 0) {
         setCriteria([emptyCriterion()]);
       } else {
@@ -176,6 +209,8 @@ export function RubricSettingsPage() {
             ...(roundId ? { roundId } : {}),
             name: roundName.trim() || "Default rubric",
             criteria: payloadCriteria,
+            closesAt: datetimeLocalToIso(closesAtLocal),
+            instructionsMd: instructions.trim() ? instructions : null,
           }),
         },
       );
@@ -197,6 +232,9 @@ export function RubricSettingsPage() {
       }
       setRoundId(parsed.data.round.id);
       setRoundName(parsed.data.round.name);
+      setClosesAtLocal(isoToDatetimeLocal(parsed.data.round.closesAt));
+      setInstructions(parsed.data.round.instructionsMd ?? "");
+      setRoundStatus(parsed.data.round.status);
       setCriteria(
         parsed.data.criteria.map((c) => ({
           localId: c.id,
@@ -275,6 +313,50 @@ export function RubricSettingsPage() {
               onChange={(ev) => setRoundName(ev.target.value)}
               maxLength={200}
             />
+
+            {/* Post-11.9 depth — review deadline + evaluator guidance */}
+            <div
+              className="rubric-settings__round-knobs"
+              data-testid="rubric-round-knobs"
+            >
+              <Field
+                id="rubric-closes-at"
+                label="Review deadline"
+                hint="Scoring locks after this moment — evaluators see it in their queue. Leave empty for no deadline."
+                inputProps={{
+                  type: "datetime-local",
+                  value: closesAtLocal,
+                  onChange: (ev) => setClosesAtLocal(ev.target.value),
+                  "data-testid": "rubric-closes-at",
+                }}
+              />
+              <Field
+                id="rubric-instructions"
+                as="textarea"
+                label="Instructions for evaluators"
+                hint="Shown above the queue. Plain text — links and formatting render as written."
+                inputProps={{
+                  rows: 4,
+                  maxLength: 10_000,
+                  value: instructions,
+                  onChange: (ev) => setInstructions(ev.target.value),
+                  "data-testid": "rubric-instructions",
+                }}
+              />
+              {isEvalRoundClosed({
+                status: roundStatus,
+                closesAt: datetimeLocalToIso(closesAtLocal),
+              }) ? (
+                <Alert
+                  tone="warn"
+                  title="This round is closed for scoring"
+                  data-testid="rubric-closed-note"
+                >
+                  The deadline has passed — evaluators can no longer save
+                  scores or abstain. Move the deadline forward to reopen.
+                </Alert>
+              ) : null}
+            </div>
 
             {criteria.map((c, index) => (
               <div

@@ -7,6 +7,7 @@
 import { useMemo, useState } from "react";
 import type { BuilderField } from "./form-builder-utils.js";
 import { isFieldVisibleInPreview } from "./form-builder-utils.js";
+import { charCountLabel, charCountTone } from "./char-count.js";
 
 export type FormPreviewProps = {
   fields: BuilderField[];
@@ -94,12 +95,21 @@ export function FormPreview({
                   </span>
                 ) : null}
               </label>
+              {f.helpText?.trim() ? (
+                <p
+                  className="form-builder__field-help"
+                  data-testid={`form-preview-help-${f.fieldKey}`}
+                >
+                  {f.helpText}
+                </p>
+              ) : null}
               {f.type === "textarea" ? (
                 <textarea
                   id={`preview-${f.fieldKey}`}
                   className="form-builder__input lumen-focusable"
                   rows={3}
                   value={answers[f.fieldKey] ?? ""}
+                  placeholder={f.placeholder ?? undefined}
                   onChange={(e) =>
                     setAnswers((prev) => ({
                       ...prev,
@@ -179,6 +189,16 @@ export function FormPreview({
                   }
                   data-testid={`form-preview-input-${f.fieldKey}`}
                 />
+              ) : f.type === "file" ? (
+                <input
+                  id={`preview-${f.fieldKey}`}
+                  type="file"
+                  className="form-builder__input lumen-focusable"
+                  data-testid={`form-preview-input-${f.fieldKey}`}
+                  // Preview only — public CFP performs the real upload.
+                  disabled
+                  aria-describedby={`preview-${f.fieldKey}-note`}
+                />
               ) : (
                 <input
                   id={`preview-${f.fieldKey}`}
@@ -195,6 +215,7 @@ export function FormPreview({
                   }
                   className="form-builder__input lumen-focusable"
                   value={answers[f.fieldKey] ?? ""}
+                  placeholder={f.placeholder ?? undefined}
                   onChange={(e) =>
                     setAnswers((prev) => ({
                       ...prev,
@@ -204,6 +225,35 @@ export function FormPreview({
                   data-testid={`form-preview-input-${f.fieldKey}`}
                 />
               )}
+              {f.type === "file" ? (
+                <p
+                  className="form-builder__muted"
+                  id={`preview-${f.fieldKey}-note`}
+                  data-testid={`form-preview-file-note-${f.fieldKey}`}
+                >
+                  Submitters upload a PDF, PNG, or JPEG here (max 5 MB).
+                </p>
+              ) : null}
+              {f.maxChars != null &&
+              (f.type === "text" || f.type === "textarea") ? (
+                <p
+                  className={`form-builder__char-count form-builder__char-count--${charCountTone(
+                    (answers[f.fieldKey] ?? "").length,
+                    f.maxChars,
+                  )}`}
+                  data-testid={`form-preview-char-count-${f.fieldKey}`}
+                  data-tone={charCountTone(
+                    (answers[f.fieldKey] ?? "").length,
+                    f.maxChars,
+                  )}
+                  aria-live="polite"
+                >
+                  {charCountLabel(
+                    (answers[f.fieldKey] ?? "").length,
+                    f.maxChars,
+                  )}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

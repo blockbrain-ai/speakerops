@@ -162,11 +162,15 @@ export function AdminEvaluationsPage() {
     let assignmentTotal = 0;
     let assignmentScored = 0;
     let withScore = 0;
+    let abstained = 0;
     for (const row of rows) {
       const c = assignmentCoverage(row);
       assignmentTotal += c.total;
       assignmentScored += c.scored;
       if (row.aggregateScore != null) withScore += 1;
+      abstained +=
+        row.abstainedCount ??
+        row.assignments.filter((a) => a.status === "abstained").length;
     }
     const pct =
       assignmentTotal === 0
@@ -177,9 +181,37 @@ export function AdminEvaluationsPage() {
       withScore,
       assignmentTotal,
       assignmentScored,
+      abstained,
       pct,
     };
   }, [rows]);
+
+  /** Top 10 by aggregate score (insights; post-11.9 depth). */
+  const topTen = useMemo(
+    () =>
+      rows
+        .filter(
+          (r) => r.aggregateScore != null && Number.isFinite(r.aggregateScore),
+        )
+        .sort((a, b) => (b.aggregateScore ?? 0) - (a.aggregateScore ?? 0))
+        .slice(0, 10),
+    [rows],
+  );
+
+  /** Largest reviewer disagreement (max−min aggregate spread ≥ 2 reviews). */
+  const divergent = useMemo(
+    () =>
+      rows
+        .filter(
+          (r) =>
+            r.scoreSpread != null &&
+            Number.isFinite(r.scoreSpread) &&
+            r.scoreSpread > 0,
+        )
+        .sort((a, b) => (b.scoreSpread ?? 0) - (a.scoreSpread ?? 0))
+        .slice(0, 10),
+    [rows],
+  );
 
   const onSortChange = useCallback((value: string) => {
     const parsed = EvalScoreSortSchema.safeParse(value);
@@ -406,7 +438,7 @@ export function AdminEvaluationsPage() {
                 className="eval-admin-page__summary"
                 data-testid="eval-coverage-summary"
                 title="Coverage overview"
-                meta={`${coverageSummary.assignmentScored} of ${coverageSummary.assignmentTotal} assignments scored · ${coverageSummary.withScore}/${coverageSummary.submissionCount} submissions have an aggregate`}
+                meta={`${coverageSummary.assignmentScored} of ${coverageSummary.assignmentTotal} assignments scored · ${coverageSummary.withScore}/${coverageSummary.submissionCount} submissions have an aggregate${coverageSummary.abstained > 0 ? ` · ${coverageSummary.abstained} abstained` : ""}`}
               >
                 <div
                   className="eval-coverage__summary-track"
@@ -429,7 +461,123 @@ export function AdminEvaluationsPage() {
                 >
                   {coverageSummary.pct}% complete
                 </p>
+                {coverageSummary.abstained > 0 ? (
+                  <p
+                    className="eval-queue__muted"
+                    data-testid="eval-coverage-abstained"
+                    data-abstained={coverageSummary.abstained}
+                  >
+                    {coverageSummary.abstained} review
+                    {coverageSummary.abstained === 1 ? "" : "s"} abstained —
+                    excluded from every aggregate.
+                  </p>
+                ) : null}
               </Card>
+
+              {/* Insights — top scores + reviewer divergence (post-11.9 depth) */}
+              <div
+                className="eval-insights"
+                data-testid="eval-insights"
+                data-top-count={topTen.length}
+                data-divergent-count={divergent.length}
+              >
+                <Card
+                  className="eval-insights__card"
+                  data-testid="eval-insights-top"
+                  title="Top 10 by aggregate"
+                  meta="Weighted mean across scored reviews"
+                >
+                  {topTen.length === 0 ? (
+                    <p
+                      className="eval-queue__muted"
+                      data-testid="eval-insights-top-empty"
+                    >
+                      No scored submissions yet. Rankings appear as soon as the
+                      first review is saved.
+                    </p>
+                  ) : (
+                    <ol
+                      className="eval-insights__list"
+                      data-testid="eval-insights-top-list"
+                    >
+                      {topTen.map((r, i) => (
+                        <li
+                          key={r.submissionId}
+                          className="eval-insights__row"
+                          data-testid={`eval-insights-top-${i + 1}`}
+                          data-submission-id={r.submissionId}
+                          data-score={
+                            r.aggregateScore != null
+                              ? r.aggregateScore.toFixed(2)
+                              : ""
+                          }
+                        >
+                          <span className="eval-insights__rank">{i + 1}</span>
+                          <a
+                            href={`/admin/submissions?submissionId=${encodeURIComponent(r.submissionId)}`}
+                            className="eval-queue__link lumen-focusable eval-insights__title"
+                            data-testid={`eval-insights-top-link-${r.submissionId}`}
+                          >
+                            {r.title}
+                          </a>
+                          <span className="eval-insights__value">
+                            {r.aggregateScore != null
+                              ? r.aggregateScore.toFixed(2)
+                              : "—"}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </Card>
+                <Card
+                  className="eval-insights__card"
+                  data-testid="eval-insights-divergence"
+                  title="Largest disagreement"
+                  meta="Spread between the highest and lowest review"
+                >
+                  {divergent.length === 0 ? (
+                    <p
+                      className="eval-queue__muted"
+                      data-testid="eval-insights-divergence-empty"
+                    >
+                      No disagreement to show — spreads appear once a
+                      submission has two or more scored reviews.
+                    </p>
+                  ) : (
+                    <ol
+                      className="eval-insights__list"
+                      data-testid="eval-insights-divergence-list"
+                    >
+                      {divergent.map((r, i) => (
+                        <li
+                          key={r.submissionId}
+                          className="eval-insights__row"
+                          data-testid={`eval-insights-divergence-${i + 1}`}
+                          data-submission-id={r.submissionId}
+                          data-spread={
+                            r.scoreSpread != null
+                              ? r.scoreSpread.toFixed(2)
+                              : ""
+                          }
+                        >
+                          <span className="eval-insights__rank">{i + 1}</span>
+                          <a
+                            href={`/admin/submissions?submissionId=${encodeURIComponent(r.submissionId)}`}
+                            className="eval-queue__link lumen-focusable eval-insights__title"
+                            data-testid={`eval-insights-divergence-link-${r.submissionId}`}
+                          >
+                            {r.title}
+                          </a>
+                          <span className="eval-insights__value">
+                            ± {r.scoreSpread != null ? r.scoreSpread.toFixed(2) : "—"}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </Card>
+              </div>
 
               <div
                 className="submissions-page__toolbar eval-admin-page__toolbar"
@@ -511,17 +659,33 @@ export function AdminEvaluationsPage() {
                               </strong>
                               <Badge
                                 tone={
-                                  a.status === "scored" ? "success" : "neutral"
+                                  a.status === "scored"
+                                    ? "success"
+                                    : a.status === "abstained"
+                                      ? "warn"
+                                      : "neutral"
                                 }
                               >
                                 {a.status}
                               </Badge>
                               <span className="eval-queue__muted">
-                                {a.aggregateScore != null
-                                  ? `score ${a.aggregateScore.toFixed(2)}`
-                                  : "no score"}
+                                {a.status === "abstained"
+                                  ? "abstained — not counted"
+                                  : a.aggregateScore != null
+                                    ? `score ${a.aggregateScore.toFixed(2)}`
+                                    : "no score"}
                               </span>
                             </div>
+                            {a.status === "abstained" ? (
+                              <p
+                                className="eval-reviews-list__comment"
+                                data-testid={`eval-review-abstain-reason-${a.id}`}
+                              >
+                                {a.abstainReason?.trim()
+                                  ? `Abstained: ${a.abstainReason}`
+                                  : "Abstained without a reason."}
+                              </p>
+                            ) : null}
                             {a.overallComment ? (
                               <p
                                 className="eval-reviews-list__comment"
@@ -529,9 +693,9 @@ export function AdminEvaluationsPage() {
                               >
                                 {a.overallComment}
                               </p>
-                            ) : (
+                            ) : a.status !== "abstained" ? (
                               <p className="eval-queue__muted">No comment.</p>
-                            )}
+                            ) : null}
                             {a.scores && a.scores.length > 0 ? (
                               <p className="eval-queue__muted eval-reviews-list__scores">
                                 {a.scores

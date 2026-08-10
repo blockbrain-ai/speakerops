@@ -379,12 +379,34 @@ export const FORM_OPENAPI_PATHS = {
                         type: "string",
                         description: "Stable key for submission_answers",
                       },
-                      type: { type: "string" },
+                      type: {
+                        type: "string",
+                        description:
+                          "text|textarea|select|multiselect|checkbox|number|email|url|date|file",
+                      },
                       label: { type: "string" },
                       required: { type: "boolean" },
                       options: { type: "array" },
                       sortOrder: { type: "integer" },
                       conditions: { type: "object" },
+                      helpText: {
+                        type: "string",
+                        nullable: true,
+                        maxLength: 500,
+                        description:
+                          "Guidance under the label on public CFP (post-11.9 depth)",
+                      },
+                      placeholder: {
+                        type: "string",
+                        nullable: true,
+                        maxLength: 200,
+                      },
+                      maxChars: {
+                        type: "integer",
+                        nullable: true,
+                        description:
+                          "Character cap for text/textarea; enforced on Submission.Create",
+                      },
                     },
                   },
                 },
@@ -409,6 +431,21 @@ export const FORM_OPENAPI_PATHS = {
                   nullable: true,
                 },
                 submissionLimit: { type: "integer", nullable: true },
+                minSpeakers: {
+                  type: "integer",
+                  nullable: true,
+                  minimum: 1,
+                  maximum: 15,
+                  description:
+                    "Configurable speaker minimum (enforced against the pinned version on Submission.Create)",
+                },
+                maxSpeakers: {
+                  type: "integer",
+                  nullable: true,
+                  minimum: 1,
+                  maximum: 15,
+                  description: "Configurable speaker maximum (1–15)",
+                },
               },
             },
           },
@@ -614,7 +651,8 @@ export const EVAL_OPENAPI_PATHS = {
     put: {
       operationId: "Eval.UpsertRubric",
       summary: "Eval.UpsertRubric",
-      description: "Admin create/update active eval round criteria (human rubric)",
+      description:
+        "Admin create/update active eval round criteria (human rubric) + review deadline (closesAt) and evaluator instructions (post-11.9 depth)",
       tags: ["Eval"],
       parameters: [
         {
@@ -634,6 +672,19 @@ export const EVAL_OPENAPI_PATHS = {
               properties: {
                 roundId: { type: "string" },
                 name: { type: "string" },
+                closesAt: {
+                  type: "string",
+                  format: "date-time",
+                  nullable: true,
+                  description:
+                    "Review deadline; Eval.Score / Eval.Abstain 409 after close",
+                },
+                instructionsMd: {
+                  type: "string",
+                  nullable: true,
+                  description:
+                    "Evaluator guidance rendered as plain text in the queue",
+                },
                 criteria: {
                   type: "array",
                   items: {
@@ -803,6 +854,52 @@ export const EVAL_OPENAPI_PATHS = {
         "401": { description: "Unauthenticated" },
         "403": { description: "Not assigned evaluator" },
         "404": { description: "Assignment not found" },
+        "409": { description: "Review round closed (deadline passed)" },
+      },
+    },
+  },
+  "/api/me/eval-assignments/{assignmentId}/abstain": {
+    post: {
+      operationId: "Eval.Abstain",
+      summary: "Eval.Abstain",
+      description:
+        "Evaluator abstains from an assigned review (owner-verified). Optional reason is visible to admins; abstained assignments leave the pending flow and never count toward score aggregates (post-11.9 depth).",
+      tags: ["Eval"],
+      parameters: [
+        {
+          name: "assignmentId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: false,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                reason: {
+                  type: "string",
+                  nullable: true,
+                  maxLength: 2000,
+                  description: "Optional reason shown to admins",
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Assignment abstained" },
+        "400": { description: "Validation error (E4)" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Not assigned evaluator" },
+        "404": { description: "Assignment not found" },
+        "409": {
+          description: "Already abstained or review round closed",
+        },
       },
     },
   },
@@ -1905,6 +2002,7 @@ export const OPENAPI_COMMANDS = [
   "Eval.GetRubric",
   "Eval.AdminRollup",
   "Eval.Score",
+  "Eval.Abstain",
   "Eval.GetQueue",
   "Submission.AssignEvaluators",
   "Decision.Record",

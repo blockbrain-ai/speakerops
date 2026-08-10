@@ -10,10 +10,13 @@
 import {
   uuidv7,
   computeWeightedAggregate,
+  computeScoreSpread,
   coerceFiniteNumber,
   sortEvalSubmissionsByScore,
   evalRollupToCsv,
   isSubmissionEvalEligible,
+  isEvalRoundClosed,
+  type EvalAbstainBody,
   type EvalUpsertRubricBody,
   type EvalScoreBody,
   type EvalRoundDto,
@@ -68,7 +71,33 @@ function asRoundStatus(status: string): EvalRoundStatus {
 }
 
 function asAssignmentStatus(status: string): EvalAssignmentStatus {
-  return status === "scored" ? "scored" : "pending";
+  if (status === "scored") return "scored";
+  if (status === "abstained") return "abstained";
+  return "pending";
+}
+
+/** Human 409 message when a review round is closed for scoring/abstain. */
+function roundClosedError(round: EvalRoundRow): CommandErr {
+  const when = round.closesAt
+    ? new Date(round.closesAt).toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "UTC",
+      })
+    : null;
+  return {
+    ok: false,
+    status: 409,
+    error: when
+      ? `This review round closed on ${when} (UTC) — scores can no longer change`
+      : "This review round is closed — scores can no longer change",
+    code: "CONFLICT",
+    details: {
+      roundId: round.id,
+      status: round.status,
+      closesAt: round.closesAt,
+    },
+  };
 }
 
 function finiteOr(
@@ -86,6 +115,7 @@ function toRoundDto(row: EvalRoundRow): EvalRoundDto {
     name: row.name ?? "",
     status: asRoundStatus(row.status),
     closesAt: row.closesAt ?? null,
+    instructionsMd: row.instructionsMd ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -145,6 +175,7 @@ async function toAssignmentDto(
     evaluatorUserId: row.evaluatorUserId,
     status: asAssignmentStatus(row.status),
     overallComment: row.overallComment ?? null,
+    abstainReason: row.abstainReason ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     aggregateScore:
@@ -187,6 +218,7 @@ function toAssignmentDtoWithScores(
     evaluatorUserId: row.evaluatorUserId,
     status: asAssignmentStatus(row.status),
     overallComment: row.overallComment ?? null,
+    abstainReason: row.abstainReason ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     aggregateScore:
@@ -220,6 +252,18 @@ export async function upsertRubric(
   const now = new Date().toISOString();
   let round: EvalRoundRow | null = null;
 
+  // Deadline / instructions knobs: omitted keeps current, null clears.
+  const roundPatch: {
+    closesAt?: string | null;
+    instructionsMd?: string | null;
+  } = {};
+  if (input.closesAt !== undefined) roundPatch.closesAt = input.closesAt;
+  if (input.instructionsMd !== undefined) {
+    roundPatch.instructionsMd = input.instructionsMd?.trim()
+      ? input.instructionsMd
+      : null;
+  }
+
   if (input.roundId) {
     round = await deps.eval.findRoundById(input.roundId);
     if (!round || round.eventId !== input.eventId) {
@@ -233,6 +277,7 @@ export async function upsertRubric(
     round =
       (await deps.eval.updateRound(round.id, {
         name: input.name ?? round.name,
+        ...roundPatch,
         updatedAt: now,
       })) ?? round;
   } else {
@@ -241,6 +286,7 @@ export async function upsertRubric(
       round =
         (await deps.eval.updateRound(round.id, {
           name: input.name ?? round.name,
+          ...roundPatch,
           updatedAt: now,
         })) ?? round;
     } else {
@@ -249,7 +295,10 @@ export async function upsertRubric(
         eventId: input.eventId,
         name: input.name ?? "Default rubric",
         status: "open",
-        closesAt: null,
+        closesAt: input.closesAt ?? null,
+        instructionsMd: input.instructionsMd?.trim()
+          ? input.instructionsMd
+          : null,
         createdAt: now,
         updatedAt: now,
       });
@@ -387,6 +436,11 @@ export async function scoreAssignment(
     };
   }
 
+  // Deadline enforcement: closed rounds accept no further scores (409).
+  if (isEvalRoundClosed(round)) {
+    return roundClosedError(round);
+  }
+
   const criteria = await deps.eval.listCriteria(round.id);
   const byId = new Map(criteria.map((c) => [c.id, c]));
 
@@ -452,6 +506,8 @@ export async function scoreAssignment(
   const updated = await deps.eval.updateAssignment(assignment.id, {
     status: "scored",
     overallComment: input.comment ?? null,
+    // Scoring after an abstention re-activates the review.
+    abstainReason: null,
     updatedAt: now,
   });
 
@@ -484,6 +540,105 @@ export async function scoreAssignment(
     createdAt: now,
   });
 
+  const dto = await toAssignmentDto(deps, updated, criteria, true);
+  return { ok: true, value: { assignment: dto } };
+}
+
+export type AbstainAssignmentInput = EvalAbstainBody & {
+  assignmentId: string;
+  actorUserId: string;
+  correlationId: string;
+};
+
+/**
+ * Eval.Abstain — evaluator declines to score an assignment (conflict of
+ * interest, expertise mismatch, …). Owner-verified; optional reason is shown
+ * to admins. Abstained assignments leave the pending flow and never
+ * contribute to score aggregates. Rejected after round close (409).
+ */
+export async function abstainAssignment(
+  deps: EvalCommandDeps,
+  input: AbstainAssignmentInput,
+): Promise<CommandOk<{ assignment: EvalAssignmentDto }> | CommandErr> {
+  const assignment = await deps.eval.findAssignmentById(input.assignmentId);
+  if (!assignment) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Assignment not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  // Ownership: only the assigned evaluator may abstain.
+  if (assignment.evaluatorUserId !== input.actorUserId) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Not assigned to this evaluator",
+      code: "FORBIDDEN",
+    };
+  }
+
+  const round = await deps.eval.findRoundById(assignment.roundId);
+  if (!round) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Eval round not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  if (isEvalRoundClosed(round)) {
+    return roundClosedError(round);
+  }
+
+  if (assignment.status === "abstained") {
+    return {
+      ok: false,
+      status: 409,
+      error: "You have already abstained from this review",
+      code: "CONFLICT",
+    };
+  }
+
+  const reason = input.reason?.trim() ? input.reason.trim() : null;
+  const now = new Date().toISOString();
+
+  // Abstaining discards any partial scores so aggregates stay honest.
+  await deps.eval.replaceScores(assignment.id, []);
+  const updated = await deps.eval.updateAssignment(assignment.id, {
+    status: "abstained",
+    abstainReason: reason,
+    updatedAt: now,
+  });
+  if (!updated) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Assignment not found",
+      code: "NOT_FOUND",
+    };
+  }
+
+  await deps.auth.insertAudit({
+    id: uuidv7(),
+    eventId: round.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "Eval.Abstain",
+    entityType: "eval_assignment",
+    entityId: assignment.id,
+    afterJson: JSON.stringify({
+      submissionId: assignment.submissionId,
+      reason,
+    }),
+    correlationId: input.correlationId,
+    createdAt: now,
+  });
+
+  const criteria = await deps.eval.listCriteria(round.id);
   const dto = await toAssignmentDto(deps, updated, criteria, true);
   return { ok: true, value: { assignment: dto } };
 }
@@ -700,6 +855,7 @@ export async function getEvalQueue(
         name: roundDto.name,
         status: roundDto.status,
         closesAt: roundDto.closesAt,
+        instructionsMd: roundDto.instructionsMd ?? null,
       },
     });
   }
@@ -895,6 +1051,7 @@ export async function getAdminEvalRollup(
         status: asAssignmentStatus(a.status),
         aggregateScore: safeAgg,
         overallComment: a.overallComment ?? null,
+        abstainReason: a.abstainReason ?? null,
         scores,
       });
     }
@@ -902,6 +1059,9 @@ export async function getAdminEvalRollup(
       aggregates.length > 0
         ? aggregates.reduce((s, v) => s + v, 0) / aggregates.length
         : null;
+    const abstainedCount = assignmentSummaries.filter(
+      (a) => a.status === "abstained",
+    ).length;
     rollups.push({
       submissionId,
       title,
@@ -909,6 +1069,9 @@ export async function getAdminEvalRollup(
       status,
       aggregateScore:
         mean != null && Number.isFinite(mean) ? mean : null,
+      // Divergence: max−min across scored assignment aggregates (≥2 required).
+      scoreSpread: computeScoreSpread(aggregates),
+      abstainedCount,
       assignments: assignmentSummaries,
     });
   }
@@ -1004,6 +1167,8 @@ export async function getSubmissionEvalReviews(
       evaluatorEmail: evaluator?.email ?? null,
       status,
       overallComment: a.overallComment ?? null,
+      // Reason visible to admins (and self) in review detail.
+      abstainReason: input.isAdmin || isSelf ? (a.abstainReason ?? null) : null,
       aggregateScore:
         agg != null && Number.isFinite(agg) ? agg : null,
       scores: scoreRows.map((s) => ({

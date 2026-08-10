@@ -30,8 +30,27 @@ export const FormFieldTypeSchema = z.enum([
   "email",
   "url",
   "date",
+  "file",
 ]);
 export type FormFieldType = z.infer<typeof FormFieldTypeSchema>;
+
+/** Field types that accept a character cap (maxChars). */
+export const FORM_FIELD_MAX_CHARS_TYPES = [
+  "text",
+  "textarea",
+] as const satisfies readonly FormFieldType[];
+
+export function fieldTypeSupportsMaxChars(type: string): boolean {
+  return (FORM_FIELD_MAX_CHARS_TYPES as readonly string[]).includes(type);
+}
+
+/** Bounds for the per-field character cap knob. */
+export const FORM_FIELD_MAX_CHARS_MIN = 1 as const;
+export const FORM_FIELD_MAX_CHARS_MAX = 50_000 as const;
+
+/** Configurable speaker bounds envelope (per form version; 1–15). */
+export const CFP_SPEAKERS_BOUND_MIN = 1 as const;
+export const CFP_SPEAKERS_BOUND_MAX = 15 as const;
 
 export const FormStatusSchema = z.enum(["draft", "published"]);
 export type FormStatus = z.infer<typeof FormStatusSchema>;
@@ -66,15 +85,48 @@ export const FormFieldOptionSchema = z.object({
 export type FormFieldOption = z.infer<typeof FormFieldOptionSchema>;
 
 /** Field input for Form.UpdateDraftFields. */
-export const FormFieldInputSchema = z.object({
-  fieldKey: FieldKeySchema,
-  type: FormFieldTypeSchema,
-  label: z.string().min(1).max(256),
-  required: z.boolean().default(false),
-  options: z.array(FormFieldOptionSchema).max(100).optional().nullable(),
-  sortOrder: z.number().int().min(0).max(10_000).optional(),
-  conditions: FormFieldConditionsSchema.optional().nullable(),
-});
+export const FormFieldInputSchema = z
+  .object({
+    fieldKey: FieldKeySchema,
+    type: FormFieldTypeSchema,
+    label: z.string().min(1).max(256),
+    required: z.boolean().default(false),
+    options: z.array(FormFieldOptionSchema).max(100).optional().nullable(),
+    sortOrder: z.number().int().min(0).max(10_000).optional(),
+    conditions: FormFieldConditionsSchema.optional().nullable(),
+    /** Guidance rendered under the label on public CFP + preview. */
+    helpText: z.string().max(500).optional().nullable(),
+    /** Placeholder copy inside the input. */
+    placeholder: z.string().max(200).optional().nullable(),
+    /** Character cap (text/textarea only; server-enforced on submit). */
+    maxChars: z
+      .number()
+      .int()
+      .min(FORM_FIELD_MAX_CHARS_MIN)
+      .max(FORM_FIELD_MAX_CHARS_MAX)
+      .optional()
+      .nullable(),
+  })
+  .superRefine((field, ctx) => {
+    if (field.maxChars != null && !fieldTypeSupportsMaxChars(field.type)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxChars"],
+        message: "maxChars is only allowed on text and textarea fields",
+      });
+    }
+    if (
+      field.type === "file" &&
+      field.options != null &&
+      field.options.length > 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["options"],
+        message: "file fields do not take options",
+      });
+    }
+  });
 export type FormFieldInput = z.infer<typeof FormFieldInputSchema>;
 
 /** Category routing rule input. */
@@ -94,7 +146,7 @@ export const FormSchema = z.object({
 });
 export type FormDto = z.infer<typeof FormSchema>;
 
-/** Field DTO (response). */
+/** Field DTO (response). Depth fields optional for pre-0023 snapshots. */
 export const FormFieldSchema = z.object({
   id: z.string().min(1),
   fieldKey: FieldKeySchema,
@@ -104,6 +156,9 @@ export const FormFieldSchema = z.object({
   options: z.array(FormFieldOptionSchema).nullable(),
   sortOrder: z.number().int(),
   conditions: FormFieldConditionsSchema.nullable(),
+  helpText: z.string().max(500).optional().nullable(),
+  placeholder: z.string().max(200).optional().nullable(),
+  maxChars: z.number().int().positive().optional().nullable(),
 });
 export type FormFieldDto = z.infer<typeof FormFieldSchema>;
 
@@ -125,6 +180,9 @@ export const FormSnapshotSchema = z.object({
   opensAt: z.string().nullable(),
   closesAt: z.string().nullable(),
   submissionLimit: z.number().int().positive().nullable(),
+  /** Speaker bounds frozen at publish (pre-0024 snapshots omit; defaults apply). */
+  minSpeakers: z.number().int().positive().optional(),
+  maxSpeakers: z.number().int().positive().optional(),
   fields: z.array(FormFieldSchema),
   rules: z.array(FormRuleSchema),
 });
@@ -140,6 +198,9 @@ export const FormVersionSchema = z.object({
   opensAt: z.string().nullable(),
   closesAt: z.string().nullable(),
   submissionLimit: z.number().int().positive().nullable(),
+  /** Configurable speaker bounds (1–15; defaults 1/5 pre-knob). */
+  minSpeakers: z.number().int().positive().optional(),
+  maxSpeakers: z.number().int().positive().optional(),
   publishedAt: z.string().nullable(),
   /** Present on published versions; null on draft. */
   snapshotJson: FormSnapshotSchema.nullable(),
@@ -163,16 +224,45 @@ export const FormCreateResponseSchema = z.object({
 export type FormCreateResponse = z.infer<typeof FormCreateResponseSchema>;
 
 /** Form.UpdateDraftFields body — PUT /api/forms/:formId/draft */
-export const FormUpdateDraftBodySchema = z.object({
-  fields: z.array(FormFieldInputSchema).max(200),
-  rules: z.array(FormRuleInputSchema).max(100).default([]),
-  welcomeMd: z.string().max(50_000).optional().nullable(),
-  thankYouMd: z.string().max(50_000).optional().nullable(),
-  /** ISO-8601 timestamps (window open/close); validated as non-empty strings when set. */
-  opensAt: z.string().min(1).max(64).optional().nullable(),
-  closesAt: z.string().min(1).max(64).optional().nullable(),
-  submissionLimit: z.number().int().positive().max(1_000_000).optional().nullable(),
-});
+export const FormUpdateDraftBodySchema = z
+  .object({
+    fields: z.array(FormFieldInputSchema).max(200),
+    rules: z.array(FormRuleInputSchema).max(100).default([]),
+    welcomeMd: z.string().max(50_000).optional().nullable(),
+    thankYouMd: z.string().max(50_000).optional().nullable(),
+    /** ISO-8601 timestamps (window open/close); validated as non-empty strings when set. */
+    opensAt: z.string().min(1).max(64).optional().nullable(),
+    closesAt: z.string().min(1).max(64).optional().nullable(),
+    submissionLimit: z.number().int().positive().max(1_000_000).optional().nullable(),
+    /** Speaker bounds knob (1–15). Omitted → keep current draft values. */
+    minSpeakers: z
+      .number()
+      .int()
+      .min(CFP_SPEAKERS_BOUND_MIN)
+      .max(CFP_SPEAKERS_BOUND_MAX)
+      .optional()
+      .nullable(),
+    maxSpeakers: z
+      .number()
+      .int()
+      .min(CFP_SPEAKERS_BOUND_MIN)
+      .max(CFP_SPEAKERS_BOUND_MAX)
+      .optional()
+      .nullable(),
+  })
+  .superRefine((body, ctx) => {
+    if (
+      body.minSpeakers != null &&
+      body.maxSpeakers != null &&
+      body.minSpeakers > body.maxSpeakers
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["minSpeakers"],
+        message: "Minimum speakers cannot exceed maximum speakers",
+      });
+    }
+  });
 export type FormUpdateDraftBody = z.infer<typeof FormUpdateDraftBodySchema>;
 
 /** Form.UpdateDraftFields response */

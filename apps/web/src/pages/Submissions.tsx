@@ -23,6 +23,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -113,6 +114,29 @@ function formatAnswerValue(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+/**
+ * Answer value as ReactNode — `file:<id>` answers render as a working
+ * "Uploaded file" link via the files module (admin session authorized).
+ */
+function renderAnswerValue(value: unknown): ReactNode {
+  if (typeof value === "string" && value.startsWith("file:")) {
+    const fileId = value.slice("file:".length);
+    return (
+      <a
+        href={`/api/files/${encodeURIComponent(fileId)}`}
+        className="eval-queue__link lumen-focusable"
+        target="_blank"
+        rel="noreferrer"
+        data-testid={`submission-file-link-${fileId}`}
+        data-file-id={fileId}
+      >
+        Uploaded file
+      </a>
+    );
+  }
+  return formatAnswerValue(value);
 }
 
 /** Human heading when API omits label — never show raw track_pref as the primary UI. */
@@ -1553,7 +1577,7 @@ export function SubmissionsPage() {
                           {answerHeading(a)}
                         </dt>
                         <dd className="submissions-page__answer-value">
-                          {formatAnswerValue(a.value)}
+                          {renderAnswerValue(a.value)}
                         </dd>
                       </div>
                     ))}

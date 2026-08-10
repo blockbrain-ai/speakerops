@@ -1,7 +1,7 @@
 /**
  * Pure helpers for evaluator queue round strip (active-round progress).
  */
-import type { EvalQueueItem } from "@speakerops/shared";
+import { isEvalRoundClosed, type EvalQueueItem } from "@speakerops/shared";
 
 export type EvalRoundStripModel = {
   eventName: string;
@@ -9,6 +9,10 @@ export type EvalRoundStripModel = {
   roundName: string;
   roundStatus: string;
   closesAt: string | null;
+  /** Plain-text evaluator guidance from the round (never HTML). */
+  instructionsMd: string | null;
+  /** True when the round no longer accepts scores (status or deadline). */
+  closed: boolean;
   done: number;
   total: number;
   pct: number;
@@ -16,6 +20,8 @@ export type EvalRoundStripModel = {
 
 function isComplete(item: EvalQueueItem): boolean {
   if (item.assignment.status === "scored") return true;
+  // Abstained assignments leave the pending flow (post-11.9 depth).
+  if (item.assignment.status === "abstained") return true;
   if (item.assignment.aggregateScore != null) return true;
   const scores = item.assignment.scores ?? [];
   if (item.criteria.length === 0) return false;
@@ -56,6 +62,11 @@ export function buildEvalRoundStrip(
     roundName: source.round.name,
     roundStatus: source.round.status,
     closesAt: source.round.closesAt,
+    instructionsMd: source.round.instructionsMd ?? null,
+    closed: isEvalRoundClosed({
+      status: source.round.status,
+      closesAt: source.round.closesAt,
+    }),
     done,
     total,
     pct,

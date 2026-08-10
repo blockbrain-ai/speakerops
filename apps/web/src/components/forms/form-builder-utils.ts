@@ -23,6 +23,10 @@ export type BuilderField = {
   options: FormFieldOption[] | null;
   sortOrder: number;
   conditions: FormFieldConditions | null;
+  /** Depth knobs (post-11.9): help copy, placeholder, character cap. */
+  helpText?: string | null;
+  placeholder?: string | null;
+  maxChars?: number | null;
 };
 
 export type BuilderRule = {
@@ -105,6 +109,14 @@ export const FIELD_PALETTE: ReadonlyArray<{
     testId: "palette-url",
     defaultLabel: "File or URL",
     keyPrefix: "file_url",
+    needsOptions: false,
+  },
+  {
+    type: "file",
+    label: "File upload",
+    testId: "palette-file",
+    defaultLabel: "Supporting file",
+    keyPrefix: "file",
     needsOptions: false,
   },
   {
@@ -260,6 +272,14 @@ export function canPublish(input: {
   return publishBlockReasons(input).length === 0;
 }
 
+/** Parse a positive-int knob input ("" → null). */
+function parsePositiveInt(raw: string): number | null {
+  const t = raw.trim();
+  if (t.length === 0) return null;
+  const n = Number(t);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 export function toDraftBody(input: {
   fields: BuilderField[];
   rules: BuilderRule[];
@@ -268,6 +288,9 @@ export function toDraftBody(input: {
   opensAt: string;
   closesAt: string;
   submissionLimit: string;
+  /** Speaker bounds knob values as raw strings ("" keeps server default). */
+  minSpeakers?: string;
+  maxSpeakers?: string;
 }): FormUpdateDraftBody {
   const fields: FormFieldInput[] = input.fields.map((f, index) => ({
     fieldKey: f.fieldKey,
@@ -277,17 +300,18 @@ export function toDraftBody(input: {
     options: f.options,
     sortOrder: f.sortOrder ?? index,
     conditions: f.conditions,
+    helpText: f.helpText?.trim() ? f.helpText.trim() : null,
+    placeholder: f.placeholder?.trim() ? f.placeholder.trim() : null,
+    maxChars:
+      f.maxChars != null && (f.type === "text" || f.type === "textarea")
+        ? f.maxChars
+        : null,
   }));
   const rules: FormRuleInput[] = input.rules.map((r) => ({
     when: r.when,
     routeToCategory: r.routeToCategory,
   }));
-  let submissionLimit: number | null = null;
-  const lim = input.submissionLimit.trim();
-  if (lim.length > 0) {
-    const n = Number(lim);
-    if (Number.isInteger(n) && n > 0) submissionLimit = n;
-  }
+  const submissionLimit = parsePositiveInt(input.submissionLimit);
   return {
     fields,
     rules,
@@ -296,6 +320,8 @@ export function toDraftBody(input: {
     opensAt: input.opensAt.trim() ? input.opensAt.trim() : null,
     closesAt: input.closesAt.trim() ? input.closesAt.trim() : null,
     submissionLimit,
+    minSpeakers: parsePositiveInt(input.minSpeakers ?? ""),
+    maxSpeakers: parsePositiveInt(input.maxSpeakers ?? ""),
   };
 }
 

@@ -250,6 +250,12 @@
       "journey": "Add speaker field from palette"
     },
     {
+      "testid": "palette-file",
+      "inv": "D13",
+      "surface": "admin",
+      "journey": "Add file upload field from palette (post-11.9 depth)"
+    },
+    {
       "testid": "field-move-up-*",
       "inv": "D02",
       "surface": "admin",
@@ -440,6 +446,24 @@
       "inv": "F02",
       "surface": "evaluator",
       "journey": "Save evaluation score"
+    },
+    {
+      "testid": "eval-abstain-open",
+      "inv": "F10",
+      "surface": "evaluator",
+      "journey": "Open abstain confirm modal (post-11.9 depth)"
+    },
+    {
+      "testid": "eval-abstain-confirm",
+      "inv": "F10",
+      "surface": "evaluator",
+      "journey": "Confirm abstain with optional reason"
+    },
+    {
+      "testid": "eval-abstain-cancel",
+      "inv": "F10",
+      "surface": "evaluator",
+      "journey": "Dismiss abstain modal (keep reviewing)"
     },
     {
       "testid": "eval-export-csv",

@@ -5274,3 +5274,148 @@ a.event-settings__btn {
 .portal-session__ics:hover {
   text-decoration: underline;
 }
+
+/* ================================================================
+   Post-11.9 depth (Wave 1A) — field help / char counters, form
+   settings card, abstain flow, round-close banner, eval insights.
+   Lumen tokens only (E6).
+   ================================================================ */
+
+/* --- Field help copy (builder preview + public CFP) --- */
+.form-builder__field-help,
+.public-cfp__field-help {
+  margin: var(--lumen-space-1) 0 var(--lumen-space-2);
+  font-size: var(--lumen-text-meta);
+  line-height: var(--lumen-text-meta-lh);
+  color: var(--lumen-text-secondary);
+  max-width: var(--lumen-measure-prose);
+}
+
+/* --- Live character counter (ok → warn near cap → over) --- */
+.form-builder__char-count,
+.public-cfp__char-count {
+  margin: var(--lumen-space-1) 0 0;
+  font-size: var(--lumen-text-meta);
+  line-height: var(--lumen-text-meta-lh);
+  color: var(--lumen-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--lumen-motion-fast) var(--lumen-ease);
+}
+.form-builder__char-count--warn,
+.public-cfp__char-count--warn {
+  color: var(--lumen-warn);
+  font-weight: var(--lumen-font-weight-medium);
+}
+.form-builder__char-count--over,
+.public-cfp__char-count--over {
+  color: var(--lumen-danger);
+  font-weight: var(--lumen-font-weight-semibold);
+}
+
+/* --- Form settings card (builder; future per-form knobs live here) --- */
+.form-builder__settings {
+  display: grid;
+  gap: var(--lumen-space-4);
+}
+.form-builder__settings-head {
+  display: grid;
+  gap: var(--lumen-space-1);
+  max-width: var(--lumen-measure-prose);
+}
+.form-builder__settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--lumen-space-4);
+  align-items: start;
+}
+
+/* --- Rubric settings round knobs (deadline + instructions) --- */
+.rubric-settings__round-knobs {
+  display: grid;
+  gap: var(--lumen-space-3);
+  margin: var(--lumen-space-4) 0;
+  padding: var(--lumen-space-4);
+  background: var(--lumen-surface-muted);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-md);
+}
+
+/* --- Evaluator round strip: closed state + instructions --- */
+.eval-round-strip--closed {
+  border-color: var(--lumen-warn);
+  background: var(--lumen-warn-soft);
+}
+.eval-round-strip__closed-note {
+  margin: var(--lumen-space-2) 0 0;
+  font-size: var(--lumen-text-ui);
+  line-height: var(--lumen-text-ui-lh);
+  font-weight: var(--lumen-font-weight-medium);
+  color: var(--lumen-text);
+}
+.eval-round-strip__instructions {
+  margin: var(--lumen-space-2) 0 0;
+  padding: var(--lumen-space-3);
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border-subtle);
+  border-radius: var(--lumen-radius-sm);
+  font-size: var(--lumen-text-ui);
+  line-height: var(--lumen-text-ui-lh);
+  color: var(--lumen-text-secondary);
+  white-space: pre-wrap;
+  max-width: var(--lumen-measure-prose);
+}
+
+/* --- Score panel actions (save + abstain side by side) --- */
+.eval-queue__score-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  align-items: center;
+  margin-top: var(--lumen-space-3);
+}
+
+/* --- Admin evaluations insights (top 10 + divergence) --- */
+.eval-insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--lumen-space-4);
+  margin: var(--lumen-space-4) 0;
+}
+.eval-insights__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--lumen-space-1);
+}
+.eval-insights__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lumen-space-2);
+  padding: var(--lumen-space-1) var(--lumen-space-2);
+  border-radius: var(--lumen-radius-sm);
+}
+.eval-insights__row:hover {
+  background: var(--lumen-surface-muted);
+}
+.eval-insights__rank {
+  flex: 0 0 auto;
+  min-width: 1.5em;
+  font-size: var(--lumen-text-meta);
+  font-weight: var(--lumen-font-weight-semibold);
+  color: var(--lumen-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.eval-insights__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eval-insights__value {
+  flex: 0 0 auto;
+  font-weight: var(--lumen-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--lumen-text);
+}

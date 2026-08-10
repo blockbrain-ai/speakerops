@@ -93,6 +93,9 @@
 | D09 | admin | Forms | Open/close + submission limit | e2e/admin/form-limits | Over limit rejected | REQUIRED | PASS |
 | D10 | admin | Forms | Copy public link | e2e/admin/form-link | — | REQUIRED | PASS |
 | D11 | admin | Forms | Reload builder restores draft after refresh | e2e/admin/form-reload | — | REQUIRED | PASS |
+| D12 | admin | Forms | Field help text, placeholder & character cap render on public CFP with live counter | e2e/admin/form-field-help | Over-cap submit rejected client + server (400) | REQUIRED | PASS |
+| D13 | admin | Forms | File field from palette; publish; public PDF upload; admin detail shows working file link | e2e/admin/form-file-field | File field with options rejected | REQUIRED | PASS |
+| D14 | admin | Forms | Form settings speaker min/max (1–15) enforced on public CFP | e2e/admin/form-speaker-bounds | Over-max and under-min submits rejected (400) | REQUIRED | PASS |
 
 ---
 
@@ -128,6 +131,9 @@
 | F07 | evaluator | Queue | Next unreviewed + search/filter | e2e/eval/queue-nav | — | REQUIRED | PASS |
 | F08 | evaluator | Queue | Peer reviews reveal-after-submit | e2e/eval/peer-reviews | Pending peer hidden | REQUIRED | PASS |
 | F09 | admin | Evaluations | Expand individual reviewer comments | e2e/eval/admin-reviews | — | REQUIRED | PASS |
+| F10 | evaluator | Queue | Abstain with reason; leaves pending flow; admin rollup counts distinctly + shows reason; aggregate unchanged | e2e/eval/abstain | Second abstain rejected (409) | REQUIRED | PASS |
+| F11 | evaluator | Queue | Round deadline in banner; closed round locks scoring server-side + shows closed state | e2e/eval/round-close | Score after close rejected (409) | REQUIRED | PASS |
+| F12 | admin | Evaluations | Insights: completion bar, top 10 by aggregate (linked), divergence spread list | e2e/eval/insights | Empty insights state before any scores | REQUIRED | PASS |
 
 ---
 

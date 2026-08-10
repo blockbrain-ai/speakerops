@@ -20,9 +20,11 @@ import { useSearchParams } from "react-router-dom";
 import {
   EvalQueueResponseSchema,
   EvalScoreResponseSchema,
+  EvalAbstainResponseSchema,
   EvalProposalResponseSchema,
   EvalReviewsResponseSchema,
   ErrorEnvelopeSchema,
+  isEvalRoundClosed,
   type EvalQueueItem,
   type EvalCriterionDto,
   type EvalProposalResponse,
@@ -34,6 +36,8 @@ import {
   Button,
   Card,
   EmptyState,
+  Field,
+  Modal,
   PageHeader,
   Skeleton,
 } from "../components/ui/index.js";
@@ -46,6 +50,8 @@ type StatusMsg = { kind: "ok" | "error"; text: string } | null;
 
 function isAssignmentComplete(item: EvalQueueItem): boolean {
   if (item.assignment.status === "scored") return true;
+  // Abstained reviews leave the pending flow (post-11.9 depth).
+  if (item.assignment.status === "abstained") return true;
   if (item.assignment.aggregateScore != null) return true;
   const scores = item.assignment.scores ?? [];
   if (item.criteria.length === 0) return false;
@@ -93,6 +99,12 @@ export function EvaluatorQueuePage() {
   const [peerReviews, setPeerReviews] = useState<EvalReviewItem[]>([]);
   const [peerLoading, setPeerLoading] = useState(false);
   const [peerError, setPeerError] = useState<string | null>(null);
+
+  /** Abstain flow (post-11.9 depth) — small confirm modal with reason. */
+  const [abstainOpen, setAbstainOpen] = useState(false);
+  const [abstainReason, setAbstainReason] = useState("");
+  const [abstaining, setAbstaining] = useState(false);
+  const [abstainError, setAbstainError] = useState<string | null>(null);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
@@ -220,6 +232,16 @@ export function EvaluatorQueuePage() {
   }, [activeId]);
 
   const active = items.find((i) => i.assignment.id === activeId) ?? null;
+  /** Deadline enforcement mirror — server 409s after close; UI locks honestly. */
+  const activeRoundClosed = active
+    ? isEvalRoundClosed({
+        status: active.round.status,
+        closesAt: active.round.closesAt,
+      })
+    : false;
+  const activeAbstained = active?.assignment.status === "abstained";
+  const scoringLocked =
+    !proposalReady || proposalLoading || activeRoundClosed || activeAbstained;
 
   /** Peer reviews (reveal-after-submit) for the active submission. */
   useEffect(() => {
@@ -408,6 +430,50 @@ export function EvaluatorQueuePage() {
     }
   }
 
+  /** Eval.Abstain — remove this review from the pending flow with a reason. */
+  async function onConfirmAbstain() {
+    if (!active) return;
+    setAbstaining(true);
+    setAbstainError(null);
+    try {
+      const res = await fetch(
+        `/api/me/eval-assignments/${encodeURIComponent(active.assignment.id)}/abstain`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            reason: abstainReason.trim() === "" ? null : abstainReason.trim(),
+          }),
+        },
+      );
+      const raw: unknown = await res.json().catch(() => null);
+      if (!res.ok) {
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setAbstainError(
+          env.success ? env.data.error : `Abstain failed (${res.status})`,
+        );
+        return;
+      }
+      const parsed = EvalAbstainResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        setAbstainError("Unexpected response");
+        return;
+      }
+      setAbstainOpen(false);
+      setAbstainReason("");
+      setStatus({
+        kind: "ok",
+        text: "You've abstained from this review — it no longer counts toward your pending queue.",
+      });
+      await loadQueue();
+    } catch {
+      setAbstainError("Network error");
+    } finally {
+      setAbstaining(false);
+    }
+  }
+
   return (
     <div
       className="eval-queue eval-queue--l2"
@@ -431,10 +497,15 @@ export function EvaluatorQueuePage() {
 
       {!loading && !loadError && roundStrip ? (
         <div
-          className="eval-round-strip"
+          className={
+            roundStrip.closed
+              ? "eval-round-strip eval-round-strip--closed"
+              : "eval-round-strip"
+          }
           data-testid="eval-round-strip"
           data-round-id={roundStrip.roundId}
           data-round-status={roundStrip.roundStatus}
+          data-round-closed={roundStrip.closed ? "1" : "0"}
         >
           <div className="eval-round-strip__row">
             <div>
@@ -445,13 +516,29 @@ export function EvaluatorQueuePage() {
                 {roundStrip.roundName}
               </p>
             </div>
-            <Badge tone="info" data-testid="eval-round-strip-status">
-              {roundStrip.roundStatus}
+            <Badge
+              tone={roundStrip.closed ? "warn" : "info"}
+              data-testid="eval-round-strip-status"
+            >
+              {roundStrip.closed ? "closed" : roundStrip.roundStatus}
             </Badge>
           </div>
           <p className="eval-round-strip__deadline" data-testid="eval-round-strip-deadline">
             Deadline: {formatRoundDeadline(roundStrip.closesAt)}
           </p>
+          {roundStrip.closed ? (
+            <p
+              className="eval-round-strip__closed-note"
+              data-testid="eval-round-strip-closed"
+              role="status"
+            >
+              This review round has closed
+              {roundStrip.closesAt
+                ? ` — the deadline was ${formatRoundDeadline(roundStrip.closesAt)}`
+                : ""}
+              . Your saved scores stand; no further changes are accepted.
+            </p>
+          ) : null}
           <p
             className="eval-round-strip__progress"
             data-testid="eval-round-strip-progress"
@@ -461,6 +548,15 @@ export function EvaluatorQueuePage() {
             This round: {roundStrip.done} of {roundStrip.total} complete (
             {roundStrip.pct}%)
           </p>
+          {roundStrip.instructionsMd?.trim() ? (
+            <p
+              className="eval-round-strip__instructions"
+              data-testid="eval-round-strip-instructions"
+            >
+              {/* Organiser guidance — plain text only, never HTML (E10). */}
+              {roundStrip.instructionsMd}
+            </p>
+          ) : null}
           <p className="eval-round-strip__guidance" data-testid="eval-round-strip-guidance">
             Score each criterion in the panel; save with Ctrl/Cmd+Enter. Rubric
             criteria for this assignment appear beside the proposal.
@@ -600,7 +696,11 @@ export function EvaluatorQueuePage() {
                       ? ` · ${item.assignment.aggregateScore.toFixed(1)}`
                       : ""}
                   </span>
-                  {done ? (
+                  {item.assignment.status === "abstained" ? (
+                    <Badge tone="neutral" showDot>
+                      Abstained
+                    </Badge>
+                  ) : done ? (
                     <Badge tone="success" showDot>
                       Done
                     </Badge>
@@ -740,6 +840,28 @@ export function EvaluatorQueuePage() {
                   Tip: Ctrl/Cmd+Enter saves without leaving the keyboard.
                 </p>
 
+                {activeRoundClosed ? (
+                  <Alert
+                    tone="warn"
+                    title="Round closed"
+                    data-testid="eval-score-round-closed"
+                  >
+                    This review round has closed — scores and abstentions can
+                    no longer change.
+                  </Alert>
+                ) : null}
+                {activeAbstained ? (
+                  <Alert
+                    tone="info"
+                    title="You abstained from this review"
+                    data-testid="eval-score-abstained-note"
+                  >
+                    {active.assignment.abstainReason?.trim()
+                      ? `Reason on file: ${active.assignment.abstainReason}`
+                      : "No reason was given. Saving scores would re-activate the review."}
+                  </Alert>
+                ) : null}
+
                 {active.criteria.map((c: EvalCriterionDto) => (
                   <div key={c.id} className="eval-queue__criterion">
                     <label
@@ -769,7 +891,7 @@ export function EvaluatorQueuePage() {
                         }))
                       }
                       required
-                      disabled={!proposalReady || proposalLoading}
+                      disabled={scoringLocked}
                     />
                   </div>
                 ))}
@@ -785,22 +907,42 @@ export function EvaluatorQueuePage() {
                   value={comment}
                   onChange={(ev) => setComment(ev.target.value)}
                   maxLength={4000}
-                  disabled={!proposalReady || proposalLoading}
+                  disabled={scoringLocked}
                 />
 
-                <Button
-                  type="submit"
-                  variant="primary"
-                  data-testid="eval-score-save"
-                  disabled={saving || !proposalReady || proposalLoading}
-                  pending={saving}
-                >
-                  {saving
-                    ? "Saving…"
-                    : proposalLoading
-                      ? "Loading proposal…"
-                      : "Save scores"}
-                </Button>
+                <div className="eval-queue__score-actions">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    data-testid="eval-score-save"
+                    disabled={saving || scoringLocked}
+                    pending={saving}
+                  >
+                    {saving
+                      ? "Saving…"
+                      : proposalLoading
+                        ? "Loading proposal…"
+                        : "Save scores"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    data-testid="eval-abstain-open"
+                    disabled={
+                      abstaining ||
+                      activeRoundClosed ||
+                      activeAbstained ||
+                      proposalLoading
+                    }
+                    onClick={() => {
+                      setAbstainError(null);
+                      setAbstainReason("");
+                      setAbstainOpen(true);
+                    }}
+                  >
+                    Abstain
+                  </Button>
+                </div>
 
                 {/* F03: no accept / reject / decide controls for evaluator */}
                 {status ? (
@@ -813,6 +955,62 @@ export function EvaluatorQueuePage() {
                 ) : null}
               </form>
             </Card>
+
+            <Modal
+              open={abstainOpen}
+              onClose={() => {
+                if (!abstaining) setAbstainOpen(false);
+              }}
+              title="Abstain from this review?"
+              data-testid="eval-abstain-modal"
+              footer={
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    data-testid="eval-abstain-cancel"
+                    disabled={abstaining}
+                    onClick={() => setAbstainOpen(false)}
+                  >
+                    Keep reviewing
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    data-testid="eval-abstain-confirm"
+                    disabled={abstaining}
+                    pending={abstaining}
+                    onClick={() => void onConfirmAbstain()}
+                  >
+                    {abstaining ? "Abstaining…" : "Abstain"}
+                  </Button>
+                </>
+              }
+            >
+              <p className="eval-queue__muted">
+                Abstaining removes “{active.submission.title}” from your
+                pending queue and excludes your review from its scores. The
+                programme team sees who abstained and why.
+              </p>
+              <Field
+                id="eval-abstain-reason"
+                as="textarea"
+                label="Reason"
+                hint="Optional — e.g. conflict of interest or outside your expertise."
+                inputProps={{
+                  rows: 3,
+                  maxLength: 2000,
+                  value: abstainReason,
+                  onChange: (ev) => setAbstainReason(ev.target.value),
+                  "data-testid": "eval-abstain-reason",
+                }}
+              />
+              {abstainError ? (
+                <Alert tone="danger" data-testid="eval-abstain-error">
+                  {abstainError}
+                </Alert>
+              ) : null}
+            </Modal>
 
             <details
               className="eval-queue__peer-reviews"

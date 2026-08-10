@@ -46,9 +46,10 @@ Auth: session cookie **or** API key with scopes.
 ## Evaluation & decisions
 | Command | Scope | Input | Output |
 |---------|-------|-------|--------|
-| `Eval.UpsertRubric` | admin | roundId, criteria[] | rubric |
-| `Eval.Score` | evaluator | assignmentId, scores[], comment | assignment |
-| `Eval.ExportScores` | admin | eventId, sort? | CSV (scores/status) |
+| `Eval.UpsertRubric` | admin | roundId, criteria[], closesAt?, instructionsMd? | rubric (deadline + evaluator guidance; post-11.9 depth) |
+| `Eval.Score` | evaluator | assignmentId, scores[], comment | assignment (409 after round close) |
+| `Eval.Abstain` | evaluator (owner-verified) | assignmentId, reason? | assignment status=abstained (excluded from aggregates; 409 after round close / repeat) |
+| `Eval.ExportScores` | admin | eventId, sort? | CSV (scores/status/abstained counts) |
 | `Decision.Record` | decisions:write | submissionId, decision, reason | decision (+ side effects on accept; dematerialize on leave-accept) |
 | `Session.CreateDirect` | admin / decisions:write | eventId, title, description?, trackId?, speakers[] | session + participations + on_accept tasks |
 
@@ -147,6 +148,7 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | GET | /api/events/:eventId/eval/rollup | Eval.AdminRollup (aggregate scores; ?sort=score_desc\|score_asc\|title) |
 | GET | /api/events/:eventId/eval/export | Eval.ExportScores (CSV; ?sort=score_desc\|score_asc\|title) |
 | POST | /api/assignments/:assignmentId/scores | Eval.Score |
+| POST | /api/me/eval-assignments/:assignmentId/abstain | Eval.Abstain (owner-verified; optional reason) |
 | GET | /api/me/eval-queue | Eval.GetQueue (assigned only) |
 | POST | /api/submissions/:submissionId/decision | Decision.Record |
 | POST | /api/events/:eventId/sessions/direct | Session.CreateDirect |

@@ -18,8 +18,29 @@ import { z } from "zod";
 export const EvalRoundStatusSchema = z.enum(["open", "closed"]);
 export type EvalRoundStatus = z.infer<typeof EvalRoundStatusSchema>;
 
-export const EvalAssignmentStatusSchema = z.enum(["pending", "scored"]);
+export const EvalAssignmentStatusSchema = z.enum([
+  "pending",
+  "scored",
+  "abstained",
+]);
 export type EvalAssignmentStatus = z.infer<typeof EvalAssignmentStatusSchema>;
+
+/**
+ * Round-close check (post-11.9 depth). A round is closed for scoring when its
+ * status is `closed` OR its closesAt deadline has passed. Eval.Score and
+ * Eval.Abstain reject with 409 after close.
+ */
+export function isEvalRoundClosed(
+  round: { status: string; closesAt?: string | null },
+  nowMs: number = Date.now(),
+): boolean {
+  if (round.status === "closed") return true;
+  if (round.closesAt) {
+    const closeMs = Date.parse(round.closesAt);
+    if (Number.isFinite(closeMs) && nowMs > closeMs) return true;
+  }
+  return false;
+}
 
 /**
  * Finite number from number | numeric string (D1/SQLite quirks).
@@ -72,6 +93,10 @@ export const EvalUpsertRubricBodySchema = z.object({
   roundId: z.string().min(1).max(128).optional(),
   name: z.string().min(1).max(200).optional(),
   criteria: z.array(EvalCriterionInputSchema).min(1).max(50),
+  /** Review deadline (ISO-8601). null clears; omitted keeps current. */
+  closesAt: z.string().min(1).max(64).optional().nullable(),
+  /** Evaluator guidance (plain text / markdown-safe; never HTML-executed). */
+  instructionsMd: z.string().max(10_000).optional().nullable(),
 });
 export type EvalUpsertRubricBody = z.infer<typeof EvalUpsertRubricBodySchema>;
 
@@ -94,6 +119,8 @@ export const EvalRoundSchema = z.object({
   name: z.string(),
   status: EvalRoundStatusSchema,
   closesAt: NullableStringSchema,
+  /** Evaluator guidance (plain text render only). */
+  instructionsMd: NullableStringSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -136,13 +163,27 @@ export const EvalAssignmentSchema = z.object({
   evaluatorUserId: z.string().min(1),
   status: EvalAssignmentStatusSchema,
   overallComment: NullableStringSchema,
+  /** Optional evaluator-provided reason when status is abstained. */
+  abstainReason: NullableStringSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  /** Weighted aggregate when scored; null when pending. */
+  /** Weighted aggregate when scored; null when pending/abstained. */
   aggregateScore: NullableFiniteNumberSchema.optional(),
   scores: z.array(ScoreDtoSchema).optional(),
 });
 export type EvalAssignmentDto = z.infer<typeof EvalAssignmentSchema>;
+
+/** Eval.Abstain body — POST /api/me/eval-assignments/:assignmentId/abstain */
+export const EvalAbstainBodySchema = z.object({
+  /** Optional short reason shown to admins (conflict of interest, …). */
+  reason: z.string().max(2000).optional().nullable(),
+});
+export type EvalAbstainBody = z.infer<typeof EvalAbstainBodySchema>;
+
+export const EvalAbstainResponseSchema = z.object({
+  assignment: EvalAssignmentSchema,
+});
+export type EvalAbstainResponse = z.infer<typeof EvalAbstainResponseSchema>;
 
 export const EvalScoreResponseSchema = z.object({
   assignment: EvalAssignmentSchema,
@@ -170,6 +211,7 @@ export const EvalQueueItemSchema = z.object({
     name: true,
     status: true,
     closesAt: true,
+    instructionsMd: true,
   }),
 });
 export type EvalQueueItem = z.infer<typeof EvalQueueItemSchema>;
@@ -250,6 +292,13 @@ export const EvalAdminSubmissionRollupSchema = z.object({
   status: z.string(),
   /** Mean of assignment aggregates when any scored; null otherwise. */
   aggregateScore: NullableFiniteNumberSchema,
+  /**
+   * Largest max−min spread across scored assignment aggregates (divergence).
+   * null when fewer than two scored assignments. Abstentions excluded.
+   */
+  scoreSpread: NullableFiniteNumberSchema.optional(),
+  /** Count of abstained assignments (excluded from aggregates). */
+  abstainedCount: z.number().int().min(0).optional(),
   assignments: z.array(
     z.object({
       id: z.string().min(1),
@@ -259,6 +308,7 @@ export const EvalAdminSubmissionRollupSchema = z.object({
       status: EvalAssignmentStatusSchema,
       aggregateScore: NullableFiniteNumberSchema,
       overallComment: NullableStringSchema.optional(),
+      abstainReason: NullableStringSchema.optional(),
       scores: z.array(EvalReviewScoreSchema).optional(),
     }),
   ),
@@ -286,6 +336,7 @@ export const EvalReviewItemSchema = z.object({
   evaluatorEmail: NullableStringSchema,
   status: EvalAssignmentStatusSchema,
   overallComment: NullableStringSchema,
+  abstainReason: NullableStringSchema.optional(),
   aggregateScore: NullableFiniteNumberSchema,
   scores: z.array(EvalReviewScoreSchema),
   /** True when this assignment belongs to the requesting evaluator. */
@@ -319,6 +370,20 @@ export function computeWeightedAggregate(
   if (den <= 0) return null;
   const out = num / den;
   return Number.isFinite(out) ? out : null;
+}
+
+/**
+ * Divergence spread: max−min across scored assignment aggregates.
+ * Returns null when fewer than two finite values (no meaningful spread).
+ */
+export function computeScoreSpread(
+  aggregates: ReadonlyArray<number | null | undefined>,
+): number | null {
+  const finite = aggregates.filter(
+    (v): v is number => v != null && Number.isFinite(v),
+  );
+  if (finite.length < 2) return null;
+  return Math.max(...finite) - Math.min(...finite);
 }
 
 /**
@@ -407,13 +472,15 @@ export type EvalCsvRow = {
     status: string;
     overallComment?: string | null;
     evaluatorEmail?: string | null;
+    abstainReason?: string | null;
   }[];
 };
 
 /**
  * Build CSV of scores/status for an event (single-round admin export).
  * Columns: submissionId,title,status,category,aggregateScore,assignmentCount,scoredCount,
- *          evaluatorEmails,overallComments
+ *          abstainedCount,evaluatorEmails,overallComments,abstainReasons
+ * Abstained assignments count distinctly and never contribute to aggregates.
  */
 export function evalRollupToCsv(
   rows: readonly EvalCsvRow[],
@@ -436,8 +503,10 @@ export function evalRollupToCsv(
     "aggregateScore",
     "assignmentCount",
     "scoredCount",
+    "abstainedCount",
     "evaluatorEmails",
     "overallComments",
+    "abstainReasons",
   ].join(",");
   const lines = [header];
   for (const key of sorted) {
@@ -445,6 +514,9 @@ export function evalRollupToCsv(
     if (!r) continue;
     const scoredCount = r.assignments.filter((a) => a.status === "scored")
       .length;
+    const abstainedCount = r.assignments.filter(
+      (a) => a.status === "abstained",
+    ).length;
     const score =
       r.aggregateScore != null && Number.isFinite(r.aggregateScore)
         ? String(r.aggregateScore)
@@ -457,6 +529,11 @@ export function evalRollupToCsv(
       .map((a) => (a.overallComment ?? "").trim())
       .filter((c) => c.length > 0)
       .join(" | ");
+    const abstainReasons = r.assignments
+      .filter((a) => a.status === "abstained")
+      .map((a) => (a.abstainReason ?? "").trim())
+      .filter((c) => c.length > 0)
+      .join(" | ");
     lines.push(
       [
         csvEscapeField(r.submissionId),
@@ -466,8 +543,10 @@ export function evalRollupToCsv(
         score,
         String(r.assignments.length),
         String(scoredCount),
+        String(abstainedCount),
         csvEscapeField(emails),
         csvEscapeField(comments),
+        csvEscapeField(abstainReasons),
       ].join(","),
     );
   }

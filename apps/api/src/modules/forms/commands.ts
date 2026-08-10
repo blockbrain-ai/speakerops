@@ -75,6 +75,9 @@ function toFieldDto(row: FormFieldRow): FormFieldDto {
     options: row.options,
     sortOrder: row.sortOrder,
     conditions: row.conditions,
+    helpText: row.helpText ?? null,
+    placeholder: row.placeholder ?? null,
+    maxChars: row.maxChars ?? null,
   };
 }
 
@@ -102,6 +105,8 @@ async function toVersionDto(
     opensAt: version.opensAt,
     closesAt: version.closesAt,
     submissionLimit: version.submissionLimit,
+    minSpeakers: version.minSpeakers ?? CFP_MIN_SPEAKERS,
+    maxSpeakers: version.maxSpeakers ?? CFP_MAX_SPEAKERS,
     publishedAt: version.publishedAt,
     snapshotJson: snapshot,
     fields,
@@ -249,6 +254,8 @@ export async function createForm(
     opensAt: null,
     closesAt: null,
     submissionLimit: null,
+    minSpeakers: CFP_MIN_SPEAKERS,
+    maxSpeakers: CFP_MAX_SPEAKERS,
     publishedAt: null,
     snapshotJson: null,
   };
@@ -328,6 +335,26 @@ export async function updateDraftFields(
         details: { fieldKey: f.fieldKey, type: f.type },
       };
     }
+    // File fields never carry options (Zod also rejects; defense in depth).
+    if (f.type === "file" && f.options && f.options.length > 0) {
+      return {
+        ok: false,
+        status: 400,
+        error: "file fields do not take options",
+        code: "VALIDATION_ERROR",
+        details: { fieldKey: f.fieldKey, type: f.type },
+      };
+    }
+    // maxChars only meaningful for text/textarea (Zod also rejects).
+    if (f.maxChars != null && f.type !== "text" && f.type !== "textarea") {
+      return {
+        ok: false,
+        status: 400,
+        error: "maxChars is only allowed on text and textarea fields",
+        code: "VALIDATION_ERROR",
+        details: { fieldKey: f.fieldKey, type: f.type },
+      };
+    }
   }
 
   const now = new Date().toISOString();
@@ -345,6 +372,24 @@ export async function updateDraftFields(
     input.submissionLimit !== undefined
       ? input.submissionLimit
       : draft.submissionLimit;
+  // Speaker bounds knob: omitted/null keeps current draft values (defaults 1/5).
+  const minSpeakers =
+    input.minSpeakers != null
+      ? input.minSpeakers
+      : (draft.minSpeakers ?? CFP_MIN_SPEAKERS);
+  const maxSpeakers =
+    input.maxSpeakers != null
+      ? input.maxSpeakers
+      : (draft.maxSpeakers ?? CFP_MAX_SPEAKERS);
+  if (minSpeakers > maxSpeakers) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Minimum speakers cannot exceed maximum speakers",
+      code: "VALIDATION_ERROR",
+      details: { minSpeakers, maxSpeakers },
+    };
+  }
 
   const metaOk = await deps.forms.updateDraftVersionMeta(draft.id, {
     welcomeMd: welcomeMd ?? null,
@@ -352,6 +397,8 @@ export async function updateDraftFields(
     opensAt: opensAt ?? null,
     closesAt: closesAt ?? null,
     submissionLimit: submissionLimit ?? null,
+    minSpeakers,
+    maxSpeakers,
   });
   if (!metaOk) {
     return {
@@ -372,6 +419,9 @@ export async function updateDraftFields(
     options: f.options ?? null,
     sortOrder: f.sortOrder ?? index,
     conditions: f.conditions ?? null,
+    helpText: f.helpText?.trim() ? f.helpText.trim() : null,
+    placeholder: f.placeholder?.trim() ? f.placeholder.trim() : null,
+    maxChars: f.maxChars ?? null,
   }));
   await deps.forms.replaceFields(draft.id, fieldRows);
 
@@ -494,6 +544,8 @@ export async function publishForm(
     opensAt: draft.opensAt,
     closesAt: draft.closesAt,
     submissionLimit: draft.submissionLimit,
+    minSpeakers: draft.minSpeakers ?? CFP_MIN_SPEAKERS,
+    maxSpeakers: draft.maxSpeakers ?? CFP_MAX_SPEAKERS,
     fields: snapshotFields,
     rules: snapshotRules,
   };
@@ -517,6 +569,8 @@ export async function publishForm(
     opensAt: draft.opensAt,
     closesAt: draft.closesAt,
     submissionLimit: draft.submissionLimit,
+    minSpeakers: draft.minSpeakers ?? CFP_MIN_SPEAKERS,
+    maxSpeakers: draft.maxSpeakers ?? CFP_MAX_SPEAKERS,
     publishedAt: now,
     snapshotJson: JSON.stringify(snapshotParsed.data),
   };
@@ -623,6 +677,7 @@ function publicMeta(
   hasPublishedForm: boolean,
   opensAt: string | null | undefined,
   closesAt: string | null | undefined,
+  bounds?: { minSpeakers?: number; maxSpeakers?: number },
 ): Pick<
   PublicFormResult,
   | "windowState"
@@ -638,8 +693,8 @@ function publicMeta(
       opensAt,
       closesAt,
     }),
-    minSpeakers: CFP_MIN_SPEAKERS,
-    maxSpeakers: CFP_MAX_SPEAKERS,
+    minSpeakers: bounds?.minSpeakers ?? CFP_MIN_SPEAKERS,
+    maxSpeakers: bounds?.maxSpeakers ?? CFP_MAX_SPEAKERS,
     turnstileSiteKey: TURNSTILE_TEST_SITE_KEY,
     fileMimeAllowlist: [...CFP_FILE_MIME_ALLOWLIST],
     fileMaxBytes: CFP_FILE_MAX_BYTES,
@@ -759,7 +814,10 @@ export async function getPublicForm(
       slug: event.slug,
       form: toFormDto(form),
       formVersion: await toVersionDto(deps, version),
-      ...publicMeta(true, version.opensAt, version.closesAt),
+      ...publicMeta(true, version.opensAt, version.closesAt, {
+        minSpeakers: version.minSpeakers,
+        maxSpeakers: version.maxSpeakers,
+      }),
     },
   };
 }

@@ -19,28 +19,37 @@ export type FieldBaseProps = {
   className?: string;
 };
 
+/** Allow inventory anchors on the underlying control (E9 @inv law). */
+type WithTestId<T> = T & { "data-testid"?: string };
+
 type InputFieldProps = FieldBaseProps & {
   as?: "input";
-  inputProps?: Omit<
-    InputHTMLAttributes<HTMLInputElement>,
-    "id" | "disabled" | "required" | "className"
+  inputProps?: WithTestId<
+    Omit<
+      InputHTMLAttributes<HTMLInputElement>,
+      "id" | "disabled" | "required" | "className"
+    >
   >;
 };
 
 type TextareaFieldProps = FieldBaseProps & {
   as: "textarea";
-  inputProps?: Omit<
-    TextareaHTMLAttributes<HTMLTextAreaElement>,
-    "id" | "disabled" | "required" | "className"
+  inputProps?: WithTestId<
+    Omit<
+      TextareaHTMLAttributes<HTMLTextAreaElement>,
+      "id" | "disabled" | "required" | "className"
+    >
   >;
 };
 
 type SelectFieldProps = FieldBaseProps & {
   as: "select";
   children?: ReactNode;
-  inputProps?: Omit<
-    SelectHTMLAttributes<HTMLSelectElement>,
-    "id" | "disabled" | "required" | "className"
+  inputProps?: WithTestId<
+    Omit<
+      SelectHTMLAttributes<HTMLSelectElement>,
+      "id" | "disabled" | "required" | "className"
+    >
   >;
 };
 

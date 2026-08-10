@@ -42,6 +42,11 @@ import {
   type FormRuleDto,
   type SubmissionSpeakerInput,
 } from "@speakerops/shared";
+import {
+  charCountLabel,
+  charCountOverMessage,
+  charCountTone,
+} from "../components/forms/char-count.js";
 
 /** localStorage key for last draft id per event slug (resume without URL). */
 function draftStorageKey(eventSlug: string): string {
@@ -519,6 +524,18 @@ export function PublicCfpPage() {
     const errs: Record<string, string> = {};
     if (!title.trim()) errs.title = "Title is required";
     for (const f of visibleFields) {
+      // Character cap (client mirror of the server rule).
+      if (
+        f.maxChars != null &&
+        (f.type === "text" || f.type === "textarea") &&
+        (answers[f.fieldKey] ?? "").length > f.maxChars
+      ) {
+        errs[`field:${f.fieldKey}`] = charCountOverMessage(
+          f.label,
+          f.maxChars,
+        );
+        continue;
+      }
       if (!f.required) continue;
       if (f.type === "multiselect") {
         const selected = parseMultiselectValues(answers[f.fieldKey]);
@@ -1261,6 +1278,15 @@ export function PublicCfpPage() {
                       {f.required ? " *" : ""}
                     </label>
                   ) : null}
+                  {f.helpText?.trim() ? (
+                    <p
+                      className="public-cfp__field-help"
+                      id={`cfp-help-${f.fieldKey}`}
+                      data-testid={`cfp-help-${f.fieldKey}`}
+                    >
+                      {f.helpText}
+                    </p>
+                  ) : null}
                   {f.type === "textarea" ? (
                     <textarea
                       id={`cfp-field-${f.fieldKey}`}
@@ -1268,7 +1294,11 @@ export function PublicCfpPage() {
                       data-testid={`cfp-field-${f.fieldKey}`}
                       rows={4}
                       value={answers[f.fieldKey] ?? ""}
+                      placeholder={f.placeholder ?? undefined}
                       onChange={(e) => setAnswer(f.fieldKey, e.target.value)}
+                      aria-describedby={
+                        f.helpText?.trim() ? `cfp-help-${f.fieldKey}` : undefined
+                      }
                       aria-invalid={
                         fieldErrors[`field:${f.fieldKey}`] ? "true" : undefined
                       }
@@ -1366,7 +1396,7 @@ export function PublicCfpPage() {
                         fieldErrors[`field:${f.fieldKey}`] ? "true" : undefined
                       }
                     />
-                  ) : (f.type as string) === "file" ? (
+                  ) : f.type === "file" ? (
                     <div className="public-cfp__file-row">
                       <input
                         id={`cfp-field-${f.fieldKey}`}
@@ -1408,12 +1438,36 @@ export function PublicCfpPage() {
                       className="public-cfp__input lumen-focusable"
                       data-testid={`cfp-field-${f.fieldKey}`}
                       value={answers[f.fieldKey] ?? ""}
+                      placeholder={f.placeholder ?? undefined}
                       onChange={(e) => setAnswer(f.fieldKey, e.target.value)}
+                      aria-describedby={
+                        f.helpText?.trim() ? `cfp-help-${f.fieldKey}` : undefined
+                      }
                       aria-invalid={
                         fieldErrors[`field:${f.fieldKey}`] ? "true" : undefined
                       }
                     />
                   )}
+                  {f.maxChars != null &&
+                  (f.type === "text" || f.type === "textarea") ? (
+                    <p
+                      className={`public-cfp__char-count public-cfp__char-count--${charCountTone(
+                        (answers[f.fieldKey] ?? "").length,
+                        f.maxChars,
+                      )}`}
+                      data-testid={`cfp-char-count-${f.fieldKey}`}
+                      data-tone={charCountTone(
+                        (answers[f.fieldKey] ?? "").length,
+                        f.maxChars,
+                      )}
+                      aria-live="polite"
+                    >
+                      {charCountLabel(
+                        (answers[f.fieldKey] ?? "").length,
+                        f.maxChars,
+                      )}
+                    </p>
+                  ) : null}
                   {fieldErrors[`field:${f.fieldKey}`] ? (
                     <p
                       className="public-cfp__error"
@@ -1529,15 +1583,26 @@ export function PublicCfpPage() {
                     ) : null}
                   </div>
                 ))}
-                {speakers.length < maxSpeakers ? (
-                  <button
-                    type="button"
-                    className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"
-                    data-testid="cfp-speaker-add"
-                    onClick={addSpeaker}
+                <button
+                  type="button"
+                  className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"
+                  data-testid="cfp-speaker-add"
+                  onClick={addSpeaker}
+                  disabled={speakers.length >= maxSpeakers}
+                  aria-disabled={speakers.length >= maxSpeakers}
+                >
+                  Add speaker
+                </button>
+                {speakers.length >= maxSpeakers ? (
+                  <p
+                    className="event-settings__meta"
+                    data-testid="cfp-speaker-max-note"
+                    role="status"
                   >
-                    Add speaker
-                  </button>
+                    {maxSpeakers === 1
+                      ? "This form takes a single speaker."
+                      : `That's the maximum — this form takes up to ${maxSpeakers} speakers.`}
+                  </p>
                 ) : null}
               </div>
 

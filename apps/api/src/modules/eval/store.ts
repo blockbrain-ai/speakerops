@@ -23,6 +23,8 @@ export type EvalRoundRow = {
   name: string;
   status: "open" | "closed";
   closesAt: string | null;
+  /** Evaluator guidance (plain-text render; post-11.9 depth). */
+  instructionsMd?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -41,8 +43,10 @@ export type EvalAssignmentRow = {
   roundId: string;
   submissionId: string;
   evaluatorUserId: string;
-  status: "pending" | "scored";
+  status: "pending" | "scored" | "abstained";
   overallComment: string | null;
+  /** Optional evaluator reason when abstained (post-11.9 depth). */
+  abstainReason?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -63,6 +67,7 @@ export type EvalStore = {
       name?: string;
       status?: "open" | "closed";
       closesAt?: string | null;
+      instructionsMd?: string | null;
       updatedAt: string;
     },
   ): Promise<EvalRoundRow | null>;
@@ -82,8 +87,9 @@ export type EvalStore = {
   updateAssignment(
     assignmentId: string,
     patch: {
-      status?: "pending" | "scored";
+      status?: "pending" | "scored" | "abstained";
       overallComment?: string | null;
+      abstainReason?: string | null;
       updatedAt: string;
     },
   ): Promise<EvalAssignmentRow | null>;
@@ -143,6 +149,7 @@ export class MemoryEvalStore implements EvalStore {
       name?: string;
       status?: "open" | "closed";
       closesAt?: string | null;
+      instructionsMd?: string | null;
       updatedAt: string;
     },
   ): Promise<EvalRoundRow | null> {
@@ -206,8 +213,9 @@ export class MemoryEvalStore implements EvalStore {
   async updateAssignment(
     assignmentId: string,
     patch: {
-      status?: "pending" | "scored";
+      status?: "pending" | "scored" | "abstained";
       overallComment?: string | null;
+      abstainReason?: string | null;
       updatedAt: string;
     },
   ): Promise<EvalAssignmentRow | null> {
@@ -314,6 +322,7 @@ export class D1EvalStore implements EvalStore {
       name: row.name ?? "",
       status,
       closesAt: row.closesAt ?? null,
+      instructionsMd: row.instructionsMd ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -338,7 +347,9 @@ export class D1EvalStore implements EvalStore {
     row: typeof evalAssignments.$inferSelect,
   ): EvalAssignmentRow {
     const status =
-      row.status === "scored" || row.status === "pending"
+      row.status === "scored" ||
+      row.status === "pending" ||
+      row.status === "abstained"
         ? row.status
         : "pending";
     return {
@@ -348,6 +359,7 @@ export class D1EvalStore implements EvalStore {
       evaluatorUserId: row.evaluatorUserId,
       status,
       overallComment: row.overallComment ?? null,
+      abstainReason: row.abstainReason ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -371,6 +383,7 @@ export class D1EvalStore implements EvalStore {
       name: row.name,
       status: row.status,
       closesAt: row.closesAt,
+      instructionsMd: row.instructionsMd ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });
@@ -383,6 +396,7 @@ export class D1EvalStore implements EvalStore {
       name?: string;
       status?: "open" | "closed";
       closesAt?: string | null;
+      instructionsMd?: string | null;
       updatedAt: string;
     },
   ): Promise<EvalRoundRow | null> {
@@ -395,6 +409,7 @@ export class D1EvalStore implements EvalStore {
         name: next.name,
         status: next.status,
         closesAt: next.closesAt,
+        instructionsMd: next.instructionsMd ?? null,
         updatedAt: next.updatedAt,
       })
       .where(eq(evalRounds.id, roundId));
@@ -477,6 +492,7 @@ export class D1EvalStore implements EvalStore {
       evaluatorUserId: row.evaluatorUserId,
       status: row.status,
       overallComment: row.overallComment,
+      abstainReason: row.abstainReason ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });
@@ -486,8 +502,9 @@ export class D1EvalStore implements EvalStore {
   async updateAssignment(
     assignmentId: string,
     patch: {
-      status?: "pending" | "scored";
+      status?: "pending" | "scored" | "abstained";
       overallComment?: string | null;
+      abstainReason?: string | null;
       updatedAt: string;
     },
   ): Promise<EvalAssignmentRow | null> {
@@ -499,6 +516,7 @@ export class D1EvalStore implements EvalStore {
       .set({
         status: next.status,
         overallComment: next.overallComment,
+        abstainReason: next.abstainReason ?? null,
         updatedAt: next.updatedAt,
       })
       .where(eq(evalAssignments.id, assignmentId));

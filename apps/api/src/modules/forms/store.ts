@@ -44,6 +44,9 @@ export type FormVersionRow = {
   opensAt: string | null;
   closesAt: string | null;
   submissionLimit: number | null;
+  /** Configurable speaker bounds (post-11.9 depth; defaults 1/5 pre-knob). */
+  minSpeakers?: number;
+  maxSpeakers?: number;
   publishedAt: string | null;
   snapshotJson: string | null;
 };
@@ -58,6 +61,10 @@ export type FormFieldRow = {
   options: FormFieldOption[] | null;
   sortOrder: number;
   conditions: FormFieldConditions | null;
+  /** Depth knobs (post-11.9; optional for pre-0023 rows). */
+  helpText?: string | null;
+  placeholder?: string | null;
+  maxChars?: number | null;
 };
 
 export type FormRuleRow = {
@@ -89,6 +96,8 @@ export type FormsStore = {
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
+      minSpeakers: number;
+      maxSpeakers: number;
     },
   ): Promise<boolean>;
   /** Replace all fields on a draft version (delete + insert). */
@@ -190,6 +199,8 @@ export class MemoryFormsStore implements FormsStore {
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
+      minSpeakers: number;
+      maxSpeakers: number;
     },
   ): Promise<boolean> {
     const existing = this.versions.get(versionId);
@@ -337,6 +348,8 @@ export class D1FormsStore implements FormsStore {
       opensAt: row.opensAt,
       closesAt: row.closesAt,
       submissionLimit: row.submissionLimit,
+      minSpeakers: row.minSpeakers ?? 1,
+      maxSpeakers: row.maxSpeakers ?? 5,
       publishedAt: row.publishedAt,
       snapshotJson: row.snapshotJson,
     });
@@ -396,6 +409,8 @@ export class D1FormsStore implements FormsStore {
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
+      minSpeakers: number;
+      maxSpeakers: number;
     },
   ): Promise<boolean> {
     const existing = await this.findVersionById(versionId);
@@ -414,6 +429,8 @@ export class D1FormsStore implements FormsStore {
         opensAt: patch.opensAt,
         closesAt: patch.closesAt,
         submissionLimit: patch.submissionLimit,
+        minSpeakers: patch.minSpeakers,
+        maxSpeakers: patch.maxSpeakers,
       })
       .where(
         and(
@@ -451,6 +468,9 @@ export class D1FormsStore implements FormsStore {
         optionsJson: f.options ? JSON.stringify(f.options) : null,
         sortOrder: f.sortOrder,
         conditionsJson: f.conditions ? JSON.stringify(f.conditions) : null,
+        helpText: f.helpText ?? null,
+        placeholder: f.placeholder ?? null,
+        maxChars: f.maxChars ?? null,
       });
     }
   }
@@ -471,6 +491,9 @@ export class D1FormsStore implements FormsStore {
         options: parseOptions(row.optionsJson),
         sortOrder: row.sortOrder,
         conditions: parseConditions(row.conditionsJson),
+        helpText: row.helpText ?? null,
+        placeholder: row.placeholder ?? null,
+        maxChars: row.maxChars ?? null,
       }))
       .sort(
         (a, b) =>
@@ -544,9 +567,13 @@ function mapVersion(row: {
   opensAt: string | null;
   closesAt: string | null;
   submissionLimit: number | null;
+  minSpeakers?: number | null;
+  maxSpeakers?: number | null;
   publishedAt: string | null;
   snapshotJson: string | null;
 }): FormVersionRow {
+  const minSpeakers = Number(row.minSpeakers);
+  const maxSpeakers = Number(row.maxSpeakers);
   return {
     id: row.id,
     formId: row.formId,
@@ -556,6 +583,10 @@ function mapVersion(row: {
     opensAt: row.opensAt ?? null,
     closesAt: row.closesAt ?? null,
     submissionLimit: row.submissionLimit ?? null,
+    minSpeakers:
+      Number.isFinite(minSpeakers) && minSpeakers > 0 ? minSpeakers : 1,
+    maxSpeakers:
+      Number.isFinite(maxSpeakers) && maxSpeakers > 0 ? maxSpeakers : 5,
     publishedAt: row.publishedAt ?? null,
     snapshotJson: row.snapshotJson ?? null,
   };
