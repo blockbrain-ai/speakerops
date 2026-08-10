@@ -51,7 +51,7 @@ Outbox → comms / Airtable projection (one-way)
 | Durable person | Email/name identity | `people` |
 | Event speaker | Participation | `event_participations` (Person ≠ Speaker) |
 | Portal work | Tasks | `speaker_tasks` (+ templates) |
-| Files | Metadata + R2 | `file_assets` + R2 `FILES` |
+| Files | Metadata + bytes | `file_assets` + R2 `FILES` when configured (hosted demo: D1 `file_blobs`) |
 | Program slot | Session (post-accept / direct) | sessions + `session_speakers` |
 
 **Person ≠ Speaker:** accepting a submission links or creates a **participation** for a **person**; it does not create a parallel person row per event. See [0.4 domain map](./governance/0.4-domain-map.md).
@@ -103,7 +103,7 @@ On **accept**, expected side-effects (implementation detail in 3.5/4.1):
 | Home | `Portal.GetHome` — tasks, status, session context for speaker role |
 | Profile | `Participation.UpdateProfile` — bio, etc. on participation |
 | Upload | `File.PresignUpload` → client put → `File.CompleteUpload` |
-| Storage | Bytes in **R2**; D1 `file_assets` metadata only |
+| Storage | Bytes in **R2** when configured; the hosted demo stores bytes as durable D1 `file_blobs` rows (no R2 binding). D1 `file_assets` holds metadata either way |
 | Constraints | Mime/size checks; logo SVG reject (**C09**); private by default |
 | Complete | `Task.Complete` — marks task done; readiness consumers update |
 
@@ -135,7 +135,7 @@ Field names for merge/projection must stay aligned with SCHEMA — do not invent
 | Person email/name | Submit / admin | create/link | `people` | Portal · comms · projection | domain tests |
 | Participation bio | Portal | `Participation.UpdateProfile` | `event_participations` | Readiness · schedule | G* |
 | Task status | Portal | `Task.Complete` | `speaker_tasks` | Readiness | G* · H* |
-| File object | Portal upload | `File.*` | R2 + `file_assets` | Portal · admin | 4.2 |
+| File object | Portal upload | `File.*` | R2 (or D1 `file_blobs` on the hosted demo) + `file_assets` | Portal · admin | 4.2 |
 | Decision outcome | Submissions admin | `Decision.Record` | `decisions` + side-effects | Tasks · audit | E* |
 | Projection id | System | outbox drain | `projection_records.internal_id` | Airtable | O06 · 7.3 |
 
@@ -174,7 +174,7 @@ Server enforces; UI hiding is not security ([SECURITY.md](./SECURITY.md)).
 
 - Public CFP: avoid multi-second blank screen; skeleton allowed.  
 - Admin submissions list: p95 &lt; 200ms local warm load for seed ≤150 rows.  
-- Portal home: D1 reads for tasks + metadata; file bytes via R2, not D1.
+- Portal home: D1 reads for tasks + metadata; file bytes via R2 when configured (the hosted demo serves bytes from D1 `file_blobs` because R2 is not bound).
 
 ---
 

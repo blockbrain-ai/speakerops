@@ -66,7 +66,7 @@ Magic-link exchange issues the cookie server-side. Tokens themselves are single-
 
 **Magic-link request policy (controlled dogfood):** existing users and provisioned members (e.g. accepted speakers via program re-entry) may request a login link; unknown emails cannot self-register. There is **no active email allowlist on the demo** (`MAGIC_LINK_ALLOWLIST` is unset on dogfood; it remains an optional extra-allow env name).
 
-**Judge access (competition demo):** the public `/judge` page posts to `POST /api/auth/judge-access`, which registers only when `JUDGE_ACCESS_CODE` (Worker secret) **and** `ROLE_SWITCHER_ENABLED=1` are set — otherwise the path 404s, indistinguishable from a non-existent route. The code is compared constant-time (both sides SHA-256), attempts are rate-limited (10 / 5 min / IP), failures are generic 401s, and success mints a 4-hour demo-persona session on the server-fixed demo event. Demo sessions cannot create API keys.
+**Judge access (competition demo):** the public `/judge` page posts to `POST /api/auth/judge-access`, which registers only when `JUDGE_ACCESS_CODE` (Worker secret) **and** `ROLE_SWITCHER_ENABLED=1` are set — otherwise the path 404s, indistinguishable from a non-existent route. The code is compared constant-time (both sides SHA-256), attempts are rate-limited (10 / 5 min / IP — best-effort per Worker isolate, in-memory), failures are generic 401s, and success mints a 4-hour demo-persona session on the server-fixed demo event. Demo sessions cannot create API keys.
 
 ---
 

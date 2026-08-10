@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Judge-facing map of brief features **1–6** to SpeakerOps delivery, plus explicit **non-goals** and **struck items** so reviewers do not expect Sessionboard CRM, in-product agent fleets, OR-Tools, Next/RSC, Postgres dual-stack, or Airtable dual-write.
+Judge-facing map of brief features **1–6** to SpeakerOps delivery, plus explicit **non-goals** and the honest coverage matrix (§3: six brief areas implemented end-to-end, three not built) so reviewers do not expect Sessionboard CRM, in-product agent fleets, OR-Tools, Next/RSC, Postgres dual-stack, or Airtable dual-write.
 
 SpeakerOps is a **clean-room Program OS** for AI Engineer program ops — not a Sessionboard clone or marketing suite.
 
@@ -14,7 +14,7 @@ SpeakerOps is a **clean-room Program OS** for AI Engineer program ops — not a 
 
 ## 1. Product one-liner
 
-A calm, fast, open-source **Program OS** that takes an event from conditional CFP through human evaluation, speaker onboarding, templated comms/calendar, conflict-safe scheduling, and a live readiness dashboard — deployed on **Cloudflare**, mirrored **one-way** into Airtable, operated by humans **and** agents via **CLI + scoped keys**.
+A calm, fast, open-source **Program OS** that takes an event from conditional CFP through human evaluation, speaker onboarding, templated comms/calendar, conflict-safe scheduling, and a live readiness dashboard — deployed on **Cloudflare**, with support for an optional **one-way** Airtable projection (paused on the hosted demo — no keys configured), operated by humans **and** agents via **CLI + scoped keys**.
 
 Exit claim: **`dogfood_ready`** — Cloudflare dogfood deploy + full browser E2E green + onboarding docs (human + agent).
 
@@ -27,7 +27,7 @@ Each row is a judged workflow. Production bar is “operate a multi-day tech con
 | # | Brief workflow | SpeakerOps delivery | Primary souls | Phase / proof |
 |---|----------------|---------------------|---------------|---------------|
 | **1** | **CFP form builder + public submit** | Conditional form builder, versioned publish, public CFP, Turnstile, multi-speaker, open/close | S-CFP, S-THEME | 3.x · keystone 3.6 · A*/D* inventory |
-| **2** | **Speaker portal** | Magic link → portal home, tasks, bio/headshot/slides (R2), multi-speaker sessions | S-PORTAL | 4.x · keystone 4.4 · G* |
+| **2** | **Speaker portal** | Magic link → portal home, tasks, bio/headshot/slides (R2 when configured; the hosted demo stores file bytes as durable D1 `file_blobs` rows because R2 is not bound), multi-speaker sessions | S-PORTAL | 4.x · keystone 4.4 · G* |
 | **3** | **Comms + calendar** | Templates, merge fields, preview-required, **idempotent** send, delivery log, **ICS UID/SEQUENCE** | S-COMMS | 5.x · keystone 5.4 · J* |
 | **4** | **Evaluation & scoring** | Assignments, rubric, scores, comments, **human** accept/reject/waitlist + audit | S-EVAL | 3.4–3.5 · F*/E* · (AI multi-round **struck**) |
 | **5** | **Schedule studio** | Drag-drop + keyboard, rooms/tracks, multi-view, **instant conflict explain**, draft safety | S-SCHED | 6.x · keystone 6.4 · I* · (**no OR-Tools**) |
@@ -39,7 +39,7 @@ Each row is a judged workflow. Production bar is “operate a multi-day tech con
 |------------|--------|
 | Roles enforced server-side | [SECURITY.md](./SECURITY.md) · E2 |
 | Typed domain commands (Zod) + E4 | [COMMANDS.md](../KMS-competition/initiative/contracts/COMMANDS.md) · E4 |
-| D1 SoR + R2 files | [ARCHITECTURE.md](./ARCHITECTURE.md) · E1 |
+| D1 SoR + files (R2 when configured; hosted demo uses durable D1 `file_blobs` rows — no R2 binding) | [ARCHITECTURE.md](./ARCHITECTURE.md) · E1 |
 | Outbox + Queues | E7 · [OPERATIONS.md](./OPERATIONS.md) |
 | CSP + secure cookies | E10 · [SECURITY.md](./SECURITY.md) |
 | Playwright inventory E2E | [E2E.md](./E2E.md) · S-E2E-INV / S-E2E-RUN |
@@ -149,12 +149,12 @@ If unsure whether a surface is clean-room-safe: **stop** and treat as out of sco
 
 ## 7. Demo path for judges (pointer)
 
-Live demo entry: open `/judge` on <https://www.speakerops.org> with the access code from the submission (README → “Judges — start here”)  
-Human timed path: [ONBOARDING.md](./ONBOARDING.md)  
-Agent path: [AGENT_SETUP.md](./AGENT_SETUP.md)  
-Demo seed: [8.4-demo-seed.md](./sections/8.4-demo-seed.md)  
-Dogfood URL: [OPERATIONS.md](./OPERATIONS.md)  
-Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
+- Live demo entry: open `/judge` on <https://www.speakerops.org> with the access code from the submission (README → “Judges — start here”)
+- Human timed path: [ONBOARDING.md](./ONBOARDING.md)
+- Agent path: [AGENT_SETUP.md](./AGENT_SETUP.md)
+- Demo seed: [8.4-demo-seed.md](./sections/8.4-demo-seed.md)
+- Dogfood URL: [OPERATIONS.md](./OPERATIONS.md)
+- Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ---
 

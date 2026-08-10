@@ -57,7 +57,7 @@ Common failures and recovery: local migrate/seed issues, auth/session, scope den
 | Magic link missing in UI | Local `AUTH_DEV_OUTBOX=1` for Playwright only — never production default |
 | Role switcher missing | Dev mode or `VITE_ROLE_SWITCHER=1`; server needs `ROLE_SWITCHER_ENABLED=1` + admin session (or `/judge` demo session) |
 | `/judge` returns 404 | Expected unless **both** `ROLE_SWITCHER_ENABLED=1` and `JUDGE_ACCESS_CODE` (secret) are set on the Worker |
-| `/judge` 429 Too many attempts | Rate limit — 10 attempts / 5 min / IP; wait and retry |
+| `/judge` 429 Too many attempts | Rate limit — 10 attempts / 5 min / IP (best-effort per Worker isolate, in-memory); wait and retry |
 
 ---
 
@@ -130,7 +130,7 @@ Law: [0.3-e2e-inventory-law.md](./governance/0.3-e2e-inventory-law.md) · runboo
 | Problem | Recovery |
 |---------|----------|
 | No email in sandbox | Expected — `EMAIL_PROVIDER=sandbox` does not network |
-| Live send no-op | `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` secret; check outbox |
+| Live send no-op | `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` secret, or `EMAIL_PROVIDER=cloudflare` + `EMAIL` binding / Cloudflare token (hosted demo path — no attachments); check outbox |
 | Double send | Idempotency key path; do not retry with new key blindly |
 | Airtable empty | Pause if keys unset; check O06 lag status |
 | Want dual-write | **Stop** — forbidden; fix D1 instead ([AIRTABLE.md](./AIRTABLE.md)) |

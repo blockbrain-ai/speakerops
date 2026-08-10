@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Coherent description of SpeakerOps as a **Program OS** on Cloudflare: **D1** is the sole system of record; **one-way Airtable** is a projection only; Hono Worker API; React+Vite Lumen SPA; R2 files; queues + transactional outbox; Durable Object invalidation; CLI + scoped API keys over the same domain commands as HTTP.
+Coherent description of SpeakerOps as a **Program OS** on Cloudflare: **D1** is the sole system of record; **one-way Airtable** is an optional projection only (paused on the hosted demo — no keys configured); Hono Worker API; React+Vite Lumen SPA; R2 files when configured (the hosted demo stores file bytes as durable D1 `file_blobs` rows because R2 is not bound); queues + transactional outbox; live refresh via 3-second polling (Durable Object invalidation is deferred); CLI + scoped API keys over the same domain commands as HTTP.
 
 This document is operator- and judge-facing architecture. It does **not** invent endpoints, tables, or stack alternatives. Binding detail lives in contracts; implementation lives under composition roots below.
 
@@ -31,13 +31,15 @@ This document is operator- and judge-facing architecture. It does **not** invent
 └───┬──────────┬──────────┬──────────┬──────────┬─────────────────┘
     │          │          │          │          │
     ▼          ▼          ▼          ▼          ▼
-   D1        R2        Queues     Outbox     DO invalidate
- (SoR)    (files)   (jobs)    (side fx)   (live only)
+   D1        R2*       Queues     Outbox     Polling
+ (SoR)    (files*)  (jobs)    (side fx)   (live refresh)
     │
     │  one-way projection (never dual-write)
     ▼
  Airtable (optional read model; pause when unset)
 ```
+
+\* R2 when configured; the hosted demo stores file bytes as durable D1 rows (`file_blobs`, migration 0020) because no `FILES` binding is set on the dogfood env. Durable Object invalidation is **deferred** — live surfaces (readiness dashboard) ship with 3-second polling ([6.3](./sections/6.3-readiness-dashboard.md)).
 
 **Locked rule:** there is **no second SoR**. Postgres dual-stack, Airtable-as-database, DO-as-DB, and client-only authz are forbidden.
 
@@ -50,9 +52,9 @@ This document is operator- and judge-facing architecture. It does **not** invent
 | UI | React + Vite + TypeScript + **Lumen** | [0.2 lock](./governance/0.2-lumen-lock.md) — no Next/RSC default, no freeform CSS |
 | API | Hono on Cloudflare Workers | Domain commands only ([COMMANDS.md](../KMS-competition/initiative/contracts/COMMANDS.md)) |
 | SoR | **D1** + Drizzle | `packages/db` — **D1 only** |
-| Files | R2 | Private objects; metadata in D1 `file_assets` |
+| Files | R2 when configured | Private objects; metadata in D1 `file_assets`. Hosted demo: no `FILES` binding — bytes stored as durable D1 `file_blobs` rows |
 | Jobs | Queues + transactional **outbox** | Email, Airtable projection off request path (E7) |
-| Live | Durable Object **invalidation only** | Not a second database |
+| Live | 3-second polling — DO invalidation **deferred** (not implemented) | If added later: invalidation only, never a second database |
 | Airtable | **One-way** projection | [AIRTABLE.md](./AIRTABLE.md) · never dual-write |
 | Auth (humans) | HttpOnly Secure SameSite cookies | [SECURITY.md](./SECURITY.md) |
 | Auth (agents) | Scoped API keys + CLI | [CLI.md](./CLI.md) · [SCOPES.md](../KMS-competition/initiative/contracts/SCOPES.md) |
@@ -141,10 +143,11 @@ High-risk scopes **default-deny** on new keys: `comms:send`, `decisions:write`, 
 - Tables owned by section writers — see [SCHEMA.md](../KMS-competition/initiative/contracts/SCHEMA.md) ownership table
 - Cross-cutting: `audit_events`, `outbox_events`, `projection_records`, `idempotency_keys`
 
-### R2 (files)
+### Files (R2 when configured)
 
-- Binding name: `FILES`
-- Bodies in R2; D1 holds `file_assets` metadata (`r2_key`, mime, size, checksum, scan status)
+- Binding name: `FILES` (R2)
+- Bodies in R2 when the binding is present; D1 holds `file_assets` metadata (`r2_key`, mime, size, checksum, scan status)
+- **Hosted demo:** the dogfood env has no `FILES` binding — file bytes are stored as durable base64 rows in D1 `file_blobs` (migration 0020); R2 remains preferred when bound
 - Logo/headshot/slides: type/size checks; SVG logos rejected (XSS surface)
 
 ### Queues + outbox
@@ -156,7 +159,8 @@ High-risk scopes **default-deny** on new keys: `comms:send`, `decisions:write`, 
 
 ### Durable Objects
 
-- **Invalidation / live hints only** — not authoritative storage
+- **Deferred — not implemented.** Live surfaces (readiness dashboard) use 3-second polling ([6.3](./sections/6.3-readiness-dashboard.md))
+- If added later: invalidation / live hints only — never authoritative storage
 
 ---
 

@@ -99,7 +99,7 @@
 </section>
 <section class="learn-section">
 <h2 id="files-and-storage">Files and storage</h2>
-<p>File metadata lives in the database; bytes live in R2 on configured hosts. Demo mode may disable public CFP uploads while still allowing controlled portal uploads depending on host configuration. Never commit raw credentials for R2 or account APIs.</p>
+<p>File metadata lives in the database; bytes live in R2 on configured hosts, while the hosted demo stores bytes as durable D1 rows (file_blobs) because R2 is not bound. Demo mode may disable public CFP uploads while still allowing controlled portal uploads depending on host configuration. Never commit raw credentials for R2 or account APIs.</p>
 </section>
 <aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
 <li><code>/portal</code></li>

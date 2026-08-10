@@ -102,7 +102,7 @@
 </section>
 <section class="learn-section">
 <h2 id="what-is-seeded-and-what-is-limited">What is seeded and what is limited</h2>
-<p>Demo seed includes a large speaker graph, forms, tasks, and schedule-ready structures so every menu has realistic data. Public CFP is open for the dogfood event slug with Turnstile. Public CFP file upload is limited by a strict mime/size allowlist and per-IP rate limits so untrusted traffic cannot fill R2.</p>
+<p>Demo seed includes a large speaker graph, forms, tasks, and schedule-ready structures so every menu has realistic data. Public CFP is open for the dogfood event slug with Turnstile. Public CFP file upload is limited by a strict mime/size allowlist and best-effort per-IP rate limits so untrusted traffic cannot flood file storage (the demo host stores file bytes as durable D1 rows — file_blobs — because R2 is not bound).</p>
 <p>The role switcher is enabled on the shared demo (judge access requires it); the developer outbox stays off. DDoS protection relies on the Cloudflare edge; the /judge access code is rate limited per IP, and magic links go only to existing users and provisioned members.</p>
 <ul class="learn-bullets">
 <li>Seeded multi-speaker program graph on remote D1</li>

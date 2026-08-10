@@ -25,8 +25,8 @@
 - `SPEAKEROPS_DB_PATH` — optional path for `pnpm db:migrate` local SQLite (default `.data/speakerops.local.sqlite`). Not a secret; gitignored via `.data/`.
 
 ## R2 / files (section 4.2) — binding names only
-- Worker R2 binding name: `FILES` (wrangler.toml) — object bytes for logo/headshot/slides.
-- D1 holds `file_assets` metadata only (`r2_key`, mime, size, checksum, `virus_scan_status`); never file bodies.
+- Worker R2 binding name: `FILES` (wrangler.toml) — object bytes for logo/headshot/slides when the binding is configured.
+- D1 holds `file_assets` metadata (`r2_key`, mime, size, checksum, `virus_scan_status`). When R2 is not bound (hosted demo dogfood env), file bytes are stored as durable base64 rows in D1 `file_blobs` (migration 0020).
 - No R2 API tokens in repo; Cloudflare credentials for deploy stay in secrets.env (CLOUDFLARE_*).
 
 ## Auth (section 2.1) — names only
@@ -38,7 +38,7 @@
 ## Demo seed / role switcher (section 8.4) — names only
 - `SPEAKEROPS_DB_PATH` — local SQLite path for `pnpm db:migrate` / `pnpm seed` (default `.data/speakerops.local.sqlite`). Not a secret.
 - `ROLE_SWITCHER_ENABLED` — when `"1"`, Worker registers `POST /api/auth/dev/role-switch` for private dogfood judges (and, together with `JUDGE_ACCESS_CODE`, `POST /api/auth/judge-access`). **Default off.** Never enable on public production. When enabled on a controlled Worker, role-switch requires an **existing valid session** with **event admin membership** or a preserved judge-origin cookie (speakers/evaluators cannot escalate to admin) — workers.dev alone is not an authorization boundary.
-- `JUDGE_ACCESS_CODE` — Worker **secret**: competition judge entry code for the public `/judge` page. `POST /api/auth/judge-access` registers only when this is set **and** `ROLE_SWITCHER_ENABLED=1`; otherwise the path 404s. Exchanges the code (constant-time compare) for a **4-hour** demo-persona session (`admin` / `evaluator` / `speaker`) on the seeded demo event; rate-limited 10 attempts / 5 min / IP; demo sessions cannot create API keys. Never commit or log the value.
+- `JUDGE_ACCESS_CODE` — Worker **secret**: competition judge entry code for the public `/judge` page. `POST /api/auth/judge-access` registers only when this is set **and** `ROLE_SWITCHER_ENABLED=1`; otherwise the path 404s. Exchanges the code (constant-time compare) for a **4-hour** demo-persona session (`admin` / `evaluator` / `speaker`) on the seeded demo event; rate-limited 10 attempts / 5 min / IP (best-effort per Worker isolate, in-memory); demo sessions cannot create API keys. Never commit or log the value.
 - `VITE_ROLE_SWITCHER` — when `"1"`, SPA shows the RoleSwitcher chrome (also shown automatically in Vite `import.meta.env.DEV`). Build-time only; not a secret.
 - Demo emails are public constants (`admin@demo.speakerops.local`, etc.) — not credentials; switcher still issues real HttpOnly session cookies server-side.
 
@@ -52,8 +52,8 @@
 - Never commit Turnstile secrets or log full captcha tokens.
 
 ## Comms / email provider (section 5.2) — names only
-- `EMAIL_PROVIDER` — provider mode for outbox drain (`sandbox` default | `resend`). Sandbox never makes network calls.
-- `RESEND_API_KEY` — Resend API key for live send. **Ignored** unless `EMAIL_PROVIDER=resend`. Never commit values; never log the key.
+- `EMAIL_PROVIDER` — provider mode for outbox drain (`sandbox` default | `resend` | `cloudflare`). Sandbox never makes network calls. The hosted demo sets `cloudflare` (Cloudflare Email Sending — no attachments; `.ics` is a portal download).
+- `RESEND_API_KEY` — Resend API key for send via Resend. **Ignored** unless `EMAIL_PROVIDER=resend`. Never commit values; never log the key.
 - `EMAIL_FROM` — optional default From: address for provider sends (not a secret token).
 - `AUTH_EMAIL_FROM` — optional From: for magic-link emails (falls back to `EMAIL_FROM`).
 - `AUTH_EMAIL_PROVIDER` — `cloudflare` (dogfood) or `resend` for magic-link delivery.

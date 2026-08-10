@@ -1,6 +1,6 @@
 # SpeakerOps
 
-Production-hard **Program OS** for AI Engineer conference operations — CFP → score → accept → portal → comms/calendar → schedule → readiness — on Cloudflare (D1 SoR, one-way Airtable projection, CLI + scoped keys).
+Production-hard **Program OS** for AI Engineer conference operations — CFP → score → accept → portal → comms/calendar → schedule → readiness — on Cloudflare (D1 SoR, optional one-way Airtable projection — paused on the hosted demo, CLI + scoped keys).
 
 **Exit claim:** `dogfood_ready` (see constitution).
 
@@ -78,8 +78,8 @@ Outline + build order: [`docs/governance/0.5-docs-onboarding-outline.md`](./docs
 - **UI:** React + Vite + TypeScript + Lumen  
 - **API:** Hono on Cloudflare Workers  
 - **DB:** D1 + Drizzle (sole SoR)  
-- **Files:** R2 · **Jobs:** Queues + outbox · **Live:** DO invalidation  
-- **Airtable:** one-way projection only  
+- **Files:** R2 when configured — the hosted demo stores file bytes as durable D1 rows (`file_blobs`) because R2 is not bound · **Jobs:** Queues + outbox · **Live:** 3-second polling (DO invalidation deferred)
+- **Airtable:** optional one-way projection only (paused on the hosted demo — no keys configured)
 - **Agents:** CLI + scoped API keys  
 
 **Non-goals include:** Sessionboard CRM suite, in-product agent fleet, Next/RSC default, Postgres dual-stack, Airtable dual-write, OR-Tools, Temporal, struck brief features.

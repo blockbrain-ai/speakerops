@@ -359,7 +359,7 @@ footer.report-footer code {
 <h1>Architecture</h1>
 <blockquote><p><strong>Soul:</strong> <strong>S-DOCS</strong> · <strong>Owner prose:</strong> section <strong>9.4</strong> · <strong>IA:</strong> <a href="../docs/sections/9.1-docs-ia.md">9.1</a>   <strong>Contracts:</strong> <a href="../KMS-competition/initiative/contracts/SCHEMA.md">SCHEMA</a> · <a href="../KMS-competition/initiative/contracts/COMMANDS.md">COMMANDS</a> · <a href="../KMS-competition/initiative/contracts/SCOPES.md">SCOPES</a>   <strong>Programme:</strong> <a href="../docs/governance/0.1-programme-contract.md">0.1</a> · domain map <a href="../docs/governance/0.4-domain-map.md">0.4</a></p></blockquote>
 <h2>Purpose</h2>
-<p>Coherent description of SpeakerOps as a <strong>Program OS</strong> on Cloudflare: <strong>D1</strong> is the sole system of record; <strong>one-way Airtable</strong> is a projection only; Hono Worker API; React+Vite Lumen SPA; R2 files; queues + transactional outbox; Durable Object invalidation; CLI + scoped API keys over the same domain commands as HTTP.</p>
+<p>Coherent description of SpeakerOps as a <strong>Program OS</strong> on Cloudflare: <strong>D1</strong> is the sole system of record; <strong>one-way Airtable</strong> is an optional projection only (paused on the hosted demo — no keys configured); Hono Worker API; React+Vite Lumen SPA; R2 files when configured (the hosted demo stores file bytes as durable D1 <code>file_blobs</code> rows because R2 is not bound); queues + transactional outbox; live refresh via 3-second polling (Durable Object invalidation is deferred); CLI + scoped API keys over the same domain commands as HTTP.</p>
 <p>This document is operator- and judge-facing architecture. It does <strong>not</strong> invent endpoints, tables, or stack alternatives. Binding detail lives in contracts; implementation lives under composition roots below.</p>
 <hr />
 <h2>1. North star in one stack diagram</h2>
@@ -379,16 +379,17 @@ footer.report-footer code {
 └───┬──────────┬──────────┬──────────┬──────────┬─────────────────┘
     │          │          │          │          │
     ▼          ▼          ▼          ▼          ▼
-   D1        R2        Queues     Outbox     DO invalidate
- (SoR)    (files)   (jobs)    (side fx)   (live only)
+   D1        R2*       Queues     Outbox     Polling
+ (SoR)    (files*)  (jobs)    (side fx)   (live refresh)
     │
     │  one-way projection (never dual-write)
     ▼
  Airtable (optional read model; pause when unset)</code></pre>
+<p>\* R2 when configured; the hosted demo stores file bytes as durable D1 rows (<code>file_blobs</code>, migration 0020) because no <code>FILES</code> binding is set on the dogfood env. Durable Object invalidation is <strong>deferred</strong> — live surfaces (readiness dashboard) ship with 3-second polling (<a href="../docs/sections/6.3-readiness-dashboard.md">6.3</a>).</p>
 <p><strong>Locked rule:</strong> there is <strong>no second SoR</strong>. Postgres dual-stack, Airtable-as-database, DO-as-DB, and client-only authz are forbidden.</p>
 <hr />
 <h2>2. Locked stack (do not invent)</h2>
-<table><thead><tr><th>Layer</th><th>Choice</th><th>Contract / note</th></tr></thead><tbody><tr><td>UI</td><td>React + Vite + TypeScript + <strong>Lumen</strong></td><td><a href="design-lumen.html">0.2 lock</a> — no Next/RSC default, no freeform CSS</td></tr><tr><td>API</td><td>Hono on Cloudflare Workers</td><td>Domain commands only (<a href="../KMS-competition/initiative/contracts/COMMANDS.md">COMMANDS.md</a>)</td></tr><tr><td>SoR</td><td><strong>D1</strong> + Drizzle</td><td><code>packages/db</code> — <strong>D1 only</strong></td></tr><tr><td>Files</td><td>R2</td><td>Private objects; metadata in D1 <code>file_assets</code></td></tr><tr><td>Jobs</td><td>Queues + transactional <strong>outbox</strong></td><td>Email, Airtable projection off request path (E7)</td></tr><tr><td>Live</td><td>Durable Object <strong>invalidation only</strong></td><td>Not a second database</td></tr><tr><td>Airtable</td><td><strong>One-way</strong> projection</td><td><a href="../docs/AIRTABLE.md">AIRTABLE.md</a> · never dual-write</td></tr><tr><td>Auth (humans)</td><td>HttpOnly Secure SameSite cookies</td><td><a href="../docs/SECURITY.md">SECURITY.md</a></td></tr><tr><td>Auth (agents)</td><td>Scoped API keys + CLI</td><td><a href="cli-reference.html">CLI.md</a> · <a href="../KMS-competition/initiative/contracts/SCOPES.md">SCOPES.md</a></td></tr><tr><td>E2E</td><td>Playwright inventory-driven</td><td><a href="../docs/E2E.md">E2E.md</a> · <a href="../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md">BROWSER_E2E_INVENTORY.md</a></td></tr></tbody></table>
+<table><thead><tr><th>Layer</th><th>Choice</th><th>Contract / note</th></tr></thead><tbody><tr><td>UI</td><td>React + Vite + TypeScript + <strong>Lumen</strong></td><td><a href="design-lumen.html">0.2 lock</a> — no Next/RSC default, no freeform CSS</td></tr><tr><td>API</td><td>Hono on Cloudflare Workers</td><td>Domain commands only (<a href="../KMS-competition/initiative/contracts/COMMANDS.md">COMMANDS.md</a>)</td></tr><tr><td>SoR</td><td><strong>D1</strong> + Drizzle</td><td><code>packages/db</code> — <strong>D1 only</strong></td></tr><tr><td>Files</td><td>R2 when configured</td><td>Private objects; metadata in D1 <code>file_assets</code>. Hosted demo: no <code>FILES</code> binding — bytes stored as durable D1 <code>file_blobs</code> rows</td></tr><tr><td>Jobs</td><td>Queues + transactional <strong>outbox</strong></td><td>Email, Airtable projection off request path (E7)</td></tr><tr><td>Live</td><td>3-second polling — DO invalidation <strong>deferred</strong> (not implemented)</td><td>If added later: invalidation only, never a second database</td></tr><tr><td>Airtable</td><td><strong>One-way</strong> projection</td><td><a href="../docs/AIRTABLE.md">AIRTABLE.md</a> · never dual-write</td></tr><tr><td>Auth (humans)</td><td>HttpOnly Secure SameSite cookies</td><td><a href="../docs/SECURITY.md">SECURITY.md</a></td></tr><tr><td>Auth (agents)</td><td>Scoped API keys + CLI</td><td><a href="cli-reference.html">CLI.md</a> · <a href="../KMS-competition/initiative/contracts/SCOPES.md">SCOPES.md</a></td></tr><tr><td>E2E</td><td>Playwright inventory-driven</td><td><a href="../docs/E2E.md">E2E.md</a> · <a href="../KMS-competition/initiative/BROWSER_E2E_INVENTORY.md">BROWSER_E2E_INVENTORY.md</a></td></tr></tbody></table>
 <hr />
 <h2>3. Composition roots</h2>
 <table><thead><tr><th>Surface</th><th>Path</th><th>Role</th></tr></thead><tbody><tr><td>API</td><td><code>apps/api/src/index.ts</code></td><td>Worker entry; middleware; route modules</td></tr><tr><td>Web</td><td><code>apps/web/src/main.tsx</code></td><td>SPA entry; Lumen shell; role routes</td></tr><tr><td>CLI</td><td><code>packages/cli/src/main.ts</code></td><td><code>speakerops</code> binary; maps to HTTP commands</td></tr><tr><td>DB</td><td><code>packages/db</code></td><td>Drizzle schema + linear migrations</td></tr><tr><td>Shared DTOs</td><td><code>packages/shared/src/</code></td><td>Zod schemas + E4 envelopes — single source; no duplicate types in web/api</td></tr></tbody></table>
@@ -423,10 +424,11 @@ footer.report-footer code {
 <li>Tables owned by section writers — see <a href="../KMS-competition/initiative/contracts/SCHEMA.md">SCHEMA.md</a> ownership table</li>
 <li>Cross-cutting: <code>audit_events</code>, <code>outbox_events</code>, <code>projection_records</code>, <code>idempotency_keys</code></li>
 </ul>
-<h3>R2 (files)</h3>
+<h3>Files (R2 when configured)</h3>
 <ul>
-<li>Binding name: <code>FILES</code></li>
-<li>Bodies in R2; D1 holds <code>file_assets</code> metadata (<code>r2_key</code>, mime, size, checksum, scan status)</li>
+<li>Binding name: <code>FILES</code> (R2)</li>
+<li>Bodies in R2 when the binding is present; D1 holds <code>file_assets</code> metadata (<code>r2_key</code>, mime, size, checksum, scan status)</li>
+<li><strong>Hosted demo:</strong> the dogfood env has no <code>FILES</code> binding — file bytes are stored as durable base64 rows in D1 <code>file_blobs</code> (migration 0020); R2 remains preferred when bound</li>
 <li>Logo/headshot/slides: type/size checks; SVG logos rejected (XSS surface)</li>
 </ul>
 <h3>Queues + outbox</h3>
@@ -438,7 +440,8 @@ footer.report-footer code {
 </ul>
 <h3>Durable Objects</h3>
 <ul>
-<li><strong>Invalidation / live hints only</strong> — not authoritative storage</li>
+<li><strong>Deferred — not implemented.</strong> Live surfaces (readiness dashboard) use 3-second polling (<a href="../docs/sections/6.3-readiness-dashboard.md">6.3</a>)</li>
+<li>If added later: invalidation / live hints only — never authoritative storage</li>
 </ul>
 <hr />
 <h2>8. Frontend architecture</h2>
@@ -485,9 +488,9 @@ pnpm test:e2e            # Phase 8 full REQUIRED
 pnpm test:e2e:inventory  # inventory law</code></pre>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-10T12:14:52.909Z" data-git-sha="6f0eb50f6">
-  <div><strong>Generated:</strong> <time datetime="2026-08-10T12:14:52.909Z">2026-08-10T12:14:52.909Z</time></div>
-  <div><strong>Git SHA:</strong> <code>6f0eb50f6</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-10T12:52:40.558Z" data-git-sha="6ae30ed4a">
+  <div><strong>Generated:</strong> <time datetime="2026-08-10T12:52:40.558Z">2026-08-10T12:52:40.558Z</time></div>
+  <div><strong>Git SHA:</strong> <code>6ae30ed4a</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/ARCHITECTURE.md · no secrets in report</div>
 </footer>
   </div>

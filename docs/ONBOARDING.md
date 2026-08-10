@@ -55,8 +55,8 @@ Copy names into a local secrets channel or `.env` / `.dev.vars` that is **gitign
 | `ROLE_SWITCHER_ENABLED` | private dogfood only | `"1"` enables role-switch API (default **off**) |
 | `JUDGE_ACCESS_CODE` | shared demo only (secret) | With role switcher on, enables `/judge` entry (4h demo sessions); 404 when unset |
 | `VITE_ROLE_SWITCHER` | private dogfood SPA | `"1"` shows RoleSwitcher chrome (also auto in Vite DEV) |
-| `EMAIL_PROVIDER` | comms drain | `sandbox` (default) or `resend` |
-| `RESEND_API_KEY` | live email only | Ignored unless `EMAIL_PROVIDER=resend` |
+| `EMAIL_PROVIDER` | comms drain | `sandbox` (default), `resend`, or `cloudflare` (hosted demo — Cloudflare Email Sending, no attachments) |
+| `RESEND_API_KEY` | Resend provider only | Ignored unless `EMAIL_PROVIDER=resend` |
 | `EMAIL_FROM` | optional | Default From: address for provider sends |
 | `AIRTABLE_API_KEY` | optional projection | Drain only; product works when unset (paused) |
 | `AIRTABLE_BASE_ID` | optional projection | Base id for one-way mirror |

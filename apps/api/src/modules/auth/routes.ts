@@ -61,7 +61,7 @@ async function resolveAdminActorForEvent(
   store: AuthStore,
   sessionToken: string | null,
   eventId: string,
-): Promise<{ userId: string; sessionToken: string } | null> {
+): Promise<{ userId: string; sessionToken: string; expiresAt: string } | null> {
   if (!sessionToken) return null;
   const tokenHash = await hashToken(sessionToken);
   const session = await store.findSessionByTokenHash(tokenHash);
@@ -70,7 +70,9 @@ async function resolveAdminActorForEvent(
   if (!actor) return null;
   const membership = await store.findMembership(eventId, actor.id);
   if (!membership || membership.role !== "admin") return null;
-  return { userId: actor.id, sessionToken };
+  // expiresAt lets role-switch cap child sessions at the authorizing
+  // session's remaining lifetime (judge 4h TTL must survive hops).
+  return { userId: actor.id, sessionToken, expiresAt: session.expiresAt };
 }
 
 export type AuthRouteOptions = {
@@ -452,6 +454,12 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
        * existing judge-origin cookie when it still authorizes as admin.
        */
       let preserveJudgeToken: string | null = null;
+      /**
+       * Expiry of the authorizing session (ISO). The minted child session —
+       * DB row AND cookies — must never outlive it: a judge's 4h TTL must not
+       * be laundered into a 14-day session via a role-switch hop.
+       */
+      let authorizingExpiresAt: string | null = null;
 
       // Controlled/production: only event admins (judges) — or a preserved
       // judge-origin cookie from a prior authorized switch — may mint demo roles.
@@ -475,6 +483,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         );
         if (fromSession) {
           preserveJudgeToken = fromSession.sessionToken;
+          authorizingExpiresAt = fromSession.expiresAt;
         } else {
           const fromJudge = await resolveAdminActorForEvent(
             options.store,
@@ -483,6 +492,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
           );
           if (fromJudge) {
             preserveJudgeToken = fromJudge.sessionToken;
+            authorizingExpiresAt = fromJudge.expiresAt;
           }
         }
 
@@ -506,6 +516,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         );
         if (fromSession) {
           preserveJudgeToken = fromSession.sessionToken;
+          authorizingExpiresAt = fromSession.expiresAt;
         } else if (judgeCookieToken) {
           const fromJudge = await resolveAdminActorForEvent(
             options.store,
@@ -514,8 +525,19 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
           );
           if (fromJudge) {
             preserveJudgeToken = fromJudge.sessionToken;
+            authorizingExpiresAt = fromJudge.expiresAt;
           }
         }
+      }
+
+      // Cap the child session at the authorizing session's remaining TTL —
+      // never extend on a hop (child ≤ authorizing session). When there is no
+      // authorizing session (open-bootstrap harness), the default TTL applies.
+      let sessionTtlSeconds: number | undefined;
+      if (authorizingExpiresAt) {
+        const remainingMs =
+          new Date(authorizingExpiresAt).getTime() - Date.now();
+        sessionTtlSeconds = Math.max(1, Math.floor(remainingMs / 1000));
       }
 
       const correlationId = c.get("correlationId");
@@ -527,6 +549,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         eventId: parsed.data.eventId,
         correlationId,
         allowCreate,
+        sessionTtlSeconds,
       });
 
       if (!result.ok) {
@@ -547,20 +570,26 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         );
       }
 
-      // Active product session → demo role user.
+      // Active product session → demo role user. Cookie Max-Age shares the
+      // capped TTL so browser state never outlives the credential.
       c.header(
         "Set-Cookie",
-        buildSessionSetCookie(result.sessionToken, { secure: cookieSecure }),
+        buildSessionSetCookie(result.sessionToken, {
+          secure: cookieSecure,
+          maxAgeSeconds: sessionTtlSeconds,
+        }),
         { append: true },
       );
       // Preserve original judge authorization across impersonation so the
-      // switcher remains functional after admin → evaluator/speaker.
+      // switcher remains functional after admin → evaluator/speaker. Same cap:
+      // the preserved cookie must not outlive the session it points at.
       if (preserveJudgeToken) {
         c.header(
           "Set-Cookie",
           buildSessionSetCookie(preserveJudgeToken, {
             secure: cookieSecure,
             name: JUDGE_SESSION_COOKIE_NAME,
+            maxAgeSeconds: sessionTtlSeconds,
           }),
           { append: true },
         );

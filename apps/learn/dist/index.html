@@ -78,7 +78,7 @@
 <section class="learn-section">
 <h2 id="what-speakerops-is">What SpeakerOps is</h2>
 <p>SpeakerOps is a Program OS for multi-day tech conference program operations. Operators run conditional call-for-proposals forms, human evaluation, accept or reject decisions, speaker portal tasks, templated communications with calendar invites, conflict-aware scheduling, and a live readiness dashboard from one system of record.</p>
-<p>The product is open source and deploys on Cloudflare Workers with D1 as the durable store and R2 for file assets. Humans use the admin SPA with magic-link sessions. Agents and automation use the same typed domain commands through the speakerops CLI and scoped API keys. Authorization is always enforced on the Worker; the UI and CLI never elevate themselves.</p>
+<p>The product is open source and deploys on Cloudflare Workers with D1 as the durable store and R2 for file assets when configured (the hosted demo stores file bytes as durable D1 rows because R2 is not bound). Humans use the admin SPA with magic-link sessions. Agents and automation use the same typed domain commands through the speakerops CLI and scoped API keys. Authorization is always enforced on the Worker; the UI and CLI never elevate themselves.</p>
 <p>This Learn site is the self-contained operator handbook. Every guide on the left should teach the screen or command set in full so you do not need a second document to finish the job. Use search when you know a term; use the Program group when you are walking the season end to end.</p>
 <ul class="learn-bullets">
 <li>Program path: CFP forms → public submit → evaluation → decisions → portal → schedule → readiness → comms</li>

@@ -18,7 +18,7 @@
  * Requires E2E_WEB_SERVER=1 (pnpm test:e2e).
  */
 import { test, expect } from "@playwright/test";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -582,7 +582,7 @@ test("@inv:G05 e2e/portal/task-complete Complete task; status flips", async ({
 }) => {
   const run = Date.now() + 4;
   const seed = await seedPortalSpeaker(request, context, baseURL, run);
-  await loginAsSpeaker(
+  const speakerSession = await loginAsSpeaker(
     request,
     context,
     baseURL,
@@ -593,6 +593,12 @@ test("@inv:G05 e2e/portal/task-complete Complete task; status flips", async ({
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
   );
+  // Wait for the wizard before walking it — the helper returns immediately
+  // when the wizard has not rendered yet (page-load race).
+  await expect(page.getByTestId("portal-home")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("portal-onboarding-wizard")).toBeVisible({
+    timeout: 15_000,
+  });
   // Wizard: complete headshot-linked task via continue after filling profile
   await completeProfileViaWizard(page, {
     bio: `G05 bio ${run}`,
@@ -609,6 +615,26 @@ test("@inv:G05 e2e/portal/task-complete Complete task; status flips", async ({
   } else {
     // Still on wizard or celebrate — toast proves complete path ran
     await expect(page.getByTestId("portal-toast").or(page.getByTestId("portal-home"))).toBeVisible();
+  }
+
+  // Status flips: re-read authoritative portal state — the seeded organiser
+  // task must actually be completed, not merely a visible portal shell.
+  expect(seed.taskIds.length).toBeGreaterThan(0);
+  const homeRes = await request.get(
+    `/api/portal/home?eventId=${encodeURIComponent(seed.eventId)}`,
+    { headers: sessionHeaders(speakerSession) },
+  );
+  expect(homeRes.status()).toBe(200);
+  const home = (await homeRes.json()) as {
+    tasks: Array<{ id: string; status: string }>;
+  };
+  for (const taskId of seed.taskIds) {
+    const task = home.tasks.find((t) => t.id === taskId);
+    expect(task, `seeded task ${taskId} present in portal home`).toBeTruthy();
+    expect(
+      task!.status,
+      `seeded task ${taskId} completed after wizard`,
+    ).toBe("completed");
   }
 });
 
@@ -763,7 +789,7 @@ test("@inv:G08 e2e/portal/mobile Mobile complete bio+task", async ({
 }) => {
   const run = Date.now() + 7;
   const seed = await seedPortalSpeaker(request, context, baseURL, run);
-  await loginAsSpeaker(
+  const speakerSession = await loginAsSpeaker(
     request,
     context,
     baseURL,
@@ -789,6 +815,26 @@ test("@inv:G08 e2e/portal/mobile Mobile complete bio+task", async ({
 
   // Wizard completion or review — toast / completed state
   await expect(page.getByTestId("portal-home")).toBeVisible();
+
+  // Mobile complete is real: re-read portal state and assert the seeded
+  // organiser task flipped to completed via the mobile wizard flow.
+  expect(seed.taskIds.length).toBeGreaterThan(0);
+  const homeRes = await request.get(
+    `/api/portal/home?eventId=${encodeURIComponent(seed.eventId)}`,
+    { headers: sessionHeaders(speakerSession) },
+  );
+  expect(homeRes.status()).toBe(200);
+  const home = (await homeRes.json()) as {
+    tasks: Array<{ id: string; status: string }>;
+  };
+  for (const taskId of seed.taskIds) {
+    const task = home.tasks.find((t) => t.id === taskId);
+    expect(task, `seeded task ${taskId} present in portal home`).toBeTruthy();
+    expect(
+      task!.status,
+      `seeded task ${taskId} completed after mobile wizard`,
+    ).toBe("completed");
+  }
 });
 
 test("@inv:G09 e2e/portal/session-ics download own invite; other speaker 404", async ({
@@ -862,6 +908,17 @@ test("@inv:G09 e2e/portal/session-ics download own invite; other speaker 404", a
   await expect(
     page.getByTestId(`portal-session-ics-${seed.sessionId}`),
   ).toBeVisible({ timeout: 15_000 });
+
+  // Real download proof: clicking the control streams a text/calendar
+  // attachment named invite.ics whose body is an actual VCALENDAR.
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTestId(`portal-session-ics-${seed.sessionId}`).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("invite.ics");
+  const downloadPath = await download.path();
+  const downloaded = readFileSync(downloadPath, "utf8");
+  expect(downloaded).toContain("BEGIN:VCALENDAR");
+  expect(downloaded).toContain(`SUMMARY:ICS Talk ${run}`);
 
   // Negative: another speaker on the same event cannot fetch this invite.
   const otherEmail = `e2e-portal-ics-other-${run}@example.com`;

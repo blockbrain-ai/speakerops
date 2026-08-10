@@ -52,10 +52,10 @@ Custom domain production cutover is **out of scope** for dogfood claim unless ow
 | `DEMO_ALLOWLIST_HOSTS` | dogfood Worker | Comma-separated hostnames (e.g. `www.speakerops.org,localhost`) |
 | `DEMO_ALLOWLIST_EVENT_SLUGS` | optional | Comma-separated event slugs; empty = any event on allowlisted host |
 | `BOOTSTRAP_ADMIN_EMAIL` | first admin | Controlled bootstrap allowlist (email, not a token) |
-| `RESEND_API_KEY` | if live email | Only with `EMAIL_PROVIDER=resend` |
+| `RESEND_API_KEY` | if Resend email | Only with `EMAIL_PROVIDER=resend` |
 | `AIRTABLE_API_KEY` / `AIRTABLE_BASE_ID` | optional | Projection drain only (paused when unset) |
 | `SPEAKEROPS_DB_PATH` | local | SQLite path for `pnpm db:migrate` / `pnpm seed` |
-| `EMAIL_PROVIDER` | optional | `sandbox` (default) \| `resend` |
+| `EMAIL_PROVIDER` | optional | `sandbox` (default) \| `resend` \| `cloudflare` (hosted demo — Cloudflare Email Sending, no attachments) |
 
 Full names index: [`docs/SECRETS.md`](./SECRETS.md).
 
@@ -246,7 +246,7 @@ point judges or agents at `/api/auth/dev/outbox` on dogfood (route is **off** in
 
 | Path | When | How |
 |------|------|-----|
-| **A. Judge access** (`/judge`, judges) | Shared demo with `JUDGE_ACCESS_CODE` + `ROLE_SWITCHER_ENABLED=1` | Public `/judge` page exchanges the access code (`POST /api/auth/judge-access`) for a **4-hour** demo-persona session (`admin` / `evaluator` / `speaker`) on `evt_dogfood`. Route 404s when disabled; rate-limited 10 attempts / 5 min / IP; demo sessions cannot create API keys; role switcher badge shows “Shared demo”. |
+| **A. Judge access** (`/judge`, judges) | Shared demo with `JUDGE_ACCESS_CODE` + `ROLE_SWITCHER_ENABLED=1` | Public `/judge` page exchanges the access code (`POST /api/auth/judge-access`) for a **4-hour** demo-persona session (`admin` / `evaluator` / `speaker`) on `evt_dogfood`. Route 404s when disabled; rate-limited 10 attempts / 5 min / IP (best-effort per Worker isolate, in-memory); demo sessions cannot create API keys; role switcher badge shows “Shared demo”. |
 | **A2. Role switcher** (preferred dogfood) | Private dogfood with seed | `ROLE_SWITCHER_ENABLED=1` on Worker + `VITE_ROLE_SWITCHER=1` SPA build. Operator signs in as **event admin** once, then uses Role switcher chrome → `POST /api/auth/dev/role-switch` mints demo `admin` / `evaluator` / `speaker` sessions. Controlled mode requires existing admin (or preserved judge cookie); unauthenticated mint → 401. |
 | **B. Magic link + real email** | Live mail transport | `POST /api/auth/magic-link` then open link → `POST /api/auth/exchange` sets cookie. Login UI does **not** promise a product outbox. |
 | **C. Local e2e / Playwright** | `pnpm test:e2e` only | `scripts/e2e-api-server.mjs` enables in-memory `GET /api/auth/dev/outbox` (`AUTH_DEV_OUTBOX=1`). Harness reads token, exchanges, seeds browser cookie. **Never** enable outbox as dogfood default. |

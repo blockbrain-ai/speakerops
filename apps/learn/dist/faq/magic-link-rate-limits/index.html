@@ -77,7 +77,7 @@
 <p class="learn-lead">How login abuse controls work and how operators recover when a link does not arrive.</p>
 <section class="learn-section">
 <h2 id="why-limits-exist">How the controls work</h2>
-<p>Magic-link requests always return a generic success response, so callers cannot enumerate which emails exist. Under the controlled demo policy, requests for unknown emails are a silent no-op — no link is created or sent. Tokens themselves are single-use and short-lived, and delivery is asynchronous through the outbox, so repeated clicking does not speed anything up. Separately, the <code>/judge</code> access-code endpoint is rate limited to 10 attempts per 5 minutes per IP and answers 429 when exceeded.</p>
+<p>Magic-link requests always return a generic success response, so callers cannot enumerate which emails exist. Under the controlled demo policy, requests for unknown emails are a silent no-op — no link is created or sent. Tokens themselves are single-use and short-lived, and delivery is asynchronous through the outbox, so repeated clicking does not speed anything up. Separately, the <code>/judge</code> access-code endpoint is rate limited to 10 attempts per 5 minutes per IP (best-effort, in-memory per Worker isolate) and answers 429 when exceeded.</p>
 </section>
 <section class="learn-section">
 <h2 id="what-you-should-do">What you should do</h2>
@@ -88,7 +88,7 @@
 <li>Open the latest link once in a fresh browser tab.</li>
 <li>If still blocked, ask an admin to confirm your account or membership exists and that the host is healthy.</li>
 </ol>
-<aside class="learn-callout learn-callout--note" data-testid="learn-callout"><p><strong>NOTE.</strong> The /judge attempt limit is enforced on the Worker per client IP — clearing browser cookies does not reset it; wait for the window to pass.</p></aside>
+<aside class="learn-callout learn-callout--note" data-testid="learn-callout"><p><strong>NOTE.</strong> The /judge attempt limit is enforced in Worker memory per client IP (best-effort per isolate) — clearing browser cookies does not reset it; wait for the window to pass.</p></aside>
 </section>
 <section class="learn-section">
 <h2 id="admin-checks">Admin checks</h2>

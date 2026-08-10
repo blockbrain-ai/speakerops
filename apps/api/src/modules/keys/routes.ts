@@ -217,6 +217,19 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
         401,
       );
     }
+    // Shared-demo blast radius: demo personas (role switcher / judge access)
+    // must not perform durable key mutations — revoke included, or a judge
+    // could kill real API credentials for every other reviewer.
+    const sessionUser = c.get("user");
+    if (sessionUser?.email?.toLowerCase().endsWith("@demo.speakerops.local")) {
+      return c.json(
+        errorEnvelope(
+          "Demo sessions cannot revoke API keys (shared demo)",
+          "FORBIDDEN",
+        ),
+        403,
+      );
+    }
     const scope = await resolveKeysAdminScope(c, store, events);
     if (!scope) {
       return c.json(
