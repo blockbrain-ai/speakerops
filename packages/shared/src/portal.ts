@@ -267,8 +267,12 @@ export const TaskTemplateCreateBodySchema = z.object({
   dueOffsetDays: z.number().int().min(0).max(3650).default(14),
   /** Optional https:// resource link for portal task cards (Wave 2). */
   linkUrl: TaskLinkUrlSchema,
-  /** When true, incomplete tasks from this template block readiness (Wave 2). */
-  required: z.boolean().default(false),
+  /**
+   * When true, incomplete tasks from this template block readiness (Wave 2).
+   * Defaults to TRUE (0032 repair): tasks block readiness unless the
+   * organizer explicitly opts into optional.
+   */
+  required: z.boolean().default(true),
 });
 export type TaskTemplateCreateBody = z.infer<typeof TaskTemplateCreateBodySchema>;
 

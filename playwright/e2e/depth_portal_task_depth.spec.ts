@@ -189,6 +189,12 @@ test.describe("Wave 2 — portal task depth", () => {
 
     // Second, OPTIONAL template — due sooner than the required one so the
     // required-first ordering is proven against the dueAt tiebreak.
+    // Templates default to REQUIRED (0032 repair) — the organizer explicitly
+    // opts INTO optional by unchecking the box.
+    await expect(
+      page.getByTestId("task-template-required-input"),
+    ).toBeChecked();
+    await page.getByTestId("task-template-required-input").uncheck();
     await page
       .getByTestId("task-template-title-input")
       .fill("Share travel preferences");

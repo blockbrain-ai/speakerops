@@ -99,6 +99,8 @@ async function publishCfp(
     closesAt?: string | null;
     opensAt?: string | null;
     welcomeMd?: string;
+    /** Add a real file-typed field (uploads are rejected without one). */
+    fileField?: boolean;
   },
 ): Promise<{ formVersionId: string }> {
   const create = await request.post(`/api/events/${eventId}/forms`, {
@@ -154,6 +156,17 @@ async function publishCfp(
           required: false,
           sortOrder: 4,
         },
+        ...(opts?.fileField
+          ? [
+              {
+                fieldKey: "supporting_pdf",
+                type: "file",
+                label: "Supporting PDF",
+                required: false,
+                sortOrder: 5,
+              },
+            ]
+          : []),
       ],
       rules: [
         {
@@ -381,14 +394,17 @@ test("@inv:A04 e2e/public/cfp-multi-speaker min/max speaker rules", async ({
   });
 });
 
-test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type rejected", async ({
+test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type/unpinned/no-file-field rejected", async ({
   page,
   request,
   baseURL,
 }) => {
   const session = await loginAsAdmin(request, "e2e-a05@example.com");
   const event = await ensureEvent(request, session, "A05 File Event");
-  await publishCfp(request, session, event.id);
+  // Uploads are FORM-PINNED: the published form must carry a file field.
+  const { formVersionId } = await publishCfp(request, session, event.id, {
+    fileField: true,
+  });
 
   // URL fields are text inputs (type=url); file upload is the public files API.
   await page.goto(`${baseURL ?? ""}/cfp/${event.slug}`);
@@ -400,11 +416,13 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type reject
     "url",
   );
 
-  // Accept PDF via public upload API
+  // Accept PDF via public upload API (pinned to the published version).
   // Declared size must equal decoded byte length (server integrity check).
   const okPdfBody = "%PDF-1.4 tiny";
   const okPdf = await request.post(`/api/public/cfp/${event.slug}/files`, {
     data: {
+      formVersionId,
+      fieldKey: "supporting_pdf",
       filename: "ok.pdf",
       mime: "application/pdf",
       size: okPdfBody.length,
@@ -415,9 +433,21 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type reject
   const okBody = (await okPdf.json()) as { fileId?: string };
   expect(okBody.fileId, "fileId returned").toBeTruthy();
 
+  // Missing formVersionId → 400 (uploads must pin the published form).
+  const unpinned = await request.post(`/api/public/cfp/${event.slug}/files`, {
+    data: {
+      filename: "ok.pdf",
+      mime: "application/pdf",
+      size: okPdfBody.length,
+      contentBase64: btoa(okPdfBody),
+    },
+  });
+  expect(unpinned.status(), "unpinned upload rejected").toBe(400);
+
   // Reject SVG / bad type via API
   const badSvg = await request.post(`/api/public/cfp/${event.slug}/files`, {
     data: {
+      formVersionId,
       filename: "bad.svg",
       mime: "image/svg+xml",
       size: 40,
@@ -429,6 +459,7 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type reject
   // Oversize via API negative
   const oversize = await request.post(`/api/public/cfp/${event.slug}/files`, {
     data: {
+      formVersionId,
       filename: "big.pdf",
       mime: "application/pdf",
       size: 20 * 1024 * 1024,
@@ -436,6 +467,30 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type reject
     },
   });
   expect(oversize.status()).toBe(400);
+
+  // A form with NO file field never accepts anonymous uploads (D1 blob
+  // write surface closed): second event, same allowlisted PDF → 400.
+  const noFileEvent = await ensureEvent(
+    request,
+    session,
+    "A05 No File Field Event",
+  );
+  const noFile = await publishCfp(request, session, noFileEvent.id);
+  const rejected = await request.post(
+    `/api/public/cfp/${noFileEvent.slug}/files`,
+    {
+      data: {
+        formVersionId: noFile.formVersionId,
+        filename: "ok.pdf",
+        mime: "application/pdf",
+        size: okPdfBody.length,
+        contentBase64: btoa(okPdfBody),
+      },
+    },
+  );
+  expect(rejected.status(), "no-file-field upload rejected").toBe(400);
+  const rejectedBody = (await rejected.json()) as { error?: string };
+  expect(rejectedBody.error ?? "").toMatch(/does not accept file uploads/i);
 });
 
 test("@inv:A06 e2e/public/cfp-submit Turnstile pass; missing captcha blocked", async ({

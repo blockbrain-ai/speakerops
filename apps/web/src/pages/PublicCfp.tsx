@@ -695,7 +695,9 @@ export function PublicCfpPage() {
     fieldKey: string,
     file: File | null,
   ): Promise<void> => {
-    if (!file || !slug) return;
+    // Uploads are form-pinned: the server verifies the pinned published
+    // version actually collects files, so no pin → no upload.
+    if (!file || !slug || !formVersion) return;
     setFileStatus(null);
     if (file.size > fileMaxBytes) {
       setFieldErrors((prev) => ({
@@ -745,6 +747,9 @@ export function PublicCfpPage() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
+            // Pin the upload to the same published version the submit uses.
+            formVersionId: formVersion.id,
+            fieldKey,
             filename: file.name,
             mime,
             size: bytes.byteLength,

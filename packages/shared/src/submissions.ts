@@ -270,8 +270,14 @@ export type SubmissionGetDraftResponse = z.infer<
 /**
  * Public CFP supporting file upload — POST /api/public/cfp/:slug/files
  * JSON body with base64 content for local/e2e; mime allowlist enforced.
+ * Form-pinned: the request names the published form version it uploads for,
+ * and the server rejects uploads when that version has no file field.
  */
 export const CfpFileUploadBodySchema = z.object({
+  /** Pin to the published form version being filled (same pin as submit). */
+  formVersionId: z.string().min(1).max(128),
+  /** Optional file-typed field this upload answers (must be type "file"). */
+  fieldKey: z.string().min(1).max(128).optional(),
   filename: z.string().min(1).max(255),
   mime: z.string().min(1).max(128),
   /** Declared size; must match decoded content length. */

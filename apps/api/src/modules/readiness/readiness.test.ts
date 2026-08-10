@@ -614,6 +614,9 @@ describe("6.3 Reports.Readiness", () => {
           title: `Optional extras ${run}`,
           trigger: "on_accept",
           dueOffsetDays: 14,
+          // 0032 repair: omitting `required` now defaults to TRUE — optional
+          // is an explicit organizer opt-in.
+          required: false,
         }),
       },
       env,

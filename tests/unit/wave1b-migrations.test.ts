@@ -306,18 +306,73 @@ describe("Wave 1B migrations — upgrade from pre-wave head 0026", () => {
         await submissions.insertSpeakers([
           { submissionId: "sub_s2", personId: "person_s", isPrimary: true, sortOrder: 0 },
         ]);
+        // Per-submitter listing is FORM-scoped (all versions of the pinned
+        // form) — normalized email matches; other emails/versions never do.
         expect(
-          await submissions.countSubmittedByPrimaryEmail(
-            "evt_s",
+          await submissions.listSubmittedIdsByPrimaryEmailForVersions(
+            ["fv_s"],
             "Counted@Example.COM ",
           ),
-        ).toBe(1);
+        ).toEqual(["sub_s1"]);
         expect(
-          await submissions.countSubmittedByPrimaryEmail(
-            "evt_s",
+          await submissions.listSubmittedIdsByPrimaryEmailForVersions(
+            ["fv_s"],
             "other@example.com",
           ),
-        ).toBe(0);
+        ).toEqual([]);
+        expect(
+          await submissions.listSubmittedIdsByPrimaryEmailForVersions(
+            ["fv_other"],
+            "counted@example.com",
+          ),
+        ).toEqual([]);
+
+        // Atomic per-submitter guard: same slot key claims exactly once and
+        // the loser's submission row is NOT inserted (batch rollback).
+        const guardRow = (id: string, subId: string) => ({
+          id,
+          key: "per-submitter:form_s:counted@example.com:1",
+          requestHash: subId,
+          responseJson: null,
+          createdAt: now,
+        });
+        const winner = await submissions.insertSubmissionWithGuard(
+          {
+            id: "sub_guard_a",
+            eventId: "evt_s",
+            formVersionId: "fv_s",
+            title: "Guarded A",
+            category: null,
+            status: "submitted",
+            submittedAt: now,
+            version: 1,
+          },
+          guardRow("idem_g1", "sub_guard_a"),
+        );
+        expect(winner).toBe("inserted");
+        const loser = await submissions.insertSubmissionWithGuard(
+          {
+            id: "sub_guard_b",
+            eventId: "evt_s",
+            formVersionId: "fv_s",
+            title: "Guarded B",
+            category: null,
+            status: "submitted",
+            submittedAt: now,
+            version: 1,
+          },
+          guardRow("idem_g2", "sub_guard_b"),
+        );
+        expect(loser).toBe("guard_conflict");
+        expect(await submissions.findSubmissionById("sub_guard_a")).not.toBeNull();
+        expect(await submissions.findSubmissionById("sub_guard_b")).toBeNull();
+        // Guard hashes list the claimed submission ids for the form+email.
+        expect(
+          await submissions.listSubmissionGuardHashes(
+            "form_s",
+            "Counted@Example.COM ",
+          ),
+        ).toEqual(["sub_guard_a"]);
         expect(foreignKeyCheckClean(db)).toBe(true);
       } finally {
         db.close();

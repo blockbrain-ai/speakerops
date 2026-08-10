@@ -5,8 +5,10 @@
  * to the submitter's primary address through the standard S-COMMS outbox:
  * message_jobs (status queued) + message_recipients (participation_id NULL —
  * direct email) + rendered subject/body snapshot + idempotency key
- * `submission-confirmation:<submissionId>` + outbox_events row. Provider
- * delivery stays on the 5.2 consumer (sandbox default) — never here (E7).
+ * `submission-confirmation:<submissionId>` + outbox_events row — committed as
+ * ONE atomic unit via the store's enqueueLifecycleAtomic primitive (a failure
+ * anywhere leaves zero rows; retries start clean). Provider delivery stays on
+ * the 5.2 consumer (sandbox default) — never here (E7).
  *
  * Failure law: a missing/disabled template, malformed settings, or any store
  * error must NEVER fail the submission — log + skip, return a reason.
@@ -281,54 +283,77 @@ export async function enqueueSubmissionConfirmation(
       updatedAt: now,
     };
 
-    // Durable enqueue — job first (FK parent), then recipients, outbox,
-    // idempotency key, audit. The partial-unique message_jobs.idempotency_key
-    // plus the pre-checks above keep this exactly-once under replays.
-    await deps.comms.insertJob(job);
-    for (const recipient of recipientRows) {
-      await deps.comms.insertRecipient(recipient);
-    }
-    await deps.comms.insertOutbox({
-      id: newOutboxEventId(),
-      topic: COMMS_OUTBOX_TOPIC,
-      payloadJson: JSON.stringify({
-        jobId,
-        eventId: input.event.id,
-        templateId: template.id,
-        idempotencyKey,
-        correlationId: input.correlationId,
-        lifecycle: "submission_confirmation",
-      }),
-      createdAt: now,
-      processedAt: null,
-      attempts: 0,
-      lastError: null,
-    });
-    await deps.comms.insertIdempotencyKey({
-      id: newIdempotencyKeyId(),
-      key: storageKey,
-      requestHash: `submission-confirmation:${input.submission.id}:${primaryEmail}`,
-      responseJson: JSON.stringify({ jobId }),
-      createdAt: now,
-    });
+    // Durable enqueue — ONE atomic unit (E7): job + recipients + outbox +
+    // idempotency key + audit commit or roll back together (D1 batch; Memory
+    // all-or-nothing). A mid-operation failure leaves zero rows, so the retry
+    // path enqueues cleanly instead of finding an orphan job that replays as
+    // `duplicate` forever.
+    const outcome = await deps.comms.enqueueLifecycleAtomic(
+      {
+        job,
+        recipients: recipientRows,
+        outbox: {
+          id: newOutboxEventId(),
+          topic: COMMS_OUTBOX_TOPIC,
+          payloadJson: JSON.stringify({
+            jobId,
+            eventId: input.event.id,
+            templateId: template.id,
+            idempotencyKey,
+            correlationId: input.correlationId,
+            lifecycle: "submission_confirmation",
+          }),
+          createdAt: now,
+          processedAt: null,
+          attempts: 0,
+          lastError: null,
+        },
+        idempotency: {
+          id: newIdempotencyKeyId(),
+          key: storageKey,
+          requestHash: `submission-confirmation:${input.submission.id}:${primaryEmail}`,
+          responseJson: JSON.stringify({ jobId }),
+          createdAt: now,
+        },
+        audit: {
+          id: uuidv7(),
+          eventId: input.event.id,
+          actorType: "system",
+          actorId: "submission-confirmation",
+          action: "Comms.SubmissionConfirmation",
+          entityType: "message_job",
+          entityId: jobId,
+          afterJson: JSON.stringify({
+            submissionId: input.submission.id,
+            templateKey: SUBMISSION_CONFIRMATION_TEMPLATE_KEY,
+            recipientCount: recipientRows.length,
+            idempotencyKey,
+          }),
+          correlationId: input.correlationId,
+          createdAt: now,
+        },
+      },
+      (row) => deps.auth.insertAudit(row),
+    );
 
-    await deps.auth.insertAudit({
-      id: uuidv7(),
-      eventId: input.event.id,
-      actorType: "system",
-      actorId: "submission-confirmation",
-      action: "Comms.SubmissionConfirmation",
-      entityType: "message_job",
-      entityId: jobId,
-      afterJson: JSON.stringify({
-        submissionId: input.submission.id,
-        templateKey: SUBMISSION_CONFIRMATION_TEMPLATE_KEY,
-        recipientCount: recipientRows.length,
-        idempotencyKey,
-      }),
-      correlationId: input.correlationId,
-      createdAt: now,
-    });
+    if (outcome === "duplicate") {
+      // Concurrent duplicate committed first — surface its job id when stored.
+      const winner = await deps.comms.findIdempotencyKey(storageKey);
+      let winnerJobId: string | undefined;
+      if (winner?.responseJson) {
+        try {
+          const cached = JSON.parse(winner.responseJson) as { jobId?: string };
+          winnerJobId = cached.jobId;
+        } catch {
+          /* replay without job id */
+        }
+      }
+      if (!winnerJobId) {
+        winnerJobId =
+          (await deps.comms.findJobByIdempotencyKey(idempotencyKey))?.id;
+      }
+      return { enqueued: false, reason: "duplicate", jobId: winnerJobId };
+    }
 
     // Best-effort queue kick — outbox row is SoR; cron drain is the backstop.
     if (deps.queueKick && typeof deps.queueKick.send === "function") {

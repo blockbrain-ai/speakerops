@@ -160,6 +160,15 @@ const openRules = [
   },
 ];
 
+/** Optional file-typed field for the form-pinned upload tests. */
+const FILE_FIELD = {
+  fieldKey: "supporting_file",
+  type: "file" as const,
+  label: "Supporting file",
+  required: false,
+  sortOrder: 9,
+};
+
 async function publishOpenForm(
   app: ReturnType<typeof createAppWithAuth>["app"],
   cookie: string,
@@ -168,6 +177,8 @@ async function publishOpenForm(
     opensAt?: string | null;
     closesAt?: string | null;
     submissionLimit?: number | null;
+    /** Override the published fields (e.g. add a file field). */
+    fields?: Array<Record<string, unknown>>;
   },
 ): Promise<{ formId: string; formVersionId: string }> {
   const create = await app.request(
@@ -196,7 +207,7 @@ async function publishOpenForm(
         "x-correlation-id": "corr-form-draft",
       },
       body: JSON.stringify({
-        fields: openFields,
+        fields: opts?.fields ?? openFields,
         rules: openRules,
         welcomeMd: "Welcome to the CFP",
         thankYouMd: "Thanks for submitting",
@@ -583,10 +594,12 @@ describe("3.3 public CFP submit", () => {
     expect(err.code).toBe(VALIDATION_ERROR);
   });
 
-  it("file upload allowlist rejects bad type and accepts PDF", async () => {
+  it("file upload allowlist rejects bad type and accepts PDF (form-pinned)", async () => {
     const { app, cookie } = await magicLinkSession("admin-file@example.com");
     const event = await createEvent(app, cookie, "File Event", "file-evt");
-    await publishOpenForm(app, cookie, event.id);
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, FILE_FIELD],
+    });
 
     const bad = await app.request(
       `http://localhost/api/public/cfp/${event.slug}/files`,
@@ -597,6 +610,7 @@ describe("3.3 public CFP submit", () => {
           "x-correlation-id": "corr-file-bad",
         },
         body: JSON.stringify({
+          formVersionId,
           filename: "evil.svg",
           mime: "image/svg+xml",
           size: 4,
@@ -617,6 +631,8 @@ describe("3.3 public CFP submit", () => {
           "x-correlation-id": "corr-file-ok",
         },
         body: JSON.stringify({
+          formVersionId,
+          fieldKey: "supporting_file",
           filename: "deck.pdf",
           mime: "application/pdf",
           size: pdfBytes.length,
@@ -629,6 +645,185 @@ describe("3.3 public CFP submit", () => {
     const fileBody = CfpFileUploadResponseSchema.parse(await ok.json());
     expect(fileBody.fileId).toBeTruthy();
     expect(fileBody.mime).toBe("application/pdf");
+  });
+
+  it("upload is rejected when the pinned form has no file field or no pin", async () => {
+    const { app, cookie } = await magicLinkSession("admin-nofile@example.com");
+    const event = await createEvent(app, cookie, "No File Event", "nofile-evt");
+    // Published form with NO file field — anonymous uploads must 400.
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id);
+
+    const pdfBytes = "%PDF-1.4 test";
+    const uploadBody = {
+      filename: "deck.pdf",
+      mime: "application/pdf",
+      size: pdfBytes.length,
+      contentBase64: btoa(pdfBytes),
+    };
+
+    // Missing formVersionId → schema 400 (pin is required).
+    const unpinned = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/files`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-file-unpinned",
+        },
+        body: JSON.stringify(uploadBody),
+      },
+      env,
+    );
+    expect(unpinned.status).toBe(400);
+
+    // Pinned to a version with no file field → 400.
+    const noField = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/files`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-file-nofield",
+        },
+        body: JSON.stringify({ ...uploadBody, formVersionId }),
+      },
+      env,
+    );
+    expect(noField.status).toBe(400);
+    const noFieldErr = ErrorEnvelopeSchema.parse(await noField.json());
+    expect(noFieldErr.error).toMatch(/does not accept file uploads/i);
+
+    // Naming a non-file fieldKey on a form WITH a file field also 400s.
+    const event2 = await createEvent(app, cookie, "File Event 2", "file-evt2");
+    const withFile = await publishOpenForm(app, cookie, event2.id, {
+      fields: [...openFields, FILE_FIELD],
+    });
+    const wrongField = await app.request(
+      `http://localhost/api/public/cfp/${event2.slug}/files`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-file-wrongfield",
+        },
+        body: JSON.stringify({
+          ...uploadBody,
+          formVersionId: withFile.formVersionId,
+          fieldKey: "talk_title",
+        }),
+      },
+      env,
+    );
+    expect(wrongField.status).toBe(400);
+
+    // Cross-event pin: another event's published version never authorizes
+    // an upload here.
+    const crossPin = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/files`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-file-crosspin",
+        },
+        body: JSON.stringify({
+          ...uploadBody,
+          formVersionId: withFile.formVersionId,
+        }),
+      },
+      env,
+    );
+    expect(crossPin.status).toBe(400);
+  });
+
+  it("file answers are field-typed: text on file field and file token on text field both 400", async () => {
+    const { app, cookie } = await magicLinkSession("admin-filetype@example.com");
+    const event = await createEvent(app, cookie, "File Type Event", "ftype-evt");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, FILE_FIELD],
+    });
+
+    // Seed a real upload for the happy path.
+    const pdfBytes = "%PDF-1.4 typed";
+    const up = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/files`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-ftype-up",
+        },
+        body: JSON.stringify({
+          formVersionId,
+          fieldKey: "supporting_file",
+          filename: "deck.pdf",
+          mime: "application/pdf",
+          size: pdfBytes.length,
+          contentBase64: btoa(pdfBytes),
+        }),
+      },
+      env,
+    );
+    expect(up.status).toBe(201);
+    const { fileId } = CfpFileUploadResponseSchema.parse(await up.json());
+
+    const submitWith = async (
+      answers: Array<{ fieldKey: string; value: unknown }>,
+      corr: string,
+    ) =>
+      app.request(
+        `http://localhost/api/public/cfp/${event.slug}/submissions`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-correlation-id": corr,
+          },
+          body: JSON.stringify(baseSubmitBody(formVersionId, { answers })),
+        },
+        env,
+      );
+
+    // Plain text on the file-typed field → 400.
+    const textOnFile = await submitWith(
+      [
+        { fieldKey: "talk_title", value: "Typed Talk" },
+        { fieldKey: "category", value: "infra" },
+        { fieldKey: "supporting_file", value: "just some text" },
+      ],
+      "corr-ftype-text",
+    );
+    expect(textOnFile.status).toBe(400);
+    const textErr = ErrorEnvelopeSchema.parse(await textOnFile.json());
+    expect(textErr.error).toMatch(/uploaded file/i);
+
+    // A file token on a NON-file field → 400.
+    const tokenOnText = await submitWith(
+      [
+        { fieldKey: "talk_title", value: "Typed Talk" },
+        { fieldKey: "category", value: "infra" },
+        { fieldKey: "abstract", value: `file:${fileId}` },
+      ],
+      "corr-ftype-token",
+    );
+    expect(tokenOnText.status).toBe(400);
+    const tokenErr = ErrorEnvelopeSchema.parse(await tokenOnText.json());
+    expect(tokenErr.error).toMatch(/only accepted on file fields/i);
+
+    // Happy path unchanged: real token on the file field → 201.
+    const ok = await submitWith(
+      [
+        { fieldKey: "talk_title", value: "Typed Talk" },
+        { fieldKey: "category", value: "infra" },
+        { fieldKey: "supporting_file", value: `file:${fileId}` },
+      ],
+      "corr-ftype-ok",
+    );
+    expect(ok.status).toBe(201);
+    const okBody = SubmissionCreateResponseSchema.parse(await ok.json());
+    expect(
+      okBody.answers.find((a) => a.fieldKey === "supporting_file")?.value,
+    ).toBe(`file:${fileId}`);
   });
 
   it("rate limit header/test returns 429 with headers", async () => {

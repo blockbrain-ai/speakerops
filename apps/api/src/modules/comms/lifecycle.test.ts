@@ -25,7 +25,7 @@ import {
   ensureSubmissionConfirmationTemplate,
 } from "./lifecycle.js";
 import { processCommsOutbox } from "../../workers/emailConsumer.js";
-import { SandboxEmailProvider } from "./send.js";
+import { SandboxEmailProvider, commsSendIdempotencyStorageKey } from "./send.js";
 
 function makeDeps(overrides?: {
   comms?: MemoryCommsStore;
@@ -261,12 +261,108 @@ describe("Comms.SubmissionConfirmation — skip paths (never fail the submission
 
   it("store failure mid-enqueue returns error without throwing", async () => {
     const comms = new MemoryCommsStore();
-    comms.insertOutbox = (() => {
-      throw new Error("outbox down");
+    comms.enqueueLifecycleAtomic = (() => {
+      throw new Error("batch down");
     }) as never;
     const { deps } = makeDeps({ comms });
     const result = await enqueueSubmissionConfirmation(deps, baseInput());
     expect(result).toEqual({ enqueued: false, reason: "error" });
+  });
+});
+
+describe("Comms.SubmissionConfirmation — atomic enqueue (contract fix)", () => {
+  /** Storage key for the lifecycle idempotency row of the base submission. */
+  const storageKey = commsSendIdempotencyStorageKey(
+    submissionConfirmationIdempotencyKey(SUBMISSION.id),
+  );
+
+  /** Count all five durable row types of the lifecycle unit. */
+  async function countUnit(comms: MemoryCommsStore, auth: MemoryAuthStore) {
+    const jobs = await comms.listJobsForEvent(EVENT.id);
+    const recipients =
+      jobs.length === 1 ? await comms.listRecipientsForJob(jobs[0]!.id) : [];
+    const audits = (await auth.listAudits()).filter(
+      (a) => a.action === "Comms.SubmissionConfirmation",
+    );
+    return {
+      jobs: jobs.length,
+      recipients: recipients.length,
+      outbox: (await comms.listOutboxByTopic(COMMS_OUTBOX_TOPIC)).length,
+      idempotency: (await comms.findIdempotencyKey(storageKey)) ? 1 : 0,
+      audits: audits.length,
+    };
+  }
+
+  it("injected mid-operation failure leaves ZERO rows; the retry then succeeds once", async () => {
+    const { deps, comms, auth } = makeDeps();
+    // The audit write is part of the atomic unit — reject it once.
+    const realInsertAudit = auth.insertAudit.bind(auth);
+    let failNext = true;
+    auth.insertAudit = (async (row) => {
+      if (failNext) {
+        failNext = false;
+        throw new Error("audit down");
+      }
+      return realInsertAudit(row);
+    }) as typeof auth.insertAudit;
+
+    const first = await enqueueSubmissionConfirmation(deps, baseInput());
+    expect(first).toEqual({ enqueued: false, reason: "error" });
+    // ZERO rows of any of the five types — no orphan job that would make
+    // every retry replay as `duplicate` forever.
+    expect(await countUnit(comms, auth)).toEqual({
+      jobs: 0,
+      recipients: 0,
+      outbox: 0,
+      idempotency: 0,
+      audits: 0,
+    });
+
+    // Retry finds a clean slate and enqueues exactly once.
+    const retry = await enqueueSubmissionConfirmation(deps, baseInput());
+    expect(retry.enqueued).toBe(true);
+    expect(await countUnit(comms, auth)).toEqual({
+      jobs: 1,
+      recipients: 1,
+      outbox: 1,
+      idempotency: 1,
+      audits: 1,
+    });
+
+    // And a third call is an honest duplicate with no extra rows.
+    const third = await enqueueSubmissionConfirmation(deps, baseInput());
+    expect(third.enqueued).toBe(false);
+    if (!third.enqueued) {
+      expect(third.reason).toBe("duplicate");
+    }
+    expect(await countUnit(comms, auth)).toEqual({
+      jobs: 1,
+      recipients: 1,
+      outbox: 1,
+      idempotency: 1,
+      audits: 1,
+    });
+  });
+
+  it("concurrent duplicate calls commit exactly one complete unit (count all five row types)", async () => {
+    const { deps, comms, auth } = makeDeps();
+    const [a, b] = await Promise.all([
+      enqueueSubmissionConfirmation(deps, baseInput()),
+      enqueueSubmissionConfirmation(deps, baseInput()),
+    ]);
+    const enqueued = [a, b].filter((r) => r.enqueued);
+    const duplicates = [a, b].filter(
+      (r) => !r.enqueued && r.reason === "duplicate",
+    );
+    expect(enqueued).toHaveLength(1);
+    expect(duplicates).toHaveLength(1);
+    expect(await countUnit(comms, auth)).toEqual({
+      jobs: 1,
+      recipients: 1,
+      outbox: 1,
+      idempotency: 1,
+      audits: 1,
+    });
   });
 });
 

@@ -41,6 +41,7 @@ import {
   newPersonId,
   newSubmissionId,
   newAnswerId,
+  perSubmitterGuardPrefix,
 } from "./store.js";
 import {
   verifyTurnstile,
@@ -250,34 +251,69 @@ export async function createSubmission(
   }
 
   // Per-submitter cap (Wave 1B, ADDITIVE beside the total limit above):
-  // count existing submitted rows whose primary speaker email matches the
-  // incoming primary speaker's normalized email.
+  // scoped to the logical FORM (every published version of the pinned
+  // version's form_id), matching the UI copy ("this form") — a republish
+  // still counts, a second form on the same event never does.
+  //
+  // The effective count merges two race-visible sources:
+  // - guard rows (`per-submitter:<formId>:<email>:<n>`): claimed atomically
+  //   WITH each submission insert, so an in-flight winner is counted the
+  //   instant it commits (the speaker-join count lags until speaker rows land)
+  // - legacy submitted rows WITHOUT a guard (created before this fix),
+  //   correlated by guard requestHash = submission id so nothing double-counts
   const perSubmitterLimit = version.perSubmitterLimit ?? null;
   const incomingPrimary =
     input.speakers.find((sp) => sp.isPrimary === true) ?? input.speakers[0];
   const incomingPrimaryEmail = incomingPrimary
     ? incomingPrimary.email.toLowerCase().trim()
     : null;
-  if (perSubmitterLimit != null && incomingPrimaryEmail) {
-    const mine = await deps.submissions.countSubmittedByPrimaryEmail(
-      event.id,
-      incomingPrimaryEmail,
+  const perSubmitterCapError = (count: number): CommandErr => ({
+    ok: false,
+    status: 400,
+    error:
+      perSubmitterLimit === 1
+        ? "You have already submitted a proposal for this event — this form allows one per person"
+        : `You have reached this form's limit of ${perSubmitterLimit} proposals per person`,
+    code: "VALIDATION_ERROR",
+    details: {
+      perSubmitterLimit,
+      count,
+      email: incomingPrimaryEmail,
+    },
+  });
+  const formVersionIds = perSubmitterLimit != null
+    ? [
+        ...new Set([
+          version.id,
+          ...(await deps.forms.findPublishedVersions(form.id)).map(
+            (v) => v.id,
+          ),
+        ]),
+      ]
+    : [];
+  const effectivePerSubmitterCount = async (): Promise<number> => {
+    if (incomingPrimaryEmail == null) return 0;
+    const [submittedIds, guardHashes] = await Promise.all([
+      deps.submissions.listSubmittedIdsByPrimaryEmailForVersions(
+        formVersionIds,
+        incomingPrimaryEmail,
+      ),
+      deps.submissions.listSubmissionGuardHashes(
+        form.id,
+        incomingPrimaryEmail,
+      ),
+    ]);
+    const guarded = new Set(guardHashes);
+    return (
+      guardHashes.length +
+      submittedIds.filter((id) => !guarded.has(id)).length
     );
-    if (mine >= perSubmitterLimit) {
-      return {
-        ok: false,
-        status: 400,
-        error:
-          perSubmitterLimit === 1
-            ? "You have already submitted a proposal for this event — this form allows one per person"
-            : `You have reached this form's limit of ${perSubmitterLimit} proposals per person`,
-        code: "VALIDATION_ERROR",
-        details: {
-          perSubmitterLimit,
-          count: mine,
-          email: incomingPrimaryEmail,
-        },
-      };
+  };
+  let perSubmitterCount = 0;
+  if (perSubmitterLimit != null && incomingPrimaryEmail) {
+    perSubmitterCount = await effectivePerSubmitterCount();
+    if (perSubmitterCount >= perSubmitterLimit) {
+      return perSubmitterCapError(perSubmitterCount);
     }
   }
 
@@ -457,10 +493,40 @@ export async function createSubmission(
   }
   const category = derivedCategory ?? input.category ?? null;
 
-  // Validate file ids in answers reference uploaded allowlisted files
+  // File answers are field-type enforced (contract fix):
+  // - a file-typed field's non-empty answer MUST be a `file:<id>` token
+  //   referencing a stored, allowlisted upload for THIS event — plain text
+  //   is rejected (the token is a server-side reference, not free text)
+  // - `file:` tokens on non-file fields are rejected outright
+  const fieldByKey = new Map(fieldDtos.map((f) => [f.fieldKey, f]));
   for (const a of storedAnswers) {
-    if (typeof a.value === "string" && a.value.startsWith("file:")) {
-      const fileId = a.value.slice("file:".length);
+    const field = fieldByKey.get(a.fieldKey);
+    const isFileField = field?.type === "file";
+    const isFileToken =
+      typeof a.value === "string" && a.value.startsWith("file:");
+    // Empty optional answers are allowed; required-empty was rejected above.
+    const isEmpty = a.value == null || a.value === "";
+
+    if (isFileField && !isEmpty && !isFileToken) {
+      return {
+        ok: false,
+        status: 400,
+        error: "This field takes an uploaded file, not text",
+        code: "VALIDATION_ERROR",
+        details: { fieldKey: a.fieldKey },
+      };
+    }
+    if (!isFileField && isFileToken) {
+      return {
+        ok: false,
+        status: 400,
+        error: "File uploads are only accepted on file fields",
+        code: "VALIDATION_ERROR",
+        details: { fieldKey: a.fieldKey },
+      };
+    }
+    if (isFileField && isFileToken) {
+      const fileId = (a.value as string).slice("file:".length);
       const file = await deps.design.findFile(event.id, fileId);
       if (!file || !file.uploaded || file.purpose !== "other") {
         return {
@@ -544,7 +610,7 @@ export async function createSubmission(
     });
   }
 
-  const submission = await deps.submissions.insertSubmission({
+  const submissionRow = {
     id: submissionId,
     eventId: event.id,
     formVersionId: version.id,
@@ -553,7 +619,49 @@ export async function createSubmission(
     status: "submitted",
     submittedAt: now,
     version: 1,
-  });
+  };
+
+  // Race-safe per-submitter cap: claim the unique guard row
+  // (`per-submitter:<formId>:<email>:<n>`, n = effective count + 1) in the
+  // SAME atomic unit as the submission insert. Two concurrent submits under
+  // the cap cannot both take the last slot — the loser's guard conflicts, it
+  // recomputes the effective count (which now includes the winner's guard)
+  // and either 400s (cap reached) or retries the next slot. A conflict always
+  // means a new guard exists, so the recomputed count strictly grows —
+  // bounded loop, no livelock.
+  let submission: typeof submissionRow;
+  if (perSubmitterLimit != null && incomingPrimaryEmail) {
+    const guardKeyFor = (n: number) =>
+      `${perSubmitterGuardPrefix(form.id, incomingPrimaryEmail)}${n}`;
+    let slot = perSubmitterCount + 1;
+    const maxAttempts = perSubmitterLimit + 25;
+    let attempts = 0;
+    for (;;) {
+      const outcome = await deps.submissions.insertSubmissionWithGuard(
+        submissionRow,
+        {
+          id: uuidv7(),
+          key: guardKeyFor(slot),
+          requestHash: submissionId,
+          responseJson: null,
+          createdAt: now,
+        },
+      );
+      if (outcome === "inserted") break;
+      attempts += 1;
+      const effective = await effectivePerSubmitterCount();
+      if (effective >= perSubmitterLimit) {
+        return perSubmitterCapError(effective);
+      }
+      if (attempts >= maxAttempts) {
+        return perSubmitterCapError(effective);
+      }
+      slot = Math.max(slot + 1, effective + 1);
+    }
+    submission = submissionRow;
+  } else {
+    submission = await deps.submissions.insertSubmission(submissionRow);
+  }
 
   const answerRows = storedAnswers.map((a) => ({
     id: newAnswerId(),
@@ -635,7 +743,12 @@ export type UploadCfpFileInput = CfpFileUploadBody & {
 };
 
 /**
- * Public CFP supporting file upload (allowlist + size).
+ * Public CFP supporting file upload (allowlist + size), FORM-PINNED:
+ * the request must name the published form version being filled (the same
+ * pin the submit uses) and that version must actually collect files —
+ * ≥1 file-typed field, or the named fieldKey must be a file field. Without
+ * this, any unauthenticated caller could write 5MiB blobs into D1 for events
+ * whose active form has no file field at all.
  * Stores as file_assets purpose=other; returns fileId for answer value `file:{id}`.
  */
 export async function uploadCfpFile(
@@ -655,26 +768,28 @@ export async function uploadCfpFile(
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
-  // Ensure a published form exists (files only for live CFP)
-  const eventForms = await deps.forms.findFormsByEventId(event.id);
-  const published = eventForms.find((f) => f.status === "published");
-  if (!published) {
+  // Pin: the named version must be published and belong to this event.
+  const version = await deps.forms.findVersionById(input.formVersionId);
+  if (!version || version.publishedAt == null) {
     return {
       ok: false,
       status: 400,
-      error: "No published CFP form",
+      error: "Invalid form_version_id",
       code: "VALIDATION_ERROR",
+      details: { formVersionId: input.formVersionId, reason: "not_published" },
     };
   }
-  const version = await deps.forms.findLatestPublishedVersion(published.id);
-  if (!version) {
+  const form = await deps.forms.findFormById(version.formId);
+  if (!form || form.eventId !== event.id) {
     return {
       ok: false,
       status: 400,
-      error: "No published CFP form",
+      error: "form_version_id does not belong to this event",
       code: "VALIDATION_ERROR",
+      details: { formVersionId: input.formVersionId },
     };
   }
+
   const windowState = computeCfpWindowState({
     hasPublishedForm: true,
     opensAt: version.opensAt,
@@ -687,6 +802,34 @@ export async function uploadCfpFile(
       error: "CFP is closed",
       code: "VALIDATION_ERROR",
       details: { windowState },
+    };
+  }
+
+  // The pinned version must collect files: at least one file-typed input
+  // field — or, when the client names the field, THAT field must be a file
+  // field. No file field → no anonymous upload surface (400).
+  const versionFields = await deps.forms.listFields(version.id);
+  const fileFields = versionFields.filter(
+    (f) => isInputNode(f) && f.type === "file",
+  );
+  if (input.fieldKey != null) {
+    const target = fileFields.find((f) => f.fieldKey === input.fieldKey);
+    if (!target) {
+      return {
+        ok: false,
+        status: 400,
+        error: "This form field does not accept file uploads",
+        code: "VALIDATION_ERROR",
+        details: { fieldKey: input.fieldKey },
+      };
+    }
+  } else if (fileFields.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "This form does not accept file uploads",
+      code: "VALIDATION_ERROR",
+      details: { formVersionId: version.id },
     };
   }
 

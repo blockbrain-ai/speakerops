@@ -142,12 +142,28 @@ const TITLE_FIELD = {
   sortOrder: 0,
 };
 
+/** Unique per-call client IP so the shared CFP rate limiter never trips. */
+let submitIpCounter = 0;
+
 async function submit(
   ctx: AppCtx,
   slug: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  return jsonReq(ctx, "POST", `/api/public/cfp/${slug}/submissions`, null, body);
+  submitIpCounter += 1;
+  return ctx.app.request(
+    `http://localhost/api/public/cfp/${slug}/submissions`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-correlation-id": "corr-w1b-cfp",
+        "x-forwarded-for": `192.0.2.${submitIpCounter % 250}, 198.51.100.${Math.floor(submitIpCounter / 250) % 250}`,
+      },
+      body: JSON.stringify(body),
+    },
+    env,
+  );
 }
 
 function submitBody(
@@ -290,6 +306,125 @@ describe("Wave 1B item 3 — per-submitter submission cap", () => {
     expect(three.status).toBe(400);
     const envlp = ErrorEnvelopeSchema.parse(await three.json());
     expect(envlp.error).toMatch(/limit of 2 proposals per person/i);
+  });
+
+  it("cap=1: two CONCURRENT submits land exactly one durable row (atomic guard)", async () => {
+    const ctx = createAppWithAuth({ cookieSecure: true });
+    const cookie = await adminSession(ctx, "w1b-cap-race@example.com");
+    const event = await createEvent(ctx, cookie, "Cap Race");
+    const formId = await createForm(ctx, cookie, event.id);
+    await putDraft(ctx, cookie, formId, {
+      fields: [TITLE_FIELD],
+      perSubmitterLimit: 1,
+    });
+    const versionId = await publish(ctx, cookie, formId);
+
+    const [a, b] = await Promise.all([
+      submit(
+        ctx,
+        event.slug,
+        submitBody(versionId, "Race one", "sam@example.com"),
+      ),
+      submit(
+        ctx,
+        event.slug,
+        submitBody(versionId, "Race two", "Sam@Example.com"),
+      ),
+    ]);
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual([201, 400]);
+
+    // Durable count — never two submitted rows for the capped person.
+    const durable = (await ctx.submissions.listSubmissionsForEvent(event.id))
+      .filter((s) => s.status === "submitted");
+    expect(durable).toHaveLength(1);
+  });
+
+  it("scopes the cap to the logical FORM: a second form on the same event is unaffected", async () => {
+    const ctx = createAppWithAuth({ cookieSecure: true });
+    const cookie = await adminSession(ctx, "w1b-cap-scope@example.com");
+    const event = await createEvent(ctx, cookie, "Cap Scope");
+
+    const formA = await createForm(ctx, cookie, event.id);
+    await putDraft(ctx, cookie, formA, {
+      fields: [TITLE_FIELD],
+      perSubmitterLimit: 1,
+    });
+    const versionA = await publish(ctx, cookie, formA);
+
+    const formB = await createForm(ctx, cookie, event.id);
+    await putDraft(ctx, cookie, formB, {
+      fields: [TITLE_FIELD],
+      perSubmitterLimit: 1,
+    });
+    const versionB = await publish(ctx, cookie, formB);
+
+    // One per person on form A…
+    const first = await submit(
+      ctx,
+      event.slug,
+      submitBody(versionA, "Scope A", "noor@example.com"),
+    );
+    expect(first.status).toBe(201);
+    const blocked = await submit(
+      ctx,
+      event.slug,
+      submitBody(versionA, "Scope A again", "noor@example.com"),
+    );
+    expect(blocked.status).toBe(400);
+
+    // …but the SAME person still submits to form B on the same event.
+    const otherForm = await submit(
+      ctx,
+      event.slug,
+      submitBody(versionB, "Scope B", "noor@example.com"),
+    );
+    expect(otherForm.status).toBe(201);
+  });
+
+  it("still counts earlier versions after a republish (same form, new version)", async () => {
+    const ctx = createAppWithAuth({ cookieSecure: true });
+    const cookie = await adminSession(ctx, "w1b-cap-repub@example.com");
+    const event = await createEvent(ctx, cookie, "Cap Republish");
+    const formId = await createForm(ctx, cookie, event.id);
+    await putDraft(ctx, cookie, formId, {
+      fields: [TITLE_FIELD],
+      perSubmitterLimit: 1,
+    });
+    const v1 = await publish(ctx, cookie, formId);
+
+    const first = await submit(
+      ctx,
+      event.slug,
+      submitBody(v1, "Repub one", "ida@example.com"),
+    );
+    expect(first.status).toBe(201);
+
+    // Republish — new immutable version of the SAME logical form.
+    await putDraft(ctx, cookie, formId, {
+      fields: [TITLE_FIELD],
+      perSubmitterLimit: 1,
+    });
+    const v2 = await publish(ctx, cookie, formId);
+    expect(v2).not.toBe(v1);
+
+    // The v1 submission still counts against the form-scoped cap.
+    const blocked = await submit(
+      ctx,
+      event.slug,
+      submitBody(v2, "Repub two", "IDA@example.com"),
+    );
+    expect(blocked.status).toBe(400);
+    const envlp = ErrorEnvelopeSchema.parse(await blocked.json());
+    expect(envlp.error).toMatch(/already submitted/i);
+
+    // A different person is unaffected on the new version.
+    const other = await submit(
+      ctx,
+      event.slug,
+      submitBody(v2, "Repub other", "otto@example.com"),
+    );
+    expect(other.status).toBe(201);
   });
 });
 

@@ -92,6 +92,19 @@ export function parseOutboxClaimToken(
   return parseOutboxClaim(lastError)?.token ?? null;
 }
 
+/**
+ * Atomic lifecycle enqueue payload (Comms.SubmissionConfirmation and friends):
+ * a FRESH job insert + recipients + outbox + idempotency + audit as one unit.
+ * (enqueueSendAtomic transitions an existing job; this primitive creates one.)
+ */
+export type EnqueueLifecycleAtomicInput = {
+  job: MessageJobRow;
+  recipients: MessageRecipientRow[];
+  outbox: OutboxEventRow;
+  idempotency: IdempotencyKeyRow;
+  audit: AuditWriteInput;
+};
+
 /** Atomic Comms.Send enqueue payload (job + recipients + outbox + idem + audit). */
 export type EnqueueSendAtomicInput = {
   jobId: string;
@@ -347,6 +360,32 @@ export type CommsStore = {
     input: EnqueueSendAtomicInput,
     onAudit?: (row: AuditWriteInput) => Promise<void>,
   ): Promise<MessageJobRow | null>;
+
+  /**
+   * Atomic lifecycle enqueue (E7 transactional outbox for system emails, e.g.
+   * Comms.SubmissionConfirmation): FRESH job + all recipients + outbox +
+   * idempotency_keys + audit_events commit or roll back together — a failure
+   * anywhere leaves ZERO rows, so a retry starts clean (never a permanently
+   * unsendable orphan job that replays as `duplicate`).
+   *
+   * **Shared contract (Memory and D1 must both enforce — do not diverge):**
+   * - Returns "enqueued" only when *this* call committed the whole unit.
+   * - Returns "duplicate" when the idempotency key (or a job holding the same
+   *   user-facing idempotencyKey) already exists — concurrent duplicate or
+   *   replay; this call committed nothing.
+   * - Failure of the audit write must not leave any row behind.
+   *
+   * D1: single batch — idempotency claim first (unique key aborts the whole
+   *     batch for race losers), then job/recipients/outbox/audit_events.
+   * Memory: per-key inflight chain; onAudit runs before ANY map mutates.
+   *
+   * @param onAudit Memory/tests: write audit into AuthStore so listAudits
+   *   works. D1 ignores this and inserts audit_events inside the same batch.
+   */
+  enqueueLifecycleAtomic(
+    input: EnqueueLifecycleAtomicInput,
+    onAudit?: (row: AuditWriteInput) => Promise<void>,
+  ): Promise<"enqueued" | "duplicate">;
 };
 
 /**
@@ -931,6 +970,73 @@ export class MemoryCommsStore implements CommsStore {
         this.inflightEnqueues.delete(storageKey);
       }
       if (this.inflightByUserKey.get(userKey) === flight) {
+        this.inflightByUserKey.delete(userKey);
+      }
+    }
+  }
+
+  /**
+   * Memory parity with D1 enqueueLifecycleAtomic (do not diverge):
+   * - Concurrent same-key callers serialize on a per-key inflight chain so
+   *   exactly one commits the unit; the loser returns "duplicate".
+   * - onAudit is part of the atomic unit and runs BEFORE any map mutates —
+   *   a rejected audit (or any injected failure) leaves ZERO rows, so the
+   *   retry path finds a clean slate and succeeds.
+   */
+  async enqueueLifecycleAtomic(
+    input: EnqueueLifecycleAtomicInput,
+    onAudit?: (row: AuditWriteInput) => Promise<void>,
+  ): Promise<"enqueued" | "duplicate"> {
+    const storageKey = input.idempotency.key;
+    const userKey = input.job.idempotencyKey;
+    const prev = this.inflightEnqueues.get(storageKey);
+
+    const run = async (): Promise<"enqueued" | "duplicate"> => {
+      if (prev) {
+        try {
+          await prev;
+        } catch {
+          // Prior attempt failed atomically — nothing committed; re-check.
+        }
+      }
+      // Committed duplicate checks (idempotency row or job holding the key).
+      if (this.idemKeys.has(storageKey)) return "duplicate";
+      if (userKey && this.byIdempotency.has(userKey)) return "duplicate";
+
+      // Atomic unit: audit (cross-store in Memory) must succeed before ANY
+      // map mutates — an injected failure here commits nothing.
+      if (onAudit) await onAudit(input.audit);
+
+      // Commit — synchronous section, no interleaving possible.
+      this.jobs.set(input.job.id, { ...input.job });
+      if (userKey) this.byIdempotency.set(userKey, input.job.id);
+      for (const r of input.recipients) {
+        this.recipients.set(r.id, { ...r });
+      }
+      this.outbox.push({ ...input.outbox });
+      this.idemKeys.set(storageKey, { ...input.idempotency });
+      return "enqueued";
+    };
+
+    // Reuse the send-enqueue inflight chains so preflight readers
+    // (findIdempotencyKey / findJobByIdempotencyKey) reconcile the same way.
+    // Rejection is swallowed on the chain view only — chained writers re-check
+    // committed maps (a failed attempt committed nothing); the caller still
+    // sees the rejection through `flight`.
+    const flight = run();
+    const flightAsJob = flight.then(
+      () => null,
+      () => null,
+    );
+    this.inflightEnqueues.set(storageKey, flightAsJob);
+    if (userKey) this.inflightByUserKey.set(userKey, flightAsJob);
+    try {
+      return await flight;
+    } finally {
+      if (this.inflightEnqueues.get(storageKey) === flightAsJob) {
+        this.inflightEnqueues.delete(storageKey);
+      }
+      if (userKey && this.inflightByUserKey.get(userKey) === flightAsJob) {
         this.inflightByUserKey.delete(userKey);
       }
     }
@@ -1840,6 +1946,118 @@ export class D1CommsStore implements CommsStore {
       return;
     }
     throw err;
+  }
+
+  /**
+   * Atomic lifecycle enqueue (E7): one D1 batch = idempotency claim + fresh
+   * job + recipients + outbox + audit_events. All-or-nothing on statement
+   * failure — a mid-operation failure leaves ZERO rows so a retry starts
+   * clean (no orphan job that permanently replays as `duplicate`).
+   *
+   * The claim INSERT runs FIRST: the unique idempotency_keys.key (and the
+   * partial-unique message_jobs.idempotency_key) abort the whole batch for a
+   * concurrent duplicate; the stored row is then re-read to classify.
+   */
+  async enqueueLifecycleAtomic(
+    input: EnqueueLifecycleAtomicInput,
+    _onAudit?: (row: AuditWriteInput) => Promise<void>,
+  ): Promise<"enqueued" | "duplicate"> {
+    const audit = buildAuditEventRow(input.audit);
+
+    type Statement = Parameters<SpeakerOpsDb["batch"]>[0][number];
+    const statements: Statement[] = [
+      // Single-use claim first: unique(key) aborts the batch for race losers.
+      this.db.insert(idempotencyKeys).values({
+        id: input.idempotency.id,
+        key: input.idempotency.key,
+        requestHash: input.idempotency.requestHash,
+        responseJson: input.idempotency.responseJson,
+        createdAt: input.idempotency.createdAt,
+      }),
+      this.db.insert(messageJobs).values({
+        id: input.job.id,
+        eventId: input.job.eventId,
+        templateId: input.job.templateId,
+        status: input.job.status,
+        segmentJson: input.job.segmentJson,
+        recipientsJson: input.job.recipientsJson,
+        bodiesJson: input.job.bodiesJson,
+        missingFieldsJson: input.job.missingFieldsJson,
+        idempotencyKey: input.job.idempotencyKey,
+        calendarInviteId: input.job.calendarInviteId ?? null,
+        createdBy: input.job.createdBy,
+        version: input.job.version,
+        createdAt: input.job.createdAt,
+        updatedAt: input.job.updatedAt,
+      }),
+    ];
+    // D1 bound-parameter limit is 100 per statement — chunk multi-row inserts
+    // (10 columns per recipient row → 9 rows per statement).
+    const RECIPIENT_CHUNK = 9;
+    for (let i = 0; i < input.recipients.length; i += RECIPIENT_CHUNK) {
+      const slice = input.recipients.slice(i, i + RECIPIENT_CHUNK);
+      statements.push(
+        this.db.insert(messageRecipients).values(
+          slice.map((r) => ({
+            id: r.id,
+            jobId: r.jobId,
+            eventId: r.eventId,
+            participationId: r.participationId,
+            toEmail: r.toEmail,
+            name: r.name,
+            subject: r.subject,
+            body: r.body,
+            status: r.status,
+            createdAt: r.createdAt,
+          })),
+        ),
+      );
+    }
+    statements.push(
+      this.db.insert(outboxEvents).values({
+        id: input.outbox.id,
+        topic: input.outbox.topic,
+        payloadJson: input.outbox.payloadJson,
+        createdAt: input.outbox.createdAt,
+        processedAt: input.outbox.processedAt,
+        attempts: input.outbox.attempts,
+        lastError: input.outbox.lastError,
+      }),
+    );
+    statements.push(
+      this.db.insert(auditEvents).values({
+        id: audit.id,
+        eventId: audit.eventId ?? null,
+        actorType: audit.actorType,
+        actorId: audit.actorId,
+        action: audit.action,
+        entityType: audit.entityType,
+        entityId: audit.entityId,
+        beforeJson: audit.beforeJson ?? null,
+        afterJson: audit.afterJson ?? null,
+        correlationId: audit.correlationId,
+        createdAt: audit.createdAt,
+      }),
+    );
+
+    try {
+      await this.db.batch(statements as [Statement, ...Statement[]]);
+    } catch (err) {
+      // Classify: a stored claim (or a job already holding the user-facing
+      // key) means a concurrent duplicate committed first — this call wrote
+      // nothing (the batch rolled back). Anything else is a hard failure,
+      // also with zero rows committed.
+      const storedIdem = await this.findIdempotencyKey(input.idempotency.key);
+      if (storedIdem) return "duplicate";
+      if (input.job.idempotencyKey) {
+        const holder = await this.findJobByIdempotencyKey(
+          input.job.idempotencyKey,
+        );
+        if (holder) return "duplicate";
+      }
+      throw err;
+    }
+    return "enqueued";
   }
 }
 

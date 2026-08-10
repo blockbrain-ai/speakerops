@@ -27,7 +27,8 @@ export function TaskTemplatesSettingsPage() {
   const [dueOffsetDays, setDueOffsetDays] = useState("14");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [required, setRequired] = useState(false);
+  // Blocking by default (0032 repair) — organizers explicitly opt INTO optional.
+  const [required, setRequired] = useState(true);
   const [status, setStatus] = useState<StatusMsg>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -130,7 +131,7 @@ export function TaskTemplatesSettingsPage() {
       setDueOffsetDays("14");
       setTrigger("on_accept");
       setLinkUrl("");
-      setRequired(false);
+      setRequired(true);
       await loadTemplates(activeEventId);
       setStatus({
         kind: "ok",

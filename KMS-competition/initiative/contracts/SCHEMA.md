@@ -78,7 +78,7 @@ settings_json (no migration): Wave-1B notification keys + Wave-2 agenda keys `ag
 `session_id, participation_id, is_primary`
 
 ### task_templates / speaker_tasks
-templates: `id, event_id, title, description, trigger (on_accept|manual), due_offset_days, link_url NULL (https only, 0030), required (INTEGER 0|1 NOT NULL DEFAULT 0, 0030), version`  
+templates: `id, event_id, title, description, trigger (on_accept|manual), due_offset_days, link_url NULL (https only, 0030), required (INTEGER 0|1 NOT NULL DEFAULT 1, 0030 + 0032 repair — 0030's DEFAULT 0 silently made every pre-existing template optional; 0032 backfills required=1 for existing rows and flips the default so tasks block readiness unless the organizer opts INTO optional), version`  
 tasks: `id, template_id, participation_id, status, due_at, completed_at, version`
 
 ### file_assets

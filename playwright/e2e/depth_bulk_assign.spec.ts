@@ -5,7 +5,10 @@
  *      page (round-robin, 1 reviewer per submission), applies it, and the
  *      durable assignments match the previewed plan exactly. A second apply is
  *      blocked client-side until a fresh preview; re-preview with
- *      existing=preserve yields 0 additions with "already assigned" skips.
+ *      existing=preserve binds the NEW estate (fresh previewId — the earlier
+ *      token can never replay a different plan) and yields 0 additions with
+ *      "already assigned" skips; applying it is a REAL no-op commit, not a
+ *      cached "already applied" replay of the 3-addition plan.
  *
  * Inventory: @inv:F14. Requires E2E_WEB_SERVER=1 (pnpm test:e2e).
  * New critical spec → retries 0.
@@ -189,7 +192,15 @@ test.describe("Wave 2 — bulk-assign wizard", () => {
     await expect(page.getByTestId("eval-bulk-commit")).toBeDisabled();
 
     // Preview: 3 matched, 3 additions, distribution 2/1 by evaluator id order.
-    await page.getByTestId("eval-bulk-preview").click();
+    const [preview1Res] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/events/${event.id}/eval/bulk-assign`) &&
+          r.request().method() === "POST",
+      ),
+      page.getByTestId("eval-bulk-preview").click(),
+    ]);
+    const preview1 = (await preview1Res.json()) as { previewId: string };
     const previewTable = page.getByTestId("eval-bulk-preview-table");
     await expect(previewTable).toBeVisible({ timeout: 10_000 });
     await expect(previewTable).toHaveAttribute("data-matched", "3");
@@ -224,8 +235,20 @@ test.describe("Wave 2 — bulk-assign wizard", () => {
     // A second apply is blocked client-side until a fresh preview exists.
     await expect(page.getByTestId("eval-bulk-commit")).toBeDisabled();
 
-    // Re-preview with existing=preserve: nothing to add, honest skip reasons.
-    await page.getByTestId("eval-bulk-preview").click();
+    // Re-preview with existing=preserve: the committed assignments are part
+    // of the estate now, so this is a FRESH token over a 0-addition plan —
+    // nothing to add, honest skip reasons.
+    const [repreviewRes] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/events/${event.id}/eval/bulk-assign`) &&
+          r.request().method() === "POST",
+      ),
+      page.getByTestId("eval-bulk-preview").click(),
+    ]);
+    const repreview = (await repreviewRes.json()) as { previewId: string };
+    // The committed rows changed the estate — the token is NEW.
+    expect(repreview.previewId).not.toBe(preview1.previewId);
     await expect(previewTable).toBeVisible({ timeout: 10_000 });
     await expect(previewTable).toHaveAttribute("data-additions", "0");
     await expect(previewTable).toHaveAttribute("data-skipped", "3");
@@ -233,11 +256,33 @@ test.describe("Wave 2 — bulk-assign wizard", () => {
       page.getByTestId("eval-bulk-preview-skips"),
     ).toContainText("already assigned");
 
-    // Applying the no-op plan replays idempotently and adds no rows.
-    await page.getByTestId("eval-bulk-commit").click();
+    // Applying the fresh 0-addition plan commits THAT plan — never a cached
+    // "already applied" replay of the earlier 3-addition response.
+    const [commit2Res] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/events/${event.id}/eval/bulk-assign`) &&
+          r.request().method() === "POST",
+      ),
+      page.getByTestId("eval-bulk-commit").click(),
+    ]);
+    expect(commit2Res.status(), "fresh no-op commit HTTP").toBe(200);
+    const commit2 = (await commit2Res.json()) as {
+      previewId: string;
+      idempotent?: boolean;
+      counts: { additions: number };
+    };
+    // Full-estate previewId: the post-commit token differs from the plan that
+    // was applied, and this commit is NOT an idempotent replay.
+    expect(commit2.previewId).toBe(repreview.previewId);
+    expect(commit2.idempotent).toBeUndefined();
+    expect(commit2.counts.additions).toBe(0);
     await expect(page.getByTestId("eval-bulk-result")).toContainText(
-      /already applied — nothing changed/i,
+      /0 assignments added/i,
       { timeout: 10_000 },
+    );
+    await expect(page.getByTestId("eval-bulk-result")).not.toContainText(
+      /already applied/i,
     );
     const countsAfter = await memberCounts(request, admin.session, event.id);
     expect(countsAfter.get(firstEval.userId)).toBe(2);

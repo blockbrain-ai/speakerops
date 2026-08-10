@@ -143,29 +143,39 @@ async function seedEvent(
   return { eventId: event.id, slug: event.slug, versionId };
 }
 
+/** Unique per-call client IP so the shared CFP rate limiter never trips. */
+let addSubmissionIpCounter = 0;
+
 async function addSubmission(
   ctx: AppCtx,
   slug: string,
   versionId: string,
   title: string,
 ): Promise<string> {
-  const subRes = await jsonReq(
-    ctx,
-    "POST",
-    `/api/public/cfp/${slug}/submissions`,
-    null,
+  addSubmissionIpCounter += 1;
+  const subRes = await ctx.app.request(
+    `http://localhost/api/public/cfp/${slug}/submissions`,
     {
-      formVersionId: versionId,
-      title,
-      answers: [{ fieldKey: "talk_title", value: title }],
-      speakers: [
-        {
-          name: "Speaker",
-          email: `speaker-${title.replace(/\s+/g, "-").toLowerCase()}@example.com`,
-        },
-      ],
-      turnstileToken: TURNSTILE_DEV_PASS_TOKEN,
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-correlation-id": "corr-bulk-assign",
+        "x-forwarded-for": `198.51.100.${addSubmissionIpCounter % 250}, 203.0.113.${Math.floor(addSubmissionIpCounter / 250) % 250}`,
+      },
+      body: JSON.stringify({
+        formVersionId: versionId,
+        title,
+        answers: [{ fieldKey: "talk_title", value: title }],
+        speakers: [
+          {
+            name: "Speaker",
+            email: `speaker-${title.replace(/\s+/g, "-").toLowerCase()}@example.com`,
+          },
+        ],
+        turnstileToken: TURNSTILE_DEV_PASS_TOKEN,
+      }),
     },
+    env,
   );
   expect(subRes.status).toBe(201);
   return SubmissionCreateResponseSchema.parse(await subRes.json()).submission
@@ -725,5 +735,302 @@ describe("Eval.BulkAssign — round_robin determinism", () => {
       .filter((a) => a.submissionId === sortedSubs[0])
       .map((a) => a.evaluatorUserId);
     expect(firstSubAdds).toEqual([sortedEvals[0], sortedEvals[1]]);
+  });
+});
+
+/**
+ * Contract fix — the previewId binds the FULL assignment estate. Any change
+ * to existing assignments (added / scored / abstained / removed), submission
+ * eligibility (even without a status filter), or evaluator membership between
+ * preview and commit must 409; a post-commit re-preview mints a NEW token;
+ * concurrent duplicate commits apply exactly once (durable row count).
+ */
+describe("Eval.BulkAssign — full-estate previewId (drift → 409)", () => {
+  /** Common seed: event + 2 submissions + rubric + evaluators A/B. */
+  async function seedDrift(tag: string) {
+    const ctx = createAppWithAuth({ cookieSecure: true });
+    const admin = await session(ctx, "admin", `bulk-fe-${tag}-admin@example.com`);
+    const { eventId, slug, versionId } = await seedEvent(
+      ctx,
+      admin.cookie,
+      `Bulk FullEstate ${tag}`,
+    );
+    const s1 = await addSubmission(ctx, slug, versionId, `FE ${tag} One`);
+    const s2 = await addSubmission(ctx, slug, versionId, `FE ${tag} Two`);
+    const rubric = await putRubric(ctx, admin.cookie, eventId);
+    const evalA = await session(
+      ctx,
+      "evaluator",
+      `bulk-fe-${tag}-a@example.com`,
+      eventId,
+    );
+    const evalB = await session(
+      ctx,
+      "evaluator",
+      `bulk-fe-${tag}-b@example.com`,
+      eventId,
+    );
+    return { ctx, admin, eventId, slug, versionId, s1, s2, rubric, evalA, evalB };
+  }
+
+  function planBody(roundId: string, evaluatorIds: string[]) {
+    return {
+      roundId,
+      evaluatorIds,
+      submissionFilter: {},
+      mode: "all_to_all",
+      existing: "preserve",
+    };
+  }
+
+  it("409s when an assignment is ADDED between preview and commit", async () => {
+    const { ctx, admin, eventId, s1, rubric, evalA, evalB } =
+      await seedDrift("add");
+    const body = planBody(rubric.roundId, [evalB.userId]);
+    const preview = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, { ...body, dryRun: true }),
+    );
+
+    // Out-of-band single assignment lands after the preview.
+    await assignDirect(ctx, admin.cookie, s1, [evalA.userId]);
+
+    const commit = await bulkAssign(ctx, admin.cookie, eventId, {
+      ...body,
+      dryRun: false,
+      previewId: preview.previewId,
+    });
+    expect(commit.status).toBe(409);
+    const envlp = ErrorEnvelopeSchema.parse(await commit.json());
+    expect(envlp.error).toContain("The preview is stale");
+
+    // Nothing beyond the out-of-band row was applied.
+    const pairs = await rollupPairs(ctx, admin.cookie, eventId);
+    expect(pairs.get(s1)).toEqual([
+      { evaluatorUserId: evalA.userId, status: "pending" },
+    ]);
+  });
+
+  it("409s when an existing assignment is SCORED between preview and commit", async () => {
+    const { ctx, admin, eventId, s1, rubric, evalA, evalB } =
+      await seedDrift("score");
+    const byUser = await assignDirect(ctx, admin.cookie, s1, [evalA.userId]);
+    const body = planBody(rubric.roundId, [evalB.userId]);
+    const preview = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, { ...body, dryRun: true }),
+    );
+
+    const scoreRes = await jsonReq(
+      ctx,
+      "POST",
+      `/api/assignments/${byUser.get(evalA.userId)!}/scores`,
+      evalA.cookie,
+      { scores: [{ criterionId: rubric.criteria[0]!.id, value: 8 }] },
+    );
+    expect(scoreRes.status).toBe(200);
+
+    const commit = await bulkAssign(ctx, admin.cookie, eventId, {
+      ...body,
+      dryRun: false,
+      previewId: preview.previewId,
+    });
+    expect(commit.status).toBe(409);
+  });
+
+  it("409s when an existing assignment is ABSTAINED between preview and commit", async () => {
+    const { ctx, admin, eventId, s1, rubric, evalA, evalB } =
+      await seedDrift("abstain");
+    const byUser = await assignDirect(ctx, admin.cookie, s1, [evalA.userId]);
+    const body = planBody(rubric.roundId, [evalB.userId]);
+    const preview = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, { ...body, dryRun: true }),
+    );
+
+    const abstainRes = await jsonReq(
+      ctx,
+      "POST",
+      `/api/me/eval-assignments/${byUser.get(evalA.userId)!}/abstain`,
+      evalA.cookie,
+      { reason: "Conflict of interest" },
+    );
+    expect(abstainRes.status).toBe(200);
+
+    const commit = await bulkAssign(ctx, admin.cookie, eventId, {
+      ...body,
+      dryRun: false,
+      previewId: preview.previewId,
+    });
+    expect(commit.status).toBe(409);
+  });
+
+  it("409s when an existing assignment is REMOVED between preview and commit", async () => {
+    const { ctx, admin, eventId, s1, rubric, evalA, evalB } =
+      await seedDrift("remove");
+    const byUser = await assignDirect(ctx, admin.cookie, s1, [evalA.userId]);
+    const body = planBody(rubric.roundId, [evalB.userId]);
+    const preview = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, { ...body, dryRun: true }),
+    );
+
+    // Out-of-band removal (store-level; no admin delete endpoint).
+    expect(
+      await ctx.eval.deleteAssignment(byUser.get(evalA.userId)!),
+    ).toBe(true);
+
+    const commit = await bulkAssign(ctx, admin.cookie, eventId, {
+      ...body,
+      dryRun: false,
+      previewId: preview.previewId,
+    });
+    expect(commit.status).toBe(409);
+  });
+
+  it("409s when submission ELIGIBILITY changes with NO status filter", async () => {
+    const { ctx, admin, eventId, s2, rubric, evalB } =
+      await seedDrift("elig");
+    const body = planBody(rubric.roundId, [evalB.userId]);
+    const preview = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, { ...body, dryRun: true }),
+    );
+    expect(preview.counts.additions).toBe(2);
+
+    // Rejecting s2 flips it ineligible — same matched id set, new status.
+    const decision = await jsonReq(
+      ctx,
+      "POST",
+      `/api/submissions/${s2}/decision`,
+      admin.cookie,
+      { decision: "reject" },
+    );
+    expect(decision.status).toBe(200);
+
+    const commit = await bulkAssign(ctx, admin.cookie, eventId, {
+      ...body,
+      dryRun: false,
+      previewId: preview.previewId,
+    });
+    expect(commit.status).toBe(409);
+
+    // Nothing applied.
+    const pairs = await rollupPairs(ctx, admin.cookie, eventId);
+    for (const assignments of pairs.values()) {
+      expect(assignments).toHaveLength(0);
+    }
+  });
+
+  it("post-commit re-preview mints a NEW token; committing it applies a fresh 0-addition plan (not a cached replay)", async () => {
+    const { ctx, admin, eventId, s1, s2, rubric, evalA } =
+      await seedDrift("fresh");
+    const body = planBody(rubric.roundId, [evalA.userId]);
+    const preview1 = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, { ...body, dryRun: true }),
+    );
+    expect(preview1.counts.additions).toBe(2);
+
+    const commit1 = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, {
+        ...body,
+        dryRun: false,
+        previewId: preview1.previewId,
+      }),
+    );
+    expect(commit1.counts.additions).toBe(2);
+    expect(commit1.idempotent).toBeUndefined();
+
+    // The committed rows are part of the estate → re-preview gets a NEW id.
+    const preview2 = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, { ...body, dryRun: true }),
+    );
+    expect(preview2.previewId).not.toBe(preview1.previewId);
+    expect(preview2.counts.additions).toBe(0);
+    expect(preview2.counts.skipped).toBe(2);
+
+    // Committing the fresh 0-addition plan is a REAL commit of that plan —
+    // never the cached "already applied" replay of the earlier 2-addition one.
+    const commit2 = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, {
+        ...body,
+        dryRun: false,
+        previewId: preview2.previewId,
+      }),
+    );
+    expect(commit2.idempotent).toBeUndefined();
+    expect(commit2.counts.additions).toBe(0);
+    expect(commit2.previewId).toBe(preview2.previewId);
+
+    // Durable rows unchanged by the no-op plan.
+    const pairs = await rollupPairs(ctx, admin.cookie, eventId);
+    expect(pairs.get(s1)).toEqual([
+      { evaluatorUserId: evalA.userId, status: "pending" },
+    ]);
+    expect(pairs.get(s2)).toEqual([
+      { evaluatorUserId: evalA.userId, status: "pending" },
+    ]);
+  });
+});
+
+describe("Eval.BulkAssign — atomic commit (concurrent duplicates)", () => {
+  it("two concurrent commits of the same plan apply exactly once (durable row count)", async () => {
+    const ctx = createAppWithAuth({ cookieSecure: true });
+    const admin = await session(ctx, "admin", "bulk-conc-admin@example.com");
+    const { eventId, slug, versionId } = await seedEvent(
+      ctx,
+      admin.cookie,
+      "Bulk Concurrent Event",
+    );
+    const s1 = await addSubmission(ctx, slug, versionId, "Conc Talk One");
+    const s2 = await addSubmission(ctx, slug, versionId, "Conc Talk Two");
+    const { roundId } = await putRubric(ctx, admin.cookie, eventId);
+    const evalA = await session(
+      ctx,
+      "evaluator",
+      "bulk-conc-eval@example.com",
+      eventId,
+    );
+
+    const body = {
+      roundId,
+      evaluatorIds: [evalA.userId],
+      submissionFilter: {},
+      mode: "all_to_all",
+      existing: "preserve",
+    };
+    const preview = await parseBulk(
+      await bulkAssign(ctx, admin.cookie, eventId, { ...body, dryRun: true }),
+    );
+    expect(preview.counts.additions).toBe(2);
+
+    const [resA, resB] = await Promise.all([
+      bulkAssign(ctx, admin.cookie, eventId, {
+        ...body,
+        dryRun: false,
+        previewId: preview.previewId,
+      }),
+      bulkAssign(ctx, admin.cookie, eventId, {
+        ...body,
+        dryRun: false,
+        previewId: preview.previewId,
+      }),
+    ]);
+    const parsedA = await parseBulk(resA);
+    const parsedB = await parseBulk(resB);
+    // Exactly one performed the commit; the other replayed idempotently.
+    const idempotentFlags = [parsedA, parsedB].map(
+      (p) => p.idempotent === true,
+    );
+    expect(idempotentFlags.filter(Boolean)).toHaveLength(1);
+
+    // Durable count: exactly one assignment per submission — never doubled.
+    const durable = await ctx.eval.listAssignmentsForRound(roundId);
+    expect(durable).toHaveLength(2);
+    expect(durable.map((a) => a.submissionId).sort()).toEqual(
+      [s1, s2].sort(),
+    );
+    const pairs = await rollupPairs(ctx, admin.cookie, eventId);
+    expect(pairs.get(s1)).toEqual([
+      { evaluatorUserId: evalA.userId, status: "pending" },
+    ]);
+    expect(pairs.get(s2)).toEqual([
+      { evaluatorUserId: evalA.userId, status: "pending" },
+    ]);
   });
 });

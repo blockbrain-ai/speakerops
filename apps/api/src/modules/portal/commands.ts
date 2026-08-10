@@ -1365,7 +1365,8 @@ export async function createTaskTemplate(
     trigger: input.body.trigger ?? "on_accept",
     dueOffsetDays: input.body.dueOffsetDays ?? 14,
     linkUrl: input.body.linkUrl ?? null,
-    required: input.body.required ?? false,
+    // Blocking by default (0032 repair) — organizers opt INTO optional.
+    required: input.body.required ?? true,
     version: 1,
     createdAt: now,
   });

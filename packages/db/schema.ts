@@ -741,8 +741,12 @@ export const taskTemplates = sqliteTable(
     dueOffsetDays: integer("due_offset_days").notNull().default(0),
     /** Optional https:// resource link rendered on portal task cards (0030). */
     linkUrl: text("link_url"),
-    /** 1 = incomplete tasks block portal readiness (0030); 0 = optional. */
-    required: integer("required").notNull().default(0),
+    /**
+     * 1 = incomplete tasks block portal readiness; 0 = optional.
+     * Default 1 (0032 repair): pre-0030 semantics — every task blocks unless
+     * the organizer explicitly opts INTO optional.
+     */
+    required: integer("required").notNull().default(1),
     version: integer("version").notNull().default(1),
     createdAt: text("created_at").notNull(),
   },

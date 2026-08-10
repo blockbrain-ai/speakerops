@@ -4,8 +4,14 @@
  * change is a new numbered migration and tests run against BOTH paths with a
  * clean PRAGMA foreign_key_check.
  *
- * New migration under test:
- * - 0030_task_templates_link_required.sql (link_url NULL; required default 0)
+ * New migrations under test:
+ * - 0030_task_templates_link_required.sql (link_url NULL; required knob)
+ * - 0032_task_templates_required_default.sql (repair: 0030 defaulted
+ *   `required` to 0, silently flipping every pre-existing template to
+ *   optional — incomplete tasks stopped blocking readiness. 0032 backfills
+ *   required=1 for all existing templates and changes the default to 1, so
+ *   pre-0030 semantics hold: tasks block unless the organizer opts INTO
+ *   optional.)
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import {
@@ -28,6 +34,7 @@ import {
 } from "../../packages/db/src/migrate.js";
 import { SqlJsD1 } from "../helpers/sqljs-d1.js";
 import { D1DecisionsStore } from "../../apps/api/src/modules/decisions/store.js";
+import { computePortalReadiness } from "../../apps/api/src/modules/portal/commands.js";
 
 const require = createRequire(import.meta.url);
 const migrationsDir = defaultMigrationsDir(resolveDbPackageRoot());
@@ -35,6 +42,7 @@ const migrationsDir = defaultMigrationsDir(resolveDbPackageRoot());
 /** Wave 2 portal-depth migrations (everything after the pre-wave head 0029). */
 const WAVE_2_PORTAL_MIGRATIONS = [
   "0030_task_templates_link_required.sql",
+  "0032_task_templates_required_default.sql",
 ] as const;
 
 let SQL: SqlJsStatic;
@@ -78,6 +86,16 @@ describe("Wave 2 portal-depth migrations — fresh database", () => {
 
       const db = openDb(dbPath);
       try {
+        // 0032: fresh schema defaults `required` to 1 (blocking) — a raw
+        // insert without the column comes out required.
+        db.run(
+          `INSERT INTO task_templates (id, event_id, title, trigger, due_offset_days, version, created_at)
+           VALUES ('tpl_fresh_default', 'evt_fresh', 'Default check', 'on_accept', 7, 1, '2026-08-10T00:00:00.000Z')`,
+        );
+        const fresh = db.exec(
+          "SELECT required FROM task_templates WHERE id = 'tpl_fresh_default'",
+        );
+        expect(fresh[0]?.values[0]).toEqual([1]);
         expect(foreignKeyCheckClean(db)).toBe(true);
       } finally {
         db.close();
@@ -89,7 +107,7 @@ describe("Wave 2 portal-depth migrations — fresh database", () => {
 });
 
 describe("Wave 2 portal-depth migrations — upgrade from pre-wave head 0029", () => {
-  it("upgrade preserves template rows and backfills honest defaults (NULL / 0)", async () => {
+  it("upgrade preserves template rows and 0032 backfills required=1 (pre-existing incomplete tasks still block readiness)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "spo-w2-upg-"));
     const oldMigrations = join(dir, "migrations-0029");
     const dbPath = join(dir, "upgrade.sqlite");
@@ -114,7 +132,8 @@ describe("Wave 2 portal-depth migrations — upgrade from pre-wave head 0029", (
         expect(preResult.applied).not.toContain(m);
       }
 
-      // Seed a pre-wave template row the upgrade must preserve.
+      // Seed a pre-wave template + an INCOMPLETE instantiated task — the
+      // pre-0030 contract: this task blocks portal readiness.
       {
         const db = openDb(dbPath);
         try {
@@ -123,6 +142,11 @@ describe("Wave 2 portal-depth migrations — upgrade from pre-wave head 0029", (
             `INSERT INTO task_templates (id, event_id, title, description, trigger, due_offset_days, version, created_at)
              VALUES ('tpl_up', 'evt_up', 'Upload headshot', 'Portrait for the programme', 'on_accept', 14, 1, ?)`,
             [now],
+          );
+          db.run(
+            `INSERT INTO speaker_tasks (id, template_id, participation_id, status, due_at, completed_at, version, created_at, updated_at)
+             VALUES ('task_up', 'tpl_up', 'part_up', 'pending', NULL, NULL, 1, ?, ?)`,
+            [now, now],
           );
           const bytes = db.export();
           rmSync(dbPath);
@@ -141,16 +165,56 @@ describe("Wave 2 portal-depth migrations — upgrade from pre-wave head 0029", (
 
       const db = openDb(dbPath);
       try {
-        // Existing templates keep no link and stay optional (never block).
+        // 0032 repair: pre-existing templates come out REQUIRED (pre-0030
+        // semantics — 0030 alone had silently flipped them all to optional).
         const tpl = db.exec(
           "SELECT link_url, required FROM task_templates WHERE id = 'tpl_up'",
         );
-        expect(tpl[0]?.values[0]).toEqual([null, 0]);
+        expect(tpl[0]?.values[0]).toEqual([null, 1]);
         // Pre-wave columns untouched on the preserved row.
         const kept = db.exec(
           "SELECT title, trigger, due_offset_days, version FROM task_templates WHERE id = 'tpl_up'",
         );
         expect(kept[0]?.values[0]).toEqual(["Upload headshot", "on_accept", 14, 1]);
+        // And a template row inserted AFTER the upgrade without the column
+        // defaults to required too (column default changed to 1).
+        db.run(
+          `INSERT INTO task_templates (id, event_id, title, trigger, due_offset_days, version, created_at)
+           VALUES ('tpl_up_new', 'evt_up', 'Post-upgrade default', 'manual', 3, 1, '2026-08-10T00:00:00.000Z')`,
+        );
+        const post = db.exec(
+          "SELECT required FROM task_templates WHERE id = 'tpl_up_new'",
+        );
+        expect(post[0]?.values[0]).toEqual([1]);
+
+        // Readiness proof through the REAL stores + readiness contract: the
+        // pre-existing incomplete task still blocks after the upgrade.
+        const decisions = new D1DecisionsStore(new SqlJsD1(db));
+        const templates = await decisions.listTaskTemplates("evt_up");
+        const requiredByTemplate = new Map(
+          templates.map((t) => [t.id, t.required === true]),
+        );
+        expect(requiredByTemplate.get("tpl_up")).toBe(true);
+        const tasks = await decisions.listSpeakerTasksForParticipations([
+          "part_up",
+        ]);
+        expect(tasks).toHaveLength(1);
+        const readiness = computePortalReadiness(
+          // Complete profile — ONLY the incomplete task gates the state.
+          {
+            bio: "Bio",
+            company: "Co",
+            title: "Speaker",
+            headshotFileId: "file_up",
+          },
+          tasks.map((t) => ({
+            status: t.status,
+            required: requiredByTemplate.get(t.templateId) ?? false,
+          })),
+        );
+        expect(readiness.state).toBe("needs_action");
+        expect(readiness.headline).toBe("Required tasks remaining");
+
         expect(foreignKeyCheckClean(db)).toBe(true);
       } finally {
         db.close();

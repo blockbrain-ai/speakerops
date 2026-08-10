@@ -201,6 +201,29 @@ test.describe("Wave 1A — form field help / placeholder / character cap", () =>
       }),
     ]);
     expect(uploadRes.status(), "public file upload HTTP").toBe(201);
+    // The SPA pins its upload to the published form version + file field —
+    // the server rejects unpinned uploads outright.
+    const uploadPayload = uploadRes.request().postDataJSON() as {
+      formVersionId?: string;
+      fieldKey?: string;
+    };
+    const pinnedVersionId = await fetchPublishedVersionId(request, event.slug);
+    expect(uploadPayload.formVersionId, "upload pins formVersionId").toBe(
+      pinnedVersionId,
+    );
+    expect(uploadPayload.fieldKey, "upload names the file field").toBe("file");
+    const unpinned = await request.post(
+      `/api/public/cfp/${event.slug}/files`,
+      {
+        data: {
+          filename: "unpinned.pdf",
+          mime: "application/pdf",
+          size: pdfBytes.length,
+          contentBase64: pdfBytes.toString("base64"),
+        },
+      },
+    );
+    expect(unpinned.status(), "unpinned upload rejected").toBe(400);
     await expect(page.getByTestId("cfp-file-id-file")).toContainText(
       /uploaded/i,
     );

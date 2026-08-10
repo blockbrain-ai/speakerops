@@ -809,12 +809,21 @@ function pairKey(submissionId: string, evaluatorUserId: string): string {
  * Eval.BulkAssign — cohort assignment wizard (Wave 2).
  *
  * Preview (dryRun=true): computes a deterministic plan and returns previewId =
- * SHA-256 over the estate surrogate (round.updatedAt + sorted matched
- * submission ids + sorted evaluator ids + mode + caps + existing + filter).
+ * SHA-256 over the FULL assignment estate: round.updatedAt + sorted matched
+ * submissions (id + status, so eligibility drift is bound even without a
+ * status filter) + sorted evaluator membership rows (userId + role) + every
+ * existing round assignment ({assignmentId, submissionId, evaluatorId,
+ * status, updatedAt}) + mode + caps + existing + filter.
  * Commit (dryRun=false): requires that previewId; the hash is recomputed from
- * current DB state — drift → 409 "preview is stale". Single-use/idempotent
- * via idempotency_keys (`eval.bulk-assign:${previewId}`) — replay returns the
- * stored response with `idempotent: true` and creates no rows.
+ * current DB state — ANY drift (new/scored/abstained/removed assignment,
+ * submission eligibility change, membership change) → 409 "preview is stale".
+ * A post-commit re-preview therefore always mints a NEW token (the committed
+ * rows are part of the estate).
+ *
+ * Commit is atomic: removals + additions + audit + the single-use idempotency
+ * claim are one store batch (D1) / all-or-nothing unit (Memory). Replay of a
+ * committed previewId returns the stored response with `idempotent: true` and
+ * creates no rows; concurrent duplicate commits — exactly one applies.
  *
  * Determinism: submissions sorted by id asc, evaluators sorted by id asc.
  * Ineligible submissions (not submitted/in_review) are skipped, never assigned.
@@ -876,25 +885,19 @@ export async function bulkAssignEvaluators(
   }
 
   // Evaluators must hold an evaluator/admin membership on THIS event.
+  // Membership rows are part of the estate hash (drift → 409 at commit).
   const evaluatorIds = [...new Set(input.evaluatorIds)].sort();
   const badIds: string[] = [];
+  const membershipRows: Array<{ userId: string; role: string | null }> = [];
   for (const userId of evaluatorIds) {
     const membership = await deps.auth.findMembership(input.eventId, userId);
+    membershipRows.push({ userId, role: membership?.role ?? null });
     if (
       !membership ||
       (membership.role !== "evaluator" && membership.role !== "admin")
     ) {
       badIds.push(userId);
     }
-  }
-  if (badIds.length > 0) {
-    return {
-      ok: false,
-      status: 400,
-      error: "Some selected users are not evaluators on this event",
-      code: "VALIDATION_ERROR",
-      details: { userIds: badIds },
-    };
   }
 
   // Matched submissions: event-scoped + filter; deterministic id asc.
@@ -910,14 +913,30 @@ export async function bulkAssignEvaluators(
     )
     .sort((a, b) => a.id.localeCompare(b.id));
 
-  // Estate surrogate hash — previewId (deterministic hex).
+  // Existing assignment estate — loaded BEFORE hashing: every row binds the
+  // previewId so an add/score/abstain/remove between preview and commit is
+  // drift, and a post-commit re-preview always yields a fresh token.
+  const existingRows = await deps.eval.listAssignmentsForRound(round.id);
+
+  // Full-estate surrogate hash — previewId (deterministic hex).
   const hash = await sha256Hex(
     JSON.stringify({
-      v: 1,
+      v: 2,
       roundId: round.id,
       roundUpdatedAt: round.updatedAt,
-      submissionIds: matched.map((s) => s.id),
-      evaluatorIds,
+      // id + status: eligibility-relevant fields even without a status filter.
+      submissions: matched.map((s) => ({ id: s.id, status: s.status })),
+      // Sorted by userId (evaluatorIds is sorted); role binds membership state.
+      evaluators: membershipRows,
+      assignments: [...existingRows]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((a) => ({
+          assignmentId: a.id,
+          submissionId: a.submissionId,
+          evaluatorId: a.evaluatorUserId,
+          status: a.status,
+          updatedAt: a.updatedAt,
+        })),
       mode: input.mode,
       reviewersPerSubmission: input.reviewersPerSubmission ?? null,
       maxPerEvaluator: input.maxPerEvaluator ?? null,
@@ -929,18 +948,28 @@ export async function bulkAssignEvaluators(
     }),
   );
 
+  // Commit drift check first: ANY estate change 409s before other validation
+  // so a revoked membership between preview and commit reads as staleness.
   if (!input.dryRun && input.previewId !== hash) {
     return {
       ok: false,
       status: 409,
       error:
-        "The preview is stale — the round or matching submissions changed. Preview again.",
+        "The preview is stale — the round, assignments, evaluators, or matching submissions changed. Preview again.",
       code: "CONFLICT",
       details: { previewId: input.previewId },
     };
   }
 
-  const existingRows = await deps.eval.listAssignmentsForRound(round.id);
+  if (badIds.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Some selected users are not evaluators on this event",
+      code: "VALIDATION_ERROR",
+      details: { userIds: badIds },
+    };
+  }
   const byPair = new Map<string, EvalAssignmentRow>();
   for (const a of existingRows) {
     byPair.set(pairKey(a.submissionId, a.evaluatorUserId), a);
@@ -1125,52 +1154,73 @@ export async function bulkAssignEvaluators(
     return { ok: true, value };
   }
 
-  // Commit — apply removals then additions, deterministic order.
+  // Commit — one atomic unit (E7): pending-only removals + additions + audit
+  // + the single-use idempotency claim commit or roll back together.
   const now = new Date().toISOString();
-  for (const id of removalAssignmentIds) {
-    await deps.eval.deleteAssignment(id); // pending-only guard in store
-  }
-  for (const pair of additions) {
-    await deps.eval.insertAssignment({
-      id: newEvalAssignmentId(),
+  const additionRows: EvalAssignmentRow[] = additions.map((pair) => ({
+    id: newEvalAssignmentId(),
+    roundId: round.id,
+    submissionId: pair.submissionId,
+    evaluatorUserId: pair.evaluatorUserId,
+    status: "pending",
+    overallComment: null,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  const storageKey = `${EVAL_BULK_ASSIGN_IDEMPOTENCY_PREFIX}${hash}`;
+  const committed = await deps.eval.commitBulkAssignAtomic(
+    {
       roundId: round.id,
-      submissionId: pair.submissionId,
-      evaluatorUserId: pair.evaluatorUserId,
-      status: "pending",
-      overallComment: null,
-      createdAt: now,
-      updatedAt: now,
-    });
+      removalAssignmentIds,
+      additions: additionRows,
+      idempotency: {
+        id: uuidv7(),
+        key: storageKey,
+        requestHash: hash,
+        responseJson: JSON.stringify(value),
+        createdAt: now,
+      },
+      audit: {
+        id: uuidv7(),
+        eventId: input.eventId,
+        actorType: "user",
+        actorId: input.actorUserId,
+        action: "Eval.BulkAssign",
+        entityType: "eval_round",
+        entityId: round.id,
+        afterJson: JSON.stringify({
+          previewId: hash,
+          mode: input.mode,
+          existing: input.existing,
+          matchedSubmissionCount: matched.length,
+          counts: value.counts,
+          capacityFailureCount: capacityFailures.length,
+        }),
+        correlationId: input.correlationId,
+        createdAt: now,
+      },
+    },
+    (row) => deps.auth.insertAudit(row),
+  );
+
+  if (!committed) {
+    // Concurrent duplicate commit won the single-use claim — this call wrote
+    // nothing. Replay the winner's stored response (same estate hash = same
+    // plan by construction).
+    const stored = await deps.eval.findIdempotencyKey(storageKey);
+    if (stored?.responseJson) {
+      try {
+        const cached = JSON.parse(
+          stored.responseJson,
+        ) as EvalBulkAssignResponse;
+        return { ok: true, value: { ...cached, idempotent: true } };
+      } catch {
+        /* corrupt cache — fall through to the equivalent local plan */
+      }
+    }
+    return { ok: true, value: { ...value, idempotent: true } };
   }
-
-  await deps.auth.insertAudit({
-    id: uuidv7(),
-    eventId: input.eventId,
-    actorType: "user",
-    actorId: input.actorUserId,
-    action: "Eval.BulkAssign",
-    entityType: "eval_round",
-    entityId: round.id,
-    afterJson: JSON.stringify({
-      previewId: hash,
-      mode: input.mode,
-      existing: input.existing,
-      matchedSubmissionCount: matched.length,
-      counts: value.counts,
-      capacityFailureCount: capacityFailures.length,
-    }),
-    correlationId: input.correlationId,
-    createdAt: now,
-  });
-
-  // Single-use marker: replays return this stored response, insert nothing.
-  await deps.eval.insertIdempotencyKey({
-    id: uuidv7(),
-    key: `${EVAL_BULK_ASSIGN_IDEMPOTENCY_PREFIX}${hash}`,
-    requestHash: hash,
-    responseJson: JSON.stringify(value),
-    createdAt: now,
-  });
 
   return { ok: true, value };
 }

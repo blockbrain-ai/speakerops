@@ -1275,6 +1275,9 @@ describe("Wave 2 — portal task depth (link + required + complete-on-behalf)", 
           title: "Optional extras",
           trigger: "on_accept",
           dueOffsetDays: 3,
+          // 0032 repair: templates default to REQUIRED — optional is an
+          // explicit organizer opt-in.
+          required: false,
         }),
       },
       env,
@@ -1283,6 +1286,32 @@ describe("Wave 2 — portal task depth (link + required + complete-on-behalf)", 
     const optTpl = TaskTemplateResponseSchema.parse(await optCreate.json());
     expect(optTpl.template.linkUrl).toBeNull();
     expect(optTpl.template.required).toBe(false);
+
+    // Omitting `required` defaults to TRUE (0032 repair — blocking unless
+    // the organizer opts into optional).
+    const defaultCreate = await admin.app.request(
+      `http://localhost/api/events/${event.id}/task-templates`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          title: "Defaulted paperwork",
+          // manual: never materializes on accept — this test's portal-home
+          // ordering below expects exactly the two templates above.
+          trigger: "manual",
+          dueOffsetDays: 5,
+        }),
+      },
+      env,
+    );
+    expect(defaultCreate.status).toBe(201);
+    const defaultTpl = TaskTemplateResponseSchema.parse(
+      await defaultCreate.json(),
+    );
+    expect(defaultTpl.template.required).toBe(true);
 
     // Update round-trip: clear link, toggle required off/on with versions
     const cleared = await admin.app.request(

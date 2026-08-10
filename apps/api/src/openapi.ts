@@ -595,7 +595,8 @@ export const FORM_OPENAPI_PATHS = {
     post: {
       operationId: "Cfp.FileUpload",
       summary: "Cfp.FileUpload",
-      description: "Public supporting file upload (mime allowlist + size)",
+      description:
+        "Public supporting file upload (mime allowlist + size), pinned to the published form version being filled — rejected unless that version collects files (≥1 file field, or the named fieldKey is one)",
       tags: ["Submission"],
       parameters: [
         {
@@ -605,9 +606,39 @@ export const FORM_OPENAPI_PATHS = {
           schema: { type: "string" },
         },
       ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["formVersionId", "filename", "mime", "size", "contentBase64"],
+              properties: {
+                formVersionId: {
+                  type: "string",
+                  description:
+                    "Published form version pin (same pin the submit uses)",
+                },
+                fieldKey: {
+                  type: "string",
+                  description:
+                    "Optional file-typed field this upload answers (must be type file)",
+                },
+                filename: { type: "string" },
+                mime: { type: "string" },
+                size: { type: "integer" },
+                contentBase64: { type: "string" },
+              },
+            },
+          },
+        },
+      },
       responses: {
         "201": { description: "File stored" },
-        "400": { description: "Type/size rejected" },
+        "400": {
+          description:
+            "Type/size rejected, pin invalid, or the pinned form has no file field",
+        },
         "404": { description: "Event slug not found" },
         "429": { description: "Rate limited" },
       },

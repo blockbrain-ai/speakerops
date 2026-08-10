@@ -5,7 +5,7 @@
  * D1SubmissionsStore wraps the Worker DB binding for production (E1 SoR).
  * Event-scoped queries take eventId (E2).
  */
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import {
   createDb,
@@ -15,6 +15,7 @@ import {
   submissions,
   submissionAnswers,
   submissionSpeakers,
+  idempotencyKeys,
 } from "@speakerops/db";
 import { d1Changes } from "../auth/store.js";
 
@@ -54,6 +55,18 @@ export type SubmissionSpeakerRow = {
   bio?: string | null;
   company?: string | null;
   title?: string | null;
+};
+
+/**
+ * Unique reservation claimed atomically with a submission insert (shared
+ * idempotency_keys table) — race-safe per-submitter cap enforcement.
+ */
+export type SubmissionGuardRow = {
+  id: string;
+  key: string;
+  requestHash: string;
+  responseJson: string | null;
+  createdAt: string;
 };
 
 export type SubmissionsStore = {
@@ -127,12 +140,45 @@ export type SubmissionsStore = {
   countSubmittedForEvent(eventId: string): Promise<number>;
   countSubmittedForFormVersion(formVersionId: string): Promise<number>;
   /**
-   * Count submitted rows for an event whose primary speaker matches the
-   * normalized (lowercase/trimmed) email — per-submitter cap (Wave 1B).
-   * Draft rows never count; matches any speaker flagged primary.
+   * Ids of submitted rows across the given form versions whose primary
+   * speaker matches the normalized (lowercase/trimmed) email — per-submitter
+   * cap, scoped to the logical FORM (all published versions of one form_id)
+   * so "one per person on this form" survives a republish and never counts a
+   * different form on the same event. Draft rows never listed; matches any
+   * speaker flagged primary.
    */
-  countSubmittedByPrimaryEmail(eventId: string, email: string): Promise<number>;
+  listSubmittedIdsByPrimaryEmailForVersions(
+    formVersionIds: string[],
+    email: string,
+  ): Promise<string[]>;
+  /**
+   * Claimed per-submitter guard requestHashes (= submission ids) for a
+   * form + normalized email — every guard row whose key starts with
+   * `per-submitter:<formId>:<email>:`. Guards commit atomically WITH their
+   * submission, so this is race-visible where the speaker-join count is not.
+   */
+  listSubmissionGuardHashes(formId: string, email: string): Promise<string[]>;
+  /**
+   * Insert a submission, atomically claiming an optional unique guard row
+   * (shared idempotency_keys table) in the SAME unit — the race-safe
+   * per-submitter cap reservation. Returns "guard_conflict" (and inserts
+   * NOTHING) when the guard key is already claimed; the caller recomputes the
+   * effective count and either 400s or retries with the next slot.
+   * guard=null behaves exactly like insertSubmission.
+   */
+  insertSubmissionWithGuard(
+    row: SubmissionRow,
+    guard: SubmissionGuardRow | null,
+  ): Promise<"inserted" | "guard_conflict">;
 };
+
+/** Guard key prefix for one (form, normalized email) pair. */
+export function perSubmitterGuardPrefix(
+  formId: string,
+  normalizedEmail: string,
+): string {
+  return `per-submitter:${formId}:${normalizedEmail}:`;
+}
 
 export function newPersonId(): string {
   return uuidv7();
@@ -155,6 +201,8 @@ export class MemorySubmissionsStore implements SubmissionsStore {
   private submissions = new Map<string, SubmissionRow>();
   private answers = new Map<string, SubmissionAnswerRow[]>();
   private speakers = new Map<string, SubmissionSpeakerRow[]>();
+  /** Claimed per-submitter guard keys (idempotency_keys parity with D1). */
+  private guards = new Map<string, SubmissionGuardRow>();
 
   private orgEmailKey(orgId: string, email: string): string {
     return `${orgId}::${email.toLowerCase()}`;
@@ -363,23 +411,53 @@ export class MemorySubmissionsStore implements SubmissionsStore {
     return n;
   }
 
-  async countSubmittedByPrimaryEmail(
-    eventId: string,
+  async listSubmittedIdsByPrimaryEmailForVersions(
+    formVersionIds: string[],
     email: string,
-  ): Promise<number> {
+  ): Promise<string[]> {
+    const versions = new Set(formVersionIds);
     const normalized = email.toLowerCase().trim();
-    let n = 0;
+    const ids: string[] = [];
     for (const s of this.submissions.values()) {
-      if (s.eventId !== eventId || s.status !== "submitted") continue;
+      if (!versions.has(s.formVersionId) || s.status !== "submitted") continue;
       const speakerRows = this.speakers.get(s.id) ?? [];
       const primaries = speakerRows.filter((sp) => sp.isPrimary);
       const matched = primaries.some((sp) => {
         const person = this.people.get(sp.personId);
         return person?.email.toLowerCase() === normalized;
       });
-      if (matched) n++;
+      if (matched) ids.push(s.id);
     }
-    return n;
+    return ids;
+  }
+
+  async listSubmissionGuardHashes(
+    formId: string,
+    email: string,
+  ): Promise<string[]> {
+    const prefix = perSubmitterGuardPrefix(formId, email.toLowerCase().trim());
+    const out: string[] = [];
+    for (const [key, row] of this.guards) {
+      if (key.startsWith(prefix)) out.push(row.requestHash);
+    }
+    return out;
+  }
+
+  /**
+   * Memory parity with D1 insertSubmissionWithGuard (do not diverge):
+   * the guard claim + submission insert happen in one synchronous section, so
+   * concurrent callers can never both pass with the same guard key.
+   */
+  async insertSubmissionWithGuard(
+    row: SubmissionRow,
+    guard: SubmissionGuardRow | null,
+  ): Promise<"inserted" | "guard_conflict"> {
+    if (guard) {
+      if (this.guards.has(guard.key)) return "guard_conflict";
+      this.guards.set(guard.key, { ...guard });
+    }
+    this.submissions.set(row.id, { ...row });
+    return "inserted";
   }
 }
 
@@ -808,28 +886,100 @@ export class D1SubmissionsStore implements SubmissionsStore {
     return rows.length;
   }
 
-  async countSubmittedByPrimaryEmail(
-    eventId: string,
+  async listSubmittedIdsByPrimaryEmailForVersions(
+    formVersionIds: string[],
     email: string,
-  ): Promise<number> {
+  ): Promise<string[]> {
+    if (formVersionIds.length === 0) return [];
     const normalized = email.toLowerCase().trim();
-    const rows = await this.db
-      .select({ id: submissions.id })
-      .from(submissions)
-      .innerJoin(
-        submissionSpeakers,
-        eq(submissionSpeakers.submissionId, submissions.id),
-      )
-      .innerJoin(people, eq(people.id, submissionSpeakers.personId))
-      .where(
-        and(
-          eq(submissions.eventId, eventId),
-          eq(submissions.status, "submitted"),
-          eq(submissionSpeakers.isPrimary, 1),
-          eq(people.email, normalized),
-        ),
-      );
+    const unique = [...new Set(formVersionIds)];
+    const matched = new Set<string>();
+    // D1 bound-parameter limit is 100 per query — chunk IN lists.
+    const CHUNK = 90;
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const slice = unique.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select({ id: submissions.id })
+        .from(submissions)
+        .innerJoin(
+          submissionSpeakers,
+          eq(submissionSpeakers.submissionId, submissions.id),
+        )
+        .innerJoin(people, eq(people.id, submissionSpeakers.personId))
+        .where(
+          and(
+            inArray(submissions.formVersionId, slice),
+            eq(submissions.status, "submitted"),
+            eq(submissionSpeakers.isPrimary, 1),
+            eq(people.email, normalized),
+          ),
+        );
+      for (const r of rows) matched.add(r.id);
+    }
     // Defensive distinct — a submission with duplicated primary rows counts once.
-    return new Set(rows.map((r) => r.id)).size;
+    return [...matched];
+  }
+
+  async listSubmissionGuardHashes(
+    formId: string,
+    email: string,
+  ): Promise<string[]> {
+    const prefix = perSubmitterGuardPrefix(formId, email.toLowerCase().trim());
+    // Escape LIKE wildcards in the prefix (emails may contain "_" / "%").
+    const escaped = prefix.replace(/([\\%_])/g, "\\$1");
+    const rows = await this.db
+      .select({ requestHash: idempotencyKeys.requestHash })
+      .from(idempotencyKeys)
+      .where(sql`${idempotencyKeys.key} LIKE ${`${escaped}%`} ESCAPE '\\'`);
+    return rows.map((r) => r.requestHash);
+  }
+
+  /**
+   * Guard claim + submission insert in ONE D1 batch: the unique
+   * idempotency_keys.key aborts the whole batch (rollback) for a concurrent
+   * duplicate, so the loser inserts nothing — race-safe per-submitter cap.
+   */
+  async insertSubmissionWithGuard(
+    row: SubmissionRow,
+    guard: SubmissionGuardRow | null,
+  ): Promise<"inserted" | "guard_conflict"> {
+    if (!guard) {
+      await this.insertSubmission(row);
+      return "inserted";
+    }
+    try {
+      await this.db.batch([
+        // Guard first: unique(key) aborts the batch for race losers.
+        this.db.insert(idempotencyKeys).values({
+          id: guard.id,
+          key: guard.key,
+          requestHash: guard.requestHash,
+          responseJson: guard.responseJson,
+          createdAt: guard.createdAt,
+        }),
+        this.db.insert(submissions).values({
+          id: row.id,
+          eventId: row.eventId,
+          formVersionId: row.formVersionId,
+          title: row.title,
+          category: row.category,
+          status: row.status,
+          submittedAt: row.submittedAt,
+          version: row.version,
+        }),
+      ]);
+    } catch (err) {
+      // Classify: a stored guard row means a concurrent claim won (the batch
+      // rolled back — this submission was NOT inserted). Anything else is a
+      // hard failure, also with zero rows committed.
+      const stored = await this.db
+        .select({ key: idempotencyKeys.key })
+        .from(idempotencyKeys)
+        .where(eq(idempotencyKeys.key, guard.key))
+        .limit(1);
+      if (stored[0]) return "guard_conflict";
+      throw err;
+    }
+    return "inserted";
   }
 }
