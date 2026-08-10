@@ -53,6 +53,7 @@ import {
   exchangeForCookie,
   seedSessionCookie,
 } from "./helpers/cfp-eval-seed.js";
+import { pointerDragTo } from "./helpers/pointer-dnd.js";
 
 const RUN = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const KEYSTONE_ADMIN = `e2e-keystone64-admin-${RUN}@example.com`;
@@ -204,44 +205,6 @@ async function placeViaApi(
     placement: { id: string; version: number };
   };
   return body.placement;
-}
-
-/** HTML5 DnD via DataTransfer polyfill (Playwright mouse drag often skips dataTransfer). */
-async function html5DragTo(
-  page: Page,
-  sourceTestId: string,
-  targetTestId: string,
-) {
-  await page.evaluate(
-    ({ sourceId, targetId }) => {
-      const source = document.querySelector(
-        `[data-testid="${sourceId}"]`,
-      ) as HTMLElement | null;
-      const target = document.querySelector(
-        `[data-testid="${targetId}"]`,
-      ) as HTMLElement | null;
-      if (!source || !target) {
-        throw new Error(`drag elements missing: ${sourceId} → ${targetId}`);
-      }
-
-      const dt = new DataTransfer();
-      const fire = (el: HTMLElement, type: string) => {
-        const ev = new DragEvent(type, {
-          bubbles: true,
-          cancelable: true,
-          dataTransfer: dt,
-        });
-        el.dispatchEvent(ev);
-      };
-
-      fire(source, "dragstart");
-      fire(target, "dragenter");
-      fire(target, "dragover");
-      fire(target, "drop");
-      fire(source, "dragend");
-    },
-    { sourceId: sourceTestId, targetId: targetTestId },
-  );
 }
 
 async function openSchedule(page: Page, eventId: string, baseURL?: string) {
@@ -495,7 +458,7 @@ test.describe("6.4 schedule+dash keystone (I12)", () => {
       .getAttribute("data-count");
     expect(Number(countBeforeDrag)).toBeGreaterThanOrEqual(4);
 
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-tray-item-${main.sessionId}`,
       slotTestId(ROOM_B, "2026-09-01T16:00:00.000Z"),
@@ -536,7 +499,7 @@ test.describe("6.4 schedule+dash keystone (I12)", () => {
     // I07: Speaker conflict blocked (day grid for slot drops)
     await page.getByTestId("schedule-view-day").click();
     await expect(page.getByTestId("schedule-day-view")).toBeVisible();
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-tray-item-${conflictB.sessionId}`,
       slotTestId(ROOM_B, SLOT_10),
@@ -553,7 +516,7 @@ test.describe("6.4 schedule+dash keystone (I12)", () => {
     );
 
     // I08: Room overlap conflict
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-tray-item-${conflictB.sessionId}`,
       slotTestId(ROOM_A, SLOT_14),
@@ -591,7 +554,7 @@ test.describe("6.4 schedule+dash keystone (I12)", () => {
     ).toBeVisible();
 
     // I13: Move already-placed session
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-placement-${movePlacement.id}`,
       slotTestId(ROOM_A, "2026-09-01T13:00:00.000Z"),

@@ -221,6 +221,16 @@ export function AdminShell({
             <Icon name="info" size="sm" decorative />
             <span>Help &amp; settings</span>
           </a>
+          <a
+            href="https://learn.speakerops.org"
+            target="_blank"
+            rel="noreferrer"
+            className="admin-shell__account-link lumen-focusable"
+            data-testid="admin-docs-link"
+          >
+            <Icon name="info" size="sm" decorative />
+            <span>Docs &amp; guides</span>
+          </a>
           <Button
             type="button"
             variant="quiet"

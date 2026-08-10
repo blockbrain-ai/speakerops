@@ -3548,7 +3548,8 @@
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
-  -webkit-user-drag: element;
+  /* Pointer-event drag: stop touch scroll from hijacking the gesture. */
+  touch-action: none;
   box-shadow: var(--lumen-shadow-sm);
   transition:
     border-color var(--lumen-motion) var(--lumen-ease),
@@ -3620,7 +3621,8 @@
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
-  -webkit-user-drag: element;
+  /* Pointer-event drag: stop touch scroll from hijacking the gesture. */
+  touch-action: none;
   box-shadow: var(--lumen-shadow-sm);
   overflow: hidden;
   min-height: 3rem;
@@ -3909,7 +3911,15 @@
   gap: var(--lumen-space-2);
 }
 
+/* Floating drag ghost — fixed at cursor; pointer-events none so
+   elementFromPoint hit-testing sees the slot underneath. */
 .schedule-studio__ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 120;
+  pointer-events: none;
+  max-width: 20rem;
   padding: var(--lumen-space-2) var(--lumen-space-3);
   border-radius: var(--lumen-radius-sm);
   background: var(--lumen-info-soft);

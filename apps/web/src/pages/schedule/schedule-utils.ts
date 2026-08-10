@@ -515,6 +515,67 @@ export function slotKey(roomId: string, startsAt: string): string {
 }
 
 /**
+ * Pointer-drag activation threshold in px. A press that never travels beyond
+ * this distance is a click (select / open inspector); beyond it, a drag starts.
+ * Deterministic discriminator — replaces flaky native HTML5 dragstart.
+ */
+export const DRAG_ACTIVATION_PX = 6;
+
+/** True once pointer movement from (startX,startY) exceeds the threshold. */
+export function exceedsDragThreshold(
+  startX: number,
+  startY: number,
+  x: number,
+  y: number,
+  threshold: number = DRAG_ACTIVATION_PX,
+): boolean {
+  return Math.hypot(x - startX, y - startY) > threshold;
+}
+
+/**
+ * Minimal structural view of a DOM element for slot hit-testing.
+ * Real Elements satisfy this; keeps the walker unit-testable in node.
+ */
+export type SlotHitNode = {
+  getAttribute(name: string): string | null;
+  parentElement: SlotHitNode | null;
+};
+
+export type SlotHitTarget = {
+  roomId: string;
+  startsAt: string;
+  key: string;
+};
+
+/**
+ * Resolve the schedule slot under a pointer hit (document.elementFromPoint):
+ * walk up from the hit element to the nearest `[data-testid^="schedule-slot-"]`
+ * ancestor and read its room/start data attributes. Tiles render inside slots,
+ * so a hit on a filled tile resolves to that tile's slot (nested-drop honesty).
+ * Hits outside any slot return null (drop cancels cleanly).
+ */
+export function slotTargetFromElement(
+  el: SlotHitNode | null,
+): SlotHitTarget | null {
+  let cur: SlotHitNode | null = el;
+  let guard = 0;
+  while (cur && guard < 100) {
+    const testId = cur.getAttribute("data-testid");
+    if (testId && testId.startsWith("schedule-slot-")) {
+      const roomId = cur.getAttribute("data-room-id");
+      const startsAt = cur.getAttribute("data-starts-at");
+      if (roomId && startsAt) {
+        return { roomId, startsAt, key: slotKey(roomId, startsAt) };
+      }
+      return null;
+    }
+    cur = cur.parentElement;
+    guard += 1;
+  }
+  return null;
+}
+
+/**
  * True when placement belongs in this grid slot.
  * Occupies the slot whose [startsAt, startsAt+step) window contains placement.startsAt
  * (not only exact equality), so off-hour placements like 10:30 remain visible.

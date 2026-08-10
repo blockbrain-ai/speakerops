@@ -12,7 +12,9 @@ import {
   dayWindowUtc,
   DEFAULT_SLOT_MINUTES,
   detectLocalRoomConflicts,
+  DRAG_ACTIVATION_PX,
   durationMinutes,
+  exceedsDragThreshold,
   formatConflictMessage,
   groupByRoom,
   groupByTrack,
@@ -23,6 +25,8 @@ import {
   placementsOnDay,
   safeTrackColor,
   slotKey,
+  slotTargetFromElement,
+  type SlotHitNode,
   undoForMove,
   undoForPlace,
   undoForUnschedule,
@@ -354,5 +358,62 @@ describe("schedule-utils", () => {
     expect(safeTrackColor("#abc")).toBe("#abc");
     expect(safeTrackColor("red")).toBeNull();
     expect(safeTrackColor(null)).toBeNull();
+  });
+
+  it("exceedsDragThreshold discriminates click vs drag at ~6px", () => {
+    expect(DRAG_ACTIVATION_PX).toBe(6);
+    // No movement / tiny jitter → still a click
+    expect(exceedsDragThreshold(100, 100, 100, 100)).toBe(false);
+    expect(exceedsDragThreshold(100, 100, 103, 103)).toBe(false); // ~4.24px
+    expect(exceedsDragThreshold(100, 100, 106, 100)).toBe(false); // exactly 6
+    // Beyond threshold in any direction → drag
+    expect(exceedsDragThreshold(100, 100, 107, 100)).toBe(true);
+    expect(exceedsDragThreshold(100, 100, 100, 93)).toBe(true);
+    expect(exceedsDragThreshold(100, 100, 95, 95)).toBe(true); // ~7.07px
+    // Custom threshold honored
+    expect(exceedsDragThreshold(0, 0, 3, 0, 2)).toBe(true);
+    expect(exceedsDragThreshold(0, 0, 1, 0, 2)).toBe(false);
+  });
+
+  it("slotTargetFromElement walks up to the enclosing slot", () => {
+    const node = (
+      attrs: Record<string, string>,
+      parent: SlotHitNode | null = null,
+    ): SlotHitNode => ({
+      getAttribute: (name: string) => attrs[name] ?? null,
+      parentElement: parent,
+    });
+
+    const slot = node({
+      "data-testid": "schedule-slot-room_a|2026-09-01T10:00:00.000Z",
+      "data-room-id": "room_a",
+      "data-starts-at": "2026-09-01T10:00:00.000Z",
+    });
+    // Hit directly on the slot
+    expect(slotTargetFromElement(slot)).toEqual({
+      roomId: "room_a",
+      startsAt: "2026-09-01T10:00:00.000Z",
+      key: slotKey("room_a", "2026-09-01T10:00:00.000Z"),
+    });
+
+    // Hit on a tile (and its inner span) nested inside the slot resolves to it
+    const tile = node(
+      { "data-testid": "schedule-placement-plc_1" },
+      slot,
+    );
+    const tileSpan = node({}, tile);
+    expect(slotTargetFromElement(tile)?.roomId).toBe("room_a");
+    expect(slotTargetFromElement(tileSpan)?.key).toBe(
+      slotKey("room_a", "2026-09-01T10:00:00.000Z"),
+    );
+
+    // Hits outside any slot cancel cleanly
+    expect(slotTargetFromElement(null)).toBeNull();
+    expect(slotTargetFromElement(node({ "data-testid": "schedule-tray" })))
+      .toBeNull();
+
+    // Slot missing data attributes → null (never a bogus drop)
+    const broken = node({ "data-testid": "schedule-slot-x" });
+    expect(slotTargetFromElement(node({}, broken))).toBeNull();
   });
 });

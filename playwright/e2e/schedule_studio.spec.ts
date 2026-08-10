@@ -24,10 +24,15 @@
  * - assert keyboard place creates placement
  * - assert reload shows same slot
  *
+ * Drag tests (I06/I07/I08/I13) use REAL mouse input (pointerDragTo): Schedule
+ * Studio's DnD is pointer-event based, so Playwright's mouse drives the exact
+ * production path — the old synthetic-DragEvent html5DragTo helper is gone.
+ *
  * Requires E2E_WEB_SERVER=1 (pnpm test:e2e).
  */
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { loginAs, sessionHeaders } from "./helpers/cfp-eval-seed.js";
+import { pointerDragTo } from "./helpers/pointer-dnd.js";
 
 const EVENT_START = "2026-09-01T09:00:00.000Z";
 const EVENT_END = "2026-09-02T17:00:00.000Z";
@@ -131,44 +136,6 @@ async function openSchedule(page: Page, eventId: string) {
   await expect(page.getByTestId("schedule-tray")).toBeVisible({
     timeout: 15_000,
   });
-}
-
-/** HTML5 DnD via DataTransfer polyfill (Playwright mouse drag often skips dataTransfer). */
-async function html5DragTo(
-  page: Page,
-  sourceTestId: string,
-  targetTestId: string,
-) {
-  await page.evaluate(
-    ({ sourceId, targetId }) => {
-      const source = document.querySelector(
-        `[data-testid="${sourceId}"]`,
-      ) as HTMLElement | null;
-      const target = document.querySelector(
-        `[data-testid="${targetId}"]`,
-      ) as HTMLElement | null;
-      if (!source || !target) {
-        throw new Error(`drag elements missing: ${sourceId} → ${targetId}`);
-      }
-
-      const dt = new DataTransfer();
-      const fire = (el: HTMLElement, type: string) => {
-        const ev = new DragEvent(type, {
-          bubbles: true,
-          cancelable: true,
-          dataTransfer: dt,
-        });
-        el.dispatchEvent(ev);
-      };
-
-      fire(source, "dragstart");
-      fire(target, "dragenter");
-      fire(target, "dragover");
-      fire(target, "drop");
-      fire(source, "dragend");
-    },
-    { sourceId: sourceTestId, targetId: targetTestId },
-  );
 }
 
 async function seedBase(
@@ -379,7 +346,7 @@ test.describe("6.2 Schedule Studio I01–I16", () => {
       .getAttribute("data-count");
     expect(countBefore).toBe("0");
 
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-tray-item-${sessionId}`,
       slotTestId(ROOM_A, SLOT_10),
@@ -435,7 +402,7 @@ test.describe("6.2 Schedule Studio I01–I16", () => {
     );
 
     // assert conflict drop leaves placement count unchanged
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-tray-item-${s2}`,
       slotTestId(ROOM_B, SLOT_10),
@@ -487,7 +454,7 @@ test.describe("6.2 Schedule Studio I01–I16", () => {
     await openSchedule(page, event.id);
     await page.getByTestId("schedule-view-day").click();
 
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-tray-item-${s2}`,
       slotTestId(ROOM_A, SLOT_10),
@@ -641,7 +608,7 @@ test.describe("6.2 Schedule Studio I01–I16", () => {
       page.getByTestId(`schedule-placement-${placement.id}`),
     ).toBeVisible();
 
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-placement-${placement.id}`,
       slotTestId(ROOM_B, SLOT_14),

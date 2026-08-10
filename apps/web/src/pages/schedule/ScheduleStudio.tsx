@@ -4,7 +4,14 @@
  *
  * Lumen 2: full-height working surface, sticky time/room headers, richer
  * session tiles (track encoding, conflict/pending), navigable conflict summary.
- * Native HTML5 drag only — no DnD package.
+ *
+ * Dragging is pointer-event based (no DnD package, no native HTML5 DnD —
+ * Chromium's native drag intermittently resolved as a click). pointerdown on a
+ * tray item / tile arms a potential drag; it becomes a real drag only after
+ * movement exceeds DRAG_ACTIVATION_PX, so click-to-select/inspector stays
+ * deterministic. During drag a fixed-position ghost follows the cursor and the
+ * slot under the pointer is resolved via elementFromPoint (works in day/week/
+ * track/room views incl. compact tiles). Escape cancels.
  *
  * Inventory I01–I16. APIs (COMMANDS.md):
  *   GET  /api/events/:eventId/schedule
@@ -23,8 +30,8 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type DragEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -63,6 +70,7 @@ import {
   dayWindowForEvent,
   detectLocalRoomConflicts,
   durationMinutes,
+  exceedsDragThreshold,
   formatConflictMessage,
   formatTimeLabel,
   groupByRoom,
@@ -71,6 +79,7 @@ import {
   placementsOnDay,
   safeTrackColor,
   slotKey,
+  slotTargetFromElement,
   undoForMove,
   undoForPlace,
   undoForUnschedule,
@@ -145,9 +154,27 @@ export function ScheduleStudioPage() {
   >([]);
 
   const [dragPayload, setDragPayload] = useState<DragPayload | null>(null);
-  /** Sync ref so HTML5 drop sees payload even when React state has not flushed. */
+  /** Sync ref so drop logic sees payload even when React state has not flushed. */
   const dragPayloadRef = useRef<DragPayload | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  /** Floating drag ghost position (fixed, at cursor). Null until drag starts. */
+  const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  /**
+   * Armed-but-not-yet-started drag (pointerdown recorded, threshold not
+   * crossed). `active` flips once movement exceeds DRAG_ACTIVATION_PX.
+   */
+  const pointerDragRef = useRef<{
+    payload: DragPayload;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    active: boolean;
+    el: HTMLElement;
+  } | null>(null);
+  /** Set when a real drag (or Escape-cancel) ended — swallows the trailing click. */
+  const suppressClickRef = useRef(false);
 
   /** Click-to-reschedule inspector (non-drag path). */
   const [inspectorRoomId, setInspectorRoomId] = useState("");
@@ -763,120 +790,182 @@ export function ScheduleStudioPage() {
     [applyToSlot],
   );
 
-  const onTrayDragStart = (
-    e: DragEvent,
-    session: UnscheduledSessionDto,
-  ) => {
-    // stopPropagation: parent list/slot handlers must not cancel the drag.
-    e.stopPropagation();
-    const payload: DragPayload = {
-      source: "tray",
-      sessionId: session.id,
-      title: session.title,
-    };
-    // Sync ref immediately — setState may not flush before first dragover.
-    setDrag(payload);
-    try {
-      e.dataTransfer.setData("application/json", JSON.stringify(payload));
-      e.dataTransfer.setData("text/plain", session.id);
-      e.dataTransfer.effectAllowed = "copyMove";
-    } catch {
-      /* some browsers throw if setData is called outside dragstart — ignore */
-    }
-  };
+  /**
+   * Drop payload onto a slot — same apply logic the old HTML5 onSlotDrop used
+   * (place from tray; move preserving duration; no-op on same slot).
+   */
+  const performDrop = useCallback(
+    (payload: DragPayload, roomId: string, startsAt: string) => {
+      setDragOverSlot(null);
+      // No-op move onto same slot (avoid version churn / toast noise).
+      if (
+        payload.source === "placement" &&
+        payload.roomId === roomId &&
+        payload.startsAt === startsAt
+      ) {
+        setDrag(null);
+        return;
+      }
+      setDrag(payload);
+      if (payload.source === "tray") {
+        const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
+        void placeSession({
+          sessionId: payload.sessionId,
+          roomId,
+          startsAt,
+          endsAt,
+        }).finally(() => setDrag(null));
+      } else {
+        // Preserve duration from the dragged placement.
+        const endsAt = addMinutesIso(
+          startsAt,
+          durationMinutes(payload.startsAt, payload.endsAt),
+        );
+        void movePlacement({
+          placementId: payload.placementId,
+          roomId,
+          startsAt,
+          endsAt,
+          expectedVersion: payload.version,
+          previous: {
+            roomId: payload.roomId,
+            startsAt: payload.startsAt,
+            endsAt: payload.endsAt,
+          },
+        }).finally(() => setDrag(null));
+      }
+    },
+    [movePlacement, placeSession, setDrag],
+  );
 
-  const onPlacementDragStart = (
-    e: DragEvent,
-    p: SchedulePlacementDto,
-  ) => {
-    e.stopPropagation();
-    const payload: DragPayload = {
-      source: "placement",
-      placementId: p.id,
-      sessionId: p.sessionId,
-      title: p.title ?? p.sessionId,
-      version: p.version,
-      roomId: p.roomId,
-      startsAt: p.startsAt,
-      endsAt: p.endsAt,
-    };
-    setDrag(payload);
-    setSelectedPlacementId(p.id);
-    setSelectedSessionId(null);
-    try {
-      e.dataTransfer.setData("application/json", JSON.stringify(payload));
-      e.dataTransfer.setData("text/plain", p.id);
-      e.dataTransfer.effectAllowed = "move";
-    } catch {
-      /* ignore */
+  /** Cancel any in-flight pointer drag and clear all drag chrome. */
+  const cancelPointerDrag = useCallback(() => {
+    const st = pointerDragRef.current;
+    pointerDragRef.current = null;
+    if (st) {
+      try {
+        st.el.releasePointerCapture(st.pointerId);
+      } catch {
+        /* already released */
+      }
     }
-  };
-
-  const onDragEnd = () => {
     setDrag(null);
     setDragOverSlot(null);
-  };
+    setGhostPos(null);
+  }, [setDrag]);
 
-  const onSlotDragOver = (e: DragEvent, key: string) => {
-    // Required for drop to fire — including when pointer is over a child tile.
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect =
-      dragPayloadRef.current?.source === "tray" ? "copy" : "move";
-    setDragOverSlot(key);
-  };
+  /**
+   * Arm a potential drag. Not a drag yet — pointer must travel beyond
+   * DRAG_ACTIVATION_PX first, so plain clicks still select / open inspector.
+   */
+  const onDragPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLElement>, payload: DragPayload) => {
+      if (e.button !== 0) return;
+      suppressClickRef.current = false;
+      const el = e.currentTarget;
+      pointerDragRef.current = {
+        payload,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        active: false,
+        el,
+      };
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture unsupported — hit-testing still works via elementFromPoint */
+      }
+    },
+    [],
+  );
 
-  const onSlotDrop = (e: DragEvent, roomId: string, startsAt: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverSlot(null);
-    // Prefer dataTransfer; fall back to ref (Playwright / incomplete DnD).
-    let payload = dragPayloadRef.current;
-    try {
-      const raw = e.dataTransfer.getData("application/json");
-      if (raw) payload = JSON.parse(raw) as DragPayload;
-    } catch {
-      /* keep ref payload */
-    }
-    if (!payload) return;
-    // No-op move onto same slot (avoid version churn / toast noise).
-    if (
-      payload.source === "placement" &&
-      payload.roomId === roomId &&
-      payload.startsAt === startsAt
-    ) {
-      setDrag(null);
-      return;
-    }
-    setDrag(payload);
-    if (payload.source === "tray") {
-      const endsAt = addMinutesIso(startsAt, DEFAULT_SLOT_MINUTES);
-      void placeSession({
-        sessionId: payload.sessionId,
-        roomId,
-        startsAt,
-        endsAt,
-      }).finally(() => setDrag(null));
-    } else {
-      // Preserve duration from the dragged placement.
-      const endsAt = addMinutesIso(
-        startsAt,
-        durationMinutes(payload.startsAt, payload.endsAt),
+  const onDragPointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      const st = pointerDragRef.current;
+      if (!st || st.pointerId !== e.pointerId) return;
+      if (!st.active) {
+        if (
+          !exceedsDragThreshold(st.startX, st.startY, e.clientX, e.clientY)
+        ) {
+          return;
+        }
+        st.active = true;
+        setDrag(st.payload);
+      }
+      e.preventDefault();
+      setGhostPos({ x: e.clientX, y: e.clientY });
+      // Ghost is pointer-events:none, so elementFromPoint sees the slot below.
+      const slot = slotTargetFromElement(
+        document.elementFromPoint(e.clientX, e.clientY),
       );
-      void movePlacement({
-        placementId: payload.placementId,
-        roomId,
-        startsAt,
-        endsAt,
-        expectedVersion: payload.version,
-        previous: {
-          roomId: payload.roomId,
-          startsAt: payload.startsAt,
-          endsAt: payload.endsAt,
-        },
-      }).finally(() => setDrag(null));
+      setDragOverSlot(slot ? slot.key : null);
+    },
+    [setDrag],
+  );
+
+  const onDragPointerUp = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      const st = pointerDragRef.current;
+      if (!st || st.pointerId !== e.pointerId) return;
+      pointerDragRef.current = null;
+      try {
+        st.el.releasePointerCapture(st.pointerId);
+      } catch {
+        /* already released */
+      }
+      if (!st.active) {
+        // Below threshold — a click; let the click handler select/open.
+        return;
+      }
+      suppressClickRef.current = true;
+      e.preventDefault();
+      setGhostPos(null);
+      const slot = slotTargetFromElement(
+        document.elementFromPoint(e.clientX, e.clientY),
+      );
+      if (slot) {
+        performDrop(st.payload, slot.roomId, slot.startsAt);
+      } else {
+        // Released over nothing droppable — cancel cleanly.
+        setDrag(null);
+        setDragOverSlot(null);
+      }
+    },
+    [performDrop, setDrag],
+  );
+
+  const onDragPointerCancel = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      const st = pointerDragRef.current;
+      if (!st || st.pointerId !== e.pointerId) return;
+      suppressClickRef.current = st.active;
+      cancelPointerDrag();
+    },
+    [cancelPointerDrag],
+  );
+
+  /** Escape cancels an active drag. */
+  useEffect(() => {
+    if (!dragPayload) return;
+    const onKey = (ev: globalThis.KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        suppressClickRef.current = true;
+        cancelPointerDrag();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dragPayload, cancelPointerDrag]);
+
+  /** True (and consumed) when the click is the tail of a completed drag. */
+  const consumeClickSuppression = useCallback(() => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return true;
     }
-  };
+    return false;
+  }, []);
 
   const placementTitle = (p: SchedulePlacementDto) =>
     p.title ?? p.sessionId;
@@ -900,14 +989,9 @@ export function ScheduleStudioPage() {
     occupant: SchedulePlacementDto,
     opts?: {
       compact?: boolean;
-      /** When set, tile participates in slot drop (nested DnD honesty). */
-      dropRoomId?: string;
-      dropStartsAt?: string;
     },
   ) => {
     const compact = opts?.compact === true;
-    const dropRoomId = opts?.dropRoomId;
-    const dropStartsAt = opts?.dropStartsAt;
     const isSelected = selectedPlacementId === occupant.id;
     const isConflict = conflictPlacementSet.has(occupant.id);
     const isPending = pendingPlacementId === occupant.id;
@@ -915,8 +999,6 @@ export function ScheduleStudioPage() {
     const style: CSSProperties | undefined = color
       ? ({ ["--schedule-track-color" as string]: color } as CSSProperties)
       : undefined;
-    const slotDropKey =
-      dropRoomId && dropStartsAt ? slotKey(dropRoomId, dropStartsAt) : null;
 
     return (
       <div
@@ -940,26 +1022,29 @@ export function ScheduleStudioPage() {
         data-conflict={isConflict ? "true" : undefined}
         data-pending={isPending ? "true" : undefined}
         data-draggable="true"
-        draggable
         tabIndex={0}
-        // Nested tiles must allow dragover/drop or browser rejects drop when
-        // the pointer is over the filled tile (common move failure mode).
-        // Only claim drop when we know the target slot — bare preventDefault
-        // on list/compact tiles shows a green cursor with a silent no-op.
-        onDragOver={
-          dropRoomId && dropStartsAt && slotDropKey
-            ? (e) => onSlotDragOver(e, slotDropKey)
-            : undefined
-        }
-        onDrop={
-          dropRoomId && dropStartsAt
-            ? (e) => onSlotDrop(e, dropRoomId, dropStartsAt)
-            : undefined
-        }
-        onDragStart={(e) => onPlacementDragStart(e, occupant)}
-        onDragEnd={onDragEnd}
+        // Pointer-event drag (all tiles incl. compact week/track/room ones).
+        // A drop over a filled tile hit-tests up to its slot — nested honesty
+        // without per-tile dragover/drop wiring.
+        onPointerDown={(e) => {
+          if (isPending) return;
+          onDragPointerDown(e, {
+            source: "placement",
+            placementId: occupant.id,
+            sessionId: occupant.sessionId,
+            title: occupant.title ?? occupant.sessionId,
+            version: occupant.version,
+            roomId: occupant.roomId,
+            startsAt: occupant.startsAt,
+            endsAt: occupant.endsAt,
+          });
+        }}
+        onPointerMove={onDragPointerMove}
+        onPointerUp={onDragPointerUp}
+        onPointerCancel={onDragPointerCancel}
         onClick={(e) => {
           e.stopPropagation();
+          if (consumeClickSuppression()) return;
           setSelectedPlacementId(occupant.id);
           setSelectedSessionId(null);
           setFocusedDayKey(zonedDayKey(occupant.startsAt, timezone));
@@ -1039,11 +1124,9 @@ export function ScheduleStudioPage() {
         role="button"
         tabIndex={0}
         aria-label={`Slot ${roomName(roomId)} ${formatTimeLabel(startsAt, timezone)}`}
-        onDragOver={(e) => onSlotDragOver(e, key)}
-        onDragLeave={() => setDragOverSlot((cur) => (cur === key ? null : cur))}
-        onDrop={(e) => onSlotDrop(e, roomId, startsAt)}
         onKeyDown={(e) => onSlotKeyDown(e, roomId, startsAt)}
         onClick={() => {
+          if (consumeClickSuppression()) return;
           if (selectedSessionId || selectedPlacementId) {
             void applyToSlot(roomId, startsAt);
           }
@@ -1053,12 +1136,7 @@ export function ScheduleStudioPage() {
           {formatTimeLabel(startsAt, timezone)}
         </span>
         {occupants.length > 0 ? (
-          occupants.map((occupant) =>
-            renderTile(occupant, {
-              dropRoomId: roomId,
-              dropStartsAt: startsAt,
-            }),
-          )
+          occupants.map((occupant) => renderTile(occupant))
         ) : (
           <span className="schedule-studio__slot-empty">Empty</span>
         )}
@@ -1727,6 +1805,12 @@ export function ScheduleStudioPage() {
             <div
               className="schedule-studio__ghost"
               data-testid="schedule-dnd-ghost"
+              data-drag-source={dragPayload.source}
+              style={
+                ghostPos
+                  ? { left: ghostPos.x + 14, top: ghostPos.y + 12 }
+                  : undefined
+              }
               aria-hidden
             >
               Dragging: {dragPayload.title}
@@ -1767,8 +1851,8 @@ export function ScheduleStudioPage() {
                   unscheduled.map((s) => (
                     <li key={s.id}>
                       {/*
-                        Use a div, not a native button with draggable — HTML5 drag on
-                        buttons is flaky in Chromium (often fails first grab).
+                        Div with role=button (kept from the HTML5-DnD era for
+                        grab-surface parity); dragging is pointer-event based.
                       */}
                       <div
                         role="button"
@@ -1790,7 +1874,6 @@ export function ScheduleStudioPage() {
                           pendingSessionId === s.id ? "true" : undefined
                         }
                         data-draggable="true"
-                        draggable={pendingSessionId !== s.id}
                         tabIndex={0}
                         aria-selected={selectedSessionId === s.id}
                         aria-grabbed={
@@ -1799,9 +1882,19 @@ export function ScheduleStudioPage() {
                             ? true
                             : undefined
                         }
-                        onDragStart={(e) => onTrayDragStart(e, s)}
-                        onDragEnd={onDragEnd}
+                        onPointerDown={(e) => {
+                          if (pendingSessionId === s.id) return;
+                          onDragPointerDown(e, {
+                            source: "tray",
+                            sessionId: s.id,
+                            title: s.title,
+                          });
+                        }}
+                        onPointerMove={onDragPointerMove}
+                        onPointerUp={onDragPointerUp}
+                        onPointerCancel={onDragPointerCancel}
                         onClick={() => {
+                          if (consumeClickSuppression()) return;
                           setSelectedSessionId(s.id);
                           setSelectedPlacementId(null);
                         }}

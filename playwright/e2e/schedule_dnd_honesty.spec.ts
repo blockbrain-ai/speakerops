@@ -2,13 +2,20 @@
  * Schedule DnD honesty — defects owner hit on dogfood that synthetic-only
  * suites under-tested:
  * - Place removes session from tray (terminal UI)
- * - Move already-placed tile via drop onto *filled* slot (nested dragover)
- * - Click tile → inspector reschedule (non-drag path)
+ * - Move already-placed tile via drop onto a *filled* slot (nested hit-target)
+ * - Click tile → inspector reschedule (non-drag path; below-threshold press)
  *
- * Complements @inv:I06/I13 (synthetic html5DragTo) without owning inventory IDs.
+ * Schedule Studio DnD is now pointer-event based (native HTML5 DnD removed —
+ * Chromium's native drag intermittently resolved as a click). The old caveat
+ * that "Playwright can't initiate real HTML5 DnD" no longer applies: real
+ * mouse input (pointerDragTo) IS the production drag path, so these tests
+ * drive exactly what humans do — press, cross the ~6px threshold, glide, drop.
+ *
+ * Complements @inv:I06/I13 without owning inventory IDs.
  */
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { loginAs, sessionHeaders } from "./helpers/cfp-eval-seed.js";
+import { pointerDragTo } from "./helpers/pointer-dnd.js";
 
 const EVENT_START = "2026-09-01T09:00:00.000Z";
 const EVENT_END = "2026-09-02T17:00:00.000Z";
@@ -21,42 +28,6 @@ const ROOM = "room_dnd_hall";
 
 function slotTestId(roomId: string, startsAt: string): string {
   return `schedule-slot-${roomId}|${startsAt}`;
-}
-
-async function html5DragTo(
-  page: import("@playwright/test").Page,
-  sourceTestId: string,
-  targetTestId: string,
-) {
-  await page.evaluate(
-    ({ sourceId, targetId }) => {
-      const source = document.querySelector(
-        `[data-testid="${sourceId}"]`,
-      ) as HTMLElement | null;
-      const target = document.querySelector(
-        `[data-testid="${targetId}"]`,
-      ) as HTMLElement | null;
-      if (!source || !target) {
-        throw new Error(`drag elements missing: ${sourceId} → ${targetId}`);
-      }
-      const dt = new DataTransfer();
-      const fire = (el: HTMLElement, type: string) => {
-        el.dispatchEvent(
-          new DragEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            dataTransfer: dt,
-          }),
-        );
-      };
-      fire(source, "dragstart");
-      fire(target, "dragenter");
-      fire(target, "dragover");
-      fire(target, "drop");
-      fire(source, "dragend");
-    },
-    { sourceId: sourceTestId, targetId: targetTestId },
-  );
 }
 
 async function upsertRoom(
@@ -247,7 +218,7 @@ test.describe("schedule DnD honesty", () => {
     expect(trayTag).toBe("div");
 
     // Place B onto empty slot
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-tray-item-${b.sessionId}`,
       slotTestId(ROOM, SLOT_B),
@@ -271,7 +242,7 @@ test.describe("schedule DnD honesty", () => {
     expect(bPlacementId).toBeTruthy();
 
     // Move B to empty SLOT_C (drag from placed tile → empty slot)
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-placement-${bPlacementId}`,
       slotTestId(ROOM, SLOT_C),
@@ -289,7 +260,7 @@ test.describe("schedule DnD honesty", () => {
     // Nested honesty: drop *onto the filled tile* for A while moving B back to
     // 14:00 would be empty — instead drop onto A's tile (same room+10:00) must
     // not silently lose placements (hard conflict or no-op; count stays 2).
-    await html5DragTo(
+    await pointerDragTo(
       page,
       `schedule-placement-${bPlacementId}`,
       `schedule-placement-${placementA.id}`,
@@ -318,18 +289,19 @@ test.describe("schedule DnD honesty", () => {
     );
   });
 
-  test("tray/tile grab surface contract (not button; nested drop handlers)", async ({
+  test("tray/tile grab surface contract (pointer drag; nested hit-targets)", async ({
     page,
     request,
     context,
     baseURL,
   }) => {
     /**
-     * Playwright Chromium does not initiate real HTML5 DnD via mouse.dragTo
-     * (dataTransfer stays empty) — so I06/I13 use synthetic DragEvents.
-     * This test locks the DOM contracts that make *human* drag reliable:
-     * tray is not <button draggable>, tiles are draggable, filled tiles own
-     * dragover/drop so nested hit-targets work.
+     * Locks the DOM contracts that make pointer-event drag reliable:
+     * tray is a div (not <button>), grab surfaces are marked
+     * data-draggable="true" with native HTML5 draggable REMOVED (native DnD
+     * was the flaky path), touch-action none so touch drags don't scroll,
+     * and a drop landing on a *filled tile* resolves to its enclosing slot
+     * via hit-testing (nested-drop honesty).
      */
     test.setTimeout(90_000);
     const run = `contract-${Date.now()}`;
@@ -385,16 +357,15 @@ test.describe("schedule DnD honesty", () => {
     await expect(tile).toBeVisible({ timeout: 15_000 });
     const tileProps = await tile.evaluate((el) => ({
       tag: el.tagName.toLowerCase(),
-      draggable: (el as HTMLElement).draggable,
+      nativeDraggable: (el as HTMLElement).draggable,
       dataDrag: el.getAttribute("data-draggable"),
-      hasDragOver: typeof (el as HTMLElement).ondragover === "function" ||
-        el.getAttribute("ondragover") != null ||
-        // React props leave listeners; check via getEventListeners is chrome-only —
-        // use data attribute we set + parent slot drop surface.
-        true,
+      touchAction: getComputedStyle(el).touchAction,
     }));
-    expect(tileProps.draggable).toBe(true);
+    // Pointer drag surface: marked draggable for tooling, native HTML5 DnD off
+    // (native drag was the intermittent click-vs-drag failure mode).
     expect(tileProps.dataDrag).toBe("true");
+    expect(tileProps.nativeDraggable).toBe(false);
+    expect(tileProps.touchAction).toBe("none");
 
     // Nested honesty: dropping on the *tile* (not empty slot chrome) places/moves
     const b = await acceptSession(
@@ -410,24 +381,35 @@ test.describe("schedule DnD honesty", () => {
       page.getByTestId(`schedule-tray-item-${b.sessionId}`),
     ).toBeVisible({ timeout: 15_000 });
     const tray = page.getByTestId(`schedule-tray-item-${b.sessionId}`);
-    expect(await tray.evaluate((el) => el.tagName.toLowerCase())).toBe("div");
-    expect(await tray.evaluate((el) => (el as HTMLElement).draggable)).toBe(
-      true,
-    );
+    const trayProps = await tray.evaluate((el) => ({
+      tag: el.tagName.toLowerCase(),
+      nativeDraggable: (el as HTMLElement).draggable,
+      dataDrag: el.getAttribute("data-draggable"),
+      touchAction: getComputedStyle(el).touchAction,
+    }));
+    expect(trayProps.tag).toBe("div");
+    expect(trayProps.dataDrag).toBe("true");
+    expect(trayProps.nativeDraggable).toBe(false);
+    expect(trayProps.touchAction).toBe("none");
 
-    // Drop onto filled tile surface (nested path) via synthetic DnD
-    await html5DragTo(
+    // Drop onto filled tile surface (nested path) via real mouse drag —
+    // hit-test resolves the tile to its enclosing slot.
+    await pointerDragTo(
       page,
       `schedule-tray-item-${b.sessionId}`,
       `schedule-placement-${placement.id}`,
     );
-    // Hard room conflict expected at same slot OR second placement if API allows —
-    // either way must not silent-no-op forever: toast or count change.
-    await expect(
-      page
-        .getByTestId("schedule-conflict-toast")
-        .or(page.getByTestId("schedule-status-toast"))
-        .or(page.getByTestId("schedule-placement-count")),
-    ).toBeVisible({ timeout: 15_000 });
+    // The drop resolves to A's slot → hard room conflict from the server.
+    // Never a silent no-op: conflict toast surfaces and count is unchanged.
+    await expect(page.getByTestId("schedule-conflict-toast")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("schedule-conflict-toast")).toContainText(
+      /Room|booked|conflict/i,
+    );
+    await expect(page.getByTestId("schedule-placement-count")).toHaveAttribute(
+      "data-count",
+      "1",
+    );
   });
 });

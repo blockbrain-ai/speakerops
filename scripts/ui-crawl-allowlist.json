@@ -136,6 +136,14 @@
     {
       "testid": "form-advanced-toggle",
       "reason": "Progressive disclosure chrome for routing/copy/limits (11.3); D04/D06/D09 controls remain"
+    },
+    {
+      "testid": "admin-docs-link",
+      "reason": "External docs link (learn.speakerops.org) \u2014 chrome, not a product action"
+    },
+    {
+      "testid": "role-docs-link",
+      "reason": "External docs link in help panel \u2014 chrome, not a product action"
     }
   ],
   "controlMap": [

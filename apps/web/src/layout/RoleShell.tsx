@@ -196,6 +196,17 @@ export function RoleShell({
                 <p>
                   Need support with this programme? Contact the programme team.
                 </p>
+                <p>
+                  <a
+                    href="https://learn.speakerops.org"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lumen-focusable"
+                    data-testid="role-docs-link"
+                  >
+                    Docs &amp; guides
+                  </a>
+                </p>
                 <a
                   className="role-shell__help-mail lumen-focusable"
                   href="mailto:programme@speakerops.org?subject=SpeakerOps%20help"
