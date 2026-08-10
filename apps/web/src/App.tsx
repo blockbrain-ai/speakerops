@@ -24,6 +24,7 @@ import {
 } from "react-router-dom";
 import { AdminShell } from "./layout/AdminShell.js";
 import { SettingsShell } from "./layout/SettingsShell.js";
+import { RoleShell } from "./layout/RoleShell.js";
 import { RequireRole } from "./auth/RequireRole.js";
 import { EventProvider } from "./events/EventContext.js";
 import { RoleSwitcher, isRoleSwitcherEnabled } from "./components/RoleSwitcher.js";
@@ -90,11 +91,47 @@ function SettingsGuard({ children }: { children: ReactNode }) {
   );
 }
 
-/** Evaluator surface — queue only; server enforces assignment ownership. */
+/** Evaluator surface — protected queue with account/event shell. */
 function EvaluatorGuard({ children }: { children: ReactNode }) {
   return (
     <RequireRole roles={["evaluator"]}>
-      <BareLayout>{children}</BareLayout>
+      <BareLayout>
+        <RoleShell
+          role="evaluator"
+          nav={[{ href: "/eval", label: "Queue", testId: "eval-nav-queue" }]}
+        >
+          {children}
+        </RoleShell>
+      </BareLayout>
+    </RequireRole>
+  );
+}
+
+/** Speaker portal — protected + lightweight programme shell. */
+function SpeakerGuard({ children }: { children: ReactNode }) {
+  return (
+    <RequireRole roles={["speaker"]}>
+      <BareLayout>
+        <RoleShell
+          role="speaker"
+          nav={[
+            { href: "#portal-home-top", label: "Home", testId: "portal-nav-home" },
+            { href: "#portal-tasks", label: "Tasks", testId: "portal-nav-tasks" },
+            {
+              href: "#portal-profile",
+              label: "Profile",
+              testId: "portal-nav-profile",
+            },
+            {
+              href: "#portal-sessions",
+              label: "Sessions",
+              testId: "portal-nav-sessions",
+            },
+          ]}
+        >
+          {children}
+        </RoleShell>
+      </BareLayout>
     </RequireRole>
   );
 }
@@ -114,9 +151,9 @@ export function AppRoutes() {
       <Route
         path="/portal"
         element={
-          <BareLayout>
+          <SpeakerGuard>
             <PortalHomePage />
-          </BareLayout>
+          </SpeakerGuard>
         }
       />
       <Route

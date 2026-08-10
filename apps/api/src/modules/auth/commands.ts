@@ -56,7 +56,8 @@ export type BootstrapPolicy = "open" | "controlled";
 
 export type RequestMagicLinkInput = {
   email: string;
-  purpose: MagicLinkPurpose;
+  /** Defaults to speaker when omitted (invite-first / membership-aware login). */
+  purpose?: MagicLinkPurpose;
   eventId?: string;
   correlationId: string;
   /**
@@ -92,6 +93,7 @@ export type ExchangeSuccess = {
   ok: true;
   response: ExchangeMagicLinkResponse;
   sessionToken: string;
+  userId: string;
 };
 
 export type ExchangeFailure = {
@@ -172,6 +174,7 @@ export async function requestMagicLink(
   input: RequestMagicLinkInput,
 ): Promise<RequestMagicLinkResponse> {
   const email = normalizeEmail(input.email);
+  const purpose: MagicLinkPurpose = input.purpose ?? "speaker";
   const response: RequestMagicLinkResponse = { sent: true };
   const policy = deps.bootstrapPolicy ?? "controlled";
   const allowlist = parseMagicLinkAllowlist(input.magicLinkAllowlist ?? null);
@@ -208,7 +211,7 @@ export async function requestMagicLink(
         deps.store,
         {
           email,
-          purpose: input.purpose,
+          purpose,
           bootstrapAdminEmail: input.bootstrapAdminEmail,
         },
         policy,
@@ -233,7 +236,7 @@ export async function requestMagicLink(
 
   // Allowlisted existing users: ensure membership for requested purpose.
   if (user && onAllowlist && policy === "controlled") {
-    const role = purposeToRole(input.purpose);
+    const role = purposeToRole(purpose);
     const membership = await deps.store.upsertMembership({
       eventId: input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID,
       userId: user.id,
@@ -254,7 +257,7 @@ export async function requestMagicLink(
     id: magicId,
     userId: user.id,
     eventId: input.eventId ?? null,
-    purpose: input.purpose,
+    purpose,
     tokenHash,
     expiresAt: expiresAtMinutesFromNow(MAGIC_LINK_TTL_MINUTES, now),
     usedAt: null,
@@ -266,7 +269,7 @@ export async function requestMagicLink(
   // - controlled + allowlist create: grant purpose role for tester walk
   // - controlled: only on first-admin bootstrap create; never elevate existing users
   if (policy === "open") {
-    const role = purposeToRole(input.purpose);
+    const role = purposeToRole(purpose);
     const membership = await deps.store.upsertMembership({
       eventId: membershipEventId,
       userId: user.id,
@@ -275,7 +278,7 @@ export async function requestMagicLink(
     grantedMembershipId = membership.id;
     grantedRole = role;
   } else if (isBootstrapCreate && onAllowlist) {
-    const role = purposeToRole(input.purpose);
+    const role = purposeToRole(purpose);
     const membership = await deps.store.upsertMembership({
       eventId: membershipEventId,
       userId: user.id,
@@ -283,7 +286,7 @@ export async function requestMagicLink(
     });
     grantedMembershipId = membership.id;
     grantedRole = role;
-  } else if (isBootstrapCreate && input.purpose === "admin") {
+  } else if (isBootstrapCreate && purpose === "admin") {
     const membership = await deps.store.upsertMembership({
       eventId: membershipEventId,
       userId: user.id,
@@ -295,7 +298,7 @@ export async function requestMagicLink(
 
   const captured: CapturedMagicLink = {
     email,
-    purpose: input.purpose,
+    purpose,
     token: plaintext,
     eventId: input.eventId ?? null,
     userId: user.id,
@@ -320,7 +323,7 @@ export async function requestMagicLink(
           magicLinkId: magicId,
           email,
           enc,
-          purpose: input.purpose,
+          purpose,
           eventId: input.eventId ?? membershipEventId,
         }),
         createdAt,
@@ -352,12 +355,13 @@ export async function requestMagicLink(
     eventId: membershipEventId,
     actorType: "system",
     actorId: "auth",
-    action: "Auth.RequestMagicLink",    entityType: "magic_link",
+    action: "Auth.RequestMagicLink",
+    entityType: "magic_link",
     entityId: magicId,
     // after_json must not include plaintext token
     afterJson: JSON.stringify({
       email,
-      purpose: input.purpose,
+      purpose,
       userId: user.id,
       membershipId: grantedMembershipId,
       role: grantedRole,
@@ -538,13 +542,24 @@ export async function exchangeMagicLink(
     createdAt: now.toISOString(),
   });
 
+  const membershipRows = await deps.store.listMembershipsForUser(user.id);
+  // Event names filled by route when EventsStore is available.
+  const memberships = membershipRows.map((m) => ({
+    eventId: m.eventId,
+    eventName: m.eventId,
+    role: m.role as EventRole,
+  }));
+
   return {
     ok: true,
     sessionToken,
+    userId: user.id,
     response: {
       ok: true,
       purpose: link.purpose,
       email: user.email,
+      eventId: link.eventId,
+      memberships,
     },
   };
 }

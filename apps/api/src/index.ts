@@ -323,6 +323,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     createAuthRoutes({
       store: authStore,
       outbox: magicLinkOutbox,
+      events: eventsStore,
       cookieSecure,
       enableDevOutbox,
       enableRoleSwitcher,

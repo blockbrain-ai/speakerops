@@ -233,7 +233,7 @@ test.describe("10.4 S-AUTH-ROLES demo persona session reliability", () => {
     page,
     baseURL,
   }) => {
-    await page.goto(`${baseURL ?? ""}/login`);
+    await page.goto(`${baseURL ?? ""}/login?demo=1`);
     await expect(page.getByTestId("login-page")).toBeVisible();
     await page.getByTestId("login-email").fill(`e2e-10-4-copy-${RUN}@example.com`);
     await page.getByTestId("login-purpose-admin").check();

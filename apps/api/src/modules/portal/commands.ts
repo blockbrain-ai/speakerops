@@ -297,15 +297,154 @@ export async function getPortalHome(
     partIds,
   );
 
+  const nextTask = pickNextTask(tasks);
+  const primary = participations[0] ?? null;
+  const readiness = computePortalReadiness(primary, tasks);
+
+  let brandColor: string | null = null;
+  let logoFileId: string | null = null;
+  if (deps.design) {
+    try {
+      const pub = await deps.design.findPublished(input.eventId);
+      if (pub?.tokens) {
+        brandColor = pub.tokens.brand ?? null;
+        logoFileId = pub.tokens.logoFileId ?? null;
+      }
+    } catch {
+      /* brand optional */
+    }
+  }
+
   return {
     ok: true,
     value: {
       eventId: input.eventId,
+      eventName: event.name,
+      eventSlug: event.slug ?? null,
+      brandColor,
+      logoFileId,
       participations,
       tasks,
       sessions,
-      nextTask: pickNextTask(tasks),
+      nextTask,
+      readiness,
     },
+  };
+}
+
+function profileFieldDone(v: string | null | undefined): boolean {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+/** Single readiness contract for portal API + UI (no contradictory ready states). */
+export function computePortalReadiness(
+  part: {
+    bio?: string | null;
+    company?: string | null;
+    title?: string | null;
+    headshotFileId?: string | null;
+  } | null,
+  tasks: Array<{ status: string }>,
+): {
+  state: "needs_action" | "waiting_on_organiser" | "ready" | "complete";
+  percent: number;
+  profileComplete: boolean;
+  profileDone: number;
+  profileTotal: number;
+  tasksTotal: number;
+  tasksPending: number;
+  tasksCompleted: number;
+  headline: string;
+  detail: string;
+} {
+  const profileChecks = [
+    profileFieldDone(part?.bio),
+    profileFieldDone(part?.company),
+    profileFieldDone(part?.title),
+    Boolean(part?.headshotFileId),
+  ];
+  const profileDone = profileChecks.filter(Boolean).length;
+  const profileTotal = 4;
+  const profileComplete = profileDone === profileTotal;
+  const profilePct = Math.round((profileDone / profileTotal) * 100);
+
+  let tasksCompleted = 0;
+  let tasksPending = 0;
+  for (const t of tasks) {
+    const s = (t.status ?? "").toLowerCase();
+    if (s === "completed") tasksCompleted += 1;
+    else if (s !== "cancelled") tasksPending += 1;
+  }
+  const tasksActive = tasksCompleted + tasksPending;
+  const tasksPct =
+    tasksActive === 0 ? 100 : Math.round((tasksCompleted / tasksActive) * 100);
+  const percent =
+    tasks.length === 0
+      ? profilePct
+      : Math.round(profilePct * 0.4 + tasksPct * 0.6);
+
+  if (!profileComplete) {
+    return {
+      state: "needs_action",
+      percent,
+      profileComplete: false,
+      profileDone,
+      profileTotal,
+      tasksTotal: tasks.length,
+      tasksPending,
+      tasksCompleted,
+      headline: "Complete your profile",
+      detail:
+        tasksPending > 0
+          ? "Finish required profile fields and outstanding tasks."
+          : tasks.length === 0
+            ? "No organiser tasks yet — finish your profile so the programme team can publish you."
+            : "Finish required profile fields to continue.",
+    };
+  }
+
+  if (tasksPending > 0) {
+    return {
+      state: "needs_action",
+      percent,
+      profileComplete: true,
+      profileDone,
+      profileTotal,
+      tasksTotal: tasks.length,
+      tasksPending,
+      tasksCompleted,
+      headline: "Tasks remaining",
+      detail: `${tasksPending} organiser task${tasksPending === 1 ? "" : "s"} still open.`,
+    };
+  }
+
+  if (tasks.length === 0) {
+    return {
+      state: "waiting_on_organiser",
+      percent,
+      profileComplete: true,
+      profileDone,
+      profileTotal,
+      tasksTotal: 0,
+      tasksPending: 0,
+      tasksCompleted: 0,
+      headline: "Profile complete",
+      detail:
+        "No organiser tasks assigned yet. You're set on profile — check back for programme tasks.",
+    };
+  }
+
+  return {
+    state: "complete",
+    percent: 100,
+    profileComplete: true,
+    profileDone,
+    profileTotal,
+    tasksTotal: tasks.length,
+    tasksPending: 0,
+    tasksCompleted,
+    headline: "You're ready",
+    detail: "Profile complete and all assigned tasks done.",
   };
 }
 

@@ -49,13 +49,47 @@ export const PortalHomeQuerySchema = z.object({
 });
 export type PortalHomeQuery = z.infer<typeof PortalHomeQuerySchema>;
 
+/** Speaker readiness — single truth model for API + UI. */
+export const PortalReadinessStateSchema = z.enum([
+  "needs_action",
+  "waiting_on_organiser",
+  "ready",
+  "complete",
+]);
+export type PortalReadinessState = z.infer<typeof PortalReadinessStateSchema>;
+
+export const PortalReadinessSchema = z.object({
+  state: PortalReadinessStateSchema,
+  /** 0–100 combined profile + tasks. */
+  percent: z.number().int().min(0).max(100),
+  profileComplete: z.boolean(),
+  profileDone: z.number().int().nonnegative(),
+  profileTotal: z.number().int().positive(),
+  tasksTotal: z.number().int().nonnegative(),
+  tasksPending: z.number().int().nonnegative(),
+  tasksCompleted: z.number().int().nonnegative(),
+  /** Human headline for the next-action card. */
+  headline: z.string().min(1),
+  /** Supporting copy — never contradict headline. */
+  detail: z.string().min(1),
+});
+export type PortalReadiness = z.infer<typeof PortalReadinessSchema>;
+
 export const PortalHomeResponseSchema = z.object({
   eventId: z.string().min(1),
+  /** Display name for the event (paid-product identity). */
+  eventName: z.string().min(1),
+  eventSlug: z.string().min(1).optional().nullable(),
+  /** Optional brand colour when design is published. */
+  brandColor: z.string().nullable().optional(),
+  logoFileId: z.string().nullable().optional(),
   participations: z.array(ParticipationProfileSchema),
   tasks: z.array(PortalTaskSchema),
   sessions: z.array(ProgramSessionSchema),
   /** Next incomplete task (pending, not cancelled) ordered by dueAt then createdAt. */
   nextTask: PortalTaskSchema.nullable(),
+  /** Single readiness contract — never celebrate incomplete profile as ready. */
+  readiness: PortalReadinessSchema.optional(),
 });
 export type PortalHomeResponse = z.infer<typeof PortalHomeResponseSchema>;
 

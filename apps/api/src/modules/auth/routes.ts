@@ -17,6 +17,7 @@ import {
   RequestMagicLinkResponseSchema,
   ExchangeMagicLinkBodySchema,
   ExchangeMagicLinkResponseSchema,
+  MeMembershipsResponseSchema,
   DevRoleSwitchBodySchema,
   DevRoleSwitchResponseSchema,
   errorEnvelope,
@@ -28,6 +29,8 @@ import {
   SESSION_COOKIE_NAME,
   JUDGE_SESSION_COOKIE_NAME,
   DEFAULT_BOOTSTRAP_EVENT_ID,
+  type AuthMembershipOption,
+  type EventRole,
 } from "@speakerops/shared";
 import type { ApiEnv } from "../../env.js";
 import {
@@ -40,6 +43,7 @@ import {
   type MagicLinkMailDeps,
 } from "./commands.js";
 import type { AuthStore, MagicLinkTestOutbox } from "./store.js";
+import type { EventsStore } from "../events/store.js";
 import {
   buildSessionSetCookie,
   buildClearSessionCookie,
@@ -70,6 +74,8 @@ async function resolveAdminActorForEvent(
 export type AuthRouteOptions = {
   store: AuthStore;
   outbox: MagicLinkTestOutbox;
+  /** When set, membership lists include event names. */
+  events?: EventsStore;
   /** Cookie Secure flag (default true). */
   cookieSecure?: boolean;
   /** Register GET /api/auth/dev/outbox for e2e (default false). */
@@ -97,6 +103,28 @@ export type AuthRouteOptions = {
   /** Durable magic-link email (encrypt + outbox). Optional. */
   magicLinkMail?: MagicLinkMailDeps | null;
 };
+
+async function membershipOptionsForUser(
+  store: AuthStore,
+  events: EventsStore | undefined,
+  userId: string,
+): Promise<AuthMembershipOption[]> {
+  const rows = await store.listMembershipsForUser(userId);
+  const out: AuthMembershipOption[] = [];
+  for (const m of rows) {
+    let eventName = m.eventId;
+    if (events) {
+      const ev = await events.findEventById(m.eventId);
+      if (ev?.name) eventName = ev.name;
+    }
+    out.push({
+      eventId: m.eventId,
+      eventName,
+      role: m.role as EventRole,
+    });
+  }
+  return out;
+}
 
 export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
   const auth = new Hono<ApiEnv>();
@@ -145,7 +173,7 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
     );
     const result = await requestMagicLink(deps, {
       email: parsed.data.email,
-      purpose: parsed.data.purpose,
+      purpose: parsed.data.purpose ?? "speaker",
       eventId: parsed.data.eventId,
       correlationId,
       bootstrapAdminEmail,
@@ -202,7 +230,15 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
       );
     }
 
-    const body = ExchangeMagicLinkResponseSchema.safeParse(result.response);
+    const memberships = await membershipOptionsForUser(
+      options.store,
+      options.events,
+      result.userId,
+    );
+    const body = ExchangeMagicLinkResponseSchema.safeParse({
+      ...result.response,
+      memberships,
+    });
     if (!body.success) {
       return c.json(
         errorEnvelope("Response validation failed", INTERNAL_ERROR),
@@ -214,6 +250,53 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
       "Set-Cookie",
       buildSessionSetCookie(result.sessionToken, { secure: cookieSecure }),
     );
+    return c.json(body.data, 200);
+  });
+
+  /**
+   * GET /api/auth/me — session identity + event memberships for shells/chooser.
+   */
+  auth.get("/me", async (c) => {
+    const token = getSessionTokenFromCookieHeader(
+      c.req.header("cookie") ?? null,
+    );
+    if (!token) {
+      return c.json(
+        errorEnvelope("Authentication required", UNAUTHORIZED),
+        401,
+      );
+    }
+    const tokenHash = await hashToken(token);
+    const session = await options.store.findSessionByTokenHash(tokenHash);
+    if (!session || isExpired(session.expiresAt)) {
+      return c.json(
+        errorEnvelope("Authentication required", UNAUTHORIZED),
+        401,
+      );
+    }
+    const user = await options.store.findUserById(session.userId);
+    if (!user) {
+      return c.json(
+        errorEnvelope("Authentication required", UNAUTHORIZED),
+        401,
+      );
+    }
+    const memberships = await membershipOptionsForUser(
+      options.store,
+      options.events,
+      user.id,
+    );
+    const body = MeMembershipsResponseSchema.safeParse({
+      email: user.email,
+      userId: user.id,
+      memberships,
+    });
+    if (!body.success) {
+      return c.json(
+        errorEnvelope("Response validation failed", INTERNAL_ERROR),
+        500,
+      );
+    }
     return c.json(body.data, 200);
   });
 

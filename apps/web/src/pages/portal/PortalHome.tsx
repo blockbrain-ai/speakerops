@@ -543,13 +543,18 @@ export function PortalHomePage() {
       >
         <div className="portal-card" data-testid="portal-missing-event">
           <p className="portal-overline">Speaker portal</p>
-          <h1 className="portal-title">Choose an event</h1>
+          <h1 className="portal-title">Choose your programme</h1>
           <p className="portal-subtitle">
-            Open your magic link with an event, or append{" "}
-            <code>?eventId=…</code> to this URL.
+            Sign in with the email used for your invitation. We&apos;ll open
+            your event automatically — or let you pick if you have more than
+            one.
           </p>
           <p className="portal-muted">
-            <Link className="portal-link lumen-focusable" to="/login?purpose=speaker">
+            <Link
+              className="portal-link lumen-focusable"
+              to="/login"
+              data-testid="portal-login-link-no-event"
+            >
               Sign in
             </Link>
           </p>
@@ -599,8 +604,16 @@ export function PortalHomePage() {
       {/* Desktop / tablet compact top nav */}
       <header className="portal-header" data-testid="portal-header">
         <div>
-          <p className="portal-overline">Speaker portal</p>
+          <p className="portal-overline" data-testid="portal-event-name">
+            {home?.eventName ?? "Speaker portal"}
+          </p>
           <h1 className="portal-title">Your programme home</h1>
+          {speakerName ? (
+            <p className="portal-muted" data-testid="portal-speaker-name">
+              {speakerName}
+              {stateLabel ? ` · ${stateLabel}` : ""}
+            </p>
+          ) : null}
         </div>
         <nav
           className="portal-nav portal-nav--top"
@@ -723,23 +736,33 @@ export function PortalHomePage() {
             </ul>
           </section>
 
-          {/* G01 — next incomplete task (dominant) */}
+          {/* G01 — next action from single readiness contract */}
           <section
             className={
-              nextTask
+              nextTask && (home?.readiness?.profileComplete ?? true)
                 ? "portal-card portal-card--highlight portal-card--next-dominant"
-                : "portal-card portal-card--highlight portal-card--celebrate"
+                : home?.readiness?.state === "complete"
+                  ? "portal-card portal-card--highlight portal-card--celebrate"
+                  : "portal-card portal-card--highlight"
             }
             id="portal-next-task"
             data-testid="portal-next-task"
+            data-readiness={home?.readiness?.state ?? "needs_action"}
           >
             <p className="portal-next-kicker" data-testid="portal-next-kicker">
-              {nextTask ? "Your next step" : "You are ready"}
+              {home?.readiness?.headline ??
+                (nextTask ? "Your next step" : "Status")}
             </p>
             <h2 className="portal-heading portal-heading--next">
-              {nextTask ? "Next up" : "All set"}
+              {home?.readiness?.state === "complete"
+                ? "All set"
+                : home?.readiness?.state === "waiting_on_organiser"
+                  ? "Waiting on organiser"
+                  : nextTask
+                    ? "Next up"
+                    : "Action needed"}
             </h2>
-            {nextTask ? (
+            {nextTask && (home?.readiness?.profileComplete ?? true) ? (
               <div data-testid="portal-next-task-card">
                 <p
                   className="portal-next-title"
@@ -777,17 +800,31 @@ export function PortalHomePage() {
                   Mark complete
                 </button>
               </div>
-            ) : (
+            ) : home?.readiness?.state === "complete" ? (
               <div
                 className="portal-celebrate"
                 data-testid="portal-next-task-empty"
+                data-readiness="complete"
               >
                 <p className="portal-celebrate__title">
-                  All tasks complete. You are ready.
+                  {home.readiness.detail}
                 </p>
-                <p className="portal-muted">
-                  Keep your profile current and check session details below.
+              </div>
+            ) : (
+              <div data-testid="portal-next-task-empty" data-readiness={home?.readiness?.state}>
+                <p className="portal-celebrate__title">
+                  {home?.readiness?.detail ??
+                    "Complete your profile to continue."}
                 </p>
+                {!(home?.readiness?.profileComplete ?? false) ? (
+                  <a
+                    className="portal-btn lumen-focusable"
+                    href="#portal-profile"
+                    data-testid="portal-next-profile-cta"
+                  >
+                    Update profile
+                  </a>
+                ) : null}
               </div>
             )}
           </section>

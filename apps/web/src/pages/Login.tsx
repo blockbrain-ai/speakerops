@@ -1,23 +1,22 @@
 /**
- * Magic-link login — section 2.1 + 10.4 honest dogfood copy
- * + 11.7 session-expired recovery (S-L2-A11Y).
+ * Magic-link login — section 2.1 + 11.7 session recovery + role-lifecycle UX.
  *
- * POST /api/auth/magic-link { email, purpose }
- * If ?token= is present, POST /api/auth/exchange and redirect.
+ * Invite links may carry purpose/eventId. Generic login is email-first;
+ * purpose radios are advanced/demo only (not primary customer path).
  *
- * Lumen tokens only (E6). Inventory: B01 admin login path · L2-02 session recovery.
- * Does **not** promise a public /dev outbox on dogfood (AUTH_DEV_OUTBOX is e2e-only).
+ * Inventory: B01 admin login path · L2-02 session recovery.
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   type MagicLinkPurpose,
+  type AuthMembershipOption,
   RequestMagicLinkResponseSchema,
   ExchangeMagicLinkResponseSchema,
   ErrorEnvelopeSchema,
-  DEFAULT_BOOTSTRAP_EVENT_ID,
 } from "@speakerops/shared";
 import { landingPathForPurpose } from "../auth/sessionLanding.js";
+import { pathForMembership } from "../layout/RoleShell.js";
 import { SessionExpiredPanel } from "../components/ui/SessionExpiredPanel.js";
 
 type FormState = "idle" | "sending" | "sent" | "exchanging" | "error";
@@ -37,20 +36,86 @@ export function LoginPage() {
   const tokenFromUrl = searchParams.get("token");
   const purposeParam = searchParams.get("purpose");
   const eventIdFromUrl = searchParams.get("eventId");
-  const initialPurpose: MagicLinkPurpose =
-    purposeParam === "speaker"
-      ? "speaker"
-      : purposeParam === "evaluator"
-        ? "evaluator"
-        : "admin";
+  const invitePurpose: MagicLinkPurpose | null =
+    purposeParam === "speaker" ||
+    purposeParam === "evaluator" ||
+    purposeParam === "admin"
+      ? purposeParam
+      : null;
+  const showPurposeRadios =
+    searchParams.get("demo") === "1" || Boolean(invitePurpose);
 
   const [email, setEmail] = useState("");
-  const [purpose, setPurpose] = useState<MagicLinkPurpose>(initialPurpose);
+  const [purpose, setPurpose] = useState<MagicLinkPurpose>(
+    invitePurpose ?? "speaker",
+  );
   const [state, setState] = useState<FormState>(
     tokenFromUrl ? "exchanging" : "idle",
   );
   const [error, setError] = useState<string | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [chooser, setChooser] = useState<AuthMembershipOption[] | null>(null);
+
+  // Hydrate existing session so "Continue as" / sign-out appear when already signed in.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          headers: { accept: "application/json" },
+        });
+        if (!res.ok || cancelled) return;
+        const raw = (await res.json()) as { email?: string };
+        if (raw.email && !cancelled) setSessionEmail(raw.email);
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const resolveLanding = useCallback(
+    (opts: {
+      purpose: MagicLinkPurpose;
+      eventId?: string | null;
+      memberships: AuthMembershipOption[];
+    }) => {
+      if (returnFrom && returnFrom.startsWith("/")) {
+        return returnFrom;
+      }
+      const memberships = opts.memberships ?? [];
+      const preferredEvent =
+        (opts.eventId && opts.eventId.trim()) ||
+        (eventIdFromUrl && eventIdFromUrl.trim()) ||
+        null;
+
+      if (preferredEvent) {
+        const match = memberships.find(
+          (m) =>
+            m.eventId === preferredEvent &&
+            (m.role === opts.purpose || opts.purpose === "admin"),
+        );
+        if (match) return pathForMembership(match);
+        if (opts.purpose === "admin") return "/admin";
+        return landingPathForPurpose(opts.purpose, preferredEvent);
+      }
+
+      if (memberships.length === 1) {
+        return pathForMembership(memberships[0]!);
+      }
+      if (memberships.length > 1) {
+        return null; // chooser
+      }
+      // No memberships: land by purpose without inventing dogfood event for customers
+      if (opts.purpose === "admin") return "/admin";
+      if (opts.purpose === "evaluator") return "/eval";
+      return "/portal";
+    },
+    [eventIdFromUrl, returnFrom],
+  );
 
   const exchangeToken = useCallback(
     async (token: string) => {
@@ -69,7 +134,7 @@ export function LoginPage() {
           setError(
             env.success
               ? env.data.error
-              : "Invalid or expired magic link",
+              : "This link is invalid or has expired. Request a new one below.",
           );
           setState("error");
           return;
@@ -81,21 +146,25 @@ export function LoginPage() {
           return;
         }
         setSessionEmail(parsed.data.email);
-        setState("idle");
-        // Admin → shell; speaker → portal (eventId required for tasks); evaluator → queue
-        const eventId =
-          eventIdFromUrl && eventIdFromUrl.trim().length > 0
-            ? eventIdFromUrl.trim()
-            : DEFAULT_BOOTSTRAP_EVENT_ID;
-        navigate(landingPathForPurpose(parsed.data.purpose, eventId), {
-          replace: true,
+        const memberships = parsed.data.memberships ?? [];
+        const dest = resolveLanding({
+          purpose: parsed.data.purpose,
+          eventId: parsed.data.eventId ?? eventIdFromUrl,
+          memberships,
         });
+        if (dest == null) {
+          setChooser(memberships);
+          setState("idle");
+          return;
+        }
+        setState("idle");
+        navigate(dest, { replace: true });
       } catch {
         setError("Network error during exchange");
         setState("error");
       }
     },
-    [navigate, eventIdFromUrl],
+    [navigate, eventIdFromUrl, resolveLanding],
   );
 
   useEffect(() => {
@@ -115,7 +184,11 @@ export function LoginPage() {
         credentials: "include",
         body: JSON.stringify({
           email: email.trim(),
-          purpose,
+          // Invite/query purpose when present; otherwise server defaults to speaker
+          // and membership chooser after exchange.
+          ...(showPurposeRadios || invitePurpose
+            ? { purpose }
+            : {}),
           ...(eventIdFromUrl && eventIdFromUrl.trim().length > 0
             ? { eventId: eventIdFromUrl.trim() }
             : {}),
@@ -189,9 +262,34 @@ export function LoginPage() {
             data-testid="login-sent"
             role="status"
           >
-            If that address can receive mail, a magic link is on its way.
-            Check your inbox — there is no in-product mail inbox or public
-            outbox on dogfood.
+            If that address is registered, a one-time sign-in link is on its
+            way to <strong>{email.trim() || "your email"}</strong>. Links
+            expire in about 30 minutes and can only be used once.
+          </div>
+        ) : null}
+
+        {chooser && chooser.length > 1 ? (
+          <div
+            className="login-card__chooser"
+            data-testid="login-membership-chooser"
+          >
+            <p className="login-form__label">Choose a programme</p>
+            <ul className="login-chooser-list">
+              {chooser.map((m) => (
+                <li key={`${m.eventId}-${m.role}`}>
+                  <button
+                    type="button"
+                    className="login-form__submit lumen-focusable"
+                    data-testid={`login-membership-${m.role}-${m.eventId}`}
+                    onClick={() =>
+                      navigate(pathForMembership(m), { replace: true })
+                    }
+                  >
+                    {m.eventName} · {m.role}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
@@ -233,42 +331,53 @@ export function LoginPage() {
               disabled={state === "sending"}
             />
 
-            <fieldset className="login-form__purpose">
-              <legend className="login-form__label">Purpose</legend>
-              <label className="login-form__radio">
-                <input
-                  type="radio"
-                  name="purpose"
-                  value="admin"
-                  data-testid="login-purpose-admin"
-                  checked={purpose === "admin"}
-                  onChange={() => setPurpose("admin")}
-                />
-                Admin
-              </label>
-              <label className="login-form__radio">
-                <input
-                  type="radio"
-                  name="purpose"
-                  value="speaker"
-                  data-testid="login-purpose-speaker"
-                  checked={purpose === "speaker"}
-                  onChange={() => setPurpose("speaker")}
-                />
-                Speaker
-              </label>
-              <label className="login-form__radio">
-                <input
-                  type="radio"
-                  name="purpose"
-                  value="evaluator"
-                  data-testid="login-purpose-evaluator"
-                  checked={purpose === "evaluator"}
-                  onChange={() => setPurpose("evaluator")}
-                />
-                Evaluator
-              </label>
-            </fieldset>
+            {showPurposeRadios ? (
+              <fieldset className="login-form__purpose">
+                <legend className="login-form__label">
+                  {invitePurpose
+                    ? "Continuing as"
+                    : "Demo role (internal)"}
+                </legend>
+                <label className="login-form__radio">
+                  <input
+                    type="radio"
+                    name="purpose"
+                    value="admin"
+                    data-testid="login-purpose-admin"
+                    checked={purpose === "admin"}
+                    onChange={() => setPurpose("admin")}
+                  />
+                  Admin
+                </label>
+                <label className="login-form__radio">
+                  <input
+                    type="radio"
+                    name="purpose"
+                    value="speaker"
+                    data-testid="login-purpose-speaker"
+                    checked={purpose === "speaker"}
+                    onChange={() => setPurpose("speaker")}
+                  />
+                  Speaker
+                </label>
+                <label className="login-form__radio">
+                  <input
+                    type="radio"
+                    name="purpose"
+                    value="evaluator"
+                    data-testid="login-purpose-evaluator"
+                    checked={purpose === "evaluator"}
+                    onChange={() => setPurpose("evaluator")}
+                  />
+                  Evaluator
+                </label>
+              </fieldset>
+            ) : (
+              <p className="login-card__hint" data-testid="login-email-first-hint">
+                Use the email from your invitation. We&apos;ll open the right
+                programme after you sign in.
+              </p>
+            )}
 
             <button
               type="submit"
@@ -281,16 +390,18 @@ export function LoginPage() {
           </form>
         ) : null}
 
-        <div className="login-card__footer">
-          <button
-            type="button"
-            className="login-form__logout lumen-focusable"
-            data-testid="login-logout"
-            onClick={() => void onLogout()}
-          >
-            Log out
-          </button>
-        </div>
+        {sessionEmail ? (
+          <div className="login-card__footer">
+            <button
+              type="button"
+              className="login-form__logout lumen-focusable"
+              data-testid="login-logout"
+              onClick={() => void onLogout()}
+            >
+              Sign out
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

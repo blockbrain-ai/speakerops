@@ -20,10 +20,11 @@ export type EventRole = z.infer<typeof EventRoleSchema>;
 export const MagicLinkPurposeSchema = z.enum(["admin", "speaker", "evaluator"]);
 export type MagicLinkPurpose = z.infer<typeof MagicLinkPurposeSchema>;
 
-/** Auth.RequestMagicLink input */
+/** Auth.RequestMagicLink input — purpose optional (defaults speaker for invite links). */
 export const RequestMagicLinkBodySchema = z.object({
   email: z.string().email().max(320),
-  purpose: MagicLinkPurposeSchema,
+  /** Optional when invite/query already carries role; defaults to speaker. */
+  purpose: MagicLinkPurposeSchema.optional(),
   eventId: z.string().min(1).max(128).optional(),
 });
 export type RequestMagicLinkBody = z.infer<typeof RequestMagicLinkBodySchema>;
@@ -48,15 +49,35 @@ export const ExchangeMagicLinkBodySchema = z.object({
 });
 export type ExchangeMagicLinkBody = z.infer<typeof ExchangeMagicLinkBodySchema>;
 
+/** One real event membership for post-login chooser / shells. */
+export const AuthMembershipOptionSchema = z.object({
+  eventId: z.string().min(1),
+  eventName: z.string().min(1),
+  role: EventRoleSchema,
+});
+export type AuthMembershipOption = z.infer<typeof AuthMembershipOptionSchema>;
+
 /** Auth.ExchangeMagicLink output (Set-Cookie is a side effect on the response). */
 export const ExchangeMagicLinkResponseSchema = z.object({
   ok: z.literal(true),
   purpose: MagicLinkPurposeSchema,
   email: z.string().email(),
+  /** Optional link event when invite was event-scoped. */
+  eventId: z.string().min(1).nullable().optional(),
+  /** Real memberships for chooser (empty when none). */
+  memberships: z.array(AuthMembershipOptionSchema).default([]),
 });
 export type ExchangeMagicLinkResponse = z.infer<
   typeof ExchangeMagicLinkResponseSchema
 >;
+
+/** GET /api/me/memberships — session identity + event roles. */
+export const MeMembershipsResponseSchema = z.object({
+  email: z.string().email(),
+  userId: z.string().min(1),
+  memberships: z.array(AuthMembershipOptionSchema),
+});
+export type MeMembershipsResponse = z.infer<typeof MeMembershipsResponseSchema>;
 
 /**
  * Auth.DevRoleSwitch — dogfood/dev only (section 8.4).

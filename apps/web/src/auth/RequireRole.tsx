@@ -81,6 +81,48 @@ async function probeEvaluatorAccess(): Promise<
   }
 }
 
+/**
+ * Probe speaker access via GET /api/auth/me (must hold speaker membership).
+ * Optional eventId: when provided, membership must match that event.
+ */
+async function probeSpeakerAccess(
+  eventId?: string | null,
+): Promise<"ok" | "unauthenticated" | "forbidden" | "error"> {
+  try {
+    const res = await fetch("/api/auth/me", {
+      method: "GET",
+      credentials: "include",
+      headers: { accept: "application/json" },
+    });
+    if (res.status === 401) return "unauthenticated";
+    if (!res.ok) return "error";
+    const raw = (await res.json()) as {
+      memberships?: Array<{ eventId: string; role: string }>;
+    };
+    const memberships = raw.memberships ?? [];
+    const speakers = memberships.filter((m) => m.role === "speaker");
+    if (speakers.length === 0) return "forbidden";
+    if (eventId && !speakers.some((m) => m.eventId === eventId)) {
+      // Also allow bound participation path: try portal home
+      const portal = await fetch(
+        `/api/portal/home?eventId=${encodeURIComponent(eventId)}`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: { accept: "application/json" },
+        },
+      );
+      if (portal.status === 401) return "unauthenticated";
+      if (portal.status === 403 || portal.status === 404) return "forbidden";
+      if (portal.ok) return "ok";
+      return "forbidden";
+    }
+    return "ok";
+  } catch {
+    return "error";
+  }
+}
+
 export function AccessDenied({
   message = "You do not have access to this area.",
 }: {
@@ -123,6 +165,10 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     const needsAdmin = roles.includes("admin");
     const needsEvaluator =
       roles.includes("evaluator") && !roles.includes("admin");
+    const needsSpeaker =
+      roles.includes("speaker") &&
+      !roles.includes("admin") &&
+      !roles.includes("evaluator");
 
     if (needsEvaluator) {
       const result = await probeEvaluatorAccess();
@@ -145,8 +191,30 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
       return;
     }
 
+    if (needsSpeaker) {
+      const params = new URLSearchParams(location.search);
+      const eventId = params.get("eventId");
+      const result = await probeSpeakerAccess(eventId);
+      if (result === "ok") {
+        setState({ status: "ok" });
+        return;
+      }
+      if (result === "unauthenticated") {
+        setState({ status: "unauthenticated" });
+        return;
+      }
+      if (result === "forbidden") {
+        setState({
+          status: "forbidden",
+          message: "Speaker access required for this programme.",
+        });
+        return;
+      }
+      setState({ status: "error", message: "Unable to verify access" });
+      return;
+    }
+
     if (!needsAdmin) {
-      // Speaker / other surfaces land with dedicated probes in later sections
       setState({ status: "ok" });
       return;
     }
@@ -197,7 +265,7 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [check, location.pathname]);
+  }, [check, location.pathname, location.search, location.hash]);
 
   if (state.status === "loading") {
     return (
@@ -216,13 +284,14 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
   }
 
   if (state.status === "unauthenticated") {
-    // Focused recovery on login — never paint privileged shell with auth alert.
+    // Preserve full return path (eventId / task anchors) for recovery.
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
     return (
       <Navigate
         to="/login"
         replace
         state={{
-          from: location.pathname,
+          from: returnTo,
           sessionExpired: true,
         }}
       />

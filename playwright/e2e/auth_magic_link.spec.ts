@@ -46,7 +46,7 @@ test("@inv:B01 e2e/auth/admin-login magic link sets HttpOnly session cookie", as
   baseURL,
 }) => {
   // UI path: login form → request link
-  await page.goto(`${baseURL ?? ""}/login`);
+  await page.goto(`${baseURL ?? ""}/login?demo=1`);
   await expect(page.getByTestId("login-page")).toBeVisible();
   await expect(page.getByTestId("login-form")).toBeVisible();
 
@@ -136,7 +136,7 @@ test("@inv:B03 e2e/auth/logout clears session cookie", async ({
   expect(clear).toMatch(/Max-Age=0/i);
 
   // UI logout control present on login page
-  await page.goto(`${baseURL ?? ""}/login`);
+  await page.goto(`${baseURL ?? ""}/login?demo=1`);
   await expect(page.getByTestId("login-logout")).toBeVisible();
   await page.getByTestId("login-logout").click();
 });

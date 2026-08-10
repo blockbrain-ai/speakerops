@@ -401,7 +401,11 @@ export function EvaluatorQueuePage() {
       <PageHeader
         eyebrow="Evaluator"
         title="Evaluation queue"
-        description="Score only submissions assigned to you. Accept/reject is admin-only — those controls are not available here."
+        description={
+          items[0]?.event?.name
+            ? `Reviewing for ${items[0].event.name}. Score only submissions assigned to you — accept/reject is admin-only.`
+            : "Score only submissions assigned to you. Accept/reject is admin-only — those controls are not available here."
+        }
         data-testid="eval-queue-header"
       />
       {/* Preserve title testid used by older specs */}
@@ -424,8 +428,8 @@ export function EvaluatorQueuePage() {
 
       {!loading && !loadError && items.length === 0 ? (
         <EmptyState
-          title="No assigned submissions"
-          description="When an admin assigns you a proposal, it will appear here for low-distraction scoring."
+          title="No assigned submissions yet"
+          description="You're signed in as a reviewer. When the programme team assigns proposals, they'll appear here. Nothing is wrong — check back after assignments are made, or contact the organiser if you expected work already."
           data-testid="eval-queue-empty"
         />
       ) : null}
