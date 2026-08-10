@@ -114,8 +114,14 @@ export function SpeakersPage() {
   const [editBio, setEditBio] = useState("");
   const [editCompany, setEditCompany] = useState("");
   const [editTitle, setEditTitle] = useState("");
+  const [profileEditing, setProfileEditing] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileStatus, setProfileStatus] = useState<string | null>(null);
+
+  function headshotUrl(fileId: string | null | undefined): string | null {
+    if (!fileId) return null;
+    return `/api/files/${encodeURIComponent(fileId)}`;
+  }
 
   const loadList = useCallback(
     async (eventId: string, search: string) => {
@@ -203,6 +209,7 @@ export function SpeakersPage() {
         setEditBio(p.bio ?? "");
         setEditCompany(p.company ?? "");
         setEditTitle(p.title ?? "");
+        setProfileEditing(false);
         setProfileStatus(null);
       } catch {
         setDetailError("Network error");
@@ -262,6 +269,7 @@ export function SpeakersPage() {
       setEditCompany(parsed.data.participation.company ?? "");
       setEditTitle(parsed.data.participation.title ?? "");
       setProfileStatus("Saved");
+      setProfileEditing(false);
       // Refresh list readiness chips for this row
       void loadList(activeEventId, q);
     } catch {
@@ -309,17 +317,37 @@ export function SpeakersPage() {
           const name =
             row.participation.personName ?? row.participation.personId;
           const email = row.participation.personEmail ?? "—";
+          const photo = headshotUrl(row.participation.headshotFileId);
           return (
-            <div>
-              <button
-                type="button"
-                className="l2-table__link lumen-focusable"
-                data-testid={`speaker-open-${row.participation.id}`}
-                onClick={() => void openDetail(row.participation.id)}
+            <div className="speakers-page__list-speaker">
+              <span
+                className="speakers-page__list-avatar"
+                data-testid={`speakers-avatar-${row.participation.id}`}
+                data-has-photo={photo ? "true" : "false"}
               >
-                <span className="l2-table__primary">{name}</span>
-              </button>
-              <span className="l2-table__secondary">{email}</span>
+                {photo ? (
+                  <img
+                    src={photo}
+                    alt=""
+                    className="speakers-page__list-avatar-img"
+                  />
+                ) : (
+                  <span className="speakers-page__list-avatar-fallback" aria-hidden>
+                    {(name || "?").trim().charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </span>
+              <div className="speakers-page__list-speaker-text">
+                <button
+                  type="button"
+                  className="l2-table__link lumen-focusable"
+                  data-testid={`speaker-open-${row.participation.id}`}
+                  onClick={() => void openDetail(row.participation.id)}
+                >
+                  <span className="l2-table__primary">{name}</span>
+                </button>
+                <span className="l2-table__secondary">{email}</span>
+              </div>
             </div>
           );
         },
@@ -652,14 +680,29 @@ export function SpeakersPage() {
                   </div>
                 </header>
 
-                {/* Profile (admin view of speaker-facing fields) */}
+                {/* Profile — view by default; edit only when admin chooses */}
                 <Card
                   className="speakers-page__detail-card"
                   data-testid="speakers-detail-section-contact"
                 >
-                  <h3 className="speakers-page__detail-section-title">
-                    Profile
-                  </h3>
+                  <div className="speakers-page__profile-card-head">
+                    <h3 className="speakers-page__detail-section-title">
+                      Profile
+                    </h3>
+                    {!profileEditing ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        data-testid="speakers-detail-profile-edit"
+                        onClick={() => {
+                          setProfileEditing(true);
+                          setProfileStatus(null);
+                        }}
+                      >
+                        Edit profile
+                      </Button>
+                    ) : null}
+                  </div>
                   <div className="speakers-page__profile-layout">
                     <div
                       className="speakers-page__headshot-slot"
@@ -668,105 +711,163 @@ export function SpeakersPage() {
                         detail.participation.headshotFileId ? "true" : "false"
                       }
                     >
-                      {detail.files.some((f) => f.purpose === "headshot") ? (
-                        <span className="speakers-page__headshot-badge">
-                          Photo on file
-                        </span>
-                      ) : detail.participation.headshotFileId ? (
-                        <span className="speakers-page__headshot-badge">
-                          Photo linked
-                        </span>
+                      {detail.participation.headshotFileId ? (
+                        <img
+                          src={headshotUrl(detail.participation.headshotFileId)!}
+                          alt=""
+                          className="speakers-page__headshot-img"
+                        />
                       ) : (
                         <span className="speakers-page__headshot-empty">
                           No photo
                         </span>
                       )}
                     </div>
-                    <div className="speakers-page__profile-dl">
-                      <div className="speakers-page__profile-row">
+                    <div className="speakers-page__profile-fields">
+                      <div className="speakers-page__profile-row speakers-page__profile-row--full">
                         <span className="speakers-page__profile-label">
                           Email
                         </span>
-                        <span data-testid="speakers-detail-email">
+                        <span
+                          className="speakers-page__profile-value"
+                          data-testid="speakers-detail-email"
+                          title={
+                            detail.participation.personEmail ?? undefined
+                          }
+                        >
                           {detail.participation.personEmail ?? "—"}
                         </span>
                       </div>
-                      <label className="speakers-page__profile-row">
-                        <span className="speakers-page__profile-label">
-                          Job title
-                        </span>
-                        <input
-                          className="speakers-page__profile-input lumen-focusable"
-                          data-testid="speakers-detail-title-input"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          maxLength={200}
-                          placeholder="e.g. Staff Engineer"
-                        />
-                      </label>
-                      <label className="speakers-page__profile-row">
-                        <span className="speakers-page__profile-label">
-                          Company / organisation
-                        </span>
-                        <input
-                          className="speakers-page__profile-input lumen-focusable"
-                          data-testid="speakers-detail-company-input"
-                          value={editCompany}
-                          onChange={(e) => setEditCompany(e.target.value)}
-                          maxLength={200}
-                          placeholder="e.g. Acme Labs"
-                        />
-                      </label>
-                      <label className="speakers-page__profile-row speakers-page__profile-row--bio">
-                        <span className="speakers-page__profile-label">Bio</span>
-                        <textarea
-                          className="speakers-page__profile-textarea lumen-focusable"
-                          data-testid="speakers-detail-bio-input"
-                          value={editBio}
-                          onChange={(e) => setEditBio(e.target.value)}
-                          rows={5}
-                          maxLength={8000}
-                          placeholder="Programme bio (plain text)"
-                        />
-                      </label>
-                      {/* Keep read testids for e2e that still query display values */}
-                      <span className="speakers-page__sr-only" data-testid="speakers-detail-title">
-                        {editTitle}
-                      </span>
-                      <span className="speakers-page__sr-only" data-testid="speakers-detail-company">
-                        {editCompany}
-                      </span>
-                      <span className="speakers-page__sr-only" data-testid="speakers-detail-bio">
-                        {editBio}
-                      </span>
-                      <div className="speakers-page__profile-actions">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          data-testid="speakers-detail-profile-save"
-                          disabled={profileSaving}
-                          onClick={() => void saveAdminProfile()}
-                        >
-                          {profileSaving ? "Saving…" : "Save profile"}
-                        </Button>
-                        {profileStatus ? (
-                          <span
-                            className={
-                              profileStatus === "Saved"
-                                ? "eval-queue__muted"
-                                : "event-settings__status event-settings__status--error"
-                            }
-                            data-testid="speakers-detail-profile-status"
-                            role="status"
-                          >
-                            {profileStatus}
-                          </span>
-                        ) : (
-                          <span className="eval-queue__muted">
-                            Admin can edit on the speaker’s behalf.
-                          </span>
-                        )}
-                      </div>
+                      {profileEditing ? (
+                        <>
+                          <label className="speakers-page__profile-row speakers-page__profile-row--full">
+                            <span className="speakers-page__profile-label">
+                              Job title
+                            </span>
+                            <input
+                              className="speakers-page__profile-input lumen-focusable"
+                              data-testid="speakers-detail-title-input"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              maxLength={200}
+                              placeholder="e.g. Staff Engineer"
+                            />
+                          </label>
+                          <label className="speakers-page__profile-row speakers-page__profile-row--full">
+                            <span className="speakers-page__profile-label">
+                              Company / organisation
+                            </span>
+                            <input
+                              className="speakers-page__profile-input lumen-focusable"
+                              data-testid="speakers-detail-company-input"
+                              value={editCompany}
+                              onChange={(e) => setEditCompany(e.target.value)}
+                              maxLength={200}
+                              placeholder="e.g. Acme Labs"
+                            />
+                          </label>
+                          <label className="speakers-page__profile-row speakers-page__profile-row--full">
+                            <span className="speakers-page__profile-label">
+                              Bio
+                            </span>
+                            <textarea
+                              className="speakers-page__profile-textarea lumen-focusable"
+                              data-testid="speakers-detail-bio-input"
+                              value={editBio}
+                              onChange={(e) => setEditBio(e.target.value)}
+                              rows={5}
+                              maxLength={8000}
+                              placeholder="Programme bio (plain text)"
+                            />
+                          </label>
+                          <div className="speakers-page__profile-actions">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              data-testid="speakers-detail-profile-save"
+                              disabled={profileSaving}
+                              onClick={() => void saveAdminProfile()}
+                            >
+                              {profileSaving ? "Saving…" : "Save profile"}
+                            </Button>
+                            <Button
+                              variant="quiet"
+                              size="sm"
+                              data-testid="speakers-detail-profile-cancel"
+                              disabled={profileSaving}
+                              onClick={() => {
+                                setEditBio(detail.participation.bio ?? "");
+                                setEditCompany(
+                                  detail.participation.company ?? "",
+                                );
+                                setEditTitle(detail.participation.title ?? "");
+                                setProfileEditing(false);
+                                setProfileStatus(null);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            {profileStatus && profileStatus !== "Saved" ? (
+                              <span
+                                className="event-settings__status event-settings__status--error"
+                                data-testid="speakers-detail-profile-status"
+                                role="status"
+                              >
+                                {profileStatus}
+                              </span>
+                            ) : null}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="speakers-page__profile-row speakers-page__profile-row--full">
+                            <span className="speakers-page__profile-label">
+                              Job title
+                            </span>
+                            <span
+                              className="speakers-page__profile-value"
+                              data-testid="speakers-detail-title"
+                            >
+                              {detail.participation.title?.trim() || "—"}
+                            </span>
+                          </div>
+                          <div className="speakers-page__profile-row speakers-page__profile-row--full">
+                            <span className="speakers-page__profile-label">
+                              Company / organisation
+                            </span>
+                            <span
+                              className="speakers-page__profile-value"
+                              data-testid="speakers-detail-company"
+                            >
+                              {detail.participation.company?.trim() || "—"}
+                            </span>
+                          </div>
+                          <div className="speakers-page__profile-row speakers-page__profile-row--full">
+                            <span className="speakers-page__profile-label">
+                              Bio
+                            </span>
+                            <span
+                              className="speakers-page__profile-value speakers-page__profile-value--bio"
+                              data-testid="speakers-detail-bio"
+                            >
+                              {detail.participation.bio?.trim() || (
+                                <span className="eval-queue__muted">
+                                  No bio yet.
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          {profileStatus === "Saved" ? (
+                            <span
+                              className="eval-queue__muted"
+                              data-testid="speakers-detail-profile-status"
+                              role="status"
+                            >
+                              Saved
+                            </span>
+                          ) : null}
+                        </>
+                      )}
                     </div>
                   </div>
                 </Card>

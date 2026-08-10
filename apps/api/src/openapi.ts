@@ -1499,6 +1499,29 @@ export const FILE_OPENAPI_PATHS = {
       },
     },
   },
+  "/api/files/{fileId}": {
+    get: {
+      operationId: "File.Get",
+      summary: "File.Get",
+      description:
+        "Authenticated private file bytes (headshot/slides/logo). Admin of event or owning speaker; Bearer files:write.",
+      tags: ["File"],
+      parameters: [
+        {
+          name: "fileId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "File bytes" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden" },
+        "404": { description: "Not found" },
+      },
+    },
+  },
   "/api/public/files/{fileId}": {
     get: {
       operationId: "File.GetPublic",
@@ -1825,6 +1848,7 @@ export const OPENAPI_COMMANDS = [
   "File.PresignUpload",
   "File.Upload",
   "File.CompleteUpload",
+  "File.Get",
   "File.GetPublic",
   "Comms.UpsertTemplate",
   "Comms.ListTemplates",

@@ -4,10 +4,10 @@
  * POST /api/files/presign              → File.PresignUpload
  * PUT  /api/files/:fileId/upload       → File.Upload
  * POST /api/files/:fileId/complete     → File.CompleteUpload
+ * GET  /api/files/:fileId              → File.Get (auth: admin or owning speaker)
  * GET  /api/public/files/:fileId       → File.GetPublic (logo published only)
  *
- * Private headshot/slides are never public; download requires auth (via
- * admin/portal metadata + Upload path). Public GET of non-logo → 404.
+ * Private headshot/slides are never public; File.Get requires session/bearer.
  *
  * Canonical registry: KMS-competition/initiative/contracts/COMMANDS.md
  */
@@ -45,6 +45,7 @@ import {
   presignFileUpload,
   uploadFileBytes,
   completeFileUpload,
+  getPrivateFileBytes,
   rolesForFilePurpose,
 } from "./commands.js";
 import { resolveOwnParticipations } from "../portal/commands.js";
@@ -563,6 +564,76 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       return c.json(out.data, 200);
     },
   );
+
+  /**
+   * GET /:fileId — File.Get (authenticated private download)
+   * Admin of event or owning speaker may fetch headshot/slides bytes.
+   * Bearer: files:write (CLI / tools).
+   */
+  files.get("/:fileId", fileAuth, async (c) => {
+    const fileId = c.req.param("fileId");
+    const user = c.get("user");
+    if (!user) {
+      return c.json(
+        errorEnvelope("Authentication required", "UNAUTHORIZED"),
+        401,
+      );
+    }
+
+    const result = await getPrivateFileBytes(deps, fileId);
+    if (!result.ok) {
+      return commandError(c, result);
+    }
+    const { eventId, purpose, ownerParticipationId, bytes, mime, filename } =
+      result.value;
+
+    const apiKey = c.get("apiKey");
+    if (apiKey) {
+      if (apiKey.eventId && apiKey.eventId !== eventId) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      // Bearer files:write — treat as admin-equivalent for private fetch
+    } else {
+      const membership = await store.findMembership(eventId, user.id);
+      if (!membership) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      if (membership.role !== "admin" && membership.role !== "speaker") {
+        return c.json(
+          errorEnvelope("Insufficient role", FORBIDDEN, {
+            required: ["admin", "speaker"],
+            role: membership.role,
+          }),
+          403,
+        );
+      }
+      if (purpose === "headshot" || purpose === "slides") {
+        const ownership = await assertSpeakerOwnsFile(
+          { store, events, decisions, submissions },
+          {
+            eventId,
+            ownerParticipationId,
+            userId: user.id,
+            userEmail: user.email,
+            role: membership.role,
+            correlationId: c.get("correlationId"),
+          },
+        );
+        if (!ownership.ok) {
+          return c.json(errorEnvelope(ownership.error, FORBIDDEN), 403);
+        }
+      }
+    }
+
+    return new Response(bytes, {
+      status: 200,
+      headers: {
+        "content-type": mime,
+        "content-disposition": `inline; filename="${filename.replace(/"/g, "")}"`,
+        "cache-control": "private, max-age=300",
+      },
+    });
+  });
 
   return files;
 }

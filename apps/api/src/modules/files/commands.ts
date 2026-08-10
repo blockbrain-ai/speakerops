@@ -29,6 +29,45 @@ export type FilesCommandDeps = DesignCommandDeps;
 export { presignFileUpload, uploadFileBytes, getPublicFileBytes };
 export type { CommandOk, CommandErr };
 
+/**
+ * File.Get — authenticated private file bytes (headshot/slides/logo).
+ * Caller must already have event membership; ownership for speakers is
+ * enforced at the route layer.
+ */
+export async function getPrivateFileBytes(
+  deps: FilesCommandDeps,
+  fileId: string,
+): Promise<
+  CommandOk<{
+    bytes: ArrayBuffer;
+    mime: string;
+    eventId: string;
+    purpose: string;
+    ownerParticipationId: string | null;
+    filename: string;
+  }> | CommandErr
+> {
+  const file = await deps.design.findFileById(fileId);
+  if (!file || !file.uploaded) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+  const blob = await deps.design.getFileBytes(file.eventId, file.id);
+  if (!blob) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+  return {
+    ok: true,
+    value: {
+      bytes: blob.bytes,
+      mime: blob.mime,
+      eventId: file.eventId,
+      purpose: file.purpose,
+      ownerParticipationId: file.ownerParticipationId ?? null,
+      filename: file.filename,
+    },
+  };
+}
+
 function virusStatus(
   status: string | undefined,
 ): FileAssetDto["virusScanStatus"] {

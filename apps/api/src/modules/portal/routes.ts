@@ -47,7 +47,11 @@ import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { DesignStore } from "../design/store.js";
-import { requireRole, requireSession } from "../../middleware/authz.js";
+import {
+  requireRole,
+  requireSession,
+  actorFromContext,
+} from "../../middleware/authz.js";
 import {
   getPortalHome,
   completeTask,
@@ -67,6 +71,8 @@ export type PortalRouteOptions = {
   submissions: SubmissionsStore;
   decisions: DecisionsStore;
   design?: DesignStore;
+  /** Bearer speakers:write for Speakers.UpdateProfile (CLI). */
+  keys?: import("../keys/store.js").KeysStore;
 };
 
 function commandError(
@@ -301,7 +307,7 @@ export function createEventPortalRoutes(
   options: PortalRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions, design } = options;
+  const { store, events, submissions, decisions, design, keys } = options;
   const deps = { decisions, events, auth: store, submissions, design };
 
   /**
@@ -310,7 +316,16 @@ export function createEventPortalRoutes(
    */
   app.get(
     "/:eventId/speakers",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...(keys
+        ? {
+            keysStore: keys,
+            bearerScopes: ["speakers:read", "speakers:write"] as const,
+            eventsStore: events,
+          }
+        : {}),
+    }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const q = AdminSpeakersListQuerySchema.safeParse({
@@ -345,7 +360,16 @@ export function createEventPortalRoutes(
    */
   app.get(
     "/:eventId/speakers/:participationId",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...(keys
+        ? {
+            keysStore: keys,
+            bearerScopes: ["speakers:read", "speakers:write"] as const,
+            eventsStore: events,
+          }
+        : {}),
+    }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const participationId = c.req.param("participationId");
@@ -370,7 +394,16 @@ export function createEventPortalRoutes(
    */
   app.patch(
     "/:eventId/speakers/:participationId",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...(keys
+        ? {
+            keysStore: keys,
+            bearerScopes: ["speakers:write"] as const,
+            eventsStore: events,
+          }
+        : {}),
+    }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const participationId = c.req.param("participationId");
@@ -394,8 +427,8 @@ export function createEventPortalRoutes(
           400,
         );
       }
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(
           errorEnvelope("Authentication required", UNAUTHORIZED),
           401,
@@ -406,7 +439,7 @@ export function createEventPortalRoutes(
       const result = await adminUpdateSpeakerProfile(deps, {
         eventId,
         participationId,
-        actorUserId: user.id,
+        actorUserId: actor.userId,
         body: body.data,
         correlationId,
       });

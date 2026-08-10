@@ -483,6 +483,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     submissions: submissionsStore,
     decisions: decisionsStore,
     design: designStore,
+    keys: keysStore,
   };
 
   // Section 4.1 — Portal.GetHome / Task.Complete / Participation.UpdateProfile

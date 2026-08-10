@@ -120,6 +120,10 @@ test.describe("admin speaker profile edit + session link", () => {
       timeout: 15_000,
     });
 
+    // View mode by default — no inputs until Edit
+    await expect(page.getByTestId("speakers-detail-profile-edit")).toBeVisible();
+    await expect(page.getByTestId("speakers-detail-bio-input")).toHaveCount(0);
+    await page.getByTestId("speakers-detail-profile-edit").click();
     await page.getByTestId("speakers-detail-bio-input").fill("Admin wrote bio");
     await page.getByTestId("speakers-detail-company-input").fill("Nood Co");
     await page.getByTestId("speakers-detail-title-input").fill("Founder");
@@ -127,6 +131,11 @@ test.describe("admin speaker profile edit + session link", () => {
     await expect(page.getByTestId("speakers-detail-profile-status")).toHaveText(
       "Saved",
       { timeout: 10_000 },
+    );
+    // Back to view mode after save
+    await expect(page.getByTestId("speakers-detail-bio-input")).toHaveCount(0);
+    await expect(page.getByTestId("speakers-detail-bio")).toContainText(
+      "Admin wrote bio",
     );
 
     // Session click-through

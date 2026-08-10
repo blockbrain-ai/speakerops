@@ -19,6 +19,7 @@ import {
   cmdOpenApi,
   cmdReportsReadiness,
   cmdSchedulePlace,
+  cmdSpeakersUpdateProfile,
   parseArgs,
   resolveClient,
   setClientFactoryForTests,
@@ -73,6 +74,10 @@ Commands (CLI_INVENTORY.md):
   schedule place --event E --session S --room R \\
                  --start ISO --end ISO                    CLI06  schedule:write
   files upload --event E --file PATH [--purpose logo]     CLI08  files:write
+                 [--participation ID] [--bind-profile]    headshot + Speakers.UpdateProfile
+  speakers update-profile --event E --participation ID \\
+                 [--bio T] [--company C] [--title T] \\
+                 [--headshot-file-id F] [--expected-version N]  speakers:write
   comms draft --template T [--preview] [--json]           CLI09  comms:draft
   comms send --preview-id P [--idempotency-key K]         CLI10  comms:send
   keys create --name N --scopes s1,s2                     CLI11  keys:admin
@@ -190,6 +195,15 @@ async function dispatch(
       break;
     case "files":
       if (verb === "upload") return cmdFilesUpload(ctx);
+      break;
+    case "speakers":
+      if (
+        verb === "update-profile" ||
+        verb === "update" ||
+        verb === "profile"
+      ) {
+        return cmdSpeakersUpdateProfile(ctx);
+      }
       break;
     case "comms":
       if (verb === "draft" || verb === "preview") return cmdCommsDraft(ctx);

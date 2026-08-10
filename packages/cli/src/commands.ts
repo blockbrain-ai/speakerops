@@ -429,12 +429,158 @@ export async function cmdFilesUpload(ctx: CommandContext): Promise<CliExitCode> 
     purpose,
     filename,
   };
+  // Optional bind headshot onto speaker participation (Speakers.UpdateProfile)
+  const bindProfile =
+    ctx.args.flags.has("bind-profile") ||
+    ctx.args.flags.has("bind") ||
+    Boolean(requireOption(ctx.args, "bind-profile"));
+  if (bindProfile && purpose === "headshot" && ownerParticipationId) {
+    const detail = await client.get(
+      `/api/events/${encodeURIComponent(eventId)}/speakers/${encodeURIComponent(ownerParticipationId)}`,
+    );
+    if (!detail.ok) {
+      return emitResult(ctx.io, detail, ctx.json);
+    }
+    const part = (detail.body as { participation?: { version?: number } })
+      .participation;
+    if (!part?.version) {
+      return emitError(
+        ctx.io,
+        "Speaker detail missing version for profile bind",
+        "VALIDATION_ERROR",
+        EXIT_VALIDATION,
+        ctx.json,
+      );
+    }
+    const patch = await client.request(
+      "PATCH",
+      `/api/events/${encodeURIComponent(eventId)}/speakers/${encodeURIComponent(ownerParticipationId)}`,
+      {
+        body: {
+          headshotFileId: presignData.fileId,
+          expectedVersion: part.version,
+        },
+      },
+    );
+    if (!patch.ok) {
+      return emitResult(ctx.io, patch, ctx.json);
+    }
+    (out as { headshotBound?: boolean }).headshotBound = true;
+  }
+
   if (ctx.json) {
     ctx.io.writeOut(`${JSON.stringify(out)}\n`);
     return EXIT_OK;
   }
-  ctx.io.writeOut(`fileId=${presignData.fileId}\n`);
+  ctx.io.writeOut(
+    `fileId=${presignData.fileId}${
+      (out as { headshotBound?: boolean }).headshotBound ? " headshotBound=true" : ""
+    }\n`,
+  );
   return EXIT_OK;
+}
+
+// ─── Speakers.UpdateProfile (admin / CLI) ────────────────────────────────────
+
+export async function cmdSpeakersUpdateProfile(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  const participationId = requireOption(ctx.args, "participation", [
+    "participation-id",
+    "speaker",
+    "id",
+  ]);
+  if (!eventId || !participationId) {
+    return emitError(
+      ctx.io,
+      "speakers update-profile requires --event and --participation",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+
+  const bio = requireOption(ctx.args, "bio");
+  const company = requireOption(ctx.args, "company");
+  const title = requireOption(ctx.args, "title");
+  const headshotFileId = requireOption(ctx.args, "headshot-file-id", [
+    "headshotFileId",
+    "headshot",
+  ]);
+  const expectedVersionRaw = requireOption(ctx.args, "expected-version", [
+    "version",
+  ]);
+
+  if (
+    bio === undefined &&
+    company === undefined &&
+    title === undefined &&
+    headshotFileId === undefined
+  ) {
+    return emitError(
+      ctx.io,
+      "Provide at least one of --bio --company --title --headshot-file-id",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+
+  let expectedVersion = expectedVersionRaw
+    ? Number(expectedVersionRaw)
+    : undefined;
+  if (expectedVersion === undefined || !Number.isFinite(expectedVersion)) {
+    const detail = await client.get(
+      `/api/events/${encodeURIComponent(eventId)}/speakers/${encodeURIComponent(participationId)}`,
+    );
+    if (!detail.ok) {
+      return emitResult(ctx.io, detail, ctx.json);
+    }
+    const part = (detail.body as { participation?: { version?: number } })
+      .participation;
+    if (!part?.version) {
+      return emitError(
+        ctx.io,
+        "Could not resolve expectedVersion from Speakers.Get",
+        "VALIDATION_ERROR",
+        EXIT_VALIDATION,
+        ctx.json,
+      );
+    }
+    expectedVersion = part.version;
+  }
+
+  const body: Record<string, unknown> = { expectedVersion };
+  if (bio !== undefined) body.bio = bio === "" ? null : bio;
+  if (company !== undefined) body.company = company === "" ? null : company;
+  if (title !== undefined) body.title = title === "" ? null : title;
+  if (headshotFileId !== undefined) {
+    body.headshotFileId = headshotFileId === "" ? null : headshotFileId;
+  }
+
+  const result = await client.request(
+    "PATCH",
+    `/api/events/${encodeURIComponent(eventId)}/speakers/${encodeURIComponent(participationId)}`,
+    { body },
+  );
+  return emitResult(ctx.io, result, ctx.json, (b) => {
+    const p = b as {
+      participation?: {
+        id?: string;
+        version?: number;
+        bio?: string | null;
+        company?: string | null;
+        title?: string | null;
+        headshotFileId?: string | null;
+      };
+    };
+    const part = p.participation;
+    return `updated ${part?.id ?? participationId} v${part?.version ?? "?"}\n`;
+  });
 }
 
 // ─── CLI09–CLI10 comms ───────────────────────────────────────────────────────
