@@ -978,6 +978,9 @@ function isApiOrHealthPath(pathname: string): boolean {
   return (
     pathname === "/health" ||
     pathname === "/health/" ||
+    // CLI12 / S-ONB-AGENT: served by Hono, not SPA assets (a fall-through
+    // returns index.html to `speakerops openapi` on the deployed Worker).
+    pathname === "/openapi.json" ||
     pathname === "/api" ||
     pathname.startsWith("/api/")
   );
