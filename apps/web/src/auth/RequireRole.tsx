@@ -15,6 +15,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -170,6 +171,18 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
   const location = useLocation();
   const [state, setState] = useState<GuardState>({ status: "loading" });
 
+  /**
+   * Only access-relevant URL inputs re-trigger the probe: pathname and
+   * eventId (scopes the speaker probe). Plain UI params — e.g. the portal's
+   * `?section=` tab state — must NOT re-run the guard: re-checking unmounts
+   * the surface to a loading flash on every tab switch (reads as a reload
+   * and discards in-progress form state).
+   */
+  const eventId = useMemo(
+    () => new URLSearchParams(location.search).get("eventId"),
+    [location.search],
+  );
+
   const check = useCallback(async () => {
     setState({ status: "loading" });
     // Admin surfaces use Event.List probe (server enforceRole)
@@ -203,8 +216,6 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     }
 
     if (needsSpeaker) {
-      const params = new URLSearchParams(location.search);
-      const eventId = params.get("eventId");
       const result = await probeSpeakerAccess(eventId);
       if (result === "ok") {
         setState({ status: "ok" });
@@ -260,7 +271,7 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     } catch {
       setState({ status: "error", message: "Unable to verify access" });
     }
-  }, [roles]);
+  }, [roles, eventId]);
 
   useEffect(() => {
     void check();
@@ -276,7 +287,7 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [check, location.pathname, location.search, location.hash]);
+  }, [check, location.pathname]);
 
   if (state.status === "loading") {
     return (

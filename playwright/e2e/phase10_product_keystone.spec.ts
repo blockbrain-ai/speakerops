@@ -694,6 +694,8 @@ test.describe("10.7 Phase 10 product reliability keystone (I12)", () => {
       timeout: 15_000,
     });
     await expect(page.getByTestId("login-page")).toHaveCount(0);
+    // Tab model: the tasks surface renders on its own tab — open it.
+    await page.getByTestId("portal-nav-tasks").click();
     await expect(page.getByTestId("portal-tasks")).toBeVisible();
 
     // Evaluator

@@ -2562,23 +2562,58 @@
   }
 }
 
-.portal-section {
-  scroll-margin-top: 96px;
+/* Portal home tab: at-a-glance cards that open the Profile/Tasks/Sessions tabs */
+.portal-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--lumen-space-3);
+  margin-top: var(--lumen-space-4);
 }
 
-.portal-section--flash {
-  animation: portal-section-flash 0.45s ease;
+.portal-summary__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lumen-space-1);
+  padding: var(--lumen-space-4);
+  text-align: left;
+  font: inherit;
+  color: var(--lumen-text);
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  box-shadow: var(--lumen-shadow-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-@keyframes portal-section-flash {
-  0% {
-    box-shadow: 0 0 0 0 var(--lumen-brand-soft);
-  }
-  40% {
-    box-shadow: 0 0 0 3px var(--lumen-brand);
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
+.portal-summary__card:hover {
+  border-color: var(--lumen-brand);
+  box-shadow: var(--lumen-shadow-raised);
+}
+
+.portal-summary__label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lumen-brand);
+}
+
+.portal-summary__value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--lumen-text);
+}
+
+.portal-summary__hint {
+  font-size: 13px;
+  color: var(--lumen-text-secondary);
+}
+
+@media (max-width: 767px) {
+  .portal-summary {
+    grid-template-columns: 1fr;
   }
 }
 

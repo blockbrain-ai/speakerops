@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SpeakerOps</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: #0a0a0a;
+      color: #d4d4d4;
+      font-family: "SF Mono", "Menlo", "Monaco", "Cascadia Code", "Consolas", "Liberation Mono", monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page {
+      width: 1200px;
+      padding: 48px 56px 40px;
+      background: #0a0a0a;
+    }
+    .prompt {
+      color: #6b7280;
+      margin-bottom: 20px;
+      font-size: 12px;
+    }
+    .prompt span { color: #22c55e; }
+    h1 {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: #f5f5f5;
+      font-size: 32px;
+      font-weight: 650;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+    .tagline {
+      color: #9ca3af;
+      font-size: 13px;
+      margin-bottom: 28px;
+      max-width: 920px;
+      line-height: 1.5;
+    }
+    h2 {
+      color: #22c55e;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 26px 0 10px;
+      border-top: 1px solid #1f2937;
+      padding-top: 18px;
+    }
+    h2:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      position: relative;
+      padding-left: 18px;
+      margin-bottom: 7px;
+      color: #d1d5db;
+    }
+    li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: #4ade80;
+    }
+    li strong { color: #f3f4f6; font-weight: 600; }
+    .pitch {
+      margin-top: 28px;
+      padding: 14px 16px;
+      border: 1px solid #1f2937;
+      border-left: 3px solid #22c55e;
+      background: #111111;
+      color: #e5e7eb;
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+    .pitch em { color: #86efac; font-style: normal; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #1f2937;
+      vertical-align: top;
+    }
+    th {
+      color: #6b7280;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    td { color: #d1d5db; }
+    td:last-child, th:last-child {
+      text-align: right;
+      white-space: nowrap;
+      color: #86efac;
+      font-variant-numeric: tabular-nums;
+    }
+    th:last-child { color: #6b7280; }
+    .note {
+      color: #6b7280;
+      font-size: 11px;
+      margin: 10px 0 14px;
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      margin-top: 8px;
+    }
+    .two-col h3 {
+      color: #9ca3af;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .footer {
+      margin-top: 32px;
+      color: #4b5563;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <!-- PAGE 1 -->
+  <div class="page" id="page1">
+    <p class="prompt"><span>➜</span> speakerops overview</p>
+    <h1>SpeakerOps</h1>
+    <p class="tagline">
+      Clean-room Program OS for AI Engineer / Software 3.0 conference ops —
+      CFP → evaluate → accept → portal → comms/calendar → schedule → readiness.
+      Built to replace expensive tools like Sessionboard without cloning them.
+    </p>
+
+    <h2>Product thesis</h2>
+    <ul>
+      <li><strong>Program OS, not a marketing/CRM suite</strong> — six core workflows end-to-end; no ticketing, travel, sponsor CRM, attendee app, or media studio.</li>
+      <li><strong>Fewer surfaces, production-hard</strong> — not a thin MVP sprawl; each surface is typed, tested, and operable.</li>
+      <li><strong>Person ≠ Speaker, Submission ≠ Session</strong> — durable identity vs event participation; applications don’t auto-become programme slots.</li>
+      <li><strong>Human authority stays central</strong> — accept/reject and scheduling stay human; no AI multi-round review theatre, no auto-scheduler.</li>
+      <li><strong>Exception-first readiness</strong> — “who’s blocking publish,” not another endless admin grid.</li>
+      <li><strong>Performance and honesty as features</strong> — calm UI, status semantics not rethemed by brand, design tokens as published data.</li>
+    </ul>
+
+    <h2>Agents + CLI</h2>
+    <ul>
+      <li><strong>speakerops CLI is first-class</strong> — maps 1:1 to the same domain commands as HTTP.</li>
+      <li><strong>Scoped API keys (spk_…)</strong> — scopes enforced only on the Worker; CLI cannot elevate itself.</li>
+      <li><strong>High-risk scopes default-deny</strong> — e.g. comms:send, decisions:write, keys:admin.</li>
+      <li><strong>Agent-stable contract</strong> — --json, fixed exit codes (0 ok · 1 validation · 2 authz · 3 conflict · 4 network).</li>
+      <li><strong>Real ops coverage</strong> — events, readiness, design, schedule, files, speakers, comms, keys, OpenAPI, CFP, decisions, eval.</li>
+      <li><strong>Tiny CLI surface</strong> — essentially @speakerops/shared only; hand-rolled args + fetch.</li>
+      <li><strong>Same commands for humans and agents</strong> — cookies/UI for people; CLI + keys + agent docs for machines.</li>
+    </ul>
+
+    <h2>Stack &amp; supply chain</h2>
+    <ul>
+      <li><strong>Frontend runtime deliberately tiny</strong> — React, ReactDOM, react-router-dom, shared only. No MUI/Chakra/Ant/Tailwind/Radix.</li>
+      <li><strong>In-house Lumen UI</strong> — custom primitives + CSS tokens; zero new runtime deps without exception.</li>
+      <li><strong>API runtime thin</strong> — Hono + Zod + Drizzle + workspace packages.</li>
+      <li><strong>Cloudflare-native</strong> — Workers + D1 SoR + Queues/outbox.</li>
+      <li><strong>Airtable projection</strong> — one-way push from D1 (source of truth) into Airtable, as judges asked; optional, no dual-write mess.</li>
+      <li><strong>Supply-chain gate</strong> — pnpm audit:deps fails on high/critical; committed lockfile required.</li>
+      <li><strong>CSP + cookies match the thin stack</strong> — production script-src 'self'; HttpOnly/Secure/SameSite sessions.</li>
+      <li><strong>Integrity over cleverness</strong> — typed commands, server-side roles, audit, optimistic concurrency, idempotent sends, conflict explain.</li>
+    </ul>
+
+    <div class="pitch">
+      <em>Pitch —</em> A command-first, Cloudflare-native Program OS: thin dependency blast radius, one-way Airtable projection from D1, the same typed commands for UI and agents, a full docs/contracts/E2E proof suite, and a real CFP→readiness loop for operators who also run Software 3.0.
+    </div>
+    <p class="footer">speakerops · www.speakerops.org · page 1/2</p>
+  </div>
+
+  <!-- PAGE 2 -->
+  <div class="page page-2" id="page2">
+    <p class="prompt"><span>➜</span> speakerops overview — continued</p>
+    <h1>SpeakerOps</h1>
+    <p class="tagline">Speaker experience · documentation · proof · scale of the build</p>
+
+    <h2>Speaker experience</h2>
+    <ul>
+      <li><strong>Portal onboarding as a real workflow</strong> — one step at a time (skip / save draft / continue); not a CTA over a full form dump.</li>
+      <li><strong>Tasks that need answers get UI</strong> — freeform/confirm steps instead of orphan “Mark complete.”</li>
+      <li><strong>Files + profile + sessions</strong> — plain-text XSS-safe bios and durable uploads.</li>
+    </ul>
+
+    <h2>Documentation suite</h2>
+    <ul>
+      <li><strong>Full operator + agent docs</strong> — architecture, security, CLI, ops, secrets, E2E, troubleshooting, field flow, Airtable, competition map.</li>
+      <li><strong>Section-level run notes</strong> — docs/sections/ aligned to the Section Runner programme.</li>
+      <li><strong>Contracts as product</strong> — COMMANDS, SCHEMA, SCOPES, CLI_INVENTORY, inventory ownership.</li>
+      <li><strong>Human + agent onboarding</strong> — ONBOARDING.md, AGENT_SETUP.md, HTML reports under reports/.</li>
+      <li><strong>Audit trail</strong> — dual-auditor advisories, Phase 10/11 gap-close, competition thin-areas, handover/cosign evidence.</li>
+    </ul>
+
+    <h2>Proof culture</h2>
+    <ul>
+      <li><strong>Inventory Playwright E2E</strong> — dozens of specs, plus unit/governance tests.</li>
+      <li><strong>Dogfood deploy</strong> — Cloudflare www.speakerops.org with health/smoke evidence.</li>
+      <li><strong>Dual-auditor / cosign discipline</strong> on major gates, not screenshot theatre.</li>
+    </ul>
+
+    <h2>Scale of the build</h2>
+    <p class="note">Physical lines (wc -l), excluding node_modules / dist / report artefacts. Not blank/comment-stripped.</p>
+    <table>
+      <thead>
+        <tr><th>Category</th><th>Includes</th><th>~Lines</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Application code</td><td>API, web (TS/TSX), CLI, shared, DB schema/migrations</td><td>~74,300</td></tr>
+        <tr><td>UI CSS</td><td>Lumen / shell / component styles</td><td>~7,300</td></tr>
+        <tr><td>Tests</td><td>Unit, governance, Playwright e2e</td><td>~71,600</td></tr>
+        <tr><td>Tooling scripts</td><td>Deploy, seed, e2e runner, dep audit, docs builders</td><td>~9,500</td></tr>
+        <tr><td>Docs &amp; programme text</td><td>docs/, KMS-competition/, initiative/, reports/</td><td>~41,900</td></tr>
+        <tr><td>Markdown alone</td><td>All .md files (~207 files)</td><td>~25,400</td></tr>
+        <tr><td><strong>Rough total</strong></td><td>Code + CSS + tests + scripts + docs</td><td><strong>~205,000</strong></td></tr>
+      </tbody>
+    </table>
+
+    <div class="two-col">
+      <div>
+        <h3>Application code</h3>
+        <table>
+          <thead><tr><th>Area</th><th>~Lines</th></tr></thead>
+          <tbody>
+            <tr><td>apps/api/src</td><td>~37,000</td></tr>
+            <tr><td>apps/web/src (TS/TSX)</td><td>~27,400</td></tr>
+            <tr><td>packages/shared</td><td>~5,100</td></tr>
+            <tr><td>packages/db (+ SQL)</td><td>~2,900</td></tr>
+            <tr><td>packages/cli</td><td>~1,900</td></tr>
+            <tr><td>Web CSS</td><td>~7,300</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3>Tests &amp; docs</h3>
+        <table>
+          <thead><tr><th>Area</th><th>~Lines</th></tr></thead>
+          <tbody>
+            <tr><td>Playwright e2e (~68 specs)</td><td>~27,300</td></tr>
+            <tr><td>API tests</td><td>~24,700</td></tr>
+            <tr><td>Root tests/ (incl. governance)</td><td>~15,000</td></tr>
+            <tr><td>Web + package unit tests</td><td>~4,600</td></tr>
+            <tr><td>docs/</td><td>~10,200</td></tr>
+            <tr><td>initiative/ + reports/ + KMS</td><td>~31,700</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="footer">speakerops · www.speakerops.org · page 2/2</p>
+  </div>
+</body>
+</html>

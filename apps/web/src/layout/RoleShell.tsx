@@ -19,10 +19,16 @@ import {
 import { Button } from "../components/ui/Button.js";
 
 export type RoleShellNavItem = {
-  /** Section id without #, or path starting with / */
+  /** Stable view id (e.g. "portal-tasks"). */
   id: string;
   label: string;
   testId?: string;
+  /**
+   * Real destination URL for the tab (e.g. "/portal?eventId=…&section=tasks").
+   * Rendered on the anchor so copy-link / middle-click work; primary clicks
+   * are intercepted and routed through onSectionSelect (SPA tab switch).
+   */
+  href?: string;
 };
 
 export type RoleShellProps = {
@@ -32,11 +38,12 @@ export type RoleShellProps = {
   eventId?: string | null;
   children: ReactNode;
   /**
-   * Section nav (speaker). ids are section element ids; activeId highlights current.
-   * Omit for evaluator (no self-link Queue).
+   * Tab nav (speaker). Each item is a distinct view; activeSectionId
+   * highlights the current tab. Omit for evaluator (no self-link Queue).
    */
   sections?: RoleShellNavItem[];
   activeSectionId?: string | null;
+  /** Switches the active tab view; owner updates the URL + focus. */
   onSectionSelect?: (sectionId: string) => void;
   /** Hide section nav (mobile uses bottom nav). */
   hideSectionNav?: boolean;
@@ -115,6 +122,10 @@ export function RoleShell({
   const showSwitcher = sameRoleMemberships.length > 1;
 
   function onNavClick(e: MouseEvent, sectionId: string) {
+    // Let modified clicks (new tab / window) use the real href.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
     e.preventDefault();
     onSectionSelect?.(sectionId);
   }
@@ -243,9 +254,9 @@ export function RoleShell({
                 className={`role-shell__nav-link lumen-focusable${
                   active ? " role-shell__nav-link--active" : ""
                 }`}
-                href={`#${item.id}`}
+                href={item.href ?? `#${item.id}`}
                 data-testid={item.testId}
-                aria-current={active ? "true" : undefined}
+                aria-current={active ? "page" : undefined}
                 onClick={(e) => onNavClick(e, item.id)}
               >
                 {item.label}

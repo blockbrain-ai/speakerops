@@ -141,9 +141,12 @@ test.describe("10.4 S-AUTH-ROLES demo persona session reliability", () => {
     await expect(page.getByTestId("login-page")).toHaveCount(0);
     await expect(page.getByTestId("portal-unauthenticated")).toHaveCount(0);
 
-    // Tasks region is part of the portal shell (empty list OK when no accept)
+    // Tasks surface is its own tab (tab model): open it via the real nav.
+    // Empty state is OK when no accept — the view itself must render.
+    await page.getByTestId("portal-nav-tasks").click();
     await expect(page.getByTestId("portal-tasks")).toBeVisible();
 
+    // Reload keeps ?section=tasks — deep link reopens the Tasks tab.
     await page.reload();
     await expect(page.getByTestId("portal-home")).toBeVisible({
       timeout: 15_000,

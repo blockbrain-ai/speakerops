@@ -486,6 +486,16 @@ test.describe("4.4 portal keystone (I12)", () => {
     }
 
     // ========== G05: at least one completed task after wizard path ==========
+    // Tab model: only the active view renders — open the Tasks tab first.
+    if (
+      await page.getByTestId("portal-nav-tasks").isVisible().catch(() => false)
+    ) {
+      await page.getByTestId("portal-nav-tasks").click();
+    } else if (
+      await page.getByTestId("portal-bottom-tasks").isVisible().catch(() => false)
+    ) {
+      await page.getByTestId("portal-bottom-tasks").click();
+    }
     if (await page.getByTestId("portal-task-list").isVisible().catch(() => false)) {
       await expect(
         page.locator("li.portal-task[data-task-status='completed']").first(),

@@ -323,8 +323,9 @@ test.describe("Wave 2 — portal task depth", () => {
       }
     }
 
+    // Tab model: deep link straight to the Tasks tab (task rows render there).
     await page.goto(
-      `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(event.id)}`,
+      `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(event.id)}&section=tasks`,
     );
     const taskList = page.getByTestId("portal-task-list");
     await expect(taskList).toBeVisible({ timeout: 15_000 });
@@ -512,6 +513,8 @@ test.describe("Wave 2 — portal task depth", () => {
       "data-readiness",
       "complete",
     );
+    // Tab model: task rows render on the Tasks tab.
+    await page.getByTestId("portal-nav-tasks").click();
     await expect(
       page.getByTestId(`portal-task-status-${task.id}`),
     ).toContainText(/completed/i);

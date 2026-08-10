@@ -607,7 +607,11 @@ test("@inv:G05 e2e/portal/task-complete Complete task; status flips", async ({
     uploadHeadshot: true,
   });
 
-  // After wizard steps, completed tasks appear in review or toast path
+  // After wizard steps, completed tasks appear in review or toast path.
+  // Tab model: the Tasks view only renders on its own tab — open it first.
+  if (await page.getByTestId("portal-nav-tasks").isVisible().catch(() => false)) {
+    await page.getByTestId("portal-nav-tasks").click();
+  }
   if (await page.getByTestId("portal-task-list").isVisible().catch(() => false)) {
     await expect(
       page.locator("li.portal-task[data-task-status='completed']").first(),

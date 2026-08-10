@@ -14,7 +14,11 @@
  * Onboarding workflow (product rule):
  * - Incomplete speakers get an exclusive one-step wizard (not CTA + full form dump)
  * - Skip defers a step to the end; Save draft persists partial work
- * - Full multi-section layout only after onboarding is complete (or review mode)
+ * - Full tabbed layout only after onboarding is complete (or review mode)
+ *
+ * Review layout is true tabs: `?section=` (home|profile|tasks|sessions) is the
+ * tab state; only the active view renders. Header nav + mobile bottom nav
+ * switch tabs (URL push, focus moves to the view — no scrolling).
  *
  * APIs: Portal.GetHome · Participation.UpdateProfile · Task.Complete
  *       File.PresignUpload · File.Upload · File.CompleteUpload
@@ -45,6 +49,7 @@ import {
   type PortalSessionDto,
 } from "@speakerops/shared";
 import { RoleShell } from "../../layout/RoleShell.js";
+import { EmptyState } from "../../components/ui/EmptyState.js";
 import { PortalFileField } from "../../components/portal/PortalFileField.js";
 import {
   OnboardingWizard,
@@ -103,6 +108,14 @@ const PORTAL_SECTIONS = [
   { id: "portal-sessions", label: "Sessions", testId: "portal-nav-sessions" },
 ] as const;
 
+/** `?section=` value → tab view id. Unknown/absent values open Home. */
+const SECTION_FROM_PARAM: Record<string, string> = {
+  home: "portal-home",
+  profile: "portal-profile",
+  tasks: "portal-tasks",
+  sessions: "portal-sessions",
+};
+
 export function PortalHomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const eventId = searchParams.get("eventId")?.trim() || "";
@@ -112,8 +125,13 @@ export function PortalHomePage() {
   const [error, setError] = useState<string | null>(null);
   const [home, setHome] = useState<PortalHomeResponse | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState("portal-home");
-  const [sectionFlash, setSectionFlash] = useState<string | null>(null);
+  /**
+   * Tab state lives in the URL (`?section=`): only the active view renders,
+   * deep links open the right tab, and browser Back walks tab history.
+   */
+  const activeSection = SECTION_FROM_PARAM[sectionParam] ?? "portal-home";
+  /** Tab switched by user this render cycle — move focus to the new view. */
+  const pendingFocusRef = useRef<string | null>(null);
 
   // Profile form
   const [bio, setBio] = useState("");
@@ -347,77 +365,60 @@ export function PortalHomePage() {
     return style;
   }, [home?.brandColor, home?.brandSoft, home?.brandFg]);
 
+  /** Move focus into the (already rendered) tab view — no scroll jank. */
+  const focusSectionView = useCallback((sectionId: string) => {
+    // Profile: focus bio so "Update profile" lands in the editable form.
+    if (sectionId === "portal-profile") {
+      const bioEl = document.getElementById("portal-bio");
+      if (bioEl instanceof HTMLElement) {
+        bioEl.focus({ preventScroll: true });
+        return;
+      }
+    }
+    const el = document.getElementById(sectionId);
+    const heading = el?.querySelector("h2, h1");
+    if (heading instanceof HTMLElement) {
+      heading.focus({ preventScroll: true });
+    }
+  }, []);
+
+  /**
+   * Switch tabs: push `?section=` (tabs are navigation — Back returns to the
+   * previous tab), keep `eventId`, and move focus to the new view's heading.
+   */
   const selectSection = useCallback(
     (sectionId: string) => {
-      setActiveSection(sectionId);
-      setSectionFlash(sectionId);
-      window.setTimeout(() => setSectionFlash(null), 450);
+      if (sectionId === activeSection) {
+        focusSectionView(sectionId);
+        return;
+      }
+      pendingFocusRef.current = sectionId;
       const next = new URLSearchParams(searchParams);
       if (eventId) next.set("eventId", eventId);
       next.set("section", sectionId.replace(/^portal-/, ""));
-      setSearchParams(next, { replace: true });
-      const el = document.getElementById(sectionId);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        // Profile: focus bio so "Update profile" lands in the editable form
-        if (sectionId === "portal-profile") {
-          window.setTimeout(() => {
-            const bioEl = document.getElementById("portal-bio");
-            if (bioEl instanceof HTMLElement) {
-              bioEl.focus({ preventScroll: true });
-            }
-          }, 320);
-        } else {
-          const heading = el.querySelector("h2, h1");
-          if (heading instanceof HTMLElement) {
-            heading.setAttribute("tabindex", "-1");
-            heading.focus({ preventScroll: true });
-          }
-        }
-      }
+      setSearchParams(next);
     },
-    [eventId, searchParams, setSearchParams],
+    [activeSection, eventId, focusSectionView, searchParams, setSearchParams],
   );
 
-  // Deep link + IntersectionObserver for active section
+  // After a user-initiated tab switch renders, focus the new view.
+  // Deep links / Back-Forward simply show the tab without stealing focus.
   useEffect(() => {
-    if (loadState !== "ready") return;
-    const map: Record<string, string> = {
-      home: "portal-home",
-      profile: "portal-profile",
-      tasks: "portal-tasks",
-      sessions: "portal-sessions",
-    };
-    const fromQuery = sectionParam ? map[sectionParam] : null;
-    if (fromQuery) {
-      setActiveSection(fromQuery);
-      window.requestAnimationFrame(() => {
-        document.getElementById(fromQuery)?.scrollIntoView({ block: "start" });
-      });
-    }
-  }, [loadState, sectionParam]);
+    const target = pendingFocusRef.current;
+    if (!target || target !== activeSection) return;
+    pendingFocusRef.current = null;
+    focusSectionView(target);
+  }, [activeSection, focusSectionView]);
 
-  useEffect(() => {
-    if (loadState !== "ready") return;
-    const ids = PORTAL_SECTIONS.map((s) => s.id);
-    const els = ids
-      .map((id) => document.getElementById(id))
-      .filter((el): el is HTMLElement => Boolean(el));
-    if (els.length === 0) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]?.target?.id) {
-          setActiveSection(visible[0].target.id);
-        }
-      },
-      { rootMargin: "-20% 0px -55% 0px", threshold: [0.1, 0.35, 0.6] },
-    );
-    for (const el of els) obs.observe(el);
-    return () => obs.disconnect();
-  }, [loadState, home]);
+  /** Header tabs carry real URLs (copy link / open in new tab both work). */
+  const navSections = useMemo(
+    () =>
+      PORTAL_SECTIONS.map((s) => ({
+        ...s,
+        href: `/portal?eventId=${encodeURIComponent(eventId)}&section=${s.id.replace(/^portal-/, "")}`,
+      })),
+    [eventId],
+  );
 
   async function patchProfileFields(fields: {
     bio?: string | null;
@@ -1088,7 +1089,7 @@ export function PortalHomePage() {
       role="speaker"
       eventName={home?.eventName ?? null}
       eventId={eventId}
-      sections={[...PORTAL_SECTIONS]}
+      sections={navSections}
       activeSectionId={activeSection}
       onSectionSelect={selectSection}
       hideSectionNav={inExclusiveOnboarding}
@@ -1223,11 +1224,10 @@ export function PortalHomePage() {
         </div>
       ) : null}
 
-      {loadState === "ready" && home && portalMode === "review" ? (
+      {loadState === "ready" && home && portalMode === "review" && activeSection === "portal-home" ? (
         <div className="portal-home-stack">
-          {/* Home: welcome + progress + next action */}
+          {/* Home tab: welcome + progress + next action + tab summaries */}
           <section
-            className={`portal-section${sectionFlash === "portal-home" ? " portal-section--flash" : ""}`}
             id="portal-home"
             data-testid="portal-section-home"
             aria-label="Home"
@@ -1238,7 +1238,11 @@ export function PortalHomePage() {
           >
             <div className="portal-welcome__brand" aria-hidden="true" />
             <p className="portal-welcome__eyebrow">Welcome back</p>
-            <h2 className="portal-welcome__name" data-testid="portal-welcome-name">
+            <h2
+              className="portal-welcome__name"
+              data-testid="portal-welcome-name"
+              tabIndex={-1}
+            >
               {speakerName}
             </h2>
             <p className="portal-welcome__state" data-testid="portal-participation-state">
@@ -1461,15 +1465,91 @@ export function PortalHomePage() {
               </div>
             )}
           </section>
-          </section>{/* end #portal-home */}
-
-          {/* Profile + files (headshot & slides) — review mode only */}
+          {/* Quick look across the other tabs — each card opens its tab */}
           <section
-            className={`portal-card portal-section${sectionFlash === "portal-profile" ? " portal-section--flash" : ""}`}
+            className="portal-summary"
+            aria-label="Your portal at a glance"
+            data-testid="portal-summary-cards"
+          >
+            <button
+              type="button"
+              className="portal-summary__card lumen-focusable"
+              data-testid="portal-summary-profile"
+              onClick={() => selectSection("portal-profile")}
+            >
+              <span className="portal-summary__label">Profile</span>
+              <span className="portal-summary__value">
+                {overallProg.profileDone >= overallProg.profileTotal
+                  ? "Profile complete"
+                  : `${overallProg.profileDone} of ${overallProg.profileTotal} details added`}
+              </span>
+              <span className="portal-summary__hint">
+                Bio, headshot and slides
+              </span>
+            </button>
+            <button
+              type="button"
+              className="portal-summary__card lumen-focusable"
+              data-testid="portal-summary-tasks"
+              onClick={() => selectSection("portal-tasks")}
+            >
+              <span className="portal-summary__label">Tasks</span>
+              <span className="portal-summary__value">
+                {tasksProg.completed + tasksProg.pending === 0
+                  ? "No tasks yet"
+                  : tasksProg.pending === 0
+                    ? "All tasks done"
+                    : `${tasksProg.completed} of ${tasksProg.completed + tasksProg.pending} tasks done`}
+              </span>
+              <span className="portal-summary__hint">
+                Everything the organisers have asked for
+              </span>
+            </button>
+            <button
+              type="button"
+              className="portal-summary__card lumen-focusable"
+              data-testid="portal-summary-sessions"
+              onClick={() => selectSection("portal-sessions")}
+            >
+              <span className="portal-summary__label">Sessions</span>
+              <span className="portal-summary__value">
+                {sessions.length === 0
+                  ? "No sessions yet"
+                  : (() => {
+                      const scheduled = sessions.filter(
+                        (s) => s.placement,
+                      ).length;
+                      if (scheduled === 0) {
+                        return sessions.length === 1
+                          ? "1 session — time coming soon"
+                          : `${sessions.length} sessions — times coming soon`;
+                      }
+                      if (scheduled === sessions.length) {
+                        return scheduled === 1
+                          ? "1 session scheduled"
+                          : `${scheduled} sessions scheduled`;
+                      }
+                      return `${scheduled} of ${sessions.length} sessions scheduled`;
+                    })()}
+              </span>
+              <span className="portal-summary__hint">
+                Times, rooms and calendar invites
+              </span>
+            </button>
+          </section>
+          </section>{/* end #portal-home */}
+        </div>
+      ) : null}
+
+      {/* Profile tab: bio form + files (headshot & slides) */}
+      {loadState === "ready" && home && portalMode === "review" && activeSection === "portal-profile" ? (
+        <div className="portal-home-stack">
+          <section
+            className="portal-card"
             id="portal-profile"
             data-testid="portal-profile"
           >
-            <h2 className="portal-heading">Profile</h2>
+            <h2 className="portal-heading" tabIndex={-1}>Profile</h2>
             <p className="portal-muted">
               {speakerName}
               {participation?.personEmail
@@ -1629,18 +1709,25 @@ export function PortalHomePage() {
               />
             </div>
           </section>
+        </div>
+      ) : null}
 
-          {/* Tasks */}
+      {/* Tasks tab */}
+      {loadState === "ready" && home && portalMode === "review" && activeSection === "portal-tasks" ? (
+        <div className="portal-home-stack">
           <section
-            className={`portal-card portal-section${sectionFlash === "portal-tasks" ? " portal-section--flash" : ""}`}
+            className="portal-card"
             id="portal-tasks"
             data-testid="portal-tasks"
           >
-            <h2 className="portal-heading">All tasks</h2>
+            <h2 className="portal-heading" tabIndex={-1}>All tasks</h2>
             {tasks.length === 0 ? (
-              <p className="portal-muted" data-testid="portal-tasks-empty">
-                No tasks yet.
-              </p>
+              <EmptyState
+                data-testid="portal-tasks-empty"
+                icon="inbox"
+                title="No tasks yet"
+                description="When the organisers ask for something — a bio, slides, a confirmation — it will appear here with its due date."
+              />
             ) : (
               <ul className="portal-task-list" data-testid="portal-task-list">
                 {tasks.map((t) => {
@@ -1710,18 +1797,25 @@ export function PortalHomePage() {
               </ul>
             )}
           </section>
+        </div>
+      ) : null}
 
-          {/* Sessions */}
+      {/* Sessions tab */}
+      {loadState === "ready" && home && portalMode === "review" && activeSection === "portal-sessions" ? (
+        <div className="portal-home-stack">
           <section
-            className={`portal-card portal-section${sectionFlash === "portal-sessions" ? " portal-section--flash" : ""}`}
+            className="portal-card"
             id="portal-sessions"
             data-testid="portal-sessions"
           >
-            <h2 className="portal-heading">Your sessions</h2>
+            <h2 className="portal-heading" tabIndex={-1}>Your sessions</h2>
             {sessions.length === 0 ? (
-              <p className="portal-muted" data-testid="portal-sessions-empty">
-                No sessions linked yet.
-              </p>
+              <EmptyState
+                data-testid="portal-sessions-empty"
+                icon="calendar"
+                title="No sessions linked yet"
+                description="Once the organisers place your talk on the programme, its time, room and calendar invite will show here."
+              />
             ) : (
               <ul
                 className="portal-session-list"
@@ -1816,7 +1910,7 @@ export function PortalHomePage() {
                 activeSection === s.id ? " portal-bottom-nav__link--active" : ""
               }`}
               data-testid={`portal-bottom-${s.id.replace("portal-", "")}`}
-              aria-current={activeSection === s.id ? "true" : undefined}
+              aria-current={activeSection === s.id ? "page" : undefined}
               onClick={() => selectSection(s.id)}
             >
               {s.label}
