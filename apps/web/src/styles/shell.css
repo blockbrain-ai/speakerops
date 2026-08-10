@@ -2700,6 +2700,7 @@
 }
 
 .portal-file-field__actions {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2728,16 +2729,16 @@
 }
 
 .portal-file-field__input {
-  /* Visually hidden but available for Playwright / a11y labels */
+  /*
+   * Visually hidden but still in document flow so programmatic .click()
+   * and Playwright setInputFiles work in all browsers (no absolute clip).
+   */
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  z-index: -1;
 }
 
 .eval-round-strip {

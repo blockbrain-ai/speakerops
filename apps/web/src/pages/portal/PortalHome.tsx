@@ -132,9 +132,16 @@ export function PortalHomePage() {
     window.setTimeout(() => setToast(null), 4000);
   }, []);
 
-  const loadHome = useCallback(async (eid: string) => {
-    setLoadState("loading");
-    setError(null);
+  /**
+   * Load portal home.
+   * soft=true: keep current ready UI mounted (no form unmount) — used after save/upload.
+   */
+  const loadHome = useCallback(async (eid: string, opts?: { soft?: boolean }) => {
+    const soft = opts?.soft === true;
+    if (!soft) {
+      setLoadState("loading");
+      setError(null);
+    }
     try {
       const res = await fetch(
         `/api/portal/home?eventId=${encodeURIComponent(eid)}`,
@@ -151,12 +158,24 @@ export function PortalHomePage() {
       const raw: unknown = await res.json().catch(() => null);
       if (!res.ok) {
         const env = ErrorEnvelopeSchema.safeParse(raw);
-        setError(env.success ? env.data.error : `Load failed (${res.status})`);
+        const msg = env.success
+          ? env.data.error
+          : `Load failed (${res.status})`;
+        if (soft) {
+          // Keep form mounted; surface as non-fatal status
+          setProfileStatus(msg);
+          return;
+        }
+        setError(msg);
         setLoadState("error");
         return;
       }
       const parsed = PortalHomeResponseSchema.safeParse(raw);
       if (!parsed.success) {
+        if (soft) {
+          setProfileStatus("Saved, but refresh failed — reload the page");
+          return;
+        }
         setError("Unexpected portal home response");
         setLoadState("error");
         return;
@@ -170,6 +189,10 @@ export function PortalHomePage() {
       }
       setLoadState("ready");
     } catch {
+      if (soft) {
+        setProfileStatus("Network error refreshing — your save may have worked");
+        return;
+      }
       setError("Network error");
       setLoadState("error");
     }
@@ -248,10 +271,20 @@ export function PortalHomePage() {
       const el = document.getElementById(sectionId);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" });
-        const heading = el.querySelector("h2, h1");
-        if (heading instanceof HTMLElement) {
-          heading.setAttribute("tabindex", "-1");
-          heading.focus({ preventScroll: true });
+        // Profile: focus bio so "Update profile" lands in the editable form
+        if (sectionId === "portal-profile") {
+          window.setTimeout(() => {
+            const bioEl = document.getElementById("portal-bio");
+            if (bioEl instanceof HTMLElement) {
+              bioEl.focus({ preventScroll: true });
+            }
+          }, 320);
+        } else {
+          const heading = el.querySelector("h2, h1");
+          if (heading instanceof HTMLElement) {
+            heading.setAttribute("tabindex", "-1");
+            heading.focus({ preventScroll: true });
+          }
         }
       }
     },
@@ -346,8 +379,8 @@ export function PortalHomePage() {
       setTitle(p.title ?? "");
       setProfileStatus("Saved");
       showToast("Profile saved");
-      // Refresh readiness (server contract) after profile mutation
-      await loadHome(eventId);
+      // Soft refresh keeps form mounted so Save never "disappears"
+      await loadHome(eventId, { soft: true });
     } catch {
       setProfileStatus("Network error");
     } finally {
@@ -435,7 +468,7 @@ export function PortalHomePage() {
         };
       });
       showToast("Task completed");
-      if (eventId) await loadHome(eventId);
+      if (eventId) await loadHome(eventId, { soft: true });
     } catch {
       setHome((prev) => {
         if (!prev) return prev;
@@ -612,11 +645,11 @@ export function PortalHomePage() {
 
         setStatus(`Headshot uploaded (${file.name})`);
         showToast("Headshot ready");
-        await loadHome(eventId);
+        await loadHome(eventId, { soft: true });
       } else {
         setStatus(`Slides uploaded (${file.name})`);
         showToast("Slides uploaded");
-        await loadHome(eventId);
+        await loadHome(eventId, { soft: true });
       }
     } catch {
       setStatus("Network error");
@@ -937,6 +970,23 @@ export function PortalHomePage() {
                 ? ` · ${participation.personEmail}`
                 : ""}
             </p>
+            {!participation ? (
+              <div
+                className="portal-status portal-status--error"
+                data-testid="portal-bio-no-participation"
+                role="alert"
+              >
+                <p>
+                  No speaker record is linked to this sign-in for this event.
+                  Save and file upload are disabled until the invitation email
+                  matches your account.
+                </p>
+                <p className="portal-muted">
+                  Sign out and use the email from your invitation, or ask the
+                  organiser to re-send your speaker invite.
+                </p>
+              </div>
+            ) : null}
             <form
               className="portal-form"
               data-testid="portal-bio-form"
@@ -956,6 +1006,7 @@ export function PortalHomePage() {
                 onChange={(ev) => setBio(ev.target.value)}
                 maxLength={8000}
                 rows={4}
+                disabled={!participation}
                 placeholder="Short bio for the programme (plain text only)"
               />
               {/* Display as text only — React text children, never HTML injection */}
@@ -976,6 +1027,7 @@ export function PortalHomePage() {
                 value={company}
                 onChange={(ev) => setCompany(ev.target.value)}
                 maxLength={200}
+                disabled={!participation}
               />
 
               <label className="portal-label" htmlFor="portal-title">
@@ -991,8 +1043,8 @@ export function PortalHomePage() {
                 value={title}
                 onChange={(ev) => setTitle(ev.target.value)}
                 maxLength={200}
+                disabled={!participation}
               />
-
               <button
                 type="submit"
                 className="portal-btn lumen-focusable"
@@ -1015,54 +1067,61 @@ export function PortalHomePage() {
                 </p>
               ) : null}
             </form>
-          </section>
 
-          {/* G03 / G04 — files */}
-          <section
-            className="portal-card"
-            id="portal-files"
-            data-testid="portal-files"
-          >
-            <h2 className="portal-heading">Files</h2>
+            {/* Headshot + slides belong in Profile (same tab as bio) */}
+            <div className="portal-files" id="portal-files" data-testid="portal-files">
+              <h3 className="portal-subheading">Programme files</h3>
+              <PortalFileField
+                fieldTestId="portal-headshot"
+                inputTestId="portal-headshot-input"
+                chooseTestId="portal-headshot-choose"
+                statusTestId="portal-headshot-status"
+                previewTestId="portal-headshot-preview"
+                title="Headshot"
+                hint="JPEG or PNG · max 10 MiB · public portrait for the programme"
+                privacyNote="Shown on the public programme listing. Replace anytime."
+                accept="image/jpeg,image/png"
+                disabled={!participation}
+                disabledReason={
+                  !participation
+                    ? "Link your invitation email before uploading."
+                    : null
+                }
+                busy={fileBusyPurpose === "headshot"}
+                status={headshotStatus}
+                previewUrl={headshotPreview}
+                hasFile={Boolean(
+                  headshotPreview || participation?.headshotFileId,
+                )}
+                onFile={(f) => void uploadFile(f, "headshot")}
+              />
 
-            <PortalFileField
-              fieldTestId="portal-headshot"
-              inputTestId="portal-headshot-input"
-              chooseTestId="portal-headshot-choose"
-              statusTestId="portal-headshot-status"
-              previewTestId="portal-headshot-preview"
-              title="Headshot"
-              hint="JPEG or PNG · max 10 MiB · public portrait for the programme"
-              privacyNote="Shown on the public programme listing. Replace anytime."
-              accept="image/jpeg,image/png"
-              disabled={!participation}
-              busy={fileBusyPurpose === "headshot"}
-              status={headshotStatus}
-              previewUrl={headshotPreview}
-              hasFile={Boolean(headshotPreview || participation?.headshotFileId)}
-              onFile={(f) => void uploadFile(f, "headshot")}
-            />
-
-            <PortalFileField
-              fieldTestId="portal-slides"
-              inputTestId="portal-slides-input"
-              chooseTestId="portal-slides-choose"
-              statusTestId="portal-slides-status"
-              title="Slides"
-              hint="PDF only · max 10 MiB · private to organisers"
-              privacyNote="Private to organisers — not published on the public CFP."
-              accept="application/pdf"
-              disabled={!participation}
-              busy={fileBusyPurpose === "slides"}
-              status={
-                slidesStatus ??
-                (slidesFile
-                  ? `On file: ${slidesFile.filename ?? "slides.pdf"}`
-                  : null)
-              }
-              hasFile={Boolean(slidesFile)}
-              onFile={(f) => void uploadFile(f, "slides")}
-            />
+              <PortalFileField
+                fieldTestId="portal-slides"
+                inputTestId="portal-slides-input"
+                chooseTestId="portal-slides-choose"
+                statusTestId="portal-slides-status"
+                title="Slides"
+                hint="PDF only · max 10 MiB · private to organisers"
+                privacyNote="Private to organisers — not published on the public CFP."
+                accept="application/pdf"
+                disabled={!participation}
+                disabledReason={
+                  !participation
+                    ? "Link your invitation email before uploading."
+                    : null
+                }
+                busy={fileBusyPurpose === "slides"}
+                status={
+                  slidesStatus ??
+                  (slidesFile
+                    ? `On file: ${slidesFile.filename ?? "slides.pdf"}`
+                    : null)
+                }
+                hasFile={Boolean(slidesFile)}
+                onFile={(f) => void uploadFile(f, "slides")}
+              />
+            </div>
           </section>
 
           {/* Tasks */}

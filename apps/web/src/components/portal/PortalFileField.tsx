@@ -1,8 +1,9 @@
 /**
- * Polished portal file field — hidden native input + accessible Choose/Replace.
+ * Polished portal file field — button opens native picker via inputRef.click().
+ * Do not rely on label+clipped input (breaks in Safari and when useId has colons).
  * Keeps inventory testids on the file input for Playwright filechooser flows.
  */
-import { useId, type ChangeEvent } from "react";
+import { useRef, type ChangeEvent } from "react";
 
 export type PortalFileFieldProps = {
   /** Container testid e.g. portal-headshot */
@@ -21,6 +22,8 @@ export type PortalFileFieldProps = {
   accept: string;
   disabled?: boolean;
   busy?: boolean;
+  /** Why disabled — shown so the control is never a silent dead button. */
+  disabledReason?: string | null;
   status?: string | null;
   previewUrl?: string | null;
   hasFile?: boolean;
@@ -39,18 +42,24 @@ export function PortalFileField({
   accept,
   disabled = false,
   busy = false,
+  disabledReason = null,
   status = null,
   previewUrl = null,
   hasFile = false,
   onFile,
 }: PortalFileFieldProps) {
-  const reactId = useId();
-  const inputId = `${fieldTestId}-file-${reactId}`;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const blocked = disabled || busy;
 
   function onChange(ev: ChangeEvent<HTMLInputElement>) {
     const f = ev.target.files?.[0];
     if (f) onFile(f);
     ev.target.value = "";
+  }
+
+  function openPicker() {
+    if (blocked) return;
+    inputRef.current?.click();
   }
 
   const showReplace = Boolean(hasFile || previewUrl);
@@ -62,6 +71,7 @@ export function PortalFileField({
       }`}
       data-testid={fieldTestId}
       data-busy={busy ? "true" : "false"}
+      data-disabled={blocked ? "true" : "false"}
     >
       <div className="portal-file-field__header">
         <h3 className="portal-subheading">{title}</h3>
@@ -84,26 +94,43 @@ export function PortalFileField({
       ) : null}
 
       <div className="portal-file-field__actions">
-        <label
-          htmlFor={disabled || busy ? undefined : inputId}
+        <button
+          type="button"
           className={`portal-file-field__choose lumen-focusable${
-            disabled || busy ? " portal-file-field__choose--disabled" : ""
+            blocked ? " portal-file-field__choose--disabled" : ""
           }`}
           data-testid={chooseTestId}
-          aria-disabled={disabled || busy ? "true" : "false"}
+          disabled={blocked}
+          aria-disabled={blocked ? "true" : "false"}
+          onClick={openPicker}
         >
           {busy ? "Uploading…" : showReplace ? "Replace file" : "Choose file"}
-        </label>
+        </button>
+        {/*
+          Keep input in-flow but visually hidden (not position:absolute clip).
+          Programmatic click from the button is the reliable open path.
+        */}
         <input
-          id={inputId}
+          ref={inputRef}
           type="file"
           accept={accept}
           className="portal-file-field__input"
           data-testid={inputTestId}
-          disabled={disabled || busy}
+          tabIndex={-1}
+          disabled={blocked}
           onChange={onChange}
         />
       </div>
+
+      {blocked && disabledReason ? (
+        <p
+          className="portal-status portal-status--error"
+          data-testid={`${fieldTestId}-disabled-reason`}
+          role="status"
+        >
+          {disabledReason}
+        </p>
+      ) : null}
 
       {status ? (
         <p
