@@ -108,7 +108,12 @@ describe("4.3 speaker portal UI governance", () => {
     assert.match(src, /@inv:G08/);
     assert.match(src, /setViewportSize/);
     assert.match(src, /assert mobile viewport task complete/);
-    assert.match(src, /portal-bio-save|portal-next-task-complete/);
+    // Onboarding wizard (post-11.9 UX wave) drives mobile complete via
+    // portal-wizard-* controls; legacy portal-bio-save path retained as alt.
+    assert.match(
+      src,
+      /portal-wizard-continue|portal-wizard-task-status|portal-bio-save|portal-next-task-complete/,
+    );
   });
 
   it("portal CSS uses Lumen tokens only (no freeform hex in portal-*)", () => {
@@ -153,8 +158,10 @@ describe("4.3 speaker portal UI governance", () => {
     const page = readFileSync(portalPage, "utf8");
     assert.match(page, /applyOptimisticComplete/);
     assert.match(page, /revertOptimisticComplete/);
-    assert.match(page, /data-testid="portal-headshot-input"/);
-    assert.match(page, /data-testid="portal-slides-input"/);
+    // File inputs render via PortalFileField (inputTestId prop) — the DOM
+    // data-testid is unchanged; portal_ui G03/G04 prove it renders.
+    assert.match(page, /(?:data-testid|inputTestId)="portal-headshot-input"/);
+    assert.match(page, /(?:data-testid|inputTestId)="portal-slides-input"/);
     assert.match(page, /data-testid="portal-bio-input"/);
     assert.match(page, /data-testid="portal-next-task"/);
     assert.match(page, /data-testid="portal-sessions"/);

@@ -401,12 +401,14 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type reject
   );
 
   // Accept PDF via public upload API
+  // Declared size must equal decoded byte length (server integrity check).
+  const okPdfBody = "%PDF-1.4 tiny";
   const okPdf = await request.post(`/api/public/cfp/${event.slug}/files`, {
     data: {
       filename: "ok.pdf",
       mime: "application/pdf",
-      size: 12,
-      contentBase64: btoa("%PDF-1.4 tiny"),
+      size: okPdfBody.length,
+      contentBase64: btoa(okPdfBody),
     },
   });
   expect(okPdf.status(), "PDF upload accepted").toBe(201);

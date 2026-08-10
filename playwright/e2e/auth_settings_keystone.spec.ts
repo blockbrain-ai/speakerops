@@ -150,6 +150,10 @@ test.describe("2.5 auth settings keystone (I12)", () => {
     await expect(page.getByTestId("admin-shell")).toHaveCount(0);
 
     // --- B01: admin magic-link login → HttpOnly session ---
+    // Purpose radios are demo/invite-only since the auth-ux wave; the
+    // keystone drives the demo path explicitly (harness context).
+    await page.goto(`${baseURL ?? ""}/login?demo=1`);
+    await expect(page.getByTestId("login-page")).toBeVisible();
     await page.getByTestId("login-email").fill(KEYSTONE_ADMIN);
     await page.getByTestId("login-purpose-admin").check();
     await page.getByTestId("login-submit").click();

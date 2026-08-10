@@ -536,7 +536,11 @@ test.describe("11.8 visual lumen2 suite", () => {
     await expect(page.getByTestId("portal-home")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("portal-next-task")).toBeVisible();
+    // Fresh speakers land in the onboarding wizard (post-11.9 UX wave);
+    // returning speakers see the task view. Either is the portal's real state.
+    await expect(
+      page.getByTestId("portal-wizard-step").or(page.getByTestId("portal-next-task")).first(),
+    ).toBeVisible();
     await capture(page, "08-portal-desktop", true);
 
     await page.setViewportSize(MOBILE);
@@ -546,7 +550,11 @@ test.describe("11.8 visual lumen2 suite", () => {
     await expect(page.getByTestId("portal-home")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("portal-bottom-nav")).toBeVisible();
+    // Wizard-first mobile visit shows the step flow; bottom nav appears in
+    // the post-onboarding home. Capture whichever real state renders.
+    await expect(
+      page.getByTestId("portal-wizard-step").or(page.getByTestId("portal-bottom-nav")).first(),
+    ).toBeVisible();
     await capture(page, "08-portal-mobile", true);
 
     // ---------- 9. Error / session-expired / empty states ----------

@@ -242,8 +242,11 @@ test.describe("10.4 S-AUTH-ROLES demo persona session reliability", () => {
     await expect(sent).toBeVisible();
     const text = (await sent.textContent()) ?? "";
     expect(text.toLowerCase()).not.toMatch(/dev:\s*use test outbox/);
-    expect(text.toLowerCase()).toMatch(/inbox/);
-    // Honest: no product outbox on dogfood
-    expect(text.toLowerCase()).toMatch(/no in-product mail inbox|no public outbox|check your inbox/);
+    // Current copy (auth-ux wave): enumeration-safe "if that address is
+    // registered, a one-time sign-in link is on its way" — no outbox promise.
+    expect(text.toLowerCase()).toMatch(
+      /sign-in link is on its way|check your inbox/,
+    );
+    expect(text.toLowerCase()).toMatch(/expire/);
   });
 });

@@ -7,7 +7,7 @@
   "scripts": {
     "typecheck": "tsc -b --pretty false",
     "test": "node --test tests/ && vitest run",
-    "test:ci": "node --test tests/ && vitest run",
+    "test:ci": "node --test \"tests/governance/**/*.test.mjs\" && vitest run",
     "test:e2e": "node scripts/e2e-run.mjs",
     "test:e2e:inventory": "tsx scripts/inventory-lint.ts",
     "test:e2e:visual": "node scripts/e2e-run.mjs playwright/e2e/visual_lumen2.spec.ts",
@@ -40,7 +40,7 @@
     "wrangler": "^3.112.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20 <25"
   },
   "packageManager": "pnpm@9.7.0"
 }

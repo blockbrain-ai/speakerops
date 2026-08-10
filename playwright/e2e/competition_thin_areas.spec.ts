@@ -363,10 +363,9 @@ test.describe("Competition thin areas", () => {
     );
 
     await selectEvent(page, event.id);
-    await page.getByTestId(`submission-row-${subId}`).click().catch(async () => {
-      // Fallback: open via any row click pattern
-      await page.getByText("Picker Assign Talk").first().click();
-    });
+    // Detail opens via the title button (rows carry selection checkboxes,
+    // not click-to-open) — drive the designed affordance.
+    await page.getByTestId(`submission-open-${subId}`).click();
     await expect(
       page.getByTestId("submission-assign-evaluator-picker"),
     ).toBeVisible({ timeout: 15_000 });
@@ -721,7 +720,7 @@ test.describe("Competition thin areas", () => {
     );
     const event = await ensureEvent(request, admin.session, "F09 Event");
     await selectEvent(page, event.id, "/admin/evaluations");
-    await expect(page.getByTestId("page-evaluations").or(page.locator("body"))).toBeVisible({
+    await expect(page.getByTestId("page-evaluations")).toBeVisible({
       timeout: 15_000,
     });
     // Panel controls exist when rollup has rows; empty event still has page shell
@@ -863,7 +862,7 @@ test.describe("Competition thin areas", () => {
     );
     const event = await ensureEvent(request, admin.session, "J11 Event");
     await selectEvent(page, event.id, "/admin/comms");
-    await expect(page.getByTestId("comms-send-panel").or(page.locator("body"))).toBeVisible({
+    await expect(page.getByTestId("comms-send-panel")).toBeVisible({
       timeout: 15_000,
     });
     // Picker is on send step

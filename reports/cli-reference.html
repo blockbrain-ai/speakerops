@@ -471,6 +471,34 @@ speakerops schedule place --event E --session S --room R --start … --end … -
 <li><strong>HTTP:</strong> <code>GET /openapi.json</code> (public discovery document)</li>
 <li><strong>Assert:</strong> paths include <code>/api/events</code>, schedule, readiness, design, keys, …</li>
 </ul>
+<h3>Program loop — <code>forms</code> (cfp:read / cfp:write)</h3>
+<pre><code>speakerops forms list --event &lt;eventId&gt; --json
+speakerops forms get --form &lt;formId&gt; --json
+speakerops forms create --event &lt;eventId&gt; --name &quot;CFP 2026&quot; --json
+speakerops forms draft --form &lt;formId&gt; --fields &#39;[{&quot;fieldKey&quot;:&quot;title&quot;,&quot;type&quot;:&quot;text&quot;,&quot;label&quot;:&quot;Title&quot;,&quot;required&quot;:true}]&#39;
+speakerops forms publish --form &lt;formId&gt;</code></pre>
+<ul>
+<li><strong>Scopes:</strong> list/get → <code>cfp:read</code> (or <code>cfp:write</code>); create/draft/publish → <code>cfp:write</code></li>
+<li><strong>HTTP:</strong> <code>GET/POST /api/events/:eventId/forms</code>, <code>GET /api/forms/:formId</code>, <code>PUT .../draft</code>, <code>POST .../publish</code></li>
+</ul>
+<h3>Program loop — <code>submissions</code></h3>
+<pre><code>speakerops submissions list --event &lt;eventId&gt; [--status submitted] [--q &quot;title&quot;] --json
+speakerops submissions get --submission &lt;id&gt; --json
+speakerops submissions assign --submission &lt;id&gt; --users &lt;userId[,userId…]&gt;
+speakerops submissions decision --submission &lt;id&gt; --decision accept|reject|waitlist [--reason R]
+speakerops submissions bulk-decision --event &lt;eventId&gt; --decision accept|reject|waitlist --ids id1,id2</code></pre>
+<ul>
+<li><strong>Scopes:</strong> list/get → <code>submissions:read</code>; assign → <code>submissions:write</code>; decision/bulk-decision → <code>decisions:write</code></li>
+<li><strong>HTTP:</strong> Submission.List/Get, AssignEvaluators, Decision.Record, bulk-decision</li>
+</ul>
+<h3>Program loop — <code>eval</code></h3>
+<pre><code>speakerops eval rollup --event &lt;eventId&gt; [--sort score_desc|score_asc|title] --json
+speakerops eval export --event &lt;eventId&gt; [--sort score_desc]   # CSV on stdout</code></pre>
+<ul>
+<li><strong>Scope:</strong> <code>submissions:read</code></li>
+<li><strong>HTTP:</strong> <code>GET /api/events/:eventId/eval/rollup</code>, <code>.../eval/export</code></li>
+<li>Export includes evaluator emails + overall comments (Area 3 deliberation export).</li>
+</ul>
 <h2>Agent notes</h2>
 <ol>
 <li>Prefer <code>--json</code> for all automation.</li>
@@ -488,9 +516,9 @@ speakerops schedule place --event E --session S --room R --start … --end … -
 </ul>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-09T23:55:54.986Z" data-git-sha="507a787f9">
-  <div><strong>Generated:</strong> <time datetime="2026-08-09T23:55:54.986Z">2026-08-09T23:55:54.986Z</time></div>
-  <div><strong>Git SHA:</strong> <code>507a787f9</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-10T10:03:29.524Z" data-git-sha="3d2807a1a">
+  <div><strong>Generated:</strong> <time datetime="2026-08-10T10:03:29.524Z">2026-08-10T10:03:29.524Z</time></div>
+  <div><strong>Git SHA:</strong> <code>3d2807a1a</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/CLI.md · no secrets in report</div>
 </footer>
   </div>

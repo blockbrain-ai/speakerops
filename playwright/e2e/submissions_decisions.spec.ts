@@ -331,7 +331,12 @@ test.describe("3.5 submissions decisions", () => {
 
     await selectEvent(page, event.id);
     await page.getByTestId(`submission-open-${idA}`).click();
-    await page.getByTestId("submission-assign-user-id").fill(evalLink.userId);
+    // Raw user-id input was replaced by the evaluator roster picker
+    // (competition thin-area #5 close); assign via the member checkbox.
+    await expect(
+      page.getByTestId("submission-assign-evaluator-picker"),
+    ).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId(`submission-assign-check-${evalLink.userId}`).check();
     await page.getByTestId("submission-assign-submit").click();
     await expect(page.getByTestId("submissions-status")).toContainText(
       "Assigned",

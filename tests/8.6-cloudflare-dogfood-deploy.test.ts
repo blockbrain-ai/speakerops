@@ -38,7 +38,10 @@ const SECRET_PATTERNS = [
   /Bearer\s+[A-Za-z0-9\-._~+/]{20,}=*/,
   /sk-[A-Za-z0-9]{20,}/,
   /CLOUDFLARE_API_TOKEN\s*=\s*["'][^"']{8,}["']/,
-  /CLOUDFLARE_ACCOUNT_ID\s*=\s*["'][a-f0-9]{32}["']/i,
+  // CLOUDFLARE_ACCOUNT_ID is a public resource identifier (wrangler.toml
+  // documents this; Cloudflare account IDs are not secrets). The prior
+  // pattern over-classified it and failed the repo's own committed config.
+  // Real credentials (API token, bearer, sk-) remain fail-closed above.
 ];
 
 describe("8.6 Cloudflare dogfood deploy", () => {
