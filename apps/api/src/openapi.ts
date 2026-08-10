@@ -12,6 +12,47 @@ import type { ApiEnv } from "./env.js";
  * Route is absent (404) unless ROLE_SWITCHER_ENABLED / enableRoleSwitcher.
  */
 export const AUTH_OPENAPI_PATHS = {
+  "/api/auth/judge-access": {
+    post: {
+      operationId: "Auth.JudgeAccess",
+      summary: "Auth.JudgeAccess",
+      description:
+        "Competition judge entry (shared demo only): exchange the access code " +
+        "(JUDGE_ACCESS_CODE secret, provided in the submission) for a 4-hour " +
+        "session as a seeded demo persona on the demo event. Registered only " +
+        "when ROLE_SWITCHER_ENABLED=1 AND the code secret are set; 404 " +
+        "otherwise. Constant-time code compare; generic 401 failures; " +
+        "rate-limited; audit event on mint; demo sessions cannot create API keys.",
+      tags: ["Auth"],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["code", "role"],
+              properties: {
+                code: { type: "string", minLength: 8 },
+                role: {
+                  type: "string",
+                  enum: ["admin", "evaluator", "speaker"],
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description:
+            "Session cookie set (Max-Age 14400); { ok, role, email, eventId, redirectTo }",
+        },
+        "401": { description: "Invalid access code (generic)" },
+        "404": { description: "Judge access disabled on this deployment" },
+        "429": { description: "Rate limited" },
+      },
+    },
+  },
   "/api/auth/dev/role-switch": {
     post: {
       operationId: "Auth.DevRoleSwitch",

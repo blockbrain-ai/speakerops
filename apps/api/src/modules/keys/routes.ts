@@ -141,6 +141,18 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
         401,
       );
     }
+    // Shared-demo blast radius: demo personas (role switcher / judge access)
+    // may explore every surface but must not mint durable API credentials.
+    const sessionUser = c.get("user");
+    if (sessionUser?.email?.toLowerCase().endsWith("@demo.speakerops.local")) {
+      return c.json(
+        errorEnvelope(
+          "Demo sessions cannot create API keys (shared demo)",
+          "FORBIDDEN",
+        ),
+        403,
+      );
+    }
     const scope = await resolveKeysAdminScope(c, store, events);
     if (!scope) {
       return c.json(

@@ -20,6 +20,8 @@ import {
   MeMembershipsResponseSchema,
   DevRoleSwitchBodySchema,
   DevRoleSwitchResponseSchema,
+  JudgeAccessBodySchema,
+  JudgeAccessResponseSchema,
   errorEnvelope,
   VALIDATION_ERROR,
   UNAUTHORIZED,
@@ -102,6 +104,12 @@ export type AuthRouteOptions = {
   bootstrapPolicy?: BootstrapPolicy;
   /** Durable magic-link email (encrypt + outbox). Optional. */
   magicLinkMail?: MagicLinkMailDeps | null;
+  /**
+   * Competition judge entry code (JUDGE_ACCESS_CODE env name; value is a
+   * secret). POST /api/auth/judge-access registers only when this is set AND
+   * enableRoleSwitcher is true; otherwise the path 404s. Never logged.
+   */
+  judgeAccessCode?: string | null;
 };
 
 async function membershipOptionsForUser(
@@ -557,6 +565,106 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
           { append: true },
         );
       }
+      return c.json(out.data, 200);
+    });
+  }
+
+  /**
+   * POST /api/auth/judge-access → Auth.JudgeAccess (competition judge entry).
+   *
+   * Registered ONLY when enableRoleSwitcher AND a judgeAccessCode are
+   * configured — otherwise the path is absent (404), indistinguishable from
+   * a non-existent route. Server-fixed demo event; the client chooses only
+   * the role label. Constant-time code comparison (both sides SHA-256 hashed
+   * before compare). Mints a 4-hour session (DB row AND cookie share the
+   * TTL). Rate-limited per isolate. Audit event Auth.JudgeAccess on mint.
+   * Failures are generic (401, no reason detail) and never logged with body.
+   */
+  if (options.enableRoleSwitcher && options.judgeAccessCode) {
+    const judgeCode = options.judgeAccessCode;
+    const JUDGE_SESSION_TTL_SECONDS = 4 * 60 * 60;
+    /** Isolate-local limiter: 10 attempts / 5 min per client IP. */
+    const judgeLimiter = new Map<string, { count: number; windowStartMs: number }>();
+    const JUDGE_RATE_MAX = 10;
+    const JUDGE_RATE_WINDOW_MS = 5 * 60 * 1000;
+
+    auth.post("/judge-access", async (c) => {
+      const ip =
+        c.req.header("cf-connecting-ip") ??
+        c.req.header("x-forwarded-for") ??
+        "unknown";
+      const nowMs = Date.now();
+      const bucket = judgeLimiter.get(ip);
+      if (!bucket || nowMs - bucket.windowStartMs > JUDGE_RATE_WINDOW_MS) {
+        judgeLimiter.set(ip, { count: 1, windowStartMs: nowMs });
+      } else if (bucket.count >= JUDGE_RATE_MAX) {
+        return c.json(
+          errorEnvelope("Too many attempts — try again later", UNAUTHORIZED),
+          429,
+        );
+      } else {
+        bucket.count += 1;
+      }
+
+      let raw: unknown;
+      try {
+        raw = await c.req.json();
+      } catch {
+        return c.json(errorEnvelope("Invalid JSON body", VALIDATION_ERROR), 400);
+      }
+      const parsed = JudgeAccessBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        return c.json(
+          errorEnvelope("Validation failed", VALIDATION_ERROR),
+          400,
+        );
+      }
+
+      // Constant-time comparison: hash both sides (fixed-length digests) so
+      // compare time is independent of match position or code length.
+      const [suppliedHash, expectedHash] = await Promise.all([
+        hashToken(parsed.data.code),
+        hashToken(judgeCode),
+      ]);
+      let diff = 0;
+      for (let i = 0; i < expectedHash.length; i++) {
+        diff |= suppliedHash.charCodeAt(i) ^ expectedHash.charCodeAt(i);
+      }
+      if (diff !== 0 || suppliedHash.length !== expectedHash.length) {
+        // Generic failure — no distinction between wrong code and other causes.
+        return c.json(errorEnvelope("Invalid access code", UNAUTHORIZED), 401);
+      }
+
+      const correlationId = c.get("correlationId");
+      // Server-fixed demo event; personas must be pre-seeded (never created).
+      const result = await devRoleSwitch(deps, {
+        role: parsed.data.role,
+        eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        correlationId,
+        allowCreate: false,
+        sessionTtlSeconds: JUDGE_SESSION_TTL_SECONDS,
+        auditAction: "Auth.JudgeAccess",
+      });
+      if (!result.ok) {
+        // Persona not seeded / role mismatch — still generic to the caller.
+        return c.json(errorEnvelope("Invalid access code", UNAUTHORIZED), 401);
+      }
+
+      const out = JudgeAccessResponseSchema.safeParse(result.response);
+      if (!out.success) {
+        return c.json(
+          errorEnvelope("Response validation failed", INTERNAL_ERROR),
+          500,
+        );
+      }
+      c.header(
+        "Set-Cookie",
+        buildSessionSetCookie(result.sessionToken, {
+          secure: cookieSecure,
+          maxAgeSeconds: JUDGE_SESSION_TTL_SECONDS,
+        }),
+        { append: true },
+      );
       return c.json(out.data, 200);
     });
   }

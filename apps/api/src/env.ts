@@ -58,6 +58,13 @@ export type WorkerBindings = {
    */
   ROLE_SWITCHER_ENABLED?: string;
   /**
+   * Competition judge entry code (secret — `wrangler secret put`). Env
+   * **name** only in repo (E10). POST /api/auth/judge-access registers only
+   * when this AND ROLE_SWITCHER_ENABLED=1 are set (min 16 chars); the route
+   * 404s otherwise. Rotate after judging.
+   */
+  JUDGE_ACCESS_CODE?: string;
+  /**
    * Optional first-admin allowlist (email). Env **name** only in repo (E10).
    * When set under controlled bootstrap, only this email may self-bootstrap admin.
    */

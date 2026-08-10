@@ -55,6 +55,7 @@
 | B04 | public | `/admin` | Unauthed redirect/401 | e2e/auth/admin-guard | — | REQUIRED | PASS |
 | B05 | speaker | `/admin` | Speaker cannot open admin | e2e/auth/role-guard-admin | 403/redirect | REQUIRED | PASS |
 | B06 | evaluator | `/speakers` admin write | Evaluator cannot mutate schedule | e2e/auth/role-guard-eval | 403 API | REQUIRED | PASS |
+| B07 | public | `/judge` | Judge access code exchanges for demo role session (4h; body-posted code) | e2e/public/judge-access | Wrong code generic 401; route 404 when disabled | REQUIRED | PASS |
 | B08 | any multi | `/login` exchange | Multi-membership chooser after exchange → pick named programme | e2e/auth/membership-chooser | Single membership skips chooser | REQUIRED | PASS |
 
 ---

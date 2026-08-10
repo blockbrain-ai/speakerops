@@ -10,6 +10,7 @@ Auth: session cookie **or** API key with scopes.
 | `Auth.ExchangeMagicLink` | public | token | Set-Cookie session |
 | `Auth.Logout` | any authed | — | cleared cookie |
 | `Auth.CreateInvite` | admin | email, role, eventId | { inviteId } |
+| `Auth.JudgeAccess` | shared demo only (`ROLE_SWITCHER_ENABLED=1` + `JUDGE_ACCESS_CODE` secret) | code, role (admin\|evaluator\|speaker) | { ok, role, email, eventId, redirectTo } + Set-Cookie 4h session for seeded demo persona on the demo event — constant-time code compare, generic 401, rate-limited, audit `Auth.JudgeAccess`; demo sessions denied `Keys.Create` |
 | `Auth.DevRoleSwitch` | dogfood/dev only (`ROLE_SWITCHER_ENABLED=1` / local e2e) | role (admin\|evaluator\|speaker), eventId? | { ok, role, email, eventId, redirectTo } + Set-Cookie session for seeded demo user — **never** registered on public production default; controlled Worker requires existing **admin** session (401 if unauthenticated, 403 if non-admin) |
 
 ## Events & settings
@@ -113,6 +114,7 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/auth/magic-link | Auth.RequestMagicLink |
 | POST | /api/auth/exchange | Auth.ExchangeMagicLink |
 | POST | /api/auth/logout | Auth.Logout |
+| POST | /api/auth/judge-access | Auth.JudgeAccess (shared demo; 404 when disabled) |
 | POST | /api/auth/dev/role-switch | Auth.DevRoleSwitch (dogfood/dev only; 404 when flag off) |
 | GET | /api/events | Event.List |
 | POST | /api/events | Event.Create |

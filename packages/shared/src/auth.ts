@@ -101,6 +101,22 @@ export const DevRoleSwitchResponseSchema = z.object({
 export type DevRoleSwitchResponse = z.infer<typeof DevRoleSwitchResponseSchema>;
 
 /**
+ * Auth.JudgeAccess — competition judge entry (demo deployment only).
+ * POST /api/auth/judge-access — registered only when the role switcher is
+ * enabled AND JUDGE_ACCESS_CODE is configured; 404 otherwise. The event is
+ * server-fixed (demo event); the client chooses only the role label.
+ */
+export const JudgeAccessBodySchema = z.object({
+  code: z.string().min(8).max(256),
+  role: EventRoleSchema,
+});
+export type JudgeAccessBody = z.infer<typeof JudgeAccessBodySchema>;
+
+/** Response shape matches DevRoleSwitchResponse (same mint semantics). */
+export const JudgeAccessResponseSchema = DevRoleSwitchResponseSchema;
+export type JudgeAccessResponse = z.infer<typeof JudgeAccessResponseSchema>;
+
+/**
  * Deterministic demo emails for role switcher (must match scripts/seed.ts).
  * Not secrets — public demo accounts for dogfood judges.
  */

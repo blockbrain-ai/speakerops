@@ -940,7 +940,7 @@ export const DEFAULT_ADMIN_CRAWL_GLOBS = [
 
 /** Paths under admin roots to skip (non-admin surfaces + design-system primitives). */
 const ADMIN_CRAWL_SKIP_RE =
-  /\/(portal|PublicCfp|Login|login)\b|pages\/portal\b|PublicCfp\.tsx|Login\.tsx|components\/ui\b|L2StateSheet\.tsx/;
+  /\/(portal|PublicCfp|Login|login)\b|pages\/portal\b|PublicCfp\.tsx|Login\.tsx|JudgeAccess\.tsx|components\/ui\b|L2StateSheet\.tsx/;
 
 /**
  * Collect TSX sources for admin crawl under workspace root.

@@ -148,8 +148,12 @@ export function RoleSwitcher({
           {error}
         </p>
       ) : null}
-      <span className="role-switcher__badge" data-testid="role-switcher-badge">
-        Dogfood
+      <span
+        className="role-switcher__badge"
+        data-testid="role-switcher-badge"
+        title="Shared demo — data is shared between reviewers and reset periodically; demo sessions cannot create API keys"
+      >
+        Shared demo
       </span>
     </div>
   );

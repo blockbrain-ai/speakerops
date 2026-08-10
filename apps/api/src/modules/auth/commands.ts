@@ -687,6 +687,14 @@ export type DevRoleSwitchInput = {
    * Production dogfood with ROLE_SWITCHER_ENABLED should seed first — create=false.
    */
   allowCreate?: boolean;
+  /**
+   * Session lifetime override in seconds (judge access mints short sessions).
+   * Default: SESSION_TTL_DAYS. DB row and cookie Max-Age must use the same
+   * value so browser state never outlives the credential (or vice versa).
+   */
+  sessionTtlSeconds?: number;
+  /** Audit action label (default Auth.DevRoleSwitch; judge entry uses Auth.JudgeAccess). */
+  auditAction?: "Auth.DevRoleSwitch" | "Auth.JudgeAccess";
 };
 
 export type DevRoleSwitchSuccess = {
@@ -769,11 +777,15 @@ export async function devRoleSwitch(
   const sessionToken = generateToken(32);
   const sessionHash = await hashToken(sessionToken);
   const sessionId = uuidv7();
+  const expiresAt =
+    typeof input.sessionTtlSeconds === "number" && input.sessionTtlSeconds > 0
+      ? new Date(now.getTime() + input.sessionTtlSeconds * 1000).toISOString()
+      : expiresAtDaysFromNow(SESSION_TTL_DAYS, now);
   await deps.store.insertSession({
     id: sessionId,
     userId: user.id,
     tokenHash: sessionHash,
-    expiresAt: expiresAtDaysFromNow(SESSION_TTL_DAYS, now),
+    expiresAt,
     createdAt,
   });
 
@@ -782,7 +794,7 @@ export async function devRoleSwitch(
     eventId,
     actorType: "user",
     actorId: user.id,
-    action: "Auth.DevRoleSwitch",
+    action: input.auditAction ?? "Auth.DevRoleSwitch",
     entityType: "auth_session",
     entityId: sessionId,
     afterJson: JSON.stringify({

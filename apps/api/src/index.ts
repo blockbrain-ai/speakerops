@@ -228,6 +228,11 @@ export type CreateAppOptions = {
    */
   enableRoleSwitcher?: boolean;
   /**
+   * Competition judge entry code (JUDGE_ACCESS_CODE secret). Judge-access
+   * route registers only when set together with enableRoleSwitcher.
+   */
+  judgeAccessCode?: string | null;
+  /**
    * When true, allow unauthenticated Auth.DevRoleSwitch (local e2e only).
    * Default: true when bootstrapPolicy is "open"; false under controlled/production.
    */
@@ -327,6 +332,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       cookieSecure,
       enableDevOutbox,
       enableRoleSwitcher,
+      judgeAccessCode: options.judgeAccessCode ?? null,
       roleSwitcherAllowCreate: bootstrapPolicy === "open",
       roleSwitcherAllowUnauthenticated:
         options.roleSwitcherAllowUnauthenticated,
@@ -655,6 +661,8 @@ export function createAppWithAuth(
     enableDevOutbox: options.enableDevOutbox ?? true,
     // Section 8.4 — role switcher on for local e2e / unit tests (opt-out available).
     enableRoleSwitcher: options.enableRoleSwitcher ?? true,
+    // B07 — judge access for local e2e (harness passes a fixed code).
+    judgeAccessCode: options.judgeAccessCode ?? null,
     // Open bootstrap for e2e/unit tests only — never production.
     bootstrapPolicy: options.bootstrapPolicy ?? "open",
     // Section 10.3 — local/e2e accept DEV_PASS without host allowlist (opt-out available).
@@ -824,6 +832,13 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     demoAllowlistEventSlugs,
     enableDevOutbox: false,
     enableRoleSwitcher: roleSwitcherEnabled,
+    // Competition judge entry: active only when both the switcher flag and
+    // the JUDGE_ACCESS_CODE secret are set on the dogfood Worker (names only).
+    judgeAccessCode:
+      typeof env.JUDGE_ACCESS_CODE === "string" &&
+      env.JUDGE_ACCESS_CODE.trim().length >= 16
+        ? env.JUDGE_ACCESS_CODE.trim()
+        : null,
     bootstrapPolicy: "controlled",
     // E10 / 8.3 — production session cookies always Secure + HttpOnly + SameSite=Lax
     cookieSecure: true,

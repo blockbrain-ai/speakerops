@@ -29,6 +29,7 @@ import { RequireRole } from "./auth/RequireRole.js";
 import { EventProvider } from "./events/EventContext.js";
 import { RoleSwitcher, isRoleSwitcherEnabled } from "./components/RoleSwitcher.js";
 import { LoginPage } from "./pages/Login.js";
+import JudgeAccessPage from "./pages/JudgeAccess.js";
 import { PortalHomePage } from "./pages/PortalHome.js";
 import { EventSettingsPage } from "./pages/EventSettings.js";
 import { DesignKitPage } from "./pages/DesignKit.js";
@@ -124,6 +125,14 @@ export function AppRoutes() {
         element={
           <BareLayout>
             <LoginPage />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/judge"
+        element={
+          <BareLayout>
+            <JudgeAccessPage />
           </BareLayout>
         }
       />

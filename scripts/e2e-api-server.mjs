@@ -53,6 +53,8 @@ const { app } = createAppWithAuth({
   enableDevOutbox: true,
   // Secure cookie flag still set; Chromium accepts Secure on localhost
   cookieSecure: true,
+  // B07 judge-access e2e — fixed local code (name only; never a real secret).
+  judgeAccessCode: process.env.E2E_JUDGE_CODE || "e2e-judge-code-local-0000",
   rateLimiter: e2eCfpRateLimiter,
 });
 
