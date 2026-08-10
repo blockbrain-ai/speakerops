@@ -232,9 +232,13 @@ export function AdminEvaluationsPage() {
       primary: true,
       cell: (row) => (
         <>
-          <span data-testid={`eval-rollup-title-${row.submissionId}`}>
+          <a
+            href={`/admin/submissions?submissionId=${encodeURIComponent(row.submissionId)}`}
+            className="eval-queue__link lumen-focusable"
+            data-testid={`eval-rollup-title-${row.submissionId}`}
+          >
             {row.title}
-          </span>
+          </a>
           {row.category ? (
             <span className="l2-table__secondary">{row.category}</span>
           ) : null}

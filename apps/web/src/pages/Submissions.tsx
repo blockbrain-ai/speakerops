@@ -23,6 +23,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   SubmissionListResponseSchema,
   SubmissionDetailResponseSchema,
@@ -99,6 +100,7 @@ function formatAnswerValue(value: unknown): string {
 
 export function SubmissionsPage() {
   const { activeEventId } = useEventContext();
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<SubmissionListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [listLimit, setListLimit] = useState<number>(
@@ -264,6 +266,14 @@ export function SubmissionsPage() {
       setStatus({ kind: "error", text: "Network error" });
     }
   }
+
+  // Deep-link from evaluations rollup (and other hubs): ?submissionId=
+  useEffect(() => {
+    const id = searchParams.get("submissionId");
+    if (!id || !activeEventId) return;
+    void openDetail(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once per query id
+  }, [searchParams, activeEventId]);
 
   async function recordDecision(decision: DecisionValue) {
     if (!detail) return;

@@ -73,6 +73,7 @@ import {
   undoForMove,
   undoForPlace,
   undoForUnschedule,
+  zonedDayKey,
 } from "./schedule-utils.js";
 
 type ToastState =
@@ -153,11 +154,31 @@ export function ScheduleStudioPage() {
   const eventEndsAt = activeEvent?.endsAt ?? null;
 
   // Week/day chrome: only event-range days (never pad to Mon–Sun). S-SCHED-CHROME.
-  const dayKeys = useMemo(
-    () => buildDayKeys(eventStartsAt, eventEndsAt, 7, timezone),
-    [eventStartsAt, eventEndsAt, timezone],
-  );
-  const primaryDay = dayKeys[0] ?? "2026-09-01";
+  const dayKeys = useMemo(() => {
+    const fromEvent = buildDayKeys(eventStartsAt, eventEndsAt, 7, timezone);
+    // Dogfood seed may have inverted endsAt < startsAt → fallback single day.
+    // Always include days that actually have placements so list→day focus works.
+    const fromPlacements = [
+      ...new Set(
+        placements.map((p) => zonedDayKey(p.startsAt, timezone)).filter(Boolean),
+      ),
+    ].sort();
+    const merged = [...fromEvent];
+    for (const d of fromPlacements) {
+      if (!merged.includes(d)) merged.push(d);
+    }
+    merged.sort();
+    return merged.length > 0 ? merged.slice(0, 14) : fromEvent;
+  }, [eventStartsAt, eventEndsAt, timezone, placements]);
+
+  /** Day shown in day view — follows list/conflict selection. */
+  const [focusedDayKey, setFocusedDayKey] = useState<string | null>(null);
+  const primaryDay =
+    (focusedDayKey && dayKeys.includes(focusedDayKey)
+      ? focusedDayKey
+      : null) ??
+    dayKeys[0] ??
+    "2026-09-01";
 
   const roomName = useCallback(
     (roomId: string) => rooms.find((r) => r.id === roomId)?.name ?? roomId,
@@ -734,10 +755,12 @@ export function ScheduleStudioPage() {
       if (id) {
         setSelectedPlacementId(id);
         setSelectedSessionId(null);
+        const p = placements.find((x) => x.id === id);
+        if (p) setFocusedDayKey(zonedDayKey(p.startsAt, timezone));
         setView("day");
       }
     },
-    [],
+    [placements, timezone],
   );
 
   const renderTile = (
@@ -994,6 +1017,9 @@ export function ScheduleStudioPage() {
                     onClick={() => {
                       setSelectedPlacementId(p.id);
                       setSelectedSessionId(null);
+                      // List chrome looks like a link — open day view on that day.
+                      setFocusedDayKey(zonedDayKey(p.startsAt, timezone));
+                      setView("day");
                     }}
                   >
                     {placementTitle(p)}

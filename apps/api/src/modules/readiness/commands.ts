@@ -71,20 +71,15 @@ export async function getReadiness(
   const templates = await deps.decisions.listTaskTemplates(input.eventId);
   const titleByTemplate = new Map(templates.map((t) => [t.id, t.title]));
 
-  // Person enrich (name/email) — Person ≠ Speaker (E1)
-  const personCache = new Map<
-    string,
-    { name: string; email: string } | null
-  >();
-  async function personFor(personId: string) {
-    if (personCache.has(personId)) return personCache.get(personId)!;
-    const p = await deps.submissions.findPersonById(personId);
-    const v = p ? { name: p.name, email: p.email } : null;
-    personCache.set(personId, v);
-    return v;
-  }
-
   const partById = new Map(parts.map((p) => [p.id, p]));
+
+  // Batch person enrich — never N+1 await findPersonById per task (dogfood 150+).
+  const personIds = [
+    ...new Set(
+      parts.map((p) => p.personId).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const peopleById = await deps.submissions.listPersonsByIds(personIds);
 
   let completedTasks = 0;
   let cancelledTasks = 0;
@@ -106,7 +101,7 @@ export async function getReadiness(
     const part = partById.get(task.participationId);
     if (!part) continue;
 
-    const person = await personFor(part.personId);
+    const person = peopleById.get(part.personId) ?? null;
     speakersWithOutstanding.add(part.id);
 
     outstandingAll.push({
@@ -134,10 +129,15 @@ export async function getReadiness(
   });
 
   const overdueTasks = outstandingAll.filter((o) => o.isOverdue).length;
-  const outstanding =
+  const filtered =
     input.overdueOnly === true
       ? outstandingAll.filter((o) => o.isOverdue)
       : outstandingAll;
+
+  // Cap list payload for SPA (stats remain full). Overview attention needs
+  // top items only — 290 rows blocked dogfood paint for ~47s + large JSON.
+  const OUTSTANDING_LIST_CAP = 50;
+  const outstanding = filtered.slice(0, OUTSTANDING_LIST_CAP);
 
   const stats: ReadinessStats = {
     totalSpeakers: parts.length,
