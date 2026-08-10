@@ -16,6 +16,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   EvalQueueResponseSchema,
   EvalScoreResponseSchema,
@@ -71,6 +72,8 @@ function formatAnswerValue(value: unknown): string {
 }
 
 export function EvaluatorQueuePage() {
+  const [searchParams] = useSearchParams();
+  const eventIdFilter = searchParams.get("eventId")?.trim() || null;
   const [items, setItems] = useState<EvalQueueItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,7 +98,11 @@ export function EvaluatorQueuePage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await fetch("/api/me/eval-queue", {
+      const q =
+        eventIdFilter != null && eventIdFilter.length > 0
+          ? `?eventId=${encodeURIComponent(eventIdFilter)}`
+          : "";
+      const res = await fetch(`/api/me/eval-queue${q}`, {
         credentials: "include",
         headers: { accept: "application/json" },
       });
@@ -132,7 +139,7 @@ export function EvaluatorQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [activeId]);
+  }, [activeId, eventIdFilter]);
 
   function seedScores(item: EvalQueueItem) {
     const next: Record<string, string> = {};
@@ -409,7 +416,6 @@ export function EvaluatorQueuePage() {
       data-layout="low-distraction"
     >
       <PageHeader
-        eyebrow="Evaluator"
         title="Evaluation queue"
         description={
           items[0]?.event?.name
@@ -558,6 +564,15 @@ export function EvaluatorQueuePage() {
           data-testid="eval-queue-list"
           aria-label="Assigned submissions"
         >
+          {filteredItems.length === 0 ? (
+            <li>
+              <EmptyState
+                title="No matching assignments"
+                description="Nothing matches your search or filter. Clear filters to see all assigned submissions."
+                data-testid="eval-queue-filter-empty"
+              />
+            </li>
+          ) : null}
           {filteredItems.map((item) => {
             const done = isAssignmentComplete(item);
             return (

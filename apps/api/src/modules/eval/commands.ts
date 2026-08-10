@@ -579,22 +579,27 @@ export async function assignEvaluators(
 /**
  * GET /api/me/eval-queue — only assignments for the current user.
  * Unassigned submissions are never included (F01).
+ * Optional eventId filters to one programme (multi-event evaluators).
  */
 export async function getEvalQueue(
   deps: EvalCommandDeps,
   evaluatorUserId: string,
+  opts?: { eventId?: string | null },
 ): Promise<CommandOk<{ items: EvalQueueItem[] }>> {
   const assignments =
     await deps.eval.listAssignmentsForEvaluator(evaluatorUserId);
   const items: EvalQueueItem[] = [];
+  const filterEventId = opts?.eventId?.trim() || null;
 
   for (const a of assignments) {
     const submission = await deps.submissions.findSubmissionById(
       a.submissionId,
     );
     if (!submission) continue;
+    if (filterEventId && submission.eventId !== filterEventId) continue;
     const round = await deps.eval.findRoundById(a.roundId);
     if (!round) continue;
+    if (filterEventId && round.eventId !== filterEventId) continue;
     const event = await deps.events.findEventById(round.eventId);
     if (!event) continue;
     const criteria = await deps.eval.listCriteria(round.id);

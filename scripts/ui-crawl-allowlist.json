@@ -828,6 +828,42 @@
       "inv": "B03",
       "surface": "shell",
       "journey": "Sign out from role shell"
+    },
+    {
+      "testid": "role-shell-help",
+      "inv": "B03",
+      "surface": "shell",
+      "journey": "Help control on role shell"
+    },
+    {
+      "testid": "portal-nav-home",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Section Home"
+    },
+    {
+      "testid": "portal-nav-profile",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Section Profile"
+    },
+    {
+      "testid": "portal-nav-tasks",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Section Tasks"
+    },
+    {
+      "testid": "portal-nav-sessions",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Section Sessions"
+    },
+    {
+      "testid": "portal-bottom-*",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Mobile section nav"
     }
   ]
 }

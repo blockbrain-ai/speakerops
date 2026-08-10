@@ -142,6 +142,7 @@
 | G06 | speaker | Tasks | Overdue visual state | e2e/portal/task-overdue | — | REQUIRED | PASS |
 | G07 | speaker | Sessions | View own session status | e2e/portal/session | No other speakers’ private data | REQUIRED | PASS |
 | G08 | speaker | Portal | Mobile complete bio+task | e2e/portal/mobile | — | REQUIRED | PASS |
+| G11 | speaker | Portal | Section nav Home/Profile/Tasks/Sessions active + focus | e2e/portal/section-nav | Short page still shows active change | REQUIRED | PASS |
 
 ---
 

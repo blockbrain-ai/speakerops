@@ -15,6 +15,7 @@
 | E01–E08 | 3.5 | 3.6 then 8.2 | Submissions/decisions |
 | F01–F04 | 3.4 | 3.6 then 8.2 | Evaluator |
 | G01–G08 | 4.3 | 4.4 then 8.2 | Portal |
+| G11 | 4.3 | 4.4 then 8.2 | Portal section nav |
 | H01–H05 | 6.3 | 6.4 then 8.2 | Dashboard |
 | I01–I16 | 6.2 | 6.4 then 8.2 | Schedule |
 | J01–J10 | 5.3 | 5.4 then 8.2 | Comms (J06/J10 need 6.1 placements available in seed) |

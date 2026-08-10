@@ -75,17 +75,51 @@ export const PortalReadinessSchema = z.object({
 });
 export type PortalReadiness = z.infer<typeof PortalReadinessSchema>;
 
+/** Uploaded file on portal home (headshot/slides) — durable after reload. */
+export const PortalFileItemSchema = z.object({
+  id: z.string().min(1),
+  purpose: z.enum(["headshot", "slides", "logo"]),
+  filename: z.string().nullable(),
+  mime: z.string().min(1),
+  uploaded: z.boolean(),
+  updatedAt: z.string().min(1),
+});
+export type PortalFileItem = z.infer<typeof PortalFileItemSchema>;
+
+/** Session placement when/where for the speaker. */
+export const PortalSessionPlacementSchema = z.object({
+  startsAt: z.string().min(1),
+  endsAt: z.string().min(1),
+  roomId: z.string().nullable(),
+  roomName: z.string().nullable(),
+});
+export type PortalSessionPlacement = z.infer<
+  typeof PortalSessionPlacementSchema
+>;
+
+/** Portal session = programme session + optional schedule placement. */
+export const PortalSessionSchema = ProgramSessionSchema.extend({
+  placement: PortalSessionPlacementSchema.nullable().optional(),
+});
+export type PortalSessionDto = z.infer<typeof PortalSessionSchema>;
+
 export const PortalHomeResponseSchema = z.object({
   eventId: z.string().min(1),
   /** Display name for the event (paid-product identity). */
   eventName: z.string().min(1),
   eventSlug: z.string().min(1).optional().nullable(),
-  /** Optional brand colour when design is published. */
+  /** Event timezone for session when/where display. */
+  eventTimezone: z.string().min(1).optional().nullable(),
+  /** Published design tokens only (draft never leaked). */
   brandColor: z.string().nullable().optional(),
+  brandSoft: z.string().nullable().optional(),
+  brandFg: z.string().nullable().optional(),
   logoFileId: z.string().nullable().optional(),
   participations: z.array(ParticipationProfileSchema),
   tasks: z.array(PortalTaskSchema),
-  sessions: z.array(ProgramSessionSchema),
+  sessions: z.array(PortalSessionSchema),
+  /** Own uploaded files (headshot/slides) for durable UI. */
+  files: z.array(PortalFileItemSchema).default([]),
   /** Next incomplete task (pending, not cancelled) ordered by dueAt then createdAt. */
   nextTask: PortalTaskSchema.nullable(),
   /** Single readiness contract — never celebrate incomplete profile as ready. */

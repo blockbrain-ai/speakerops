@@ -75,6 +75,7 @@
     "G06",
     "G07",
     "G08",
+    "G11",
     "H01",
     "H02",
     "H03",
@@ -644,6 +645,10 @@
     "B08": {
       "test_id": "e2e/auth/membership-chooser",
       "journey": "Multi-membership chooser after exchange \u2192 pick named programme"
+    },
+    "G11": {
+      "test_id": "e2e/portal/section-nav",
+      "journey": "Section nav Home/Profile/Tasks/Sessions active + focus"
     }
   }
 }

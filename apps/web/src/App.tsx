@@ -91,47 +91,26 @@ function SettingsGuard({ children }: { children: ReactNode }) {
   );
 }
 
-/** Evaluator surface — protected queue with account/event shell. */
+/** Evaluator surface — protected queue with account shell (no fake Queue self-link). */
 function EvaluatorGuard({ children }: { children: ReactNode }) {
   return (
     <RequireRole roles={["evaluator"]}>
       <BareLayout>
-        <RoleShell
-          role="evaluator"
-          nav={[{ href: "/eval", label: "Queue", testId: "eval-nav-queue" }]}
-        >
-          {children}
-        </RoleShell>
+        <RoleShell role="evaluator">{children}</RoleShell>
       </BareLayout>
     </RequireRole>
   );
 }
 
-/** Speaker portal — protected + lightweight programme shell. */
+/**
+ * Speaker portal — RoleShell chrome only; section nav owned by PortalHome
+ * (passes active section + handlers into RoleShell via context would couple
+ * tightly). PortalHome renders RoleShell itself for eventName/brand props.
+ */
 function SpeakerGuard({ children }: { children: ReactNode }) {
   return (
     <RequireRole roles={["speaker"]}>
-      <BareLayout>
-        <RoleShell
-          role="speaker"
-          nav={[
-            { href: "#portal-home-top", label: "Home", testId: "portal-nav-home" },
-            { href: "#portal-tasks", label: "Tasks", testId: "portal-nav-tasks" },
-            {
-              href: "#portal-profile",
-              label: "Profile",
-              testId: "portal-nav-profile",
-            },
-            {
-              href: "#portal-sessions",
-              label: "Sessions",
-              testId: "portal-nav-sessions",
-            },
-          ]}
-        >
-          {children}
-        </RoleShell>
-      </BareLayout>
+      <BareLayout>{children}</BareLayout>
     </RequireRole>
   );
 }

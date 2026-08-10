@@ -35,10 +35,13 @@ export function NotFoundPage() {
   );
 }
 
-/** Wrap children for non-admin surfaces (public) without inventing extra chrome. */
+/**
+ * Full-viewport frame for public + role shells.
+ * Do not reuse admin-shell__content (inset anti-pattern).
+ */
 export function BareLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="admin-shell__content" data-testid="bare-layout">
+    <div className="app-frame" data-testid="bare-layout">
       {children}
     </div>
   );

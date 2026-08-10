@@ -534,6 +534,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     submissions: submissionsStore,
     decisions: decisionsStore,
     design: designStore,
+    schedule: scheduleStore,
     keys: keysStore,
   };
 

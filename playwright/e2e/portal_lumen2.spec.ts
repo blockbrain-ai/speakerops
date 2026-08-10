@@ -293,7 +293,7 @@ test.describe("11.6 portal + speakers lumen2", () => {
     await expect(page.getByTestId("portal-next-task")).toBeVisible();
     await expect(page.getByTestId("portal-bottom-nav")).toBeVisible();
     await expect(page.getByTestId("portal-bottom-home")).toBeVisible();
-    await expect(page.getByTestId("portal-bottom-next")).toBeVisible();
+    await expect(page.getByTestId("portal-bottom-profile")).toBeVisible();
     await expect(page.getByTestId("portal-bottom-profile")).toBeVisible();
 
     // Primary complete action reachable without horizontal overflow

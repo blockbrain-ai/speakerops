@@ -47,6 +47,8 @@ export type PortalCommandDeps = {
   auth: AuthStore;
   submissions: SubmissionsStore;
   design?: DesignStore;
+  /** Optional schedule for session when/where on portal home. */
+  schedule?: import("../schedule/store.js").ScheduleStore;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -118,6 +120,47 @@ function toSessionDto(row: ProgramSessionRow): ProgramSessionDto {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+async function toPortalSessionDto(
+  deps: PortalCommandDeps,
+  row: ProgramSessionRow,
+): Promise<
+  ProgramSessionDto & {
+    placement: {
+      startsAt: string;
+      endsAt: string;
+      roomId: string | null;
+      roomName: string | null;
+    } | null;
+  }
+> {
+  const base = toSessionDto(row);
+  if (!deps.schedule) {
+    return { ...base, placement: null };
+  }
+  try {
+    const pl = await deps.schedule.findPlacementBySession(row.id);
+    if (!pl || pl.eventId !== row.eventId) {
+      return { ...base, placement: null };
+    }
+    let roomName: string | null = null;
+    if (pl.roomId) {
+      const room = await deps.events.findRoom(row.eventId, pl.roomId);
+      roomName = room?.name ?? null;
+    }
+    return {
+      ...base,
+      placement: {
+        startsAt: pl.startsAt,
+        endsAt: pl.endsAt,
+        roomId: pl.roomId ?? null,
+        roomName,
+      },
+    };
+  } catch {
+    return { ...base, placement: null };
+  }
 }
 
 function toTemplateDto(row: TaskTemplateRow): TaskTemplateDto {
@@ -246,18 +289,38 @@ async function sessionsForParticipations(
   deps: PortalCommandDeps,
   eventId: string,
   partIds: string[],
-): Promise<ProgramSessionDto[]> {
+): Promise<
+  Array<
+    ProgramSessionDto & {
+      placement: {
+        startsAt: string;
+        endsAt: string;
+        roomId: string | null;
+        roomName: string | null;
+      } | null;
+    }
+  >
+> {
   const sessionIds = new Set<string>();
   for (const pid of partIds) {
     const links =
       await deps.decisions.listSessionSpeakersForParticipation(pid);
     for (const l of links) sessionIds.add(l.sessionId);
   }
-  const sessions: ProgramSessionDto[] = [];
+  const sessions: Array<
+    ProgramSessionDto & {
+      placement: {
+        startsAt: string;
+        endsAt: string;
+        roomId: string | null;
+        roomName: string | null;
+      } | null;
+    }
+  > = [];
   for (const sid of sessionIds) {
     const s = await deps.decisions.findSessionById(sid);
     if (s && s.eventId === eventId && s.status !== "cancelled") {
-      sessions.push(toSessionDto(s));
+      sessions.push(await toPortalSessionDto(deps, s));
     }
   }
   return sessions;
@@ -302,16 +365,48 @@ export async function getPortalHome(
   const readiness = computePortalReadiness(primary, tasks);
 
   let brandColor: string | null = null;
+  let brandSoft: string | null = null;
+  let brandFg: string | null = null;
   let logoFileId: string | null = null;
   if (deps.design) {
     try {
       const pub = await deps.design.findPublished(input.eventId);
       if (pub?.tokens) {
         brandColor = pub.tokens.brand ?? null;
+        brandSoft = pub.tokens.brandSoft ?? null;
+        brandFg = pub.tokens.brandFg ?? null;
         logoFileId = pub.tokens.logoFileId ?? null;
       }
     } catch {
       /* brand optional */
+    }
+  }
+
+  // Durable file list for portal UI (headshot + slides)
+  const files: Array<{
+    id: string;
+    purpose: "headshot" | "slides" | "logo";
+    filename: string | null;
+    mime: string;
+    uploaded: boolean;
+    updatedAt: string;
+  }> = [];
+  if (parts[0]) {
+    const metas = await filesForParticipation(deps, input.eventId, parts[0]);
+    for (const m of metas) {
+      const purpose =
+        m.purpose === "headshot" || m.purpose === "slides" || m.purpose === "logo"
+          ? m.purpose
+          : null;
+      if (!purpose) continue;
+      files.push({
+        id: m.id,
+        purpose,
+        filename: m.filename ?? null,
+        mime: m.mime,
+        uploaded: Boolean(m.uploaded),
+        updatedAt: m.createdAt,
+      });
     }
   }
 
@@ -321,11 +416,15 @@ export async function getPortalHome(
       eventId: input.eventId,
       eventName: event.name,
       eventSlug: event.slug ?? null,
+      eventTimezone: event.timezone ?? null,
       brandColor,
+      brandSoft,
+      brandFg,
       logoFileId,
       participations,
       tasks,
       sessions,
+      files,
       nextTask,
       readiness,
     },

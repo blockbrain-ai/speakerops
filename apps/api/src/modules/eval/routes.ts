@@ -507,7 +507,8 @@ export function createMeEvalRoutes(options: EvalRouteOptions): Hono<ApiEnv> {
       );
     }
 
-    const result = await getEvalQueue(deps, user.id);
+    const eventIdQ = c.req.query("eventId")?.trim() || null;
+    const result = await getEvalQueue(deps, user.id, { eventId: eventIdQ });
     const out = EvalQueueResponseSchema.safeParse(result.value);
     if (!out.success) {
       return c.json(

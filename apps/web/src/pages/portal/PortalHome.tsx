@@ -43,8 +43,9 @@ import {
   type PortalHomeResponse,
   type PortalTaskDto,
   type ParticipationProfileDto,
-  type ProgramSessionDto,
+  type PortalSessionDto,
 } from "@speakerops/shared";
+import { RoleShell } from "../../layout/RoleShell.js";
 import { PortalFileField } from "../../components/portal/PortalFileField.js";
 import {
   sanitizeBioText,
@@ -80,14 +81,24 @@ function statusBadgeClass(status: string): string {
   }
 }
 
+const PORTAL_SECTIONS = [
+  { id: "portal-home", label: "Home", testId: "portal-nav-home" },
+  { id: "portal-profile", label: "Profile", testId: "portal-nav-profile" },
+  { id: "portal-tasks", label: "Tasks", testId: "portal-nav-tasks" },
+  { id: "portal-sessions", label: "Sessions", testId: "portal-nav-sessions" },
+] as const;
+
 export function PortalHomePage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const eventId = searchParams.get("eventId")?.trim() || "";
+  const sectionParam = searchParams.get("section")?.trim() || "";
 
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [home, setHome] = useState<PortalHomeResponse | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState("portal-home");
+  const [sectionFlash, setSectionFlash] = useState<string | null>(null);
 
   // Profile form
   const [bio, setBio] = useState("");
@@ -179,7 +190,15 @@ export function PortalHomePage() {
   );
 
   const tasks: PortalTaskDto[] = home?.tasks ?? [];
-  const sessions: ProgramSessionDto[] = home?.sessions ?? [];
+  const sessions: PortalSessionDto[] = home?.sessions ?? [];
+  const portalFiles = home?.files ?? [];
+  const slidesFile = useMemo(
+    () =>
+      [...portalFiles]
+        .filter((f) => f.purpose === "slides" && f.uploaded)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null,
+    [portalFiles],
+  );
   const nextTask = useMemo(
     () => (home ? pickNextIncomplete(home.tasks) : null),
     [home],
@@ -190,19 +209,94 @@ export function PortalHomePage() {
     [participation],
   );
   const tasksProg = useMemo(() => taskProgress(tasks), [tasks]);
-  const overallProg = useMemo(
-    () => overallPortalProgress(participation, tasks),
-    [participation, tasks],
+  /** Prefer server readiness percent; fall back to client only if missing. */
+  const overallProg = useMemo(() => {
+    if (home?.readiness) {
+      return {
+        percent: home.readiness.percent,
+        profileDone: home.readiness.profileDone,
+        profileTotal: home.readiness.profileTotal,
+      };
+    }
+    return overallPortalProgress(participation, tasks);
+  }, [home, participation, tasks]);
+
+  /** Published design tokens only (portal brand blast radius). */
+  const portalStyle = useMemo((): CSSProperties => {
+    const style: CSSProperties = {};
+    if (home?.brandColor) {
+      (style as Record<string, string>)["--lumen-brand"] = home.brandColor;
+    }
+    if (home?.brandSoft) {
+      (style as Record<string, string>)["--lumen-brand-soft"] = home.brandSoft;
+    }
+    if (home?.brandFg) {
+      (style as Record<string, string>)["--lumen-brand-fg"] = home.brandFg;
+    }
+    return style;
+  }, [home?.brandColor, home?.brandSoft, home?.brandFg]);
+
+  const selectSection = useCallback(
+    (sectionId: string) => {
+      setActiveSection(sectionId);
+      setSectionFlash(sectionId);
+      window.setTimeout(() => setSectionFlash(null), 450);
+      const next = new URLSearchParams(searchParams);
+      if (eventId) next.set("eventId", eventId);
+      next.set("section", sectionId.replace(/^portal-/, ""));
+      setSearchParams(next, { replace: true });
+      const el = document.getElementById(sectionId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        const heading = el.querySelector("h2, h1");
+        if (heading instanceof HTMLElement) {
+          heading.setAttribute("tabindex", "-1");
+          heading.focus({ preventScroll: true });
+        }
+      }
+    },
+    [eventId, searchParams, setSearchParams],
   );
 
-  /** Brand token surface: Lumen brand CSS variables (portal/public scope only). */
-  const portalStyle = useMemo((): CSSProperties => {
-    return {
-      // Speaker surface may use brand tokens (E6 / Lumen lock blast radius)
-      ["--lumen-brand" as string]: "var(--lumen-brand)",
-      ["--lumen-brand-soft" as string]: "var(--lumen-brand-soft)",
+  // Deep link + IntersectionObserver for active section
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    const map: Record<string, string> = {
+      home: "portal-home",
+      profile: "portal-profile",
+      tasks: "portal-tasks",
+      sessions: "portal-sessions",
     };
-  }, []);
+    const fromQuery = sectionParam ? map[sectionParam] : null;
+    if (fromQuery) {
+      setActiveSection(fromQuery);
+      window.requestAnimationFrame(() => {
+        document.getElementById(fromQuery)?.scrollIntoView({ block: "start" });
+      });
+    }
+  }, [loadState, sectionParam]);
+
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    const ids = PORTAL_SECTIONS.map((s) => s.id);
+    const els = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => Boolean(el));
+    if (els.length === 0) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]?.target?.id) {
+          setActiveSection(visible[0].target.id);
+        }
+      },
+      { rootMargin: "-20% 0px -55% 0px", threshold: [0.1, 0.35, 0.6] },
+    );
+    for (const el of els) obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadState, home]);
 
   async function onSaveProfile(e: FormEvent) {
     e.preventDefault();
@@ -250,18 +344,10 @@ export function PortalHomePage() {
       setBio(p.bio ?? "");
       setCompany(p.company ?? "");
       setTitle(p.title ?? "");
-      setHome((prev) =>
-        prev
-          ? {
-              ...prev,
-              participations: prev.participations.map((x) =>
-                x.id === p.id ? p : x,
-              ),
-            }
-          : prev,
-      );
       setProfileStatus("Saved");
       showToast("Profile saved");
+      // Refresh readiness (server contract) after profile mutation
+      await loadHome(eventId);
     } catch {
       setProfileStatus("Network error");
     } finally {
@@ -349,6 +435,7 @@ export function PortalHomePage() {
         };
       });
       showToast("Task completed");
+      if (eventId) await loadHome(eventId);
     } catch {
       setHome((prev) => {
         if (!prev) return prev;
@@ -525,9 +612,11 @@ export function PortalHomePage() {
 
         setStatus(`Headshot uploaded (${file.name})`);
         showToast("Headshot ready");
+        await loadHome(eventId);
       } else {
         setStatus(`Slides uploaded (${file.name})`);
         showToast("Slides uploaded");
+        await loadHome(eventId);
       }
     } catch {
       setStatus("Network error");
@@ -596,46 +685,42 @@ export function PortalHomePage() {
   const stateLabel = participationStateLabel(participation?.status);
 
   return (
+    <RoleShell
+      role="speaker"
+      eventName={home?.eventName ?? null}
+      eventId={eventId}
+      sections={[...PORTAL_SECTIONS]}
+      activeSectionId={activeSection}
+      onSectionSelect={selectSection}
+      hideSectionNav={false}
+    >
     <div
       className="portal-page portal-page--l2"
       data-testid="portal-home"
       data-section="11.6"
       data-event-id={eventId}
       data-layout="next-task-first"
+      data-active-section={activeSection}
       style={portalStyle}
     >
-      {/* Desktop / tablet compact top nav */}
       <header className="portal-header" data-testid="portal-header">
         <div>
           <p className="portal-overline" data-testid="portal-event-name">
             {home?.eventName ?? "Speaker portal"}
           </p>
-          <h1 className="portal-title">Your programme home</h1>
-          {speakerName ? (
-            <p className="portal-muted" data-testid="portal-speaker-name">
-              {speakerName}
-              {stateLabel ? ` · ${stateLabel}` : ""}
-            </p>
-          ) : null}
+          <p className="portal-muted" data-testid="portal-speaker-name">
+            {speakerName}
+            {stateLabel ? ` · ${stateLabel}` : ""}
+          </p>
         </div>
-        <nav
-          className="portal-nav portal-nav--top"
-          aria-label="Portal sections"
-          data-testid="portal-nav-top"
-        >
-          <a className="portal-nav__link lumen-focusable" href="#portal-home-top">
-            Home
-          </a>
-          <a className="portal-nav__link lumen-focusable" href="#portal-tasks">
-            Tasks
-          </a>
-          <a className="portal-nav__link lumen-focusable" href="#portal-profile">
-            Profile
-          </a>
-          <a className="portal-nav__link lumen-focusable" href="#portal-sessions">
-            My sessions
-          </a>
-        </nav>
+        {home?.logoFileId ? (
+          <img
+            className="portal-event-logo"
+            data-testid="portal-event-logo"
+            src={`/api/public/files/${encodeURIComponent(home.logoFileId)}`}
+            alt=""
+          />
+        ) : null}
       </header>
 
       {toast ? (
@@ -661,12 +746,17 @@ export function PortalHomePage() {
       ) : null}
 
       {loadState === "ready" && home ? (
-        <div className="portal-home-stack" id="portal-home-top">
-          {/* Branded welcome */}
+        <div className="portal-home-stack">
+          {/* Home: welcome + progress + next action */}
           <section
+            className={`portal-section${sectionFlash === "portal-home" ? " portal-section--flash" : ""}`}
+            id="portal-home"
+            data-testid="portal-section-home"
+            aria-label="Home"
+          >
+          <div
             className="portal-welcome"
             data-testid="portal-welcome"
-            aria-label="Welcome"
           >
             <div className="portal-welcome__brand" aria-hidden="true" />
             <p className="portal-welcome__eyebrow">Welcome back</p>
@@ -679,7 +769,7 @@ export function PortalHomePage() {
                 ? ` · ${participation.personEmail}`
                 : ""}
             </p>
-          </section>
+          </div>
 
           {/* Progress model */}
           <section
@@ -820,21 +910,23 @@ export function PortalHomePage() {
                     "Complete your profile to continue."}
                 </p>
                 {!(home?.readiness?.profileComplete ?? false) ? (
-                  <a
+                  <button
+                    type="button"
                     className="portal-btn lumen-focusable"
-                    href="#portal-profile"
                     data-testid="portal-next-profile-cta"
+                    onClick={() => selectSection("portal-profile")}
                   >
                     Update profile
-                  </a>
+                  </button>
                 ) : null}
               </div>
             )}
           </section>
+          </section>{/* end #portal-home */}
 
-          {/* G02 — profile bio */}
+          {/* Profile + files (headshot & slides) */}
           <section
-            className="portal-card"
+            className={`portal-card portal-section${sectionFlash === "portal-profile" ? " portal-section--flash" : ""}`}
             id="portal-profile"
             data-testid="portal-profile"
           >
@@ -962,15 +1054,20 @@ export function PortalHomePage() {
               accept="application/pdf"
               disabled={!participation}
               busy={fileBusyPurpose === "slides"}
-              status={slidesStatus}
-              hasFile={Boolean(slidesStatus?.includes("uploaded"))}
+              status={
+                slidesStatus ??
+                (slidesFile
+                  ? `On file: ${slidesFile.filename ?? "slides.pdf"}`
+                  : null)
+              }
+              hasFile={Boolean(slidesFile)}
               onFile={(f) => void uploadFile(f, "slides")}
             />
           </section>
 
-          {/* G05 / G06 — tasks list */}
+          {/* Tasks */}
           <section
-            className="portal-card"
+            className={`portal-card portal-section${sectionFlash === "portal-tasks" ? " portal-section--flash" : ""}`}
             id="portal-tasks"
             data-testid="portal-tasks"
           >
@@ -1027,9 +1124,9 @@ export function PortalHomePage() {
             )}
           </section>
 
-          {/* G07 — own sessions only */}
+          {/* Sessions */}
           <section
-            className="portal-card"
+            className={`portal-card portal-section${sectionFlash === "portal-sessions" ? " portal-section--flash" : ""}`}
             id="portal-sessions"
             data-testid="portal-sessions"
           >
@@ -1043,25 +1140,55 @@ export function PortalHomePage() {
                 className="portal-session-list"
                 data-testid="portal-session-list"
               >
-                {sessions.map((s) => (
-                  <li
-                    key={s.id}
-                    className="portal-session"
-                    data-testid={`portal-session-${s.id}`}
-                    data-session-id={s.id}
-                  >
-                    <span className="portal-session__title">{s.title}</span>
-                    <span
-                      className={statusBadgeClass(
-                        s.status === "confirmed" ? "completed" : "pending",
-                      )}
-                      data-testid={`portal-session-status-${s.id}`}
-                      data-session-status={s.status}
+                {sessions.map((s) => {
+                  const place = s.placement ?? null;
+                  let whenWhere =
+                    "Not scheduled yet — organisers will place this session.";
+                  if (place) {
+                    try {
+                      const start = new Date(place.startsAt);
+                      const end = new Date(place.endsAt);
+                      const tz = home.eventTimezone ?? undefined;
+                      const fmt: Intl.DateTimeFormatOptions = {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                        timeZone: tz,
+                      };
+                      whenWhere = `${start.toLocaleString(undefined, fmt)} – ${end.toLocaleTimeString(undefined, { timeStyle: "short", timeZone: tz })}`;
+                      if (place.roomName) {
+                        whenWhere += ` · ${place.roomName}`;
+                      }
+                    } catch {
+                      whenWhere = `${place.startsAt} – ${place.endsAt}`;
+                    }
+                  }
+                  return (
+                    <li
+                      key={s.id}
+                      className="portal-session"
+                      data-testid={`portal-session-${s.id}`}
+                      data-session-id={s.id}
+                      data-has-placement={place ? "true" : "false"}
                     >
-                      {s.status}
-                    </span>
-                  </li>
-                ))}
+                      <span className="portal-session__title">{s.title}</span>
+                      <span
+                        className={statusBadgeClass(
+                          s.status === "confirmed" ? "completed" : "pending",
+                        )}
+                        data-testid={`portal-session-status-${s.id}`}
+                        data-session-status={s.status}
+                      >
+                        {s.status}
+                      </span>
+                      <p
+                        className="portal-muted portal-session__when"
+                        data-testid={`portal-session-when-${s.id}`}
+                      >
+                        {whenWhere}
+                      </p>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             <p
@@ -1074,48 +1201,28 @@ export function PortalHomePage() {
         </div>
       ) : null}
 
-      {/* Mobile bottom navigation (page-atlas) */}
+      {/* Mobile bottom navigation */}
       <nav
         className="portal-bottom-nav"
         aria-label="Portal primary"
         data-testid="portal-bottom-nav"
       >
-        <a
-          className="portal-bottom-nav__link lumen-focusable"
-          href="#portal-home-top"
-          data-testid="portal-bottom-home"
-        >
-          Home
-        </a>
-        <a
-          className="portal-bottom-nav__link lumen-focusable"
-          href="#portal-next-task"
-          data-testid="portal-bottom-next"
-        >
-          Next
-        </a>
-        <a
-          className="portal-bottom-nav__link lumen-focusable"
-          href="#portal-tasks"
-          data-testid="portal-bottom-tasks"
-        >
-          Tasks
-        </a>
-        <a
-          className="portal-bottom-nav__link lumen-focusable"
-          href="#portal-profile"
-          data-testid="portal-bottom-profile"
-        >
-          Profile
-        </a>
-        <a
-          className="portal-bottom-nav__link lumen-focusable"
-          href="#portal-sessions"
-          data-testid="portal-bottom-sessions"
-        >
-          Sessions
-        </a>
+        {PORTAL_SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={`portal-bottom-nav__link lumen-focusable${
+              activeSection === s.id ? " portal-bottom-nav__link--active" : ""
+            }`}
+            data-testid={`portal-bottom-${s.id.replace("portal-", "")}`}
+            aria-current={activeSection === s.id ? "true" : undefined}
+            onClick={() => selectSection(s.id)}
+          >
+            {s.label}
+          </button>
+        ))}
       </nav>
     </div>
+    </RoleShell>
   );
 }

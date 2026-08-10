@@ -1,8 +1,15 @@
 /**
  * Lightweight authenticated shell for speaker + evaluator (role-lifecycle UX).
- * Not a full admin IA — event identity, account, help, sign-out only.
+ * Product mark + event identity + account; optional section nav with active state.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+  type MouseEvent,
+} from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   MeMembershipsResponseSchema,
@@ -11,14 +18,28 @@ import {
 } from "@speakerops/shared";
 import { Button } from "../components/ui/Button.js";
 
+export type RoleShellNavItem = {
+  /** Section id without #, or path starting with / */
+  id: string;
+  label: string;
+  testId?: string;
+};
+
 export type RoleShellProps = {
   role: "speaker" | "evaluator";
   /** Active event display name when known (overrides membership lookup). */
   eventName?: string | null;
   eventId?: string | null;
   children: ReactNode;
-  /** Optional compact nav links (role-specific). */
-  nav?: Array<{ href: string; label: string; testId?: string }>;
+  /**
+   * Section nav (speaker). ids are section element ids; activeId highlights current.
+   * Omit for evaluator (no self-link Queue).
+   */
+  sections?: RoleShellNavItem[];
+  activeSectionId?: string | null;
+  onSectionSelect?: (sectionId: string) => void;
+  /** Hide section nav (mobile uses bottom nav). */
+  hideSectionNav?: boolean;
 };
 
 export function RoleShell({
@@ -26,7 +47,10 @@ export function RoleShell({
   eventName: eventNameProp,
   eventId: eventIdProp,
   children,
-  nav,
+  sections,
+  activeSectionId,
+  onSectionSelect,
+  hideSectionNav = false,
 }: RoleShellProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -35,6 +59,7 @@ export function RoleShell({
   const [email, setEmail] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<AuthMembershipOption[]>([]);
   const [signingOut, setSigningOut] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,11 +86,13 @@ export function RoleShell({
 
   const eventName = useMemo(() => {
     if (eventNameProp?.trim()) return eventNameProp.trim();
-    if (!eventId) return null;
-    const hit = memberships.find(
-      (m) => m.eventId === eventId && (m.role === role || role === "evaluator"),
-    );
-    return hit?.eventName ?? null;
+    const sameRole = memberships.filter((m) => m.role === role);
+    if (eventId) {
+      const hit = sameRole.find((m) => m.eventId === eventId);
+      if (hit?.eventName) return hit.eventName;
+    }
+    if (sameRole.length === 1) return sameRole[0]!.eventName;
+    return null;
   }, [eventNameProp, eventId, memberships, role]);
 
   const signOut = useCallback(async () => {
@@ -87,6 +114,14 @@ export function RoleShell({
   const sameRoleMemberships = memberships.filter((m) => m.role === role);
   const showSwitcher = sameRoleMemberships.length > 1;
 
+  function onNavClick(e: MouseEvent, sectionId: string) {
+    e.preventDefault();
+    onSectionSelect?.(sectionId);
+  }
+
+  const showSections =
+    !hideSectionNav && sections && sections.length > 0 && onSectionSelect;
+
   return (
     <div
       className={`role-shell role-shell--${role}`}
@@ -96,6 +131,9 @@ export function RoleShell({
     >
       <header className="role-shell__header" data-testid="role-shell-header">
         <div className="role-shell__brand">
+          <p className="role-shell__product" data-testid="role-shell-product">
+            SpeakerOps
+          </p>
           <p className="role-shell__overline" data-testid="role-shell-role">
             {roleLabel}
           </p>
@@ -138,13 +176,36 @@ export function RoleShell({
               </select>
             </label>
           ) : null}
-          <a
-            className="role-shell__help lumen-focusable"
-            href="mailto:programme@speakerops.org?subject=SpeakerOps%20help"
-            data-testid="role-shell-help"
-          >
-            Help
-          </a>
+          <div className="role-shell__help-wrap">
+            <button
+              type="button"
+              className="role-shell__help lumen-focusable"
+              data-testid="role-shell-help"
+              aria-expanded={helpOpen}
+              onClick={() => setHelpOpen((o) => !o)}
+            >
+              Help
+            </button>
+            {helpOpen ? (
+              <div
+                className="role-shell__help-panel"
+                data-testid="role-shell-help-panel"
+                role="region"
+                aria-label="Help"
+              >
+                <p>
+                  Need support with this programme? Contact the programme team.
+                </p>
+                <a
+                  className="role-shell__help-mail lumen-focusable"
+                  href="mailto:programme@speakerops.org?subject=SpeakerOps%20help"
+                  data-testid="role-shell-help-mailto"
+                >
+                  Email programme@speakerops.org
+                </a>
+              </div>
+            ) : null}
+          </div>
           <Button
             type="button"
             variant="quiet"
@@ -157,22 +218,29 @@ export function RoleShell({
           </Button>
         </div>
       </header>
-      {nav && nav.length > 0 ? (
+      {showSections ? (
         <nav
           className="role-shell__nav"
           aria-label={`${roleLabel} sections`}
           data-testid="role-shell-nav"
         >
-          {nav.map((item) => (
-            <a
-              key={item.href}
-              className="role-shell__nav-link lumen-focusable"
-              href={item.href}
-              data-testid={item.testId}
-            >
-              {item.label}
-            </a>
-          ))}
+          {sections!.map((item) => {
+            const active = activeSectionId === item.id;
+            return (
+              <a
+                key={item.id}
+                className={`role-shell__nav-link lumen-focusable${
+                  active ? " role-shell__nav-link--active" : ""
+                }`}
+                href={`#${item.id}`}
+                data-testid={item.testId}
+                aria-current={active ? "true" : undefined}
+                onClick={(e) => onNavClick(e, item.id)}
+              >
+                {item.label}
+              </a>
+            );
+          })}
         </nav>
       ) : null}
       <main className="role-shell__main" data-testid="role-shell-main">

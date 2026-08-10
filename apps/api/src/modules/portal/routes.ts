@@ -71,6 +71,8 @@ export type PortalRouteOptions = {
   submissions: SubmissionsStore;
   decisions: DecisionsStore;
   design?: DesignStore;
+  /** Session when/where for portal home. */
+  schedule?: import("../schedule/store.js").ScheduleStore;
   /** Bearer speakers:write for Speakers.UpdateProfile (CLI). */
   keys?: import("../keys/store.js").KeysStore;
 };
@@ -104,8 +106,15 @@ export function createPortalRoutes(
   options: PortalRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions, design } = options;
-  const deps = { decisions, events, auth: store, submissions, design };
+  const { store, events, submissions, decisions, design, schedule } = options;
+  const deps = {
+    decisions,
+    events,
+    auth: store,
+    submissions,
+    design,
+    schedule,
+  };
 
   /**
    * GET /home — Portal.GetHome
