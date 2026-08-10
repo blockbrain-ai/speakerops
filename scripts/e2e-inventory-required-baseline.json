@@ -76,6 +76,7 @@
     "G06",
     "G07",
     "G08",
+    "G09",
     "G11",
     "H01",
     "H02",
@@ -654,6 +655,10 @@
     "B07": {
       "test_id": "e2e/public/judge-access",
       "journey": "Judge access code exchanges for demo role session (4h; body-posted code)"
+    },
+    "G09": {
+      "test_id": "e2e/portal/session-ics",
+      "journey": "Download own session calendar invite (.ics; placed sessions)"
     }
   }
 }

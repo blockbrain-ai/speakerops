@@ -542,6 +542,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     design: designStore,
     schedule: scheduleStore,
     keys: keysStore,
+    // Portal.SessionIcs — UID/SEQUENCE continuity with admin comms invites.
+    comms: commsStore,
   };
 
   // Section 4.1 — Portal.GetHome / Task.Complete / Participation.UpdateProfile

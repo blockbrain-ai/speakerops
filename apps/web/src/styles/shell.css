@@ -5159,3 +5159,16 @@ a.event-settings__btn {
     grid-template-columns: 1fr;
   }
 }
+
+/* Portal session ICS download (G09 — speaker-owned calendar invite) */
+.portal-session__ics {
+  display: inline-block;
+  margin-top: var(--lumen-space-1);
+  font-size: 0.85rem;
+  color: var(--lumen-brand);
+  text-decoration: none;
+  border-radius: var(--lumen-radius-sm);
+}
+.portal-session__ics:hover {
+  text-decoration: underline;
+}

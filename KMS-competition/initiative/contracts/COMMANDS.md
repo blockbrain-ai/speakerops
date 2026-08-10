@@ -55,6 +55,7 @@ Auth: session cookie **or** API key with scopes.
 ## Portal & files
 | Command | Scope | Input | Output |
 |---------|-------|-------|--------|
+| `Portal.SessionIcs` | speaker session (own participation → session link verified) | sessionId (path), eventId | text/calendar attachment; stored UID/SEQUENCE continuity; 404 non-owned/unknown/unscheduled (no probing); read-only |
 | `Portal.GetHome` | speaker | eventId | tasks, sessions |
 | `Participation.UpdateProfile` | speaker | participationId, bio, …, expectedVersion | participation |
 | `File.PresignUpload` | files:write / speaker / admin | eventId, purpose, mime, size (≤10 MiB), filename?, **ownerParticipationId** (required when purpose is `headshot` or `slides`; ignored/null for `logo`) | { url, fileId, mime, purpose, expiresAt } |
@@ -149,6 +150,7 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | GET | /api/me/eval-queue | Eval.GetQueue (assigned only) |
 | POST | /api/submissions/:submissionId/decision | Decision.Record |
 | POST | /api/events/:eventId/sessions/direct | Session.CreateDirect |
+| GET | /api/portal/sessions/:sessionId/invite.ics | Portal.SessionIcs (speaker-owned .ics download) |
 | GET | /api/portal/home | Portal.GetHome |
 | PATCH | /api/portal/participations/:id | Participation.UpdateProfile |
 | POST | /api/portal/tasks/:taskId/complete | Task.Complete |

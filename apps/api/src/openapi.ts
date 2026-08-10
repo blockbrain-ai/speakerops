@@ -1083,6 +1083,42 @@ export const DECISION_OPENAPI_PATHS = {
 
 /** Portal + speakers + task templates OpenAPI paths (section 4.1). */
 export const PORTAL_OPENAPI_PATHS = {
+  "/api/portal/sessions/{sessionId}/invite.ics": {
+    get: {
+      operationId: "Portal.SessionIcs",
+      summary: "Portal.SessionIcs",
+      description:
+        "Speaker-owned calendar invite download (G09). Serves text/calendar " +
+        "for ONE of the signed-in speaker's own placed sessions; ownership " +
+        "verified server-side (participation → session link); non-owned or " +
+        "unknown sessions 404 (no existence probing); unscheduled 404. " +
+        "Read-only: reuses stored invite UID/SEQUENCE when the admin comms " +
+        "flow issued one, else stable UID with SEQUENCE 0.",
+      tags: ["Portal"],
+      parameters: [
+        {
+          name: "sessionId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "eventId",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": {
+          description:
+            "text/calendar attachment (invite.ics) with UID/SEQUENCE",
+        },
+        "401": { description: "Authentication required" },
+        "404": { description: "Not found / not owned / not scheduled" },
+      },
+    },
+  },
   "/api/portal/home": {
     get: {
       operationId: "Portal.GetHome",

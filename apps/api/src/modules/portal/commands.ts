@@ -30,6 +30,7 @@ import {
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
+import { renderIcs, stableIcsUid } from "../comms/ics.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DesignStore } from "../design/store.js";
 import {
@@ -1386,5 +1387,112 @@ export async function deleteTaskTemplate(
   return {
     ok: true,
     value: { deleted: true, id: existing.id },
+  };
+}
+
+/**
+ * Portal.SessionIcs — speaker-owned calendar invite download (read-only).
+ *
+ * Serves the current ICS body for ONE of the signed-in speaker's own placed
+ * sessions. Ownership is verified server-side (participation → session link);
+ * non-owned / unknown sessions return 404 (no existence probing). Reuses the
+ * stored calendar_invites UID/SEQUENCE when the admin comms flow has already
+ * issued one so a later email invite and this download stay the same VEVENT
+ * identity; otherwise derives the stable UID with SEQUENCE 0. Never writes.
+ */
+export async function portalSessionIcs(
+  deps: PortalCommandDeps & {
+    comms?: {
+      findCalendarInviteByPlacement(
+        eventId: string,
+        placementId: string,
+      ): Promise<{ uid: string; sequence: number } | null>;
+    };
+  },
+  input: {
+    eventId: string;
+    userId: string;
+    userEmail: string;
+    sessionId: string;
+    correlationId?: string;
+  },
+): Promise<CommandOk<{ filename: string; body: string }> | CommandErr> {
+  const event = await deps.events.findEventById(input.eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+
+  const parts = await resolveOwnParticipations(deps, input);
+  let owned = false;
+  for (const p of parts) {
+    const links = await deps.decisions.listSessionSpeakersForParticipation(
+      p.id,
+    );
+    if (links.some((l) => l.sessionId === input.sessionId)) {
+      owned = true;
+      break;
+    }
+  }
+  if (!owned) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+
+  const session = await deps.decisions.findSessionById(input.sessionId);
+  if (
+    !session ||
+    session.eventId !== input.eventId ||
+    session.status === "cancelled"
+  ) {
+    return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
+  }
+
+  if (!deps.schedule) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Session is not scheduled yet",
+      code: "NOT_FOUND",
+    };
+  }
+  const placement = await deps.schedule.findPlacementBySession(session.id);
+  if (!placement || placement.eventId !== input.eventId) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Session is not scheduled yet",
+      code: "NOT_FOUND",
+    };
+  }
+
+  let roomName: string | null = null;
+  if (placement.roomId) {
+    const room = await deps.events.findRoom(input.eventId, placement.roomId);
+    roomName = room?.name ?? null;
+  }
+
+  const prior = deps.comms
+    ? await deps.comms.findCalendarInviteByPlacement(
+        input.eventId,
+        placement.id,
+      )
+    : null;
+  const uid = prior?.uid ?? stableIcsUid(input.eventId, placement.id);
+  const sequence = prior?.sequence ?? 0;
+
+  const body = renderIcs({
+    uid,
+    sequence,
+    method: "REQUEST",
+    summary: session.title,
+    startsAt: placement.startsAt,
+    endsAt: placement.endsAt,
+    location: roomName,
+    description: `${event.name} — ${session.title}`,
+    attendeeEmail: input.userEmail || null,
+  });
+
+  return {
+    ok: true,
+    value: { filename: "invite.ics", body },
   };
 }

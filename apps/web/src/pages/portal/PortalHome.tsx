@@ -1726,6 +1726,19 @@ export function PortalHomePage() {
                       >
                         {whenWhere}
                       </p>
+                      {place ? (
+                        // Real download (Portal.SessionIcs, G09) — a plain
+                        // anchor is correct here: it streams text/calendar
+                        // with an attachment disposition, not SPA navigation.
+                        <a
+                          className="portal-session__ics lumen-focusable"
+                          href={`/api/portal/sessions/${encodeURIComponent(s.id)}/invite.ics?eventId=${encodeURIComponent(eventId)}`}
+                          download="invite.ics"
+                          data-testid={`portal-session-ics-${s.id}`}
+                        >
+                          Add to calendar (.ics)
+                        </a>
+                      ) : null}
                     </li>
                   );
                 })}

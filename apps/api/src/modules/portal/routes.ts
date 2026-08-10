@@ -63,6 +63,7 @@ import {
   createTaskTemplate,
   updateTaskTemplate,
   deleteTaskTemplate,
+  portalSessionIcs,
 } from "./commands.js";
 
 export type PortalRouteOptions = {
@@ -75,6 +76,8 @@ export type PortalRouteOptions = {
   schedule?: import("../schedule/store.js").ScheduleStore;
   /** Bearer speakers:write for Speakers.UpdateProfile (CLI). */
   keys?: import("../keys/store.js").KeysStore;
+  /** Calendar-invite UID/SEQUENCE continuity for Portal.SessionIcs (optional). */
+  comms?: import("../comms/store.js").CommsStore;
 };
 
 function commandError(
@@ -106,7 +109,8 @@ export function createPortalRoutes(
   options: PortalRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions, design, schedule } = options;
+  const { store, events, submissions, decisions, design, schedule, comms } =
+    options;
   const deps = {
     decisions,
     events,
@@ -114,7 +118,55 @@ export function createPortalRoutes(
     submissions,
     design,
     schedule,
+    comms,
   };
+
+  /**
+   * GET /sessions/:sessionId/invite.ics — Portal.SessionIcs (G09).
+   * Speaker-owned calendar download: ownership verified server-side
+   * (participation → session link); non-owned / unknown → 404. Read-only:
+   * reuses stored invite UID/SEQUENCE when present, never writes.
+   * Query: eventId (required). Response: text/calendar attachment.
+   */
+  app.get(
+    "/sessions/:sessionId/invite.ics",
+    requireSession(store),
+    async (c) => {
+      const q = PortalHomeQuerySchema.safeParse({
+        eventId: c.req.query("eventId"),
+      });
+      if (!q.success) {
+        return c.json(
+          errorEnvelope("Invalid query", VALIDATION_ERROR, q.error.flatten()),
+          400,
+        );
+      }
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      const result = await portalSessionIcs(deps, {
+        eventId: q.data.eventId,
+        userId: user.id,
+        userEmail: user.email,
+        sessionId: c.req.param("sessionId"),
+        correlationId: c.get("correlationId"),
+      });
+      if (!result.ok) {
+        return commandError(c, result);
+      }
+      c.header("Content-Type", "text/calendar; charset=utf-8");
+      c.header(
+        "Content-Disposition",
+        `attachment; filename="${result.value.filename}"`,
+      );
+      c.header("Cache-Control", "no-store");
+      return c.body(result.value.body, 200);
+    },
+  );
 
   /**
    * GET /home — Portal.GetHome

@@ -56,11 +56,13 @@ async function magicLinkSession(
   submissions: ReturnType<typeof createAppWithAuth>["submissions"];
   decisions: ReturnType<typeof createAppWithAuth>["decisions"];
   outbox: ReturnType<typeof createAppWithAuth>["outbox"];
+  schedule: ReturnType<typeof createAppWithAuth>["schedule"];
   cookie: string;
   userId: string;
 }> {
   const ctx = shared ?? createAppWithAuth({ cookieSecure: true });
-  const { app, store, events, forms, submissions, decisions, outbox } = ctx;
+  const { app, store, events, forms, submissions, decisions, outbox, schedule } =
+    ctx;
   const body: Record<string, string> = { email, purpose };
   if (eventId) body.eventId = eventId;
 
@@ -100,6 +102,7 @@ async function magicLinkSession(
     submissions,
     decisions,
     outbox,
+    schedule,
     cookie: `${SESSION_COOKIE_NAME}=${sessionValue}`,
     userId: user!.id,
   };
@@ -1040,5 +1043,122 @@ describe("4.1 portal API", () => {
     );
     // requireRole without eventId may 404 or validation 400
     expect([400, 404]).toContain(res.status);
+  });
+});
+
+describe("G09 Portal.SessionIcs — speaker-owned calendar download", () => {
+  /** Place a session directly via the schedule store (unit fixture). */
+  async function placeSession(
+    ctx: Awaited<ReturnType<typeof magicLinkSession>> & {
+      schedule?: ReturnType<typeof createAppWithAuth>["schedule"];
+    },
+    schedule: ReturnType<typeof createAppWithAuth>["schedule"],
+    eventId: string,
+    sessionId: string,
+  ) {
+    const now = new Date().toISOString();
+    const placement = {
+      id: `pl_${sessionId}`,
+      eventId,
+      sessionId,
+      roomId: "room-main",
+      startsAt: "2026-09-01T10:00:00.000Z",
+      endsAt: "2026-09-01T10:30:00.000Z",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const ok = await schedule.insertPlacementBundle({
+      placement,
+      roomReservation: {
+        id: `rr_${sessionId}`,
+        eventId,
+        roomId: "room-main",
+        placementId: placement.id,
+        startsAt: placement.startsAt,
+        endsAt: placement.endsAt,
+        createdAt: now,
+      },
+      speakerReservations: [],
+    });
+    expect(ok).toBe(true);
+    return placement;
+  }
+
+  it("owner downloads text/calendar with UID + SEQUENCE; unscheduled → 404", async () => {
+    const admin = await magicLinkSession("admin", "ics-admin@example.com");
+    const event = await createEvent(admin.app, admin.cookie, "ICS Event");
+    const speakerEmail = "ics-speaker@example.com";
+    const { submissionId } = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "ICS Talk",
+      speakerEmail,
+    );
+    const decision = await acceptSubmission(admin.app, admin.cookie, submissionId);
+    const sessionId = decision.session!.id;
+    const speaker = await magicLinkSession("speaker", speakerEmail, event.id, admin);
+
+    // Unscheduled first: honest 404 "not scheduled".
+    const early = await admin.app.request(
+      `http://localhost/api/portal/sessions/${sessionId}/invite.ics?eventId=${event.id}`,
+      { headers: { cookie: speaker.cookie } },
+      env,
+    );
+    expect(early.status).toBe(404);
+
+    await placeSession(speaker, admin.schedule, event.id, sessionId);
+
+    const res = await admin.app.request(
+      `http://localhost/api/portal/sessions/${sessionId}/invite.ics?eventId=${event.id}`,
+      { headers: { cookie: speaker.cookie } },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/calendar");
+    expect(res.headers.get("content-disposition")).toContain("invite.ics");
+    const body = await res.text();
+    expect(body).toContain("BEGIN:VCALENDAR");
+    expect(body).toContain("UID:");
+    expect(body).toContain("SEQUENCE:0");
+    expect(body).toContain("SUMMARY:ICS Talk");
+  });
+
+  it("non-owner speaker and unauthenticated get 404/401 (no probing)", async () => {
+    const admin = await magicLinkSession("admin", "ics-admin-2@example.com");
+    const event = await createEvent(admin.app, admin.cookie, "ICS Event 2");
+    const ownerEmail = "ics-owner@example.com";
+    const otherEmail = "ics-other@example.com";
+    const sub1 = await publishAndSubmit(
+      admin.app, admin.cookie, event.id, event.slug, "Owner Talk", ownerEmail,
+    );
+    const d1 = await acceptSubmission(admin.app, admin.cookie, sub1.submissionId, "corr-ics-1");
+    const sessionId = d1.session!.id;
+    await placeSession(admin, admin.schedule, event.id, sessionId);
+
+    // Second accepted speaker (owns a different session)
+    const create2 = await publishAndSubmit(
+      admin.app, admin.cookie, event.id, `${event.slug}`, "Other Talk", otherEmail,
+    ).catch(() => null);
+    // Whether or not a second submission path exists on the same form,
+    // the other user only needs a portal identity:
+    const other = await magicLinkSession("speaker", otherEmail, event.id, admin);
+    void create2;
+
+    const cross = await admin.app.request(
+      `http://localhost/api/portal/sessions/${sessionId}/invite.ics?eventId=${event.id}`,
+      { headers: { cookie: other.cookie } },
+      env,
+    );
+    expect(cross.status).toBe(404);
+
+    const anon = await admin.app.request(
+      `http://localhost/api/portal/sessions/${sessionId}/invite.ics?eventId=${event.id}`,
+      {},
+      env,
+    );
+    expect(anon.status).toBe(401);
   });
 });

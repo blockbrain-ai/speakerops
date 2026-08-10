@@ -9,6 +9,7 @@
  * - @inv:G06 e2e/portal/task-overdue
  * - @inv:G07 e2e/portal/session
  * - @inv:G08 e2e/portal/mobile
+ * - @inv:G09 e2e/portal/session-ics
  *
  * Named assertions:
  * - assert bio XSS text content not script
@@ -182,7 +183,7 @@ async function acceptSpeaker(
   speakerEmail: string,
   speakerName: string,
   title: string,
-): Promise<{ participationId: string; taskIds: string[] }> {
+): Promise<{ participationId: string; taskIds: string[]; sessionId: string }> {
   const create = await request.post(`/api/events/${eventId}/forms`, {
     headers: sessionHeaders(session),
     data: { name: `CFP ${title}` },
@@ -239,6 +240,7 @@ async function acceptSpeaker(
   );
   expect(decision.status()).toBe(200);
   const body = (await decision.json()) as {
+    session: { id: string };
     participations: Array<{ id: string }>;
     tasks: Array<{ id: string }>;
   };
@@ -246,6 +248,7 @@ async function acceptSpeaker(
   return {
     participationId: body.participations[0]!.id,
     taskIds: body.tasks.map((t) => t.id),
+    sessionId: body.session.id,
   };
 }
 
@@ -263,6 +266,7 @@ async function seedPortalSpeaker(
   speakerName: string;
   adminSession: string;
   taskIds: string[];
+  sessionId: string;
 }> {
   const adminEmail = `e2e-portal-admin-${run}@example.com`;
   const speakerEmail = `e2e-portal-spk-${run}@example.com`;
@@ -302,6 +306,7 @@ async function seedPortalSpeaker(
     speakerName,
     adminSession,
     taskIds: accepted.taskIds,
+    sessionId: accepted.sessionId,
   };
 }
 
@@ -784,4 +789,101 @@ test("@inv:G08 e2e/portal/mobile Mobile complete bio+task", async ({
 
   // Wizard completion or review — toast / completed state
   await expect(page.getByTestId("portal-home")).toBeVisible();
+});
+
+test("@inv:G09 e2e/portal/session-ics download own invite; other speaker 404", async ({
+  page,
+  request,
+  context,
+  baseURL,
+}) => {
+  const run = Date.now() + 9;
+  const seed = await seedPortalSpeaker(request, context, baseURL, run, {
+    talkTitle: `ICS Talk ${run}`,
+  });
+
+  // Admin: room + place the speaker's session.
+  const room = await request.put(
+    `/api/events/${encodeURIComponent(seed.eventId)}/rooms/room-ics-${run}`,
+    {
+      headers: sessionHeaders(seed.adminSession),
+      data: { name: "ICS Room", capacity: 50 },
+    },
+  );
+  expect(room.status(), await room.text()).toBe(200);
+  const place = await request.post(
+    `/api/events/${encodeURIComponent(seed.eventId)}/schedule/place`,
+    {
+      headers: sessionHeaders(seed.adminSession),
+      data: {
+        sessionId: seed.sessionId,
+        roomId: `room-ics-${run}`,
+        startsAt: "2026-09-02T10:00:00.000Z",
+        endsAt: "2026-09-02T10:30:00.000Z",
+      },
+    },
+  );
+  expect(place.status(), await place.text()).toBe(201);
+
+  const speakerSession = await loginAsSpeaker(
+    request,
+    context,
+    baseURL,
+    seed.speakerEmail,
+    seed.eventId,
+  );
+
+  // API: owner download is a real text/calendar attachment with UID/SEQUENCE.
+  const ics = await request.get(
+    `/api/portal/sessions/${encodeURIComponent(seed.sessionId)}/invite.ics?eventId=${encodeURIComponent(seed.eventId)}`,
+    { headers: sessionHeaders(speakerSession) },
+  );
+  expect(ics.status(), await ics.text()).toBe(200);
+  expect(ics.headers()["content-type"] ?? "").toContain("text/calendar");
+  const body = await ics.text();
+  expect(body).toContain("BEGIN:VCALENDAR");
+  expect(body).toContain("UID:");
+  expect(body).toContain(`SUMMARY:ICS Talk ${run}`);
+
+  // UI: complete onboarding (wizard-first portal), then the sessions view
+  // renders the download control for the placed session.
+  await completeOnboardingViaApi(request, speakerSession, seed.eventId, {
+    bio: `G09 bio ${run}`,
+    company: "G09 Co",
+    title: "Speaker",
+  });
+  await page.goto(
+    `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(seed.eventId)}`,
+  );
+  await expect(page.getByTestId("portal-home")).toBeVisible({ timeout: 15_000 });
+  if (await page.getByTestId("portal-nav-sessions").isVisible().catch(() => false)) {
+    await page.getByTestId("portal-nav-sessions").click();
+  }
+  await expect(
+    page.getByTestId(`portal-session-ics-${seed.sessionId}`),
+  ).toBeVisible({ timeout: 15_000 });
+
+  // Negative: another speaker on the same event cannot fetch this invite.
+  const otherEmail = `e2e-portal-ics-other-${run}@example.com`;
+  await acceptSpeaker(
+    request,
+    seed.adminSession,
+    seed.eventId,
+    seed.slug,
+    otherEmail,
+    `Other ICS Speaker ${run}`,
+    `Other ICS Talk ${run}`,
+  );
+  const otherSession = await loginAsSpeaker(
+    request,
+    context,
+    baseURL,
+    otherEmail,
+    seed.eventId,
+  );
+  const cross = await request.get(
+    `/api/portal/sessions/${encodeURIComponent(seed.sessionId)}/invite.ics?eventId=${encodeURIComponent(seed.eventId)}`,
+    { headers: sessionHeaders(otherSession) },
+  );
+  expect(cross.status()).toBe(404);
 });
