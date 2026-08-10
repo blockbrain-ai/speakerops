@@ -940,6 +940,11 @@ export function ScheduleStudioPage() {
       const st = pointerDragRef.current;
       if (!st || st.pointerId !== e.pointerId) return;
       suppressClickRef.current = st.active;
+      // A cancelled gesture may end with no trailing click; clear the one-shot
+      // flag after this input turn so it cannot swallow a later slot click.
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
       cancelPointerDrag();
     },
     [cancelPointerDrag],
@@ -951,6 +956,11 @@ export function ScheduleStudioPage() {
     const onKey = (ev: globalThis.KeyboardEvent) => {
       if (ev.key === "Escape") {
         suppressClickRef.current = true;
+        // Same scoping as pointercancel: never let a cancel swallow a later
+        // unrelated click (the eventual release may land on empty space).
+        window.setTimeout(() => {
+          suppressClickRef.current = false;
+        }, 0);
         cancelPointerDrag();
       }
     };

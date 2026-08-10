@@ -76,6 +76,9 @@ async function createSession(
   return body.session.id;
 }
 
+// First-try means first try: never let a CI runner retry mask a missed drag.
+test.describe.configure({ retries: 0 });
+
 test.describe("schedule DnD reliability (pointer drag, first-try)", () => {
   test("5 tray→slot places + 5 tile moves — 10/10 first-try success", async ({
     page,
