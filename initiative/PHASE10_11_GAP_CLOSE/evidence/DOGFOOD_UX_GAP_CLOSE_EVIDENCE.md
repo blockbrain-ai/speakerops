@@ -1,7 +1,7 @@
 # Dogfood UX gap-close — evidence
 
 **Date (UTC):** 2026-08-10  
-**Branch tip (this close):** see git after commit (pre-fix tip was `e84b81d91`)  
+**Branch tip (this close):** see git after commit (tip `bf4cb4941`)  
 **Binding URL:** https://www.speakerops.org  
 
 ## Before (owner walk / live repro)
@@ -18,7 +18,7 @@
 
 | Check | Result |
 |-------|--------|
-| `GET /health` | 200 `{"ok":true,"version":"0.1.0-demo+e84b81d91"}` (deploy SHA; final tip may bump) |
+| `GET /health` | 200 `{"ok":true,"version":"0.1.0-demo+bf4cb4941"}` (deploy SHA; final tip may bump) |
 | Readiness timing (3 samples, admin session) | **784ms / 714ms / 686ms** (p95 ≪ 8s DoD) |
 | Payload | `outstandingTasks=290`, `outstanding.length=50`, `outstandingTotal=290`, `outstandingListCap=50`, `outstandingTruncated=true`, `totalSpeakers=150` |
 | Response size | ~16KB (was ~93KB) |
