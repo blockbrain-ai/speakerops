@@ -815,6 +815,30 @@ export async function getFormAdmin(
 }
 
 /**
+ * The ACTIVE public form/version for an event — the EXACT resolution
+ * Form.GetPublic serves for the slug: most recently created published form,
+ * then that form's latest published version.
+ *
+ * Single source of truth: Cfp.FileUpload pins uploads to this same
+ * resolution (uploadCfpFile), so "what the public page shows" and "what an
+ * anonymous upload may target" can never diverge. Do not re-implement.
+ */
+export async function findActivePublicForm(
+  forms: FormsStore,
+  eventId: string,
+): Promise<{ form: FormRow; version: FormVersionRow | null } | null> {
+  const eventForms = await forms.findFormsByEventId(eventId);
+  // Prefer most recently created published form
+  const publishedForms = eventForms.filter((f) => f.status === "published");
+  if (publishedForms.length === 0) return null;
+  // Stable pick: first by createdAt desc
+  publishedForms.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const form = publishedForms[0]!;
+  const version = await forms.findLatestPublishedVersion(form.id);
+  return { form, version };
+}
+
+/**
  * Form.GetPublic — latest published form for event slug (never draft).
  * Section 3.3 enriches with windowState + speaker/file meta for public SPA.
  */
@@ -827,10 +851,8 @@ export async function getPublicForm(
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
-  const eventForms = await deps.forms.findFormsByEventId(event.id);
-  // Prefer most recently created published form
-  const publishedForms = eventForms.filter((f) => f.status === "published");
-  if (publishedForms.length === 0) {
+  const active = await findActivePublicForm(deps.forms, event.id);
+  if (!active) {
     return {
       ok: true,
       value: {
@@ -843,10 +865,7 @@ export async function getPublicForm(
     };
   }
 
-  // Stable pick: first by createdAt desc
-  publishedForms.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const form = publishedForms[0]!;
-  const version = await deps.forms.findLatestPublishedVersion(form.id);
+  const { form, version } = active;
   if (!version) {
     return {
       ok: true,

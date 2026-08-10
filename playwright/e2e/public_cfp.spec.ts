@@ -101,8 +101,10 @@ async function publishCfp(
     welcomeMd?: string;
     /** Add a real file-typed field (uploads are rejected without one). */
     fileField?: boolean;
+    /** Add a SECOND file-typed field (upload/answer field binding tests). */
+    secondFileField?: boolean;
   },
-): Promise<{ formVersionId: string }> {
+): Promise<{ formId: string; formVersionId: string }> {
   const create = await request.post(`/api/events/${eventId}/forms`, {
     headers: sessionHeaders(session),
     data: { name: "E2E CFP" },
@@ -167,6 +169,17 @@ async function publishCfp(
               },
             ]
           : []),
+        ...(opts?.secondFileField
+          ? [
+              {
+                fieldKey: "extra_pdf",
+                type: "file",
+                label: "Extra PDF",
+                required: false,
+                sortOrder: 6,
+              },
+            ]
+          : []),
       ],
       rules: [
         {
@@ -193,7 +206,7 @@ async function publishCfp(
   const published = (await pub.json()) as {
     formVersion: { id: string };
   };
-  return { formVersionId: published.formVersion.id };
+  return { formId: created.form.id, formVersionId: published.formVersion.id };
 }
 
 async function publishBrand(
@@ -401,9 +414,11 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type/unpinn
 }) => {
   const session = await loginAsAdmin(request, "e2e-a05@example.com");
   const event = await ensureEvent(request, session, "A05 File Event");
-  // Uploads are FORM-PINNED: the published form must carry a file field.
-  const { formVersionId } = await publishCfp(request, session, event.id, {
+  // Uploads are FORM-PINNED to the ACTIVE published version AND the exact
+  // file field they answer; the binding is persisted and re-checked at submit.
+  const { formId, formVersionId } = await publishCfp(request, session, event.id, {
     fileField: true,
+    secondFileField: true,
   });
 
   // URL fields are text inputs (type=url); file upload is the public files API.
@@ -436,6 +451,7 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type/unpinn
   // Missing formVersionId → 400 (uploads must pin the published form).
   const unpinned = await request.post(`/api/public/cfp/${event.slug}/files`, {
     data: {
+      fieldKey: "supporting_pdf",
       filename: "ok.pdf",
       mime: "application/pdf",
       size: okPdfBody.length,
@@ -444,10 +460,23 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type/unpinn
   });
   expect(unpinned.status(), "unpinned upload rejected").toBe(400);
 
+  // Missing fieldKey → 400 (uploads must name the exact file field).
+  const unbound = await request.post(`/api/public/cfp/${event.slug}/files`, {
+    data: {
+      formVersionId,
+      filename: "ok.pdf",
+      mime: "application/pdf",
+      size: okPdfBody.length,
+      contentBase64: btoa(okPdfBody),
+    },
+  });
+  expect(unbound.status(), "fieldKey-less upload rejected").toBe(400);
+
   // Reject SVG / bad type via API
   const badSvg = await request.post(`/api/public/cfp/${event.slug}/files`, {
     data: {
       formVersionId,
+      fieldKey: "supporting_pdf",
       filename: "bad.svg",
       mime: "image/svg+xml",
       size: 40,
@@ -460,6 +489,7 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type/unpinn
   const oversize = await request.post(`/api/public/cfp/${event.slug}/files`, {
     data: {
       formVersionId,
+      fieldKey: "supporting_pdf",
       filename: "big.pdf",
       mime: "application/pdf",
       size: 20 * 1024 * 1024,
@@ -467,6 +497,138 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type/unpinn
     },
   });
   expect(oversize.status()).toBe(400);
+
+  // ---- Persisted binding negatives (direct API) ----
+  const submitWithAnswers = async (
+    pin: string,
+    answers: Array<{ fieldKey: string; value: unknown }>,
+    email: string,
+  ) =>
+    request.post(`/api/public/cfp/${event.slug}/submissions`, {
+      data: {
+        formVersionId: pin,
+        title: "Binding negative",
+        answers: [
+          { fieldKey: "talk_title", value: "Binding negative" },
+          { fieldKey: "category", value: "infra" },
+          ...answers,
+        ],
+        speakers: [{ name: "Bind Tester", email }],
+        turnstileToken: "XXXX.DUMMY.TOKEN",
+      },
+    });
+
+  // Asset authorized for supporting_pdf cannot answer the OTHER file field.
+  const wrongField = await submitWithAnswers(
+    formVersionId,
+    [{ fieldKey: "extra_pdf", value: `file:${okBody.fileId}` }],
+    "bind-wrong-field@example.com",
+  );
+  expect(
+    wrongField.status(),
+    "asset reused on a different file field must 400 at submit",
+  ).toBe(400);
+  expect(
+    ((await wrongField.json()) as { error?: string }).error ?? "",
+  ).toMatch(/different form field/i);
+
+  // Republish the SAME form → new active version. The old version keeps an
+  // open window but must no longer authorize uploads, and the old-bound
+  // asset must no longer submit.
+  const redraft = await request.put(`/api/forms/${formId}/draft`, {
+    headers: sessionHeaders(session),
+    data: {
+      fields: [
+        {
+          fieldKey: "talk_title",
+          type: "text",
+          label: "Talk title",
+          required: true,
+          sortOrder: 0,
+        },
+        {
+          fieldKey: "category",
+          type: "select",
+          label: "Category",
+          required: true,
+          sortOrder: 1,
+          options: [
+            { value: "ai", label: "AI" },
+            { value: "infra", label: "Infrastructure" },
+          ],
+        },
+        {
+          fieldKey: "supporting_pdf",
+          type: "file",
+          label: "Supporting PDF",
+          required: false,
+          sortOrder: 2,
+        },
+        {
+          fieldKey: "extra_pdf",
+          type: "file",
+          label: "Extra PDF",
+          required: false,
+          sortOrder: 3,
+        },
+      ],
+      rules: [],
+      welcomeMd: "Welcome back",
+      thankYouMd: "Thanks again",
+      opensAt: null,
+      closesAt: null,
+    },
+  });
+  expect(redraft.status(), "republish draft save").toBe(200);
+  const repub = await request.post(`/api/forms/${formId}/publish`, {
+    headers: sessionHeaders(session),
+  });
+  expect(repub.status(), "republish").toBe(200);
+  const v2 = ((await repub.json()) as { formVersion: { id: string } })
+    .formVersion.id;
+  expect(v2).not.toBe(formVersionId);
+
+  // Upload pinned to the superseded version → 400 at upload.
+  const stalePin = await request.post(`/api/public/cfp/${event.slug}/files`, {
+    data: {
+      formVersionId,
+      fieldKey: "supporting_pdf",
+      filename: "stale.pdf",
+      mime: "application/pdf",
+      size: okPdfBody.length,
+      contentBase64: btoa(okPdfBody),
+    },
+  });
+  expect(stalePin.status(), "superseded-version upload rejected").toBe(400);
+
+  // Submit pinned to the new version referencing the OLD-bound asset → 400.
+  const staleAsset = await submitWithAnswers(
+    v2,
+    [{ fieldKey: "supporting_pdf", value: `file:${okBody.fileId}` }],
+    "bind-stale-asset@example.com",
+  );
+  expect(
+    staleAsset.status(),
+    "old-version-bound asset must 400 at submit after republish",
+  ).toBe(400);
+  expect(
+    ((await staleAsset.json()) as { error?: string }).error ?? "",
+  ).toMatch(/different form version/i);
+
+  // A second logical form on the same event: its submissions can never
+  // consume an asset bound to the first form's version.
+  const otherForm = await publishCfp(request, session, event.id, {
+    fileField: true,
+  });
+  const crossForm = await submitWithAnswers(
+    otherForm.formVersionId,
+    [{ fieldKey: "supporting_pdf", value: `file:${okBody.fileId}` }],
+    "bind-cross-form@example.com",
+  );
+  expect(
+    crossForm.status(),
+    "asset from another logical form must 400 at submit",
+  ).toBe(400);
 
   // A form with NO file field never accepts anonymous uploads (D1 blob
   // write surface closed): second event, same allowlisted PDF → 400.
@@ -481,6 +643,7 @@ test("@inv:A05 e2e/public/cfp-file upload within type/size; oversize/type/unpinn
     {
       data: {
         formVersionId: noFile.formVersionId,
+        fieldKey: "supporting_pdf",
         filename: "ok.pdf",
         mime: "application/pdf",
         size: okPdfBody.length,

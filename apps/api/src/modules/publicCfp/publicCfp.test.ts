@@ -611,6 +611,7 @@ describe("3.3 public CFP submit", () => {
         },
         body: JSON.stringify({
           formVersionId,
+          fieldKey: "supporting_file",
           filename: "evil.svg",
           mime: "image/svg+xml",
           size: 4,
@@ -670,11 +671,26 @@ describe("3.3 public CFP submit", () => {
           "content-type": "application/json",
           "x-correlation-id": "corr-file-unpinned",
         },
-        body: JSON.stringify(uploadBody),
+        body: JSON.stringify({ ...uploadBody, fieldKey: "supporting_file" }),
       },
       env,
     );
     expect(unpinned.status).toBe(400);
+
+    // Missing fieldKey → schema 400 (the exact file field is required too).
+    const noKey = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/files`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-file-nokey",
+        },
+        body: JSON.stringify({ ...uploadBody, formVersionId }),
+      },
+      env,
+    );
+    expect(noKey.status).toBe(400);
 
     // Pinned to a version with no file field → 400.
     const noField = await app.request(
@@ -685,7 +701,11 @@ describe("3.3 public CFP submit", () => {
           "content-type": "application/json",
           "x-correlation-id": "corr-file-nofield",
         },
-        body: JSON.stringify({ ...uploadBody, formVersionId }),
+        body: JSON.stringify({
+          ...uploadBody,
+          formVersionId,
+          fieldKey: "supporting_file",
+        }),
       },
       env,
     );
@@ -717,7 +737,7 @@ describe("3.3 public CFP submit", () => {
     expect(wrongField.status).toBe(400);
 
     // Cross-event pin: another event's published version never authorizes
-    // an upload here.
+    // an upload here (the pin must be THIS event's active version).
     const crossPin = await app.request(
       `http://localhost/api/public/cfp/${event.slug}/files`,
       {
@@ -729,6 +749,7 @@ describe("3.3 public CFP submit", () => {
         body: JSON.stringify({
           ...uploadBody,
           formVersionId: withFile.formVersionId,
+          fieldKey: "supporting_file",
         }),
       },
       env,
@@ -895,6 +916,266 @@ describe("3.3 public CFP submit", () => {
     const paths = doc.paths as Record<string, unknown>;
     expect(paths["/api/public/cfp/{slug}/drafts"]).toBeTruthy();
     expect(paths["/api/public/cfp/{slug}/drafts/{draftId}"]).toBeTruthy();
+  });
+});
+
+describe("final audit — CFP upload binds to the active version and exact field", () => {
+  const uploadFile = async (
+    app: ReturnType<typeof createAppWithAuth>["app"],
+    slug: string,
+    body: Record<string, unknown>,
+    corr: string,
+  ) =>
+    app.request(
+      `http://localhost/api/public/cfp/${slug}/files`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": corr,
+        },
+        body: JSON.stringify({
+          filename: "deck.pdf",
+          mime: "application/pdf",
+          size: "%PDF-1.4 bind".length,
+          contentBase64: btoa("%PDF-1.4 bind"),
+          ...body,
+        }),
+      },
+      env,
+    );
+
+  const submit = async (
+    app: ReturnType<typeof createAppWithAuth>["app"],
+    slug: string,
+    body: Record<string, unknown>,
+    corr: string,
+  ) =>
+    app.request(
+      `http://localhost/api/public/cfp/${slug}/submissions`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": corr,
+        },
+        body: JSON.stringify(body),
+      },
+      env,
+    );
+
+  /** Republish the SAME logical form: re-save the draft, publish a new version. */
+  const republish = async (
+    app: ReturnType<typeof createAppWithAuth>["app"],
+    cookie: string,
+    formId: string,
+    fields: Array<Record<string, unknown>>,
+  ): Promise<string> => {
+    const draft = await app.request(
+      `http://localhost/api/forms/${formId}/draft`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-bind-redraft",
+        },
+        body: JSON.stringify({
+          fields,
+          rules: openRules,
+          welcomeMd: "Welcome back",
+          thankYouMd: "Thanks again",
+          opensAt: null,
+          closesAt: null,
+        }),
+      },
+      env,
+    );
+    expect(draft.status).toBe(200);
+    const pub = await app.request(
+      `http://localhost/api/forms/${formId}/publish`,
+      {
+        method: "POST",
+        headers: { cookie, "x-correlation-id": "corr-bind-repub" },
+      },
+      env,
+    );
+    expect(pub.status).toBe(200);
+    const published = FormPublishResponseSchema.parse(await pub.json());
+    return published.formVersion.id;
+  };
+
+  it("upload pinned to a superseded version 400s; stale-bound asset 400s at submit", async () => {
+    const { app, cookie } = await magicLinkSession("admin-bind-old@example.com");
+    const event = await createEvent(app, cookie, "Bind Old", "bind-old-evt");
+    const { formId, formVersionId: v1 } = await publishOpenForm(
+      app,
+      cookie,
+      event.id,
+      { fields: [...openFields, FILE_FIELD] },
+    );
+
+    // Asset authorized against v1 while v1 is active.
+    const up = await uploadFile(
+      app,
+      event.slug,
+      { formVersionId: v1, fieldKey: "supporting_file" },
+      "corr-bind-old-up",
+    );
+    expect(up.status).toBe(201);
+    const { fileId } = CfpFileUploadResponseSchema.parse(await up.json());
+
+    // Republish the same form → v2 becomes the active public version.
+    const v2 = await republish(app, cookie, formId, [
+      ...openFields,
+      FILE_FIELD,
+    ]);
+    expect(v2).not.toBe(v1);
+
+    // v1 is still a published version with an open window — but it is no
+    // longer active, so it must not keep the anonymous blob-write open.
+    const staleUpload = await uploadFile(
+      app,
+      event.slug,
+      { formVersionId: v1, fieldKey: "supporting_file" },
+      "corr-bind-old-up2",
+    );
+    expect(staleUpload.status).toBe(400);
+    const staleErr = ErrorEnvelopeSchema.parse(await staleUpload.json());
+    expect(staleErr.error).toMatch(/active published version/i);
+
+    // Submit pinned to v2 referencing the v1-bound asset → 400.
+    const staleSubmit = await submit(
+      app,
+      event.slug,
+      baseSubmitBody(v2, {
+        answers: [
+          { fieldKey: "talk_title", value: "Stale asset" },
+          { fieldKey: "category", value: "infra" },
+          { fieldKey: "supporting_file", value: `file:${fileId}` },
+        ],
+      }),
+      "corr-bind-old-submit",
+    );
+    expect(staleSubmit.status).toBe(400);
+    const submitErr = ErrorEnvelopeSchema.parse(await staleSubmit.json());
+    expect(submitErr.error).toMatch(/different form version/i);
+
+    // Fresh upload against v2 submits fine (no false-green).
+    const freshUp = await uploadFile(
+      app,
+      event.slug,
+      { formVersionId: v2, fieldKey: "supporting_file" },
+      "corr-bind-old-up3",
+    );
+    expect(freshUp.status).toBe(201);
+    const fresh = CfpFileUploadResponseSchema.parse(await freshUp.json());
+    const okSubmit = await submit(
+      app,
+      event.slug,
+      baseSubmitBody(v2, {
+        answers: [
+          { fieldKey: "talk_title", value: "Fresh asset" },
+          { fieldKey: "category", value: "infra" },
+          { fieldKey: "supporting_file", value: `file:${fresh.fileId}` },
+        ],
+      }),
+      "corr-bind-old-submit2",
+    );
+    expect(okSubmit.status).toBe(201);
+  });
+
+  it("asset bound to another logical form's version 400s at submit", async () => {
+    const { app, cookie } = await magicLinkSession("admin-bind-xform@example.com");
+    const event = await createEvent(app, cookie, "Bind XForm", "bind-xform-evt");
+    // Form A (with file field) is active first — authorize an asset on it.
+    const formA = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, FILE_FIELD],
+    });
+    const up = await uploadFile(
+      app,
+      event.slug,
+      { formVersionId: formA.formVersionId, fieldKey: "supporting_file" },
+      "corr-bind-xform-up",
+    );
+    expect(up.status).toBe(201);
+    const { fileId } = CfpFileUploadResponseSchema.parse(await up.json());
+
+    // Form B is a second logical form on the same event (also with a file
+    // field). Submitting against B with A's asset must fail the binding.
+    const formB = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, FILE_FIELD],
+    });
+    expect(formB.formVersionId).not.toBe(formA.formVersionId);
+    const crossSubmit = await submit(
+      app,
+      event.slug,
+      baseSubmitBody(formB.formVersionId, {
+        answers: [
+          { fieldKey: "talk_title", value: "Cross-form asset" },
+          { fieldKey: "category", value: "infra" },
+          { fieldKey: "supporting_file", value: `file:${fileId}` },
+        ],
+      }),
+      "corr-bind-xform-submit",
+    );
+    expect(crossSubmit.status).toBe(400);
+    const err = ErrorEnvelopeSchema.parse(await crossSubmit.json());
+    expect(err.error).toMatch(/different form version/i);
+  });
+
+  it("asset authorized for one file field cannot answer a different file field", async () => {
+    const { app, cookie } = await magicLinkSession("admin-bind-field@example.com");
+    const event = await createEvent(app, cookie, "Bind Field", "bind-field-evt");
+    const twoFileFields = [
+      ...openFields,
+      { ...FILE_FIELD, fieldKey: "file_a", label: "Slides", sortOrder: 9 },
+      { ...FILE_FIELD, fieldKey: "file_b", label: "Paper", sortOrder: 10 },
+    ];
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: twoFileFields,
+    });
+
+    const up = await uploadFile(
+      app,
+      event.slug,
+      { formVersionId, fieldKey: "file_a" },
+      "corr-bind-field-up",
+    );
+    expect(up.status).toBe(201);
+    const { fileId } = CfpFileUploadResponseSchema.parse(await up.json());
+
+    // Same version, but the answer names the OTHER file field → 400.
+    const wrongField = await submit(
+      app,
+      event.slug,
+      baseSubmitBody(formVersionId, {
+        answers: [
+          { fieldKey: "talk_title", value: "Wrong field asset" },
+          { fieldKey: "category", value: "infra" },
+          { fieldKey: "file_b", value: `file:${fileId}` },
+        ],
+      }),
+      "corr-bind-field-submit",
+    );
+    expect(wrongField.status).toBe(400);
+    const err = ErrorEnvelopeSchema.parse(await wrongField.json());
+    expect(err.error).toMatch(/different form field/i);
+
+    // The authorized field still works.
+    const okSubmit = await submit(
+      app,
+      event.slug,
+      baseSubmitBody(formVersionId, {
+        answers: [
+          { fieldKey: "talk_title", value: "Right field asset" },
+          { fieldKey: "category", value: "infra" },
+          { fieldKey: "file_a", value: `file:${fileId}` },
+        ],
+      }),
+      "corr-bind-field-submit2",
+    );
+    expect(okSubmit.status).toBe(201);
   });
 });
 

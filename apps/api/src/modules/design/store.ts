@@ -85,6 +85,17 @@ export type FileAssetRow = {
    * Defaults to unscanned on insert; no scanner worker in dogfood.
    */
   virusScanStatus?: string;
+  /**
+   * Public CFP upload binding (0033): ACTIVE published form version the
+   * upload was authorized against. NULL for non-CFP assets (logo/portal).
+   * Submission.Create requires it to equal the submission's pinned version.
+   */
+  formVersionId?: string | null;
+  /**
+   * File-typed field key the upload answers (paired with formVersionId).
+   * Submission.Create requires it to equal the answering field's key.
+   */
+  fieldKey?: string | null;
 };
 
 export type FileBlob = {
@@ -168,6 +179,8 @@ function rowFromUploadState(
   return {
     ...base,
     virusScanStatus: base.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
+    formVersionId: base.formVersionId ?? null,
+    fieldKey: base.fieldKey ?? null,
     uploadState,
     uploaded: uploadState === FILE_UPLOAD_STORED,
   };
@@ -235,6 +248,8 @@ export class MemoryDesignStore implements DesignStore {
         purpose: row.purpose,
         createdAt: row.createdAt,
         virusScanStatus: row.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
+        formVersionId: row.formVersionId ?? null,
+        fieldKey: row.fieldKey ?? null,
       },
       uploadState,
     );
@@ -531,6 +546,8 @@ export class D1DesignStore implements DesignStore {
         purpose: row.purpose,
         createdAt: row.createdAt,
         virusScanStatus: row.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
+        formVersionId: row.formVersionId ?? null,
+        fieldKey: row.fieldKey ?? null,
       },
       uploadState,
     );
@@ -547,6 +564,8 @@ export class D1DesignStore implements DesignStore {
       createdAt: full.createdAt,
       uploaded: full.uploadState,
       virusScanStatus: full.virusScanStatus,
+      formVersionId: full.formVersionId ?? null,
+      fieldKey: full.fieldKey ?? null,
     });
     return full;
   }
@@ -564,6 +583,8 @@ export class D1DesignStore implements DesignStore {
     createdAt: string;
     uploaded?: number | null;
     virusScanStatus?: string | null;
+    formVersionId?: string | null;
+    fieldKey?: string | null;
   }): FileAssetRow {
     const raw = row.uploaded ?? FILE_UPLOAD_PENDING;
     const uploadState: FileUploadDbState =
@@ -585,6 +606,8 @@ export class D1DesignStore implements DesignStore {
         purpose: row.purpose,
         createdAt: row.createdAt,
         virusScanStatus: row.virusScanStatus ?? VIRUS_SCAN_UNSCANNED,
+        formVersionId: row.formVersionId ?? null,
+        fieldKey: row.fieldKey ?? null,
       },
       uploadState,
     );

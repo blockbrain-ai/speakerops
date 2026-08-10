@@ -30,6 +30,7 @@ import {
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { FormsStore } from "../forms/store.js";
+import { findActivePublicForm } from "../forms/commands.js";
 import type { CommsStore } from "../comms/store.js";
 import { enqueueSubmissionConfirmation } from "../comms/lifecycle.js";
 import type { DesignStore, FileAssetRow } from "../design/store.js";
@@ -551,6 +552,37 @@ export async function createSubmission(
           },
         };
       }
+      // Persisted upload binding (0033) must match EXACTLY: the asset was
+      // authorized for this pinned form version, on this field. Assets bound
+      // to an older version (republish), to another logical form, or to a
+      // different file field fail closed — as do legacy unbound assets.
+      if (file.formVersionId == null || file.formVersionId !== version.id) {
+        return {
+          ok: false,
+          status: 400,
+          error: "This file was uploaded for a different form version — please re-attach it",
+          code: "VALIDATION_ERROR",
+          details: {
+            fieldKey: a.fieldKey,
+            fileId,
+            uploadFormVersionId: file.formVersionId ?? null,
+            formVersionId: version.id,
+          },
+        };
+      }
+      if (file.fieldKey == null || file.fieldKey !== a.fieldKey) {
+        return {
+          ok: false,
+          status: 400,
+          error: "This file was uploaded for a different form field — please re-attach it",
+          code: "VALIDATION_ERROR",
+          details: {
+            fieldKey: a.fieldKey,
+            fileId,
+            uploadFieldKey: file.fieldKey ?? null,
+          },
+        };
+      }
     }
   }
 
@@ -743,12 +775,18 @@ export type UploadCfpFileInput = CfpFileUploadBody & {
 };
 
 /**
- * Public CFP supporting file upload (allowlist + size), FORM-PINNED:
- * the request must name the published form version being filled (the same
- * pin the submit uses) and that version must actually collect files —
- * ≥1 file-typed field, or the named fieldKey must be a file field. Without
- * this, any unauthenticated caller could write 5MiB blobs into D1 for events
- * whose active form has no file field at all.
+ * Public CFP supporting file upload (allowlist + size), FORM-PINNED to the
+ * ACTIVE public form: the request must name the exact form version that
+ * Form.GetPublic currently serves for the slug (findActivePublicForm — the
+ * same resolution, never re-implemented) and the exact file-typed field the
+ * upload answers. Any other published version — an older republished window,
+ * a superseded logical form — is rejected, so a stale-but-open version can
+ * never keep an anonymous D1 blob-write surface alive.
+ *
+ * The authorization is PERSISTED on the asset (form_version_id + field_key,
+ * migration 0033) and Submission.Create re-checks it: the stored binding
+ * must equal the submission's pinned version and the answering field, so an
+ * asset authorized via one form/field cannot be replayed against another.
  * Stores as file_assets purpose=other; returns fileId for answer value `file:{id}`.
  */
 export async function uploadCfpFile(
@@ -768,25 +806,30 @@ export async function uploadCfpFile(
     return { ok: false, status: 404, error: "Not found", code: "NOT_FOUND" };
   }
 
-  // Pin: the named version must be published and belong to this event.
-  const version = await deps.forms.findVersionById(input.formVersionId);
-  if (!version || version.publishedAt == null) {
+  // Pin: uploads bind to the ACTIVE public form version — the exact one
+  // Form.GetPublic serves for this slug (same resolution, never a copy).
+  // Older published versions/forms of the event are rejected outright.
+  const active = await findActivePublicForm(deps.forms, event.id);
+  const version = active?.version ?? null;
+  if (!version) {
     return {
       ok: false,
       status: 400,
-      error: "Invalid form_version_id",
+      error: "This event has no published CFP form",
       code: "VALIDATION_ERROR",
-      details: { formVersionId: input.formVersionId, reason: "not_published" },
+      details: { formVersionId: input.formVersionId, reason: "no_active_form" },
     };
   }
-  const form = await deps.forms.findFormById(version.formId);
-  if (!form || form.eventId !== event.id) {
+  if (version.id !== input.formVersionId) {
     return {
       ok: false,
       status: 400,
-      error: "form_version_id does not belong to this event",
+      error: "Wrong form_version_id pin; use the active published version",
       code: "VALIDATION_ERROR",
-      details: { formVersionId: input.formVersionId },
+      details: {
+        formVersionId: input.formVersionId,
+        expectedFormVersionId: version.id,
+      },
     };
   }
 
@@ -805,31 +848,23 @@ export async function uploadCfpFile(
     };
   }
 
-  // The pinned version must collect files: at least one file-typed input
-  // field — or, when the client names the field, THAT field must be a file
-  // field. No file field → no anonymous upload surface (400).
+  // The named fieldKey must be a file-typed input field on the ACTIVE
+  // version. No file field → no anonymous upload surface (400).
   const versionFields = await deps.forms.listFields(version.id);
   const fileFields = versionFields.filter(
     (f) => isInputNode(f) && f.type === "file",
   );
-  if (input.fieldKey != null) {
-    const target = fileFields.find((f) => f.fieldKey === input.fieldKey);
-    if (!target) {
-      return {
-        ok: false,
-        status: 400,
-        error: "This form field does not accept file uploads",
-        code: "VALIDATION_ERROR",
-        details: { fieldKey: input.fieldKey },
-      };
-    }
-  } else if (fileFields.length === 0) {
+  const target = fileFields.find((f) => f.fieldKey === input.fieldKey);
+  if (!target) {
     return {
       ok: false,
       status: 400,
-      error: "This form does not accept file uploads",
+      error:
+        fileFields.length === 0
+          ? "This form does not accept file uploads"
+          : "This form field does not accept file uploads",
       code: "VALIDATION_ERROR",
-      details: { formVersionId: version.id },
+      details: { fieldKey: input.fieldKey, formVersionId: version.id },
     };
   }
 
@@ -930,6 +965,9 @@ export async function uploadCfpFile(
     createdAt: now,
     uploaded: true,
     uploadState: FILE_UPLOAD_STORED,
+    // Persisted authorization (0033): submit requires this exact binding.
+    formVersionId: version.id,
+    fieldKey: target.fieldKey,
   };
   await deps.design.insertFile(row);
   const ab = new ArrayBuffer(bytes.byteLength);
@@ -952,6 +990,8 @@ export async function uploadCfpFile(
       mime,
       size: bytes.byteLength,
       filename,
+      formVersionId: version.id,
+      fieldKey: target.fieldKey,
       actor: "public",
     }),
     correlationId: input.correlationId,

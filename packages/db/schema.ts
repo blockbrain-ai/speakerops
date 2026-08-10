@@ -313,6 +313,13 @@ export const fileAssets = sqliteTable(
     uploaded: integer("uploaded").notNull().default(0),
     /** Virus scan stub: unscanned | clean | infected | error (default unscanned). */
     virusScanStatus: text("virus_scan_status").notNull().default("unscanned"),
+    /**
+     * Public CFP upload binding (0033): the ACTIVE published form version the
+     * upload was authorized against. NULL for non-CFP assets (logo/portal).
+     */
+    formVersionId: text("form_version_id"),
+    /** File-typed field key the upload answers; paired with form_version_id. */
+    fieldKey: text("field_key"),
   },
   (t) => [index("idx_file_assets_event_id").on(t.eventId)],
 );

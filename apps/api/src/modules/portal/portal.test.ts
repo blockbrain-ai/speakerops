@@ -31,9 +31,10 @@ import {
   CONFLICT,
   SESSION_COOKIE_NAME,
   TURNSTILE_DEV_PASS_TOKEN,
+  TaskTemplateCreateBodySchema,
 } from "@speakerops/shared";
 import { createAppWithAuth } from "../../index.js";
-import { OPENAPI_COMMANDS } from "../../openapi.js";
+import { OPENAPI_COMMANDS, buildOpenApiDocument } from "../../openapi.js";
 import { newTaskTemplateId } from "../decisions/store.js";
 import { computePortalReadiness } from "./commands.js";
 
@@ -1563,5 +1564,37 @@ describe("Wave 2 — portal task depth (link + required + complete-on-behalf)", 
     const homeBody = PortalHomeResponseSchema.parse(await home.json());
     const portalTask = homeBody.tasks.find((t) => t.id === task.id);
     expect(portalTask?.status).toBe("completed");
+  });
+});
+
+describe("OpenAPI contract — task-template `required` default", () => {
+  it("declared OpenAPI default equals TaskTemplateCreateBodySchema's parsed default", () => {
+    // Anti-drift contract: the OpenAPI document is hand-maintained, so this
+    // pins its declared default to the runtime Zod default (0032 repair set
+    // it to TRUE — tasks block readiness unless explicitly optional). If
+    // either side changes without the other, this fails loudly.
+    const runtimeDefault = TaskTemplateCreateBodySchema.parse({
+      title: "Contract probe",
+    }).required;
+    expect(runtimeDefault).toBe(true);
+
+    const doc = buildOpenApiDocument() as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+    const post = doc.paths["/api/events/{eventId}/task-templates"]?.post as {
+      requestBody?: {
+        content?: Record<
+          string,
+          { schema?: { properties?: Record<string, { default?: unknown }> } }
+        >;
+      };
+    };
+    const declaredDefault =
+      post?.requestBody?.content?.["application/json"]?.schema?.properties
+        ?.required?.default;
+    expect(
+      declaredDefault,
+      "OpenAPI task-template `required` default must equal the shared schema default",
+    ).toBe(runtimeDefault);
   });
 });

@@ -596,7 +596,7 @@ export const FORM_OPENAPI_PATHS = {
       operationId: "Cfp.FileUpload",
       summary: "Cfp.FileUpload",
       description:
-        "Public supporting file upload (mime allowlist + size), pinned to the published form version being filled — rejected unless that version collects files (≥1 file field, or the named fieldKey is one)",
+        "Public supporting file upload (mime allowlist + size), pinned to the ACTIVE published form version (the one Form.GetPublic serves) and a named file-typed field; the binding is persisted on the asset and re-checked at submit",
       tags: ["Submission"],
       parameters: [
         {
@@ -612,17 +612,24 @@ export const FORM_OPENAPI_PATHS = {
           "application/json": {
             schema: {
               type: "object",
-              required: ["formVersionId", "filename", "mime", "size", "contentBase64"],
+              required: [
+                "formVersionId",
+                "fieldKey",
+                "filename",
+                "mime",
+                "size",
+                "contentBase64",
+              ],
               properties: {
                 formVersionId: {
                   type: "string",
                   description:
-                    "Published form version pin (same pin the submit uses)",
+                    "ACTIVE published form version pin (same pin the submit uses)",
                 },
                 fieldKey: {
                   type: "string",
                   description:
-                    "Optional file-typed field this upload answers (must be type file)",
+                    "File-typed field this upload answers (must be type file)",
                 },
                 filename: { type: "string" },
                 mime: { type: "string" },
@@ -1716,7 +1723,7 @@ export const PORTAL_OPENAPI_PATHS = {
                   maxLength: 2000,
                   description: "https:// resource link (http rejected)",
                 },
-                required: { type: "boolean", default: false },
+                required: { type: "boolean", default: true },
               },
             },
           },
