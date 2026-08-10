@@ -129,7 +129,12 @@ export function formatAnswerValue(
   if (typeof value === "string") {
     // File answers are stored as file:<id>
     if (value.startsWith("file:")) return "File attached";
-    return resolveOptionLabel(value, options);
+    const label = resolveOptionLabel(value, options);
+    // Checkbox answers are stored as the strings "true"/"false"
+    if (label === value && (value === "true" || value === "false")) {
+      return value === "true" ? "Yes" : "No";
+    }
+    return label;
   }
   if (typeof value === "boolean") {
     return value ? "Yes" : "No";

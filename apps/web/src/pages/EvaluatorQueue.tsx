@@ -64,9 +64,15 @@ function formatAnswerValue(value: unknown): string {
   if (value == null) return "—";
   if (typeof value === "string") {
     if (value.startsWith("file:")) return "Uploaded";
+    // Checkbox answers are stored as the strings "true"/"false"
+    if (value === "true") return "Yes";
+    if (value === "false") return "No";
     return value;
   }
-  if (typeof value === "boolean" || typeof value === "number") {
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (typeof value === "number") {
     return String(value);
   }
   if (Array.isArray(value)) return value.map(String).join(", ");
