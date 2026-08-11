@@ -6561,3 +6561,20 @@ input.speakers-page__profile-input,
     padding: 0 4px;
   }
 }
+
+/* TipTap Placeholder: class+attr only — CSS must paint the empty state text. */
+.l2-rte__content .is-editor-empty::before,
+.l2-rte__content .is-empty::before,
+.l2-rte__content p.is-editor-empty::before,
+.l2-rte__content p.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--lumen-text-secondary);
+  font-family: var(--lumen-font);
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 400;
+  opacity: 0.85;
+}

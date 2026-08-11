@@ -582,6 +582,7 @@ export async function previewComms(
         : `/login?purpose=speaker&eventId=${encodeURIComponent(template.eventId)}`;
       const data: Record<string, string> = {
         name,
+        speakerName: name,
         firstName: parts[0] ?? "",
         lastName: parts.length > 1 ? parts.slice(1).join(" ") : "",
         email: person.email,

@@ -9,7 +9,9 @@
 
 **Method:** Judge “too thin to win” as risk that an AIE evaluator walking the brief’s program loop at **cohort scale** (~100–150 speakers, real CFP volume) would conclude the product is not yet something they would run a multi-day event on — even if soul tests and dogfood gates pass.
 
-**Out of scope for this document:** incumbent product comparisons; third-party commentary; struck surfaces (CRM/marketing/CMS/media, Accelevents, portal wiki/embeds, embeddable gallery, AI multi-round review, agent-fleet UI, OR-Tools, etc.).
+**Out of scope for this document:** incumbent product comparisons; third-party commentary; remaining non-goals (CRM/marketing/CMS/media, AI multi-round review, agent-fleet UI, OR-Tools, dual-write Airtable, etc.).
+
+**Amendment A1 (2026-08-11):** Accelevents one-way, portal resources/wiki + sandboxed embeds, and embeddable speaker gallery / schedule itinerary are **in-scope primary** (Phase 3) — not struck. Do not treat unfinished A1 work as a thin-area of the original CFP loop, and do not re-list those three as non-goals.
 
 ---
 
@@ -49,9 +51,9 @@
 
 **What exists:** Full admin Schedule Studio (views, drag-drop, conflicts, undo). ICS via comms for speakers. No public, unauthenticated agenda/itinerary page for the event program.
 
-**Why too thin:** After accept + place, organizers still need a simple way to **show the program** to the world (or to staff without admin chrome). Embeddable website widgets and gallery are **struck** and must not be built. A minimal **hosted public schedule page** (read-only, mobile-clean) is not struck and is listed as synthesis SHOULD polish. Without it, the schedule loop ends inside admin tools; the “agenda is real and publishable” story for independent evaluators is weaker.
+**Why too thin:** After accept + place, organizers still need a simple way to **show the program** to the world (or to staff without admin chrome). A minimal **hosted public schedule page** (read-only, mobile-clean) remains synthesis SHOULD polish even after Amendment A1 promoted embeddable gallery/itinerary to in-scope primary (Phase 3). Without a public programme surface, the schedule loop ends inside admin tools; the “agenda is real and publishable” story for independent evaluators is weaker.
 
-**Brief / contract link:** Brief schedule/agenda building; synthesis SHOULD “hosted public schedule page”; non-goal remains embeds/gallery only.
+**Brief / contract link:** Brief schedule/agenda building; synthesis SHOULD “hosted public schedule page”; Amendment A1 also schedules embeddable public feeds as primary later.
 
 ---
 
@@ -89,8 +91,8 @@
 
 | Topic | Why not a thin-area for this competition |
 |-------|------------------------------------------|
-| AI multi-round review | Struck in brief / programme |
-| Accelevents / portal wiki / embeddable gallery | Struck |
+| AI multi-round review | Struck / owner-excluded |
+| Accelevents · portal wiki/embeds · embeddable gallery | **In-scope primary (Amendment A1)** — Phase 3; not a thin-area of this draft |
 | Full CRM / marketing / CMS / media | Non-goals |
 | OR-Tools auto-scheduler | Non-goal; human schedule + conflicts required |
 | In-product agent fleet / MCP product UI | Non-goal; CLI/keys are the agent surface |
