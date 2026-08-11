@@ -807,7 +807,7 @@ async function sha256Hex(payload: string): Promise<string> {
 
 /** Deterministic (submission, evaluator) pair key. */
 function pairKey(submissionId: string, evaluatorUserId: string): string {
-  return `${submissionId} ${evaluatorUserId}`;
+  return `${submissionId}\u0000${evaluatorUserId}`;
 }
 
 /**
