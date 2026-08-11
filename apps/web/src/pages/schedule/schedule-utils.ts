@@ -28,11 +28,15 @@ export const SCHEDULE_VIEWS = [
 
 export type ScheduleViewMode = (typeof SCHEDULE_VIEWS)[number];
 
+/**
+ * Undo stack entries store placementId + coordinates only.
+ * `expectedVersion` is resolved from live client state at undo execution time
+ * (DnD verdict: frozen versions on the stack manufacture single-user 409s).
+ */
 export type UndoAction =
   | {
       kind: "unschedule";
       placementId: string;
-      expectedVersion: number;
     }
   | {
       kind: "place";
@@ -47,7 +51,6 @@ export type UndoAction =
       roomId: string;
       startsAt: string;
       endsAt: string;
-      expectedVersion: number;
     };
 
 /** Half-open interval length in minutes; ends after starts. */
@@ -616,7 +619,7 @@ export function slotTargetFromElement(
 }
 
 /**
- * True when placement belongs in this grid slot.
+ * True when placement **starts** in this grid slot (start-row only).
  * Occupies the slot whose [startsAt, startsAt+step) window contains placement.startsAt
  * (not only exact equality), so off-hour placements like 10:30 remain visible.
  */
@@ -637,14 +640,115 @@ export function placementInSlot(
 }
 
 /**
+ * True when placement's half-open interval [startsAt, endsAt) intersects the
+ * slot window [slotStart, slotStart+step). Used for honest multi-row occupancy
+ * (60/90-min sessions mark every row they cover, not only the start slot).
+ */
+export function placementOccupiesSlot(
+  p: SchedulePlacementDto,
+  roomId: string,
+  startsAt: string,
+  stepMinutes: number = DEFAULT_SLOT_MINUTES,
+): boolean {
+  if (p.roomId !== roomId) return false;
+  const slotStart = Date.parse(startsAt);
+  const pStart = Date.parse(p.startsAt);
+  const pEnd = Date.parse(p.endsAt);
+  if (
+    !Number.isFinite(slotStart) ||
+    !Number.isFinite(pStart) ||
+    !Number.isFinite(pEnd)
+  ) {
+    return placementInSlot(p, roomId, startsAt, stepMinutes);
+  }
+  const slotEnd = slotStart + Math.max(1, stepMinutes) * 60_000;
+  // half-open interval overlap
+  return pStart < slotEnd && pEnd > slotStart;
+}
+
+/**
+ * Local pre-flight: placements that would room-overlap a candidate interval
+ * (excluding the source placement being moved). Speaker conflicts stay
+ * server-authoritative; this only cuts avoidable room 409 noise.
+ */
+export function findRoomOverlaps(
+  placements: SchedulePlacementDto[],
+  candidate: {
+    roomId: string;
+    startsAt: string;
+    endsAt: string;
+    excludePlacementId?: string;
+  },
+): SchedulePlacementDto[] {
+  const cStart = Date.parse(candidate.startsAt);
+  const cEnd = Date.parse(candidate.endsAt);
+  if (!Number.isFinite(cStart) || !Number.isFinite(cEnd) || cEnd <= cStart) {
+    return [];
+  }
+  const hits: SchedulePlacementDto[] = [];
+  for (const p of placements) {
+    if (p.roomId !== candidate.roomId) continue;
+    if (
+      candidate.excludePlacementId != null &&
+      p.id === candidate.excludePlacementId
+    ) {
+      continue;
+    }
+    const pStart = Date.parse(p.startsAt);
+    const pEnd = Date.parse(p.endsAt);
+    if (!Number.isFinite(pStart) || !Number.isFinite(pEnd)) continue;
+    if (pStart < cEnd && pEnd > cStart) hits.push(p);
+  }
+  return hits;
+}
+
+/** Convenience boolean over `findRoomOverlaps`. */
+export function wouldRoomOverlap(
+  placements: SchedulePlacementDto[],
+  candidate: {
+    roomId: string;
+    startsAt: string;
+    endsAt: string;
+    excludePlacementId?: string;
+  },
+): boolean {
+  return findRoomOverlaps(placements, candidate).length > 0;
+}
+
+/** Build ScheduleConflictItem rows for a local room-overlap block. */
+export function localRoomConflictItems(
+  overlaps: SchedulePlacementDto[],
+  roomId: string,
+): ScheduleConflictItem[] {
+  // Message must match e2e /Room|booked|conflict/i assertions.
+  const message = "Room conflict: already booked for that time";
+  if (overlaps.length === 0) {
+    return [
+      {
+        type: "room",
+        message,
+        roomId,
+      },
+    ];
+  }
+  return overlaps.map((p) => ({
+    type: "room" as const,
+    message,
+    roomId,
+    placementId: p.id,
+    sessionId: p.sessionId,
+  }));
+}
+
+/**
  * Inverse of a successful user mutation for client undo stack.
  * Place → unschedule; Move → move-back; Unschedule → place.
+ * Versions are intentionally omitted — resolve at execution from live state.
  */
 export function undoForPlace(placement: SchedulePlacementDto): UndoAction {
   return {
     kind: "unschedule",
     placementId: placement.id,
-    expectedVersion: placement.version,
   };
 }
 
@@ -662,7 +766,6 @@ export function undoForMove(
     roomId: previous.roomId,
     startsAt: previous.startsAt,
     endsAt: previous.endsAt,
-    expectedVersion: placementAfter.version,
   };
 }
 

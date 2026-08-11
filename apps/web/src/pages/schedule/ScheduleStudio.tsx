@@ -78,6 +78,7 @@ import {
   groupByRoom,
   groupByTrack,
   placementInSlot,
+  placementOccupiesSlot,
   placementsOnDay,
   safeTrackColor,
   slotKey,
@@ -85,6 +86,9 @@ import {
   undoForMove,
   undoForPlace,
   undoForUnschedule,
+  findRoomOverlaps,
+  localRoomConflictItems,
+  wouldRoomOverlap,
   zonedDayKey,
   zonedWallParts,
   zonedWallToUtcIso,
@@ -138,6 +142,15 @@ export function ScheduleStudioPage() {
     null,
   );
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  /**
+   * Synchronous mutation token (DnD verdict). React `busy` is display-only;
+   * this ref is claimed before fetch so two paths cannot both pass a busy check.
+   * 0 = free; non-zero = in flight. Does NOT block pointerdown (dead-window fix).
+   */
+  const mutationInFlightRef = useRef(false);
+  /** Live placements ref so commit-time version re-read never uses a stale closure. */
+  const placementsRef = useRef<SchedulePlacementDto[]>([]);
+  placementsRef.current = placements;
 
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
@@ -145,6 +158,11 @@ export function ScheduleStudioPage() {
   const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(
     null,
   );
+  /**
+   * Click-to-place is armed only when the user selected a tile/tray WITHOUT
+   * crossing the drag threshold on that gesture (gates the "teleport" bug).
+   */
+  const clickPlaceArmedRef = useRef(false);
   const [undoStack, setUndoStack] = useState<UndoAction[]>([]);
   const [toast, setToast] = useState<ToastState>(null);
   const [staleRecovery, setStaleRecovery] = useState<StaleRecovery | null>(
@@ -154,6 +172,8 @@ export function ScheduleStudioPage() {
   const [apiConflictRows, setApiConflictRows] = useState<
     LocalScheduleConflict[]
   >([]);
+  /** Last rejected drop target key — flash chrome (CONFLICT UX). */
+  const [rejectedSlotKey, setRejectedSlotKey] = useState<string | null>(null);
 
   const [dragPayload, setDragPayload] = useState<DragPayload | null>(null);
   /** Sync ref so drop logic sees payload even when React state has not flushed. */
@@ -398,6 +418,7 @@ export function ScheduleStudioPage() {
     }
     const tray = unscheduled.find((s) => s.id === deepLinkSessionId);
     if (tray) {
+      clickPlaceArmedRef.current = true;
       setSelectedSessionId(tray.id);
       setSelectedPlacementId(null);
       setView("day");
@@ -444,13 +465,48 @@ export function ScheduleStudioPage() {
     [timezone],
   );
 
+  /**
+   * Local room-overlap pre-flight. Returns true when blocked (caller must
+   * abort; zero POST). Surfaces conflict toast + tile chrome via placementIds.
+   */
+  const blockLocalRoomOverlap = useCallback(
+    (candidate: {
+      roomId: string;
+      startsAt: string;
+      endsAt: string;
+      excludePlacementId?: string;
+    }): boolean => {
+      const overlaps = findRoomOverlaps(placementsRef.current, candidate);
+      if (overlaps.length === 0) return false;
+      showConflict(localRoomConflictItems(overlaps, candidate.roomId));
+      setRejectedSlotKey(slotKey(candidate.roomId, candidate.startsAt));
+      window.setTimeout(() => setRejectedSlotKey(null), 1600);
+      clickPlaceArmedRef.current = false;
+      return true;
+    },
+    [showConflict],
+  );
+
   const handleApiError = useCallback(
-    async (res: Response): Promise<"conflict" | "version" | "other"> => {
+    async (
+      res: Response,
+      opts?: { rejectedSlotKey?: string | null },
+    ): Promise<"conflict" | "version" | "other"> => {
       const raw: unknown = await res.json().catch(() => null);
       if (res.status === 409) {
         const conflict = ScheduleConflictErrorSchema.safeParse(raw);
         if (conflict.success) {
+          // CONFLICT: keep source in place (caller loadAll/rollback), flash
+          // rejected target, clear click-to-place so next empty slot click
+          // emits ZERO POSTs.
           showConflict(conflict.data.conflicts);
+          clickPlaceArmedRef.current = false;
+          setSelectedPlacementId(null);
+          setSelectedSessionId(null);
+          if (opts?.rejectedSlotKey) {
+            setRejectedSlotKey(opts.rejectedSlotKey);
+            window.setTimeout(() => setRejectedSlotKey(null), 1600);
+          }
           return "conflict";
         }
         const env = ErrorEnvelopeSchema.safeParse(raw);
@@ -458,15 +514,20 @@ export function ScheduleStudioPage() {
           const details = env.data.details as
             | { expectedVersion?: number; actual?: unknown }
             | undefined;
+          // VERSION 409 → auto-reload + clear stale/undo; never silent retry.
+          setUndoStack([]);
+          clickPlaceArmedRef.current = false;
+          setSelectedPlacementId(null);
+          setSelectedSessionId(null);
           setStaleRecovery({
             message:
-              "Someone else changed this placement. Refresh to recover — no silent overwrite.",
+              "Schedule changed — refreshed, try again. Destination was not applied.",
             expectedVersion: details?.expectedVersion,
             actual: details?.actual,
           });
           setToast({
             kind: "error",
-            text: "Stale version — refresh to recover",
+            text: "Schedule changed — refreshed, try again.",
           });
           return "version";
         }
@@ -493,13 +554,14 @@ export function ScheduleStudioPage() {
       skipUndo?: boolean;
     }) => {
       if (!activeEventId) return false;
-      if (busy) {
+      if (mutationInFlightRef.current) {
         setToast({
           kind: "error",
           text: "Busy saving another change — wait a moment and try again.",
         });
         return false;
       }
+      mutationInFlightRef.current = true;
       setBusy(true);
       setPendingSessionId(input.sessionId);
       setToast(null);
@@ -524,7 +586,9 @@ export function ScheduleStudioPage() {
           },
         );
         if (!res.ok) {
-          await handleApiError(res);
+          await handleApiError(res, {
+            rejectedSlotKey: slotKey(input.roomId, input.startsAt),
+          });
           await loadAll(activeEventId);
           return false;
         }
@@ -535,25 +599,32 @@ export function ScheduleStudioPage() {
           await loadAll(activeEventId);
           return false;
         }
+        // Apply response optimistically; background-refetch (no dead window).
+        setPlacements((prev) => {
+          const withoutDup = prev.filter((p) => p.id !== parsed.data.placement.id);
+          return [...withoutDup, parsed.data.placement];
+        });
         if (!input.skipUndo) {
           pushUndo(undoForPlace(parsed.data.placement));
         }
         setSelectedSessionId(null);
+        clickPlaceArmedRef.current = false;
         setStaleRecovery(null);
         setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session placed" });
-        await loadAll(activeEventId);
+        void loadAll(activeEventId);
         return true;
       } catch {
         setToast({ kind: "error", text: "Network error on place" });
         await loadAll(activeEventId);
         return false;
       } finally {
+        mutationInFlightRef.current = false;
         setBusy(false);
         setPendingSessionId(null);
       }
     },
-    [activeEventId, busy, handleApiError, loadAll, pushUndo],
+    [activeEventId, handleApiError, loadAll, pushUndo],
   );
 
   const movePlacement = useCallback(
@@ -562,21 +633,53 @@ export function ScheduleStudioPage() {
       roomId: string;
       startsAt: string;
       endsAt: string;
-      expectedVersion: number;
+      /** Optional hint; re-read from live placements at commit (DnD verdict). */
+      expectedVersion?: number;
       previous?: { roomId: string; startsAt: string; endsAt: string };
       skipUndo?: boolean;
     }) => {
       if (!activeEventId) return false;
-      if (busy) {
+      if (mutationInFlightRef.current) {
         setToast({
           kind: "error",
           text: "Busy saving another change — wait a moment and try again.",
         });
         return false;
       }
+      // Commit-time version re-read from latest client snapshot (not pointerdown).
+      const live = placementsRef.current.find((p) => p.id === input.placementId);
+      const expectedVersion =
+        live?.version ?? input.expectedVersion;
+      if (expectedVersion == null) {
+        setToast({ kind: "error", text: "Placement missing — refreshing" });
+        await loadAll(activeEventId);
+        return false;
+      }
+      const previous = input.previous ?? (live
+        ? {
+            roomId: live.roomId,
+            startsAt: live.startsAt,
+            endsAt: live.endsAt,
+          }
+        : undefined);
+
+      mutationInFlightRef.current = true;
       setBusy(true);
       setPendingPlacementId(input.placementId);
       setToast(null);
+      // Optimistic geometry — tile moves immediately; failure snaps back via loadAll.
+      setPlacements((prev) =>
+        prev.map((p) =>
+          p.id === input.placementId
+            ? {
+                ...p,
+                roomId: input.roomId,
+                startsAt: input.startsAt,
+                endsAt: input.endsAt,
+              }
+            : p,
+        ),
+      );
       try {
         const res = await fetch(
           `/api/events/${encodeURIComponent(activeEventId)}/schedule/move`,
@@ -592,43 +695,57 @@ export function ScheduleStudioPage() {
               roomId: input.roomId,
               startsAt: input.startsAt,
               endsAt: input.endsAt,
-              expectedVersion: input.expectedVersion,
+              expectedVersion,
             }),
           },
         );
         if (!res.ok) {
-          await handleApiError(res);
+          // ALWAYS resync on move failure (the smoking gun — previously missing).
+          await handleApiError(res, {
+            rejectedSlotKey: slotKey(input.roomId, input.startsAt),
+          });
+          await loadAll(activeEventId);
           return false;
         }
         const raw: unknown = await res.json();
         const parsed = ScheduleMoveResponseSchema.safeParse(raw);
         if (!parsed.success) {
           setToast({ kind: "error", text: "Invalid move response" });
+          await loadAll(activeEventId);
           return false;
         }
-        if (!input.skipUndo && input.previous) {
-          pushUndo(undoForMove(parsed.data.placement, input.previous));
+        // Authoritative response applied optimistically; refetch in background.
+        setPlacements((prev) =>
+          prev.map((p) =>
+            p.id === parsed.data.placement.id ? parsed.data.placement : p,
+          ),
+        );
+        if (!input.skipUndo && previous) {
+          pushUndo(undoForMove(parsed.data.placement, previous));
         }
         setStaleRecovery(null);
         setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session moved" });
-        await loadAll(activeEventId);
+        void loadAll(activeEventId);
         return true;
       } catch {
         setToast({ kind: "error", text: "Network error on move" });
+        await loadAll(activeEventId);
         return false;
       } finally {
+        // Clear pending immediately so the next drag is not dead-windowed.
+        mutationInFlightRef.current = false;
         setBusy(false);
         setPendingPlacementId(null);
       }
     },
-    [activeEventId, busy, handleApiError, loadAll, pushUndo],
+    [activeEventId, handleApiError, loadAll, pushUndo],
   );
 
   const unschedulePlacement = useCallback(
     async (input: {
       placementId: string;
-      expectedVersion: number;
+      expectedVersion?: number;
       previous?: {
         sessionId: string;
         roomId: string;
@@ -638,13 +755,21 @@ export function ScheduleStudioPage() {
       skipUndo?: boolean;
     }) => {
       if (!activeEventId) return false;
-      if (busy) {
+      if (mutationInFlightRef.current) {
         setToast({
           kind: "error",
           text: "Busy saving another change — wait a moment and try again.",
         });
         return false;
       }
+      const live = placementsRef.current.find((p) => p.id === input.placementId);
+      const expectedVersion = live?.version ?? input.expectedVersion;
+      if (expectedVersion == null) {
+        setToast({ kind: "error", text: "Placement missing — refreshing" });
+        await loadAll(activeEventId);
+        return false;
+      }
+      mutationInFlightRef.current = true;
       setBusy(true);
       setPendingPlacementId(input.placementId);
       setToast(null);
@@ -660,66 +785,73 @@ export function ScheduleStudioPage() {
             },
             body: JSON.stringify({
               placementId: input.placementId,
-              expectedVersion: input.expectedVersion,
+              expectedVersion,
             }),
           },
         );
         if (!res.ok) {
           await handleApiError(res);
+          await loadAll(activeEventId);
           return false;
         }
         const raw: unknown = await res.json();
         const parsed = ScheduleUnscheduleResponseSchema.safeParse(raw);
         if (!parsed.success) {
           setToast({ kind: "error", text: "Invalid unschedule response" });
+          await loadAll(activeEventId);
           return false;
         }
         if (!input.skipUndo && input.previous) {
           pushUndo(undoForUnschedule(input.previous));
         }
         setSelectedPlacementId(null);
+        clickPlaceArmedRef.current = false;
         setStaleRecovery(null);
         setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session unscheduled" });
-        await loadAll(activeEventId);
+        void loadAll(activeEventId);
         return true;
       } catch {
         setToast({ kind: "error", text: "Network error on unschedule" });
+        await loadAll(activeEventId);
         return false;
       } finally {
+        mutationInFlightRef.current = false;
         setBusy(false);
         setPendingPlacementId(null);
       }
     },
-    [activeEventId, busy, handleApiError, loadAll, pushUndo],
+    [activeEventId, handleApiError, loadAll, pushUndo],
   );
 
   const runUndo = useCallback(async () => {
-    if (!activeEventId || undoStack.length === 0 || busy) return;
+    // Do not pop until success — a failed undo must remain stack-visible.
+    if (!activeEventId || undoStack.length === 0 || mutationInFlightRef.current)
+      return;
     const action = undoStack[undoStack.length - 1]!;
-    setUndoStack((prev) => prev.slice(0, -1));
+    let ok = false;
     if (action.kind === "unschedule") {
-      await unschedulePlacement({
+      ok = await unschedulePlacement({
         placementId: action.placementId,
-        expectedVersion: action.expectedVersion,
         skipUndo: true,
       });
     } else if (action.kind === "place") {
-      await placeSession({ ...action, skipUndo: true });
+      ok = await placeSession({ ...action, skipUndo: true });
     } else {
-      await movePlacement({
+      ok = await movePlacement({
         placementId: action.placementId,
         roomId: action.roomId,
         startsAt: action.startsAt,
         endsAt: action.endsAt,
-        expectedVersion: action.expectedVersion,
         skipUndo: true,
       });
+    }
+    if (ok) {
+      setUndoStack((prev) => prev.slice(0, -1));
     }
   }, [
     activeEventId,
     undoStack,
-    busy,
     unschedulePlacement,
     placeSession,
     movePlacement,
@@ -730,6 +862,16 @@ export function ScheduleStudioPage() {
       const drag = dragPayloadRef.current;
       if (drag?.source === "tray") {
         const endsAt = addMinutesIso(startsAt, slotMinutes);
+        if (
+          blockLocalRoomOverlap({
+            roomId,
+            startsAt,
+            endsAt,
+          })
+        ) {
+          setDrag(null);
+          return;
+        }
         await placeSession({
           sessionId: drag.sessionId,
           roomId,
@@ -745,12 +887,23 @@ export function ScheduleStudioPage() {
           startsAt,
           durationMinutes(drag.startsAt, drag.endsAt),
         );
+        if (
+          blockLocalRoomOverlap({
+            roomId,
+            startsAt,
+            endsAt,
+            excludePlacementId: drag.placementId,
+          })
+        ) {
+          setDrag(null);
+          return;
+        }
+        // Version re-read at commit inside movePlacement (not drag.version).
         await movePlacement({
           placementId: drag.placementId,
           roomId,
           startsAt,
           endsAt,
-          expectedVersion: drag.version,
           previous: {
             roomId: drag.roomId,
             startsAt: drag.startsAt,
@@ -760,8 +913,19 @@ export function ScheduleStudioPage() {
         setDrag(null);
         return;
       }
+      // Click-to-place only when explicitly armed (no prior drag on that select).
+      if (!clickPlaceArmedRef.current) return;
       if (selectedSessionId) {
         const endsAt = addMinutesIso(startsAt, slotMinutes);
+        if (
+          blockLocalRoomOverlap({
+            roomId,
+            startsAt,
+            endsAt,
+          })
+        ) {
+          return;
+        }
         await placeSession({
           sessionId: selectedSessionId,
           roomId,
@@ -771,18 +935,29 @@ export function ScheduleStudioPage() {
         return;
       }
       if (selectedPlacementId) {
-        const p = placements.find((x) => x.id === selectedPlacementId);
+        const p = placementsRef.current.find(
+          (x) => x.id === selectedPlacementId,
+        );
         if (p) {
           const endsAt = addMinutesIso(
             startsAt,
             durationMinutes(p.startsAt, p.endsAt),
           );
+          if (
+            blockLocalRoomOverlap({
+              roomId,
+              startsAt,
+              endsAt,
+              excludePlacementId: p.id,
+            })
+          ) {
+            return;
+          }
           await movePlacement({
             placementId: p.id,
             roomId,
             startsAt,
             endsAt,
-            expectedVersion: p.version,
             previous: {
               roomId: p.roomId,
               startsAt: p.startsAt,
@@ -795,11 +970,11 @@ export function ScheduleStudioPage() {
     [
       selectedSessionId,
       selectedPlacementId,
-      placements,
       placeSession,
       movePlacement,
       setDrag,
       slotMinutes,
+      blockLocalRoomOverlap,
     ],
   );
 
@@ -820,6 +995,10 @@ export function ScheduleStudioPage() {
   const performDrop = useCallback(
     (payload: DragPayload, roomId: string, startsAt: string) => {
       setDragOverSlot(null);
+      // A completed drag never leaves click-to-place armed (teleport guard).
+      clickPlaceArmedRef.current = false;
+      setSelectedPlacementId(null);
+      setSelectedSessionId(null);
       // No-op move onto same slot (avoid version churn / toast noise).
       if (
         payload.source === "placement" &&
@@ -832,6 +1011,16 @@ export function ScheduleStudioPage() {
       setDrag(payload);
       if (payload.source === "tray") {
         const endsAt = addMinutesIso(startsAt, slotMinutes);
+        if (
+          blockLocalRoomOverlap({
+            roomId,
+            startsAt,
+            endsAt,
+          })
+        ) {
+          setDrag(null);
+          return;
+        }
         void placeSession({
           sessionId: payload.sessionId,
           roomId,
@@ -844,12 +1033,23 @@ export function ScheduleStudioPage() {
           startsAt,
           durationMinutes(payload.startsAt, payload.endsAt),
         );
+        if (
+          blockLocalRoomOverlap({
+            roomId,
+            startsAt,
+            endsAt,
+            excludePlacementId: payload.placementId,
+          })
+        ) {
+          setDrag(null);
+          return;
+        }
+        // Version re-read at commit inside movePlacement.
         void movePlacement({
           placementId: payload.placementId,
           roomId,
           startsAt,
           endsAt,
-          expectedVersion: payload.version,
           previous: {
             roomId: payload.roomId,
             startsAt: payload.startsAt,
@@ -858,7 +1058,7 @@ export function ScheduleStudioPage() {
         }).finally(() => setDrag(null));
       }
     },
-    [movePlacement, placeSession, setDrag, slotMinutes],
+    [movePlacement, placeSession, setDrag, slotMinutes, blockLocalRoomOverlap],
   );
 
   /** Cancel any in-flight pointer drag and clear all drag chrome. */
@@ -884,6 +1084,8 @@ export function ScheduleStudioPage() {
   const onDragPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLElement>, payload: DragPayload) => {
       if (e.button !== 0) return;
+      // Do NOT gate on busy/pending — that is the post-drop dead window.
+      // Concurrent mutations are serialized by mutationInFlightRef at commit.
       suppressClickRef.current = false;
       const el = e.currentTarget;
       pointerDragRef.current = {
@@ -914,6 +1116,8 @@ export function ScheduleStudioPage() {
           return;
         }
         st.active = true;
+        // Drag disarms click-to-place for this gesture (teleport guard).
+        clickPlaceArmedRef.current = false;
         setDrag(st.payload);
       }
       e.preventDefault();
@@ -1060,7 +1264,7 @@ export function ScheduleStudioPage() {
         // A drop over a filled tile hit-tests up to its slot — nested honesty
         // without per-tile dragover/drop wiring.
         onPointerDown={(e) => {
-          if (isPending) return;
+          // Never gate pointerdown on isPending — post-drop dead window fix.
           onDragPointerDown(e, {
             source: "placement",
             placementId: occupant.id,
@@ -1078,6 +1282,8 @@ export function ScheduleStudioPage() {
         onClick={(e) => {
           e.stopPropagation();
           if (consumeClickSuppression()) return;
+          // Pure click (no drag threshold) arms click-to-place.
+          clickPlaceArmedRef.current = true;
           setSelectedPlacementId(occupant.id);
           setSelectedSessionId(null);
           setFocusedDayKey(zonedDayKey(occupant.startsAt, timezone));
@@ -1127,14 +1333,40 @@ export function ScheduleStudioPage() {
 
   const renderSlot = (roomId: string, startsAt: string) => {
     const key = slotKey(roomId, startsAt);
-    // Match by slot window (not exact ISO equality) so e.g. 10:30 appears in 10:00 hour.
-    // Multiple non-overlapping placements can begin in the same hour (10:00 + 10:30);
-    // render all of them — never placements.find() which hides the rest.
+    // Start-row tiles: placements that BEGIN in this slot.
     const occupants = placements.filter((p) =>
       placementInSlot(p, roomId, startsAt, slotMinutes),
     );
+    // Honest multi-row occupancy: any placement whose interval intersects.
+    const occupying = placements.filter((p) =>
+      placementOccupiesSlot(p, roomId, startsAt, slotMinutes),
+    );
+    const isContinuation =
+      occupying.length > 0 &&
+      occupants.length === 0 &&
+      occupying.some((p) => !placementInSlot(p, roomId, startsAt, slotMinutes));
     const isOver = dragOverSlot === key;
-    const hasConflict = occupants.some((o) => conflictPlacementSet.has(o.id));
+    const isRejected = rejectedSlotKey === key;
+    const hasConflict = occupying.some((o) => conflictPlacementSet.has(o.id));
+    // Local pre-flight block for active drag destination.
+    const drag = dragPayload;
+    let blockedByLocal = false;
+    if (drag) {
+      const endsAt =
+        drag.source === "placement"
+          ? addMinutesIso(
+              startsAt,
+              durationMinutes(drag.startsAt, drag.endsAt),
+            )
+          : addMinutesIso(startsAt, slotMinutes);
+      blockedByLocal = wouldRoomOverlap(placements, {
+        roomId,
+        startsAt,
+        endsAt,
+        excludePlacementId:
+          drag.source === "placement" ? drag.placementId : undefined,
+      });
+    }
     return (
       <div
         key={key}
@@ -1142,8 +1374,13 @@ export function ScheduleStudioPage() {
           "schedule-studio__slot",
           "lumen-focusable",
           isOver ? "schedule-studio__slot--over" : "",
-          occupants.length > 0 ? "schedule-studio__slot--filled" : "",
+          occupants.length > 0 || isContinuation
+            ? "schedule-studio__slot--filled"
+            : "",
+          isContinuation ? "schedule-studio__slot--continuation" : "",
           hasConflict ? "schedule-studio__slot--conflict" : "",
+          isRejected ? "schedule-studio__slot--rejected" : "",
+          blockedByLocal ? "schedule-studio__slot--blocked" : "",
           busy && (selectedSessionId || selectedPlacementId || dragPayload)
             ? "schedule-studio__slot--pending-target"
             : "",
@@ -1154,13 +1391,41 @@ export function ScheduleStudioPage() {
         data-room-id={roomId}
         data-starts-at={startsAt}
         data-ends-at={addMinutesIso(startsAt, slotMinutes)}
+        data-blocked={blockedByLocal ? "true" : undefined}
+        data-continuation={isContinuation ? "true" : undefined}
         role="button"
         tabIndex={0}
         aria-label={`Slot ${roomName(roomId)} ${formatTimeLabel(startsAt, timezone)}`}
         onKeyDown={(e) => onSlotKeyDown(e, roomId, startsAt)}
         onClick={() => {
           if (consumeClickSuppression()) return;
-          if (selectedSessionId || selectedPlacementId) {
+          // Click-to-place only when armed (pure select, not residual drag intent).
+          if (
+            clickPlaceArmedRef.current &&
+            (selectedSessionId || selectedPlacementId)
+          ) {
+            if (blockedByLocal) {
+              const endsAtForBlock =
+                dragPayload?.source === "placement"
+                  ? addMinutesIso(
+                      startsAt,
+                      durationMinutes(
+                        dragPayload.startsAt,
+                        dragPayload.endsAt,
+                      ),
+                    )
+                  : addMinutesIso(startsAt, slotMinutes);
+              blockLocalRoomOverlap({
+                roomId,
+                startsAt,
+                endsAt: endsAtForBlock,
+                excludePlacementId:
+                  dragPayload?.source === "placement"
+                    ? dragPayload.placementId
+                    : undefined,
+              });
+              return;
+            }
             void applyToSlot(roomId, startsAt);
           }
         }}
@@ -1170,6 +1435,13 @@ export function ScheduleStudioPage() {
         </span>
         {occupants.length > 0 ? (
           occupants.map((occupant) => renderTile(occupant))
+        ) : isContinuation ? (
+          <span
+            className="schedule-studio__slot-continuation"
+            data-testid={`schedule-slot-occupied-${key}`}
+          >
+            Occupied
+          </span>
         ) : (
           <span className="schedule-studio__slot-empty">Empty</span>
         )}
@@ -1931,7 +2203,7 @@ export function ScheduleStudioPage() {
                             : undefined
                         }
                         onPointerDown={(e) => {
-                          if (pendingSessionId === s.id) return;
+                          // Never gate on pending — dead-window fix (same as tiles).
                           onDragPointerDown(e, {
                             source: "tray",
                             sessionId: s.id,
@@ -1943,12 +2215,14 @@ export function ScheduleStudioPage() {
                         onPointerCancel={onDragPointerCancel}
                         onClick={() => {
                           if (consumeClickSuppression()) return;
+                          clickPlaceArmedRef.current = true;
                           setSelectedSessionId(s.id);
                           setSelectedPlacementId(null);
                         }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
+                            clickPlaceArmedRef.current = true;
                             setSelectedSessionId(s.id);
                             setSelectedPlacementId(null);
                           }

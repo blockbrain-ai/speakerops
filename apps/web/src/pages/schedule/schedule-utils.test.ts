@@ -22,7 +22,9 @@ import {
   isDayWithinEventRange,
   isScheduleView,
   placementInSlot,
+  placementOccupiesSlot,
   placementsOnDay,
+  wouldRoomOverlap,
   safeTrackColor,
   slotKey,
   slotTargetFromElement,
@@ -309,11 +311,10 @@ describe("schedule-utils", () => {
     );
   });
 
-  it("undo actions invert place/move/unschedule", () => {
+  it("undo actions invert place/move/unschedule (no frozen expectedVersion)", () => {
     expect(undoForPlace(sample)).toEqual({
       kind: "unschedule",
       placementId: "plc_1",
-      expectedVersion: 1,
     });
     expect(
       undoForMove({ ...sample, version: 2 }, {
@@ -327,7 +328,6 @@ describe("schedule-utils", () => {
       roomId: "room_b",
       startsAt: "2026-09-01T14:00:00.000Z",
       endsAt: "2026-09-01T15:00:00.000Z",
-      expectedVersion: 2,
     });
     expect(
       undoForUnschedule({
@@ -355,6 +355,51 @@ describe("schedule-utils", () => {
     ).toBe("Room busy · Speaker busy");
     expect(isScheduleView("day")).toBe(true);
     expect(isScheduleView("auto")).toBe(false);
+  });
+
+  it("placementOccupiesSlot marks duration occupancy across later rows", () => {
+    // 10:00–12:00 occupies 10:00 and 11:00 hour rows, not 12:00.
+    const long = {
+      ...sample,
+      startsAt: "2026-09-01T10:00:00.000Z",
+      endsAt: "2026-09-01T12:00:00.000Z",
+    };
+    expect(
+      placementOccupiesSlot(long, "room_a", "2026-09-01T10:00:00.000Z", 60),
+    ).toBe(true);
+    expect(
+      placementOccupiesSlot(long, "room_a", "2026-09-01T11:00:00.000Z", 60),
+    ).toBe(true);
+    expect(
+      placementOccupiesSlot(long, "room_a", "2026-09-01T12:00:00.000Z", 60),
+    ).toBe(false);
+    // Start-row only helper still only marks the start hour.
+    expect(placementInSlot(long, "room_a", "2026-09-01T11:00:00.000Z", 60)).toBe(
+      false,
+    );
+  });
+
+  it("wouldRoomOverlap pre-flight detects room conflicts and excludes source", () => {
+    const a = sample;
+    const candidateOverlap = {
+      roomId: "room_a",
+      startsAt: "2026-09-01T10:30:00.000Z",
+      endsAt: "2026-09-01T11:30:00.000Z",
+    };
+    expect(wouldRoomOverlap([a], candidateOverlap)).toBe(true);
+    expect(
+      wouldRoomOverlap([a], {
+        ...candidateOverlap,
+        excludePlacementId: a.id,
+      }),
+    ).toBe(false);
+    expect(
+      wouldRoomOverlap([a], {
+        roomId: "room_a",
+        startsAt: "2026-09-01T12:00:00.000Z",
+        endsAt: "2026-09-01T13:00:00.000Z",
+      }),
+    ).toBe(false);
   });
 
   it("formatConflictMessage renders embedded ISO instants in the event timezone", () => {
