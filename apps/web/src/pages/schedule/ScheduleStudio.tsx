@@ -667,7 +667,10 @@ export function ScheduleStudioPage() {
       setBusy(true);
       setPendingPlacementId(input.placementId);
       setToast(null);
-      // Optimistic geometry — tile moves immediately; failure snaps back via loadAll.
+      // Snapshot for local rollback if mutation or recovery fetch fails
+      // (Codex DND-01: never leave rejected geometry painted when resync dies).
+      const preMoveSnapshot = placementsRef.current.map((p) => ({ ...p }));
+      // Optimistic geometry — tile moves immediately; failure snaps back.
       setPlacements((prev) =>
         prev.map((p) =>
           p.id === input.placementId
@@ -700,18 +703,28 @@ export function ScheduleStudioPage() {
           },
         );
         if (!res.ok) {
-          // ALWAYS resync on move failure (the smoking gun — previously missing).
+          // Local rollback first, then ALWAYS resync (smoking gun).
+          setPlacements(preMoveSnapshot);
           await handleApiError(res, {
             rejectedSlotKey: slotKey(input.roomId, input.startsAt),
           });
-          await loadAll(activeEventId);
+          try {
+            await loadAll(activeEventId);
+          } catch {
+            /* snapshot already restored */
+          }
           return false;
         }
         const raw: unknown = await res.json();
         const parsed = ScheduleMoveResponseSchema.safeParse(raw);
         if (!parsed.success) {
+          setPlacements(preMoveSnapshot);
           setToast({ kind: "error", text: "Invalid move response" });
-          await loadAll(activeEventId);
+          try {
+            await loadAll(activeEventId);
+          } catch {
+            /* snapshot already restored */
+          }
           return false;
         }
         // Authoritative response applied optimistically; refetch in background.
@@ -729,8 +742,13 @@ export function ScheduleStudioPage() {
         void loadAll(activeEventId);
         return true;
       } catch {
+        setPlacements(preMoveSnapshot);
         setToast({ kind: "error", text: "Network error on move" });
-        await loadAll(activeEventId);
+        try {
+          await loadAll(activeEventId);
+        } catch {
+          /* snapshot already restored */
+        }
         return false;
       } finally {
         // Clear pending immediately so the next drag is not dead-windowed.

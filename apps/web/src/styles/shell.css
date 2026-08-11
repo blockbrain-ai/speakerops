@@ -3976,6 +3976,48 @@
   background: var(--lumen-danger-soft);
 }
 
+/* DnD honest board — multi-row occupancy + local pre-flight / rejected flash */
+.schedule-studio__slot--continuation {
+  border-style: solid;
+  border-color: var(--lumen-border);
+  background: var(--lumen-brand-soft);
+}
+
+.schedule-studio__slot--blocked {
+  border-color: var(--lumen-clay, var(--lumen-danger));
+  background: var(--lumen-clay-soft, var(--lumen-danger-soft));
+  cursor: not-allowed;
+}
+
+.schedule-studio__slot--blocked.schedule-studio__slot--over {
+  outline: 2px solid var(--lumen-danger);
+  outline-offset: -2px;
+}
+
+.schedule-studio__slot--rejected {
+  border-color: var(--lumen-danger);
+  background: var(--lumen-danger-soft);
+  animation: schedule-slot-reject-flash 1.2s ease-out 1;
+}
+
+@keyframes schedule-slot-reject-flash {
+  0% {
+    box-shadow: 0 0 0 0 var(--lumen-danger-soft);
+  }
+  40% {
+    box-shadow: 0 0 0 4px var(--lumen-danger-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.schedule-studio__slot-continuation {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lumen-action);
+}
+
 .schedule-studio__slot-time {
   font-size: 11px;
   color: var(--lumen-text-secondary);
