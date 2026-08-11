@@ -323,6 +323,8 @@ async function mergeDataForParticipation(
     : `/login?purpose=speaker&eventId=${encodeURIComponent(input.eventId)}`;
   return {
     name,
+    // Alias used by some templates / UI copy (Fable live-visual F2).
+    speakerName: name,
     firstName,
     lastName,
     email,

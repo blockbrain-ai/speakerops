@@ -49,4 +49,4 @@ The existing CLI satisfies the constitution’s explicit S-CLI scenario and shou
 
 ## Refused as out of scope
 
-I would not add AI-assisted multi-round review, an automatic optimization scheduler, a CRM/marketing/CMS/media suite, ticketing or travel operations, portal wiki/embeds, an embeddable gallery, an in-product agent fleet/control plane, bidirectional Airtable sync, or a second system of record. None is needed to close the four retained competition risks, and several are explicit non-goals.
+I would not add AI-assisted multi-round review, an automatic optimization scheduler, a CRM/marketing/CMS/media suite, ticketing or travel operations, an in-product agent fleet/control plane, bidirectional Airtable sync, or a second system of record to close the four retained competition risks — those remain non-goals. **Note (Amendment A1, 2026-08-11):** portal wiki/embeds, embeddable gallery/itinerary, and Accelevents one-way integration are no longer non-goals; they are in-scope primary features scheduled for later waves. This historical review text must not be read as keeping them struck.

@@ -115,6 +115,29 @@ describe("F2 <RichText> safe renderer", () => {
     }
   });
 
+  it("CRASH-GUARD: content:[null] and marks:123 never throw (Codex F2-01)", () => {
+    const nullContent = {
+      schema: "v1",
+      doc: { type: "doc", content: [null, { type: "paragraph", content: [{ type: "text", text: "ok" }] }] },
+    } as unknown as RichTextEnvelope;
+    const marksNumber = {
+      schema: "v1",
+      doc: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "x", marks: 123 }] }],
+      },
+    } as unknown as RichTextEnvelope;
+    let html = "";
+    expect(() => {
+      html = render(nullContent);
+    }).not.toThrow();
+    expect(html).toContain("ok");
+    expect(() => {
+      html = render(marksNumber);
+    }).not.toThrow();
+    expect(html).toContain("x");
+  });
+
   it("GREP-PROOF: no dangerouslySetInnerHTML *usage* in the richtext components", () => {
     // Match a real JSX prop / object key (`dangerouslySetInnerHTML=` or `:`),
     // not the word appearing in a doc comment.

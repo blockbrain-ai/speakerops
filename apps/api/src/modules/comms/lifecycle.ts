@@ -194,6 +194,7 @@ export async function enqueueSubmissionConfirmation(
     const nameParts = primaryName.split(/\s+/).filter(Boolean);
     const mergeData: Record<string, string> = {
       name: primaryName,
+      speakerName: primaryName,
       firstName: nameParts[0] ?? "",
       lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : "",
       email: primaryEmail,

@@ -570,6 +570,64 @@ describe("F2 richtext: RichTextEnvelopeSchema render gate (crash-guard)", () => 
         doc: { type: "doc", content: [{ notType: "x" }] },
       }).success,
     ).toBe(false);
+    // Codex F2-01: null array entries and non-array marks must not parse.
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v1",
+        doc: { type: "doc", content: [null] },
+      }).success,
+    ).toBe(false);
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v1",
+        doc: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "x", marks: 123 }],
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("parseRichTextJson routes through RichTextEnvelopeSchema (no cast bypass)", () => {
+    expect(
+      parseRichTextJson(
+        JSON.stringify({
+          schema: "v1",
+          doc: { type: "doc", content: 123 },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseRichTextJson(
+        JSON.stringify({
+          schema: "v1",
+          doc: { type: "doc", content: [null] },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseRichTextJson(
+        JSON.stringify({
+          schema: "v1",
+          doc: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: "x", marks: 123 }],
+              },
+            ],
+          },
+        }),
+      ),
+    ).toBeNull();
+    // Valid envelope still loads.
+    expect(parseRichTextJson(JSON.stringify(env([para("ok")])))).not.toBeNull();
   });
 
   it("REJECTS a nested node whose content is a non-array", () => {

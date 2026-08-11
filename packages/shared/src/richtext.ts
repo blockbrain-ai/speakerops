@@ -411,8 +411,10 @@ export function richTextSchemaForContext(
 /**
  * Parse a stored `*_rich_json` column value. Returns null when the value is
  * null/empty/unparseable (callers then fall back to the legacy text column).
- * Validation against a context schema happens at WRITE time; reads stay
- * permissive on shape (schema-versioned envelope only) so old rows render.
+ * Context allowlists run at WRITE time; reads use RichTextEnvelopeSchema
+ * (structural strictness, permissive vocabulary) so crash-shaped envelopes
+ * (`content:123`, `content:[null]`, `marks:123`) never become typed values
+ * that later throw in render/CSV.
  */
 export function parseRichTextJson(
   value: string | null | undefined,
@@ -420,16 +422,8 @@ export function parseRichTextJson(
   if (value == null || value === "") return null;
   try {
     const parsed: unknown = JSON.parse(value);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      (parsed as { schema?: unknown }).schema === RICH_TEXT_SCHEMA_VERSION &&
-      typeof (parsed as { doc?: unknown }).doc === "object" &&
-      (parsed as { doc?: { type?: unknown } }).doc?.type === "doc"
-    ) {
-      return parsed as RichTextEnvelope;
-    }
-    return null;
+    const result = RichTextEnvelopeSchema.safeParse(parsed);
+    return result.success ? result.data : null;
   } catch {
     return null;
   }
@@ -491,9 +485,11 @@ export function richTextIsEmpty(
 // ---------------------------------------------------------------------------
 
 function inlineToPlainText(nodes: RichTextNode[] | undefined): string {
-  if (!nodes) return "";
+  // Defensive: non-array content must never reach `for...of`.
+  if (!Array.isArray(nodes)) return "";
   let out = "";
   for (const node of nodes) {
+    if (node == null || typeof node !== "object") continue;
     if (node.type === "text") out += node.text ?? "";
     else if (node.type === "hardBreak") out += "\n";
   }
@@ -501,6 +497,7 @@ function inlineToPlainText(nodes: RichTextNode[] | undefined): string {
 }
 
 function blockToPlainLines(node: RichTextNode, indent: string): string[] {
+  if (node == null || typeof node !== "object") return [];
   switch (node.type) {
     case "paragraph":
     case "heading": {
@@ -515,10 +512,14 @@ function blockToPlainLines(node: RichTextNode, indent: string): string[] {
         typeof node.attrs?.["start"] === "number"
           ? (node.attrs["start"] as number)
           : 1;
-      (node.content ?? []).forEach((item, idx) => {
+      const items = Array.isArray(node.content) ? node.content : [];
+      items.forEach((item, idx) => {
+        if (item == null || typeof item !== "object") return;
         const marker = ordered ? `${start + idx}. ` : "- ";
         const childLines: string[] = [];
-        for (const child of item.content ?? []) {
+        const children = Array.isArray(item.content) ? item.content : [];
+        for (const child of children) {
+          if (child == null || typeof child !== "object") continue;
           childLines.push(...blockToPlainLines(child, ""));
         }
         childLines.forEach((line, li) => {
@@ -547,7 +548,11 @@ export function richTextToPlainText(
 ): string {
   if (envelope == null) return "";
   const lines: string[] = [];
-  for (const block of envelope.doc.content ?? []) {
+  const blocks = Array.isArray(envelope.doc?.content)
+    ? envelope.doc.content
+    : [];
+  for (const block of blocks) {
+    if (block == null || typeof block !== "object") continue;
     lines.push(...blockToPlainLines(block, ""));
   }
   return lines.join("\n");
@@ -564,8 +569,10 @@ export function richTextCharCount(
   if (envelope == null) return 0;
   let count = 0;
   const walk = (node: RichTextNode): void => {
+    if (node == null || typeof node !== "object") return;
     if (node.type === "text") count += (node.text ?? "").length;
-    for (const child of node.content ?? []) walk(child);
+    const children = Array.isArray(node.content) ? node.content : [];
+    for (const child of children) walk(child);
   };
   walk(envelope.doc as unknown as RichTextNode);
   return count;
@@ -591,9 +598,11 @@ const EMAIL_TEXT_COLOR = "#1e2621";
 const EMAIL_LINK_COLOR = "#3e6b50";
 
 function inlineToEmailHtml(nodes: RichTextNode[] | undefined): string {
-  if (!nodes) return "";
+  // Defensive: non-array / null entries must never throw in serializers.
+  if (!Array.isArray(nodes)) return "";
   let out = "";
   for (const node of nodes) {
+    if (node == null || typeof node !== "object") continue;
     if (node.type === "hardBreak") {
       out += "<br />";
       continue;
@@ -601,7 +610,11 @@ function inlineToEmailHtml(nodes: RichTextNode[] | undefined): string {
     if (node.type !== "text") continue;
     let html = escapeHtml(node.text ?? "");
     let href: string | null = null;
-    for (const mark of node.marks ?? []) {
+    const marks = Array.isArray(node.marks) ? node.marks : [];
+    for (const mark of marks) {
+      if (mark == null || typeof mark !== "object" || typeof mark.type !== "string") {
+        continue;
+      }
       switch (mark.type) {
         case "bold":
           html = `<strong>${html}</strong>`;
@@ -665,9 +678,13 @@ function blockToEmailHtml(node: RichTextNode): string {
         (node.attrs["start"] as number) > 1
           ? ` start="${node.attrs["start"] as number}"`
           : "";
-      const items = (node.content ?? [])
+      const listItems = Array.isArray(node.content) ? node.content : [];
+      const items = listItems
+        .filter((item) => item != null && typeof item === "object")
         .map((item) => {
-          const inner = (item.content ?? [])
+          const children = Array.isArray(item.content) ? item.content : [];
+          const inner = children
+            .filter((child) => child != null && typeof child === "object")
             .map((child) => blockToEmailHtml(child))
             .join("");
           return `<li style="margin: 0 0 4px 0;">${inner}</li>`;
@@ -694,7 +711,13 @@ export function richTextToEmailHtml(
   envelope: RichTextEnvelope | null | undefined,
 ): string {
   if (envelope == null) return "";
-  return (envelope.doc.content ?? []).map((b) => blockToEmailHtml(b)).join("\n");
+  const blocks = Array.isArray(envelope.doc?.content)
+    ? envelope.doc.content
+    : [];
+  return blocks
+    .filter((b) => b != null && typeof b === "object")
+    .map((b) => blockToEmailHtml(b))
+    .join("\n");
 }
 
 // ---------------------------------------------------------------------------

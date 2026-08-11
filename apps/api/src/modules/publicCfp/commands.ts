@@ -495,6 +495,32 @@ export async function createSubmission(
       storedAnswers.push({ fieldKey: f.fieldKey, value: parsedDoc.data });
       continue;
     }
+    // F2-02: non-rich fields must NOT accept arbitrary objects. A structured
+    // rich envelope smuggled through a text field would bypass per-context
+    // write caps and later be shape-sniffed as rich by admin detail / CSV.
+    // Arrays are only valid for multiselect (already checked above).
+    if (val !== null && typeof val === "object") {
+      if (Array.isArray(val)) {
+        // multiselect already validated; any other array is noise/attack.
+        if (f.type !== "multiselect") {
+          return {
+            ok: false,
+            status: 400,
+            error: `“${f.label}” must be a scalar value`,
+            code: "VALIDATION_ERROR",
+            details: { fieldKey: f.fieldKey, type: f.type },
+          };
+        }
+      } else {
+        return {
+          ok: false,
+          status: 400,
+          error: `“${f.label}” must not be an object`,
+          code: "VALIDATION_ERROR",
+          details: { fieldKey: f.fieldKey, type: f.type },
+        };
+      }
+    }
     storedAnswers.push({ fieldKey: f.fieldKey, value: val });
   }
   // Also allow unknown? No — only published field keys
@@ -1316,6 +1342,22 @@ export async function saveDraft(
       }
       storedAnswers.push({ fieldKey: a.fieldKey, value: parsedDoc.data });
       continue;
+    }
+    // F2-02: non-rich draft answers must not store arbitrary objects (same
+    // smuggle path as final submit — admin/CSV shape-sniffs rich envelopes).
+    if (
+      !richTextKeys.has(a.fieldKey) &&
+      a.value !== null &&
+      typeof a.value === "object" &&
+      !Array.isArray(a.value)
+    ) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Draft answers for non-rich fields must not be objects",
+        code: "VALIDATION_ERROR",
+        details: { fieldKey: a.fieldKey },
+      };
     }
     storedAnswers.push({ fieldKey: a.fieldKey, value: a.value });
   }

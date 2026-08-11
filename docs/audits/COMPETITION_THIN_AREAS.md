@@ -12,7 +12,9 @@
 
 **Thesis:** Intake and program-loop **mechanics** are largely in place. The product still loses “genuinely good CFP tool” credibility where (a) reviewers cannot **read and deliberate** on proposals, (b) cohort-scale **ops** stop short of commit/assign/browse, (c) **form fidelity** bugs break trust, or (d) **accept → portal → calendar** is not closed-loop for a real entrant.
 
-**Not listed:** Struck / non-goal surfaces (AI multi-round review, Accelevents, portal wiki/embeds, embeddable gallery, CRM/marketing/CMS/media, cross-event history, OR-Tools auto-scheduler, in-product agent fleet, dual-write Airtable, etc.). Absence of those is intentional, not thinness.
+**Not listed (still non-goals):** AI multi-round review, CRM/marketing/CMS/media breadth, cross-event history, OR-Tools auto-scheduler, in-product agent fleet, dual-write Airtable, etc. Absence of those is intentional, not thinness.
+
+**Amendment A1 (2026-08-11) — in-scope primary (building, not “struck”):** Accelevents one-way integration, portal resources/wiki + sandboxed HTML embeds, and embeddable speaker gallery / schedule itinerary. These are no longer non-goals; they are scheduled Phase-3 work. Do not treat their unfinished state as a thin-area of the core CFP loop, and do not re-list them as struck.
 
 ---
 
@@ -128,8 +130,8 @@ These are correctness bugs, not missing modules. Judges filling or previewing fo
 | Topic | Why |
 |-------|-----|
 | Cross-event history / lasting CRM profiles | Non-goal; correct omission |
-| AI multi-round review | Struck |
-| Accelevents, portal wiki/embeds, embeddable gallery | Struck |
+| AI multi-round review | Struck / owner-excluded |
+| Accelevents one-way · portal wiki/embeds · embeddable gallery | **In-scope primary (Amendment A1)** — building in Phase 3; not a struck non-goal |
 | Full CRM / marketing / CMS / media | Non-goal |
 | OR-Tools auto-scheduler | Non-goal |
 | In-product agent fleet / MCP product UI | Non-goal |

@@ -1927,4 +1927,42 @@ describe("3.3 public CFP — rich_text field (F2)", () => {
       expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(VALIDATION_ERROR);
     }
   });
+
+  it("REJECTS a rich envelope smuggled through a non-rich (text) field — F2-02 generic path", async () => {
+    // Codex F2-02: ordinary text fields previously stored arbitrary objects at
+    // the generic answer path. A valid publicAnswer envelope on a text field
+    // would bypass write caps and later be shape-sniffed as rich in admin/CSV.
+    const { app, cookie } = await magicLinkSession("admin-rt-smuggle@example.com");
+    const event = await createEvent(app, cookie, "RT Smuggle Event", "rt-smug-evt");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: openFields, // title is a plain text field — no rich_text field
+    });
+    const smuggled = {
+      schema: "v1",
+      doc: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "smuggled via text field" }],
+          },
+        ],
+      },
+    };
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          baseSubmitBody(formVersionId, {
+            answers: [{ fieldKey: "title", value: smuggled }],
+          }),
+        ),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(VALIDATION_ERROR);
+  });
 });
