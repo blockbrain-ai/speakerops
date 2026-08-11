@@ -929,4 +929,109 @@ describe("3.1 form builder API", () => {
     );
     expect(unauth.status).toBe(401);
   });
+
+  it("wires section descriptionRich end-to-end: draft → snapshot → public payload (F2)", async () => {
+    const { app, cookie } = await magicLinkSession(
+      "admin",
+      "admin-forms-descrich@example.com",
+    );
+    const { id: eventId, slug } = await createEvent(app, cookie, "Desc Rich");
+
+    const createRes = await app.request(
+      `http://localhost/api/events/${eventId}/forms`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ name: "CFP desc" }),
+      },
+      env,
+    );
+    const created = FormCreateResponseSchema.parse(await createRes.json());
+
+    const descriptionRich = {
+      schema: "v1" as const,
+      doc: {
+        type: "doc" as const,
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "Fill in " },
+              { type: "text", text: "everything", marks: [{ type: "bold" }] },
+            ],
+          },
+          {
+            type: "bulletList",
+            content: [
+              { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "one" }] }] },
+            ],
+          },
+        ],
+      },
+    };
+
+    const draftRes = await app.request(
+      `http://localhost/api/forms/${created.form.id}/draft`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          fields: [
+            {
+              fieldKey: "about_section",
+              type: "text",
+              label: "About your talk",
+              nodeKind: "layout",
+              layoutType: "section",
+              sortOrder: 0,
+              descriptionRich,
+            },
+            { fieldKey: "talk_title", type: "text", label: "Talk title", required: true, sortOrder: 1 },
+          ],
+          rules: [],
+        }),
+      },
+      env,
+    );
+    expect(draftRes.status).toBe(200);
+    const draftBody = FormUpdateDraftResponseSchema.parse(await draftRes.json());
+    const draftSection = draftBody.formVersion.fields.find(
+      (f) => f.fieldKey === "about_section",
+    );
+    // Dual-read returns the rich doc on the draft.
+    expect(draftSection?.descriptionRich).toBeTruthy();
+    expect(JSON.stringify(draftSection?.descriptionRich)).toContain("everything");
+
+    const publishRes = await app.request(
+      `http://localhost/api/forms/${created.form.id}/publish`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    expect(publishRes.status).toBe(200);
+    const published = FormPublishResponseSchema.parse(await publishRes.json());
+    // The immutable snapshot carries the section description rich doc.
+    const snapSection = published.formVersion.snapshotJson!.fields.find(
+      (f) => f.fieldKey === "about_section",
+    );
+    expect(snapSection?.descriptionRich).toBeTruthy();
+    expect(JSON.stringify(snapSection?.descriptionRich)).toContain("everything");
+
+    // Public CFP payload exposes the section description for <RichText> render.
+    const publicRes = await app.request(
+      `http://localhost/api/public/cfp/${slug}`,
+      { method: "GET" },
+      env,
+    );
+    expect(publicRes.status).toBe(200);
+    const publicBody = PublicCfpResponseSchema.parse(await publicRes.json());
+    const pubSection = publicBody.formVersion!.fields.find(
+      (f) => f.fieldKey === "about_section",
+    );
+    expect(pubSection?.descriptionRich).toBeTruthy();
+    expect(JSON.stringify(pubSection?.descriptionRich)).toContain("everything");
+  });
 });

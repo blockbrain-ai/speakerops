@@ -181,6 +181,93 @@ describe("F2 0036 migration — upgrade from pre-wave head 0035", () => {
   });
 });
 
+/**
+ * The migration law requires fresh + upgrade + ROLLBACK. 0036 is additive-only
+ * (six nullable columns) and is IMMUTABLE + already applied remotely, so the
+ * rollback is proven test-only here: dropping the additive columns must leave a
+ * valid schema (clean PRAGMA foreign_key_check) with the legacy plain-text data
+ * fully intact and the table still writable. (D1 production recovery is Time
+ * Travel per the 0036 header note; this test proves the down-path is sound.)
+ */
+const ROLLBACK_DOWN_SQL: ReadonlyArray<string> = [
+  "ALTER TABLE form_versions DROP COLUMN welcome_rich_json",
+  "ALTER TABLE form_versions DROP COLUMN thank_you_rich_json",
+  "ALTER TABLE form_fields DROP COLUMN description_rich_json",
+  "ALTER TABLE event_participations DROP COLUMN bio_rich_json",
+  "ALTER TABLE email_templates DROP COLUMN body_rich_json",
+  "ALTER TABLE message_recipients DROP COLUMN body_html",
+];
+
+describe("F2 0036 migration — rollback (down-path) leaves a valid schema", () => {
+  it("drops the six additive columns, preserves legacy data, fk_check stays clean", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "spo-f2-rollback-"));
+    const dbPath = join(dir, "rollback.sqlite");
+    try {
+      const { columns: upColumns, result } = await inspectSchema({
+        dbPath,
+        migrationsDir,
+      });
+      expect(result.applied).toContain(F2_MIGRATION);
+      // Sanity: the additive columns exist before rollback.
+      for (const [table, cols] of Object.entries(RICH_COLUMNS)) {
+        for (const col of cols) {
+          expect(upColumns[table]).toContain(col);
+        }
+      }
+
+      const db = openDb(dbPath);
+      try {
+        // Seed a legacy row carrying BOTH the legacy text and a rich doc.
+        seedLegacyTemplate(db, "Hi {{name}}\nWelcome aboard.");
+        db.run(
+          `UPDATE email_templates SET body_rich_json = ? WHERE id = 'tpl_f2'`,
+          [
+            JSON.stringify({
+              schema: "v1",
+              doc: {
+                type: "doc",
+                content: [{ type: "paragraph", content: [{ type: "text", text: "rich" }] }],
+              },
+            }),
+          ],
+        );
+
+        // Apply the rollback down-path.
+        for (const stmt of ROLLBACK_DOWN_SQL) db.run(stmt);
+
+        // Every additive column is gone from its table.
+        const columnsOf = (table: string): string[] => {
+          const r = db.exec(`PRAGMA table_info(${table})`);
+          return (r[0]?.values ?? []).map((row) => String(row[1]));
+        };
+        for (const [table, cols] of Object.entries(RICH_COLUMNS)) {
+          const present = columnsOf(table);
+          for (const col of cols) {
+            expect(present, `${table}.${col} dropped`).not.toContain(col);
+          }
+        }
+
+        // Legacy plain text survives the rollback untouched.
+        const row = db.exec(`SELECT body_md FROM email_templates WHERE id = 'tpl_f2'`);
+        expect(row[0]?.values[0]).toEqual(["Hi {{name}}\nWelcome aboard."]);
+
+        // Schema still valid + writable after the down-path.
+        db.run(
+          `INSERT INTO email_templates (id, event_id, key, subject, body_md, version, created_at, updated_at)
+           VALUES ('tpl_f2b', 'evt_f2', 'reminder', 'Subject', 'Body', 1, '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
+        );
+        const after = db.exec(`SELECT COUNT(*) FROM email_templates`);
+        expect(after[0]?.values[0]?.[0]).toBe(2);
+        expect(foreignKeyCheckClean(db)).toBe(true);
+      } finally {
+        db.close();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("F2 0036 migration — dual-read at the DB layer", () => {
   it("prefers rich_json, falls back to legacy text as a paragraph doc, never writes on read", async () => {
     const dir = mkdtempSync(join(tmpdir(), "spo-f2-dual-"));

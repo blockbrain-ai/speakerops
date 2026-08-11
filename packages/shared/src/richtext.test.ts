@@ -25,6 +25,7 @@ import {
   normalizeRichTextDoc,
   richTextEnvelopeFromEditorDoc,
   richTextBodyField,
+  RichTextEnvelopeSchema,
   type RichTextEnvelope,
   type RichTextNode,
 } from "./richtext.js";
@@ -514,5 +515,95 @@ describe("F2 richtext: request-body field wrapper", () => {
     // A bio doc containing a heading must be rejected by the wrapper's schema.
     expect(richTextBioSchema.nullable().optional().safeParse(env([heading(2, "no")])).success).toBe(false);
     expect(field).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Render/response envelope schema — malformed-shape rejection (crash-guard)
+// ---------------------------------------------------------------------------
+
+describe("F2 richtext: RichTextEnvelopeSchema render gate (crash-guard)", () => {
+  it("accepts a well-formed envelope (array doc.content)", () => {
+    expect(RichTextEnvelopeSchema.safeParse(env([para("ok")])).success).toBe(
+      true,
+    );
+  });
+
+  it("REJECTS the confirmed crash vector — non-array doc.content", () => {
+    // {schema:"v1",doc:{type:"doc",content:123}} previously loosely parsed and
+    // then threw on `.map` in admin submission detail + CSV export.
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v1",
+        doc: { type: "doc", content: 123 },
+      }).success,
+    ).toBe(false);
+    for (const bad of ["str", {}, null, true]) {
+      expect(
+        RichTextEnvelopeSchema.safeParse({
+          schema: "v1",
+          doc: { type: "doc", content: bad },
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("REJECTS a doc missing content entirely", () => {
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v1",
+        doc: { type: "doc" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("REJECTS content of wrong-typed nodes (non-object / no string type)", () => {
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v1",
+        doc: { type: "doc", content: [123] },
+      }).success,
+    ).toBe(false);
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v1",
+        doc: { type: "doc", content: [{ notType: "x" }] },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("REJECTS a nested node whose content is a non-array", () => {
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v1",
+        doc: {
+          type: "doc",
+          content: [{ type: "paragraph", content: 5 }],
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("stays permissive on node vocabulary (unknown node type still parses)", () => {
+    // Structural strictness only — an unknown block type is renderer-safe
+    // (degrades to plain text) and must not break dual-read of legacy rows.
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v1",
+        doc: {
+          type: "doc",
+          content: [{ type: "futureBlock", content: [{ type: "text", text: "x" }] }],
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("REJECTS a wrong schema version", () => {
+    expect(
+      RichTextEnvelopeSchema.safeParse({
+        schema: "v2",
+        doc: { type: "doc", content: [] },
+      }).success,
+    ).toBe(false);
   });
 });

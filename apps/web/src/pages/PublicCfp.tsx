@@ -1353,12 +1353,22 @@ export function PublicCfpPage() {
                     data-layout-type={f.layoutType ?? undefined}
                   >
                     {f.layoutType === "section" ? (
-                      <h3
-                        className="public-cfp__section-heading"
-                        data-testid={`cfp-section-heading-${f.fieldKey}`}
-                      >
-                        {f.label}
-                      </h3>
+                      <>
+                        <h3
+                          className="public-cfp__section-heading"
+                          data-testid={`cfp-section-heading-${f.fieldKey}`}
+                        >
+                          {f.label}
+                        </h3>
+                        {f.descriptionRich &&
+                        !richTextIsEmpty(f.descriptionRich) ? (
+                          <RichText
+                            doc={f.descriptionRich}
+                            className="public-cfp__section-description"
+                            data-testid={`cfp-section-desc-${f.fieldKey}`}
+                          />
+                        ) : null}
+                      </>
                     ) : (
                       <hr
                         className="public-cfp__divider"

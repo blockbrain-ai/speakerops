@@ -34,6 +34,11 @@ export type BuilderField = {
   /** Node discrimination (Wave 1B): input (default) | layout section/divider. */
   nodeKind?: FormNodeKind;
   layoutType?: FormLayoutType | null;
+  /**
+   * Per-section "Description & Instructions" rich doc (F2; 0036). Only carried
+   * on SECTION layout nodes — never overloads helpText, never on input nodes.
+   */
+  descriptionRich?: RichTextEnvelope | null;
 };
 
 /** True for layout nodes (section/divider) in the builder node list. */
@@ -381,6 +386,13 @@ export function toDraftBody(input: {
           : null,
       nodeKind: layout ? ("layout" as const) : ("input" as const),
       layoutType: layout ? (f.layoutType ?? null) : null,
+      // Section description rich doc — only on section layout nodes (the API
+      // rejects it elsewhere); empty docs clear to null (dual-write derives no
+      // legacy column — description has no legacy text field).
+      descriptionRich:
+        layout && f.layoutType === "section"
+          ? (f.descriptionRich ?? null)
+          : null,
     };
   });
   const rules: FormRuleInput[] = input.rules.map((r) => ({

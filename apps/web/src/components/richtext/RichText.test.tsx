@@ -81,6 +81,40 @@ describe("F2 <RichText> safe renderer", () => {
     expect(render({ schema: "v1", doc: { type: "notdoc" } } as unknown as RichTextEnvelope)).toBe("");
   });
 
+  it("CRASH-GUARD: malformed non-array doc.content degrades to empty, never throws", () => {
+    // The confirmed crash vector: a doc that a loose schema let through and
+    // that then threw on `.map`. The renderer must survive it defensively even
+    // if it reaches <RichText> by a path that skipped RichTextEnvelopeSchema.
+    const malformed = {
+      schema: "v1",
+      doc: { type: "doc", content: 123 },
+    } as unknown as RichTextEnvelope;
+    let html = "";
+    expect(() => {
+      html = render(malformed);
+    }).not.toThrow();
+    // Degrades to an empty container (no blocks), never markup.
+    expect(html).not.toContain("undefined");
+  });
+
+  it("CRASH-GUARD: non-array nested content (paragraph/list/text) never throws", () => {
+    const cases: unknown[] = [
+      { schema: "v1", doc: { type: "doc", content: [{ type: "paragraph", content: 5 }] } },
+      { schema: "v1", doc: { type: "doc", content: [{ type: "bulletList", content: 9 }] } },
+      {
+        schema: "v1",
+        doc: {
+          type: "doc",
+          content: [{ type: "bulletList", content: [{ type: "listItem", content: "nope" }] }],
+        },
+      },
+      { schema: "v1", doc: { type: "doc", content: [{ type: "weird", content: {} }] } },
+    ];
+    for (const bad of cases) {
+      expect(() => render(bad as RichTextEnvelope)).not.toThrow();
+    }
+  });
+
   it("GREP-PROOF: no dangerouslySetInnerHTML *usage* in the richtext components", () => {
     // Match a real JSX prop / object key (`dangerouslySetInnerHTML=` or `:`),
     // not the word appearing in a doc comment.

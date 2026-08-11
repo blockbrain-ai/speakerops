@@ -87,6 +87,7 @@ function draftFieldsToBuilder(fields: FormFieldDto[]): BuilderField[] {
       maxChars: f.maxChars ?? null,
       nodeKind: f.nodeKind ?? "input",
       layoutType: f.layoutType ?? null,
+      descriptionRich: f.descriptionRich ?? null,
     }));
 }
 
@@ -1221,20 +1222,47 @@ export function FormBuilderPage() {
                       data-node-kind="layout"
                     >
                       {selected.layoutType === "section" ? (
-                        <Field
-                          id="layout-edit-label"
-                          label="Section heading"
-                          hint="Shown as a heading on the public form — sections group the fields below them."
-                          inputProps={{
-                            maxLength: 255,
-                            value: selected.label,
-                            onChange: (e) =>
+                        <>
+                          <Field
+                            id="layout-edit-label"
+                            label="Section heading"
+                            hint="Shown as a heading on the public form — sections group the fields below them."
+                            inputProps={{
+                              maxLength: 255,
+                              value: selected.label,
+                              onChange: (e) =>
+                                updateField(selected.clientId, {
+                                  label: e.target.value,
+                                }),
+                              "data-testid": "layout-edit-label",
+                            }}
+                          />
+                          <label
+                            className="form-builder__label"
+                            id="layout-edit-description-label"
+                            htmlFor="layout-edit-description"
+                          >
+                            Description &amp; instructions
+                          </label>
+                          <p className="form-builder__muted">
+                            Rich guidance shown under the section heading on the
+                            public form (formatting, lists, links).
+                          </p>
+                          <RichTextEditor
+                            id="layout-edit-description"
+                            context="cfpContent"
+                            variant="compact"
+                            value={selected.descriptionRich ?? null}
+                            onChange={(next) =>
                               updateField(selected.clientId, {
-                                label: e.target.value,
-                              }),
-                            "data-testid": "layout-edit-label",
-                          }}
-                        />
+                                descriptionRich: next,
+                              })
+                            }
+                            ariaLabelledBy="layout-edit-description-label"
+                            placeholder="Describe this section for submitters"
+                            data-testid="layout-edit-description"
+                          />
+                        </>
                       ) : (
                         <p
                           className="form-builder__muted"

@@ -33,6 +33,7 @@ function field(
     maxChars: partial.maxChars ?? null,
     nodeKind: partial.nodeKind ?? "input",
     layoutType: partial.layoutType ?? null,
+    descriptionRich: partial.descriptionRich ?? null,
   };
 }
 
@@ -269,5 +270,50 @@ describe("3.2 form-builder-utils", () => {
     const input = body.fields[1]!;
     expect(input.nodeKind).toBe("input");
     expect(input.layoutType).toBeNull();
+  });
+
+  it("toDraftBody carries descriptionRich on section nodes and nulls it elsewhere (F2)", () => {
+    const descDoc = {
+      schema: "v1" as const,
+      doc: {
+        type: "doc" as const,
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "Tell us about your talk." }] },
+        ],
+      },
+    };
+    const fields = [
+      field({
+        fieldKey: "layout_about",
+        type: "text",
+        label: "About",
+        nodeKind: "layout",
+        layoutType: "section",
+        descriptionRich: descDoc,
+      }),
+      // A divider layout node must NOT carry descriptionRich (API rejects it).
+      field({
+        fieldKey: "layout_rule",
+        type: "text",
+        label: "rule",
+        nodeKind: "layout",
+        layoutType: "divider",
+        descriptionRich: descDoc,
+      }),
+      // An input node must NOT carry descriptionRich either.
+      field({ fieldKey: "title", type: "text", label: "Title", descriptionRich: descDoc }),
+    ];
+    const body = toDraftBody({
+      fields,
+      rules: [],
+      welcomeMd: "",
+      thankYouMd: "",
+      opensAt: "",
+      closesAt: "",
+      submissionLimit: "",
+    });
+    expect(body.fields[0]!.descriptionRich).toEqual(descDoc);
+    expect(body.fields[1]!.descriptionRich).toBeNull();
+    expect(body.fields[2]!.descriptionRich).toBeNull();
   });
 });

@@ -11,6 +11,8 @@ import {
   isFieldVisibleInPreview,
 } from "./form-builder-utils.js";
 import { charCountLabel, charCountTone } from "./char-count.js";
+import { richTextIsEmpty } from "@speakerops/shared";
+import { RichText } from "../richtext/RichText.js";
 
 export type FormPreviewProps = {
   fields: BuilderField[];
@@ -81,12 +83,22 @@ export function FormPreview({
                 data-layout-type={f.layoutType ?? undefined}
               >
                 {f.layoutType === "section" ? (
-                  <h4
-                    className="form-builder__preview-section-heading"
-                    data-testid={`form-preview-section-${f.fieldKey}`}
-                  >
-                    {f.label}
-                  </h4>
+                  <>
+                    <h4
+                      className="form-builder__preview-section-heading"
+                      data-testid={`form-preview-section-${f.fieldKey}`}
+                    >
+                      {f.label}
+                    </h4>
+                    {f.descriptionRich &&
+                    !richTextIsEmpty(f.descriptionRich) ? (
+                      <RichText
+                        doc={f.descriptionRich}
+                        className="form-builder__preview-section-description"
+                        data-testid={`form-preview-section-desc-${f.fieldKey}`}
+                      />
+                    ) : null}
+                  </>
                 ) : (
                   <hr
                     className="form-builder__preview-divider"

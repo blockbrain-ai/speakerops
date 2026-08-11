@@ -85,18 +85,44 @@ export type RichTextEnvelope = {
 };
 
 /**
- * Permissive envelope schema for READ/response DTOs: shape-only (versioned
- * envelope + doc root), no context allowlist and no caps. Strict per-context
- * validation happens at the WRITE boundary; reads must keep serving rows
- * that predate a cap change (and legacy text dual-read conversions of any
- * size). The safe renderer only maps known nodes, so permissive read is
- * safe by construction.
+ * Render/response envelope schema — STRUCTURAL strictness (no context
+ * allowlist, no caps), used by response DTOs AND the render-time gate that
+ * decides whether an arbitrary `z.unknown()` answer is a rich-text doc.
+ *
+ * Posture: permissive on node/mark VOCABULARY (unknown types still parse and
+ * degrade to plain text in <RichText>) so legacy rows and dual-read
+ * conversions of any size keep rendering — but STRICT on shape so a
+ * renderer-crashing doc can never parse. Concretely: a versioned envelope,
+ * `doc.type === "doc"` with an ARRAY `doc.content`, and — recursively — every
+ * node is an object with a string `type` whose `content` (when present) is an
+ * ARRAY, `marks` (when present) an ARRAY of `{type}` objects, and `text` a
+ * string. This closes the confirmed crash/DoS vector where a crafted
+ * `{schema:"v1",doc:{type:"doc",content:123}}` loosely parsed and then threw
+ * on `.map` in admin submission detail + CSV export.
+ *
+ * Defense-in-depth: <RichText> ALSO guards `Array.isArray` before every map,
+ * so a malformed doc reaching the renderer by any other path degrades to
+ * empty/plain text rather than throwing.
  */
+const richTextRenderNodeSchema: z.ZodTypeAny = z.lazy(() =>
+  z
+    .object({
+      type: z.string(),
+      text: z.string().optional(),
+      marks: z.array(z.object({ type: z.string() }).passthrough()).optional(),
+      content: z.array(richTextRenderNodeSchema).optional(),
+    })
+    .passthrough(),
+);
+
 export const RichTextEnvelopeSchema = z
   .object({
     schema: z.literal(RICH_TEXT_SCHEMA_VERSION),
     doc: z
-      .object({ type: z.literal("doc") })
+      .object({
+        type: z.literal("doc"),
+        content: z.array(richTextRenderNodeSchema),
+      })
       .passthrough(),
   })
   .passthrough() as unknown as z.ZodType<RichTextEnvelope>;

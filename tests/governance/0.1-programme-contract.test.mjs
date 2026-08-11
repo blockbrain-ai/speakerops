@@ -51,6 +51,39 @@ describe("0.1 programme contract", () => {
     );
   });
 
+  it("mirrors constitution Amendment A1: the three re-scoped features are NOT listed as active struck non-goals", () => {
+    const body = readFileSync(contractPath, "utf8");
+    // Guard against the contradiction recurring: bare struck bullets for the
+    // three Amendment-A1 features must never come back to the non-goals list.
+    assert.doesNotMatch(
+      body,
+      /^\s*-\s+Accelevents integration\s*$/m,
+      "Accelevents must not be a bare struck non-goal (re-scoped by A1)",
+    );
+    assert.doesNotMatch(
+      body,
+      /^\s*-\s+Portal wiki ?\/ ?embeds\s*$/m,
+      "Portal wiki/embeds must not be a bare struck non-goal (re-scoped by A1)",
+    );
+    assert.doesNotMatch(
+      body,
+      /^\s*-\s+Embeddable gallery\s*$/m,
+      "Embeddable gallery must not be a bare struck non-goal (re-scoped by A1)",
+    );
+    // And they must be affirmatively promoted to in-scope primary via A1.
+    assert.match(body, /Amendment A1/, "must carry the A1 amendment");
+    assert.match(body, /in-scope primary/i, "A1 promotes the three to in-scope primary");
+    assert.match(body, /Accelevents one-way integration/i);
+    assert.match(body, /Portal resources ?\/ ?wiki \+ sandboxed HTML embeds/i);
+    assert.match(body, /Embeddable, mobile-friendly public programme/i);
+    // AI-assisted multi-round review REMAINS struck (owner re-confirmed).
+    assert.match(
+      body,
+      /AI-assisted multi-round review[^\n]*remains struck/i,
+      "AI multi-round review must stay struck",
+    );
+  });
+
   it("includes human review checklist checkboxes", () => {
     const body = readFileSync(contractPath, "utf8");
     assert.match(body, /Human review checklist/i);

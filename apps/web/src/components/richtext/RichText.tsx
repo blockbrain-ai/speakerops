@@ -31,7 +31,8 @@ function renderInline(
   keyPrefix: string,
   unknown: UnknownCounter,
 ): ReactNode[] {
-  if (!nodes) return [];
+  // Defensive: a malformed doc (non-array content) must never reach `.map`.
+  if (!Array.isArray(nodes)) return [];
   return nodes.map((node, i) => {
     const key = `${keyPrefix}-${i}`;
     if (node.type === "hardBreak") return <br key={key} />;
@@ -91,7 +92,10 @@ function renderInline(
 function plainTextOf(node: RichTextNode): string {
   let out = "";
   if (node.type === "text") out += node.text ?? "";
-  for (const child of node.content ?? []) out += plainTextOf(child);
+  // Defensive: only iterate a real array (never a crafted non-array content).
+  if (Array.isArray(node.content)) {
+    for (const child of node.content) out += plainTextOf(child);
+  }
   return out;
 }
 
@@ -122,9 +126,10 @@ function renderBlock(
     }
     case "bulletList":
     case "orderedList": {
-      const items = (node.content ?? []).map((item, i) => (
+      const listItems = Array.isArray(node.content) ? node.content : [];
+      const items = listItems.map((item, i) => (
         <li key={`${key}-li${i}`}>
-          {(item.content ?? []).map((child, j) =>
+          {(Array.isArray(item.content) ? item.content : []).map((child, j) =>
             renderBlock(child, `${key}-li${i}-${j}`, unknown),
           )}
         </li>
@@ -169,7 +174,10 @@ export function RichText({
 }: RichTextProps): ReactNode {
   if (doc == null || doc.doc?.type !== "doc") return null;
   const unknown: UnknownCounter = { count: 0, types: new Set() };
-  const blocks = (doc.doc.content ?? []).map((node, i) =>
+  // Defensive: a malformed envelope with non-array `doc.content` must degrade
+  // to empty, never throw (belt-and-suspenders with RichTextEnvelopeSchema).
+  const topBlocks = Array.isArray(doc.doc.content) ? doc.doc.content : [];
+  const blocks = topBlocks.map((node, i) =>
     renderBlock(node, `rt-${i}`, unknown),
   );
   if (unknown.count > 0 && import.meta.env.DEV) {

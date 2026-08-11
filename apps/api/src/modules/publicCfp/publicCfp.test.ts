@@ -1900,4 +1900,31 @@ describe("3.3 public CFP — rich_text field (F2)", () => {
     // Payload is preserved as inert text data inside the doc JSON.
     expect(stored?.valueJson).toContain("script");
   });
+
+  it("REJECTS a malformed rich envelope (non-array doc.content) — cannot persist to later crash the admin renderer", async () => {
+    // The render-side crash vector: `{schema:"v1",doc:{type:"doc",content:123}}`
+    // loosely parsed and threw on `.map` in admin submission detail + CSV. Prove
+    // the WRITE boundary also refuses it, so it can never reach storage.
+    const { app, cookie } = await magicLinkSession("admin-rt-malformed@example.com");
+    const event = await createEvent(app, cookie, "RT Malformed Event", "rt-mal-evt");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, RICH_FIELD],
+    });
+    // Every malformed shape is rejected at the WRITE boundary (400), so it can
+    // never persist and later crash the admin renderer / CSV export.
+    for (const badContent of [123, "str", {}, null] as unknown[]) {
+      const malformed = { schema: "v1", doc: { type: "doc", content: badContent } };
+      const res = await app.request(
+        `http://localhost/api/public/cfp/${event.slug}/submissions`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(baseSubmitBody(formVersionId, { answers: richAnswerFields(malformed) })),
+        },
+        env,
+      );
+      expect(res.status, `content=${JSON.stringify(badContent)} rejected`).toBe(400);
+      expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(VALIDATION_ERROR);
+    }
+  });
 });

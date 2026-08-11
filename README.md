@@ -82,7 +82,7 @@ Outline + build order: [`docs/governance/0.5-docs-onboarding-outline.md`](./docs
 - **Airtable:** optional one-way projection only (paused on the hosted demo — no keys configured)
 - **Agents:** CLI + scoped API keys  
 
-**Non-goals include:** Sessionboard CRM suite, in-product agent fleet, Next/RSC default, Postgres dual-stack, Airtable dual-write, OR-Tools, Temporal, struck brief features.
+**Non-goals include:** Sessionboard CRM suite, in-product agent fleet, Next/RSC default, Postgres dual-stack, Airtable dual-write, OR-Tools, Temporal, AI-assisted multi-round review. _(Accelevents integration, portal wiki/embeds, and the embeddable public programme were re-scoped from struck non-goals to in-build primary by constitution Amendment A1 — in build, not yet claimed delivered.)_
 
 ## Initiative contracts
 
