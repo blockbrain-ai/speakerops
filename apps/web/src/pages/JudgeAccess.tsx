@@ -13,6 +13,7 @@
  */
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { BrandLockup } from "../components/ui/BrandMark.js";
 import {
   JudgeAccessResponseSchema,
   type EventRole,
@@ -84,6 +85,10 @@ export default function JudgeAccessPage() {
   return (
     <div className="login-page" data-testid="judge-page">
       <div className="login-card">
+        {/* F1 — Signal mark + wordmark lockup */}
+        <div className="login-card__brand">
+          <BrandLockup size={24} />
+        </div>
         <p className="login-card__overline">SpeakerOps · shared demo</p>
         <h1 className="login-card__title">Judge access</h1>
         <p className="login-card__subtitle">

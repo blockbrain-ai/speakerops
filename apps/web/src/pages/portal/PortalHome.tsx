@@ -90,15 +90,17 @@ type LoadState = "idle" | "loading" | "ready" | "error" | "unauthenticated";
 function statusBadgeClass(status: string): string {
   // portal-status-chip capitalizes the raw enum for display only
   // (text/data-* values stay lowercase for tests and tooling).
+  // F1 urgency ladder: leaf/sage = done · honey = in-progress/awaiting ·
+  // clay = overdue/warning · red stays destructive-only.
   switch (status) {
     case "completed":
       return "portal-status-chip lumen-status lumen-status--success";
     case "overdue":
-      return "portal-status-chip lumen-status lumen-status--danger";
+      return "portal-status-chip lumen-status lumen-status--warn";
     case "cancelled":
       return "portal-status-chip lumen-status lumen-status--info";
     default:
-      return "portal-status-chip lumen-status lumen-status--warn";
+      return "portal-status-chip lumen-status lumen-status--progress";
   }
 }
 

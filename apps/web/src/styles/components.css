@@ -69,9 +69,10 @@
 }
 
 .l2-btn--primary {
-  background: var(--lumen-brand);
+  /* Filled primary = sage deep (white text, AA); light sage stays band-only */
+  background: var(--lumen-action);
   color: var(--lumen-text-on-brand);
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
 }
 
 .l2-btn--primary:hover:not(:disabled):not(.is-disabled):not(.is-pending) {
@@ -116,7 +117,7 @@
 .l2-btn--quiet:active:not(:disabled):not(.is-disabled):not(.is-pending),
 .l2-btn--quiet.is-pressed {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .l2-btn--danger {
@@ -242,7 +243,7 @@
 }
 
 .l2-field.is-error .l2-field__control:focus-visible {
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+  box-shadow: 0 0 0 3px rgba(180, 71, 47, 0.25);
 }
 
 .l2-field__hint,
@@ -300,7 +301,7 @@ textarea.l2-field__control {
 
 .l2-badge--brand {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .l2-badge--success {
@@ -309,8 +310,15 @@ textarea.l2-field__control {
 }
 
 .l2-badge--warn {
+  /* Clay — overdue / needs attention (warm urgency ladder) */
   background: var(--lumen-warn-soft);
-  color: var(--lumen-warn);
+  color: var(--lumen-clay-ink);
+}
+
+.l2-badge--progress {
+  /* Honey — in-progress / awaiting */
+  background: var(--lumen-honey-soft);
+  color: var(--lumen-honey-ink);
 }
 
 .l2-badge--danger {
@@ -459,7 +467,7 @@ textarea.l2-field__control {
 .l2-alert--warn {
   background: var(--lumen-warn-soft);
   border-color: transparent;
-  color: var(--lumen-warn);
+  color: var(--lumen-clay-ink);
 }
 
 .l2-alert--warn .l2-alert__body {
@@ -617,7 +625,7 @@ textarea.l2-field__control {
   background: var(--lumen-brand-soft);
   border-bottom: 1px solid var(--lumen-border);
   font-size: var(--lumen-text-ui);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-weight: var(--lumen-font-weight-medium);
 }
 
@@ -638,7 +646,7 @@ textarea.l2-field__control {
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-family: var(--lumen-font);
   font-size: inherit;
   font-weight: var(--lumen-font-weight-semibold);
@@ -660,7 +668,8 @@ textarea.l2-field__control {
   align-items: center;
   gap: var(--lumen-space-1);
   margin: 0;
-  padding: var(--lumen-space-1) var(--lumen-space-3);
+  min-height: var(--lumen-control-h-sm);
+  padding: 0 var(--lumen-control-px-sm);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-pill);
   background: var(--lumen-surface);
@@ -668,7 +677,7 @@ textarea.l2-field__control {
   font-family: var(--lumen-font);
   font-size: var(--lumen-text-meta);
   font-weight: var(--lumen-font-weight-medium);
-  line-height: var(--lumen-text-meta-lh, 1.3);
+  line-height: 1;
   cursor: pointer;
   transition:
     background var(--lumen-motion-fast) var(--lumen-ease),
@@ -681,10 +690,30 @@ textarea.l2-field__control {
   color: var(--lumen-text);
 }
 
+/* G-PROPORTION: ≥44px effective touch target on coarse pointers even when
+ * the control is visually 28px. */
+@media (pointer: coarse) {
+  .l2-chip,
+  .l2-btn--sm {
+    position: relative;
+  }
+
+  .l2-chip::before,
+  .l2-btn--sm::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: var(--lumen-touch-min);
+  }
+}
+
 .l2-chip--active {
   background: var(--lumen-brand-soft);
   border-color: var(--lumen-brand);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-weight: var(--lumen-font-weight-semibold);
 }
 
@@ -1036,7 +1065,7 @@ textarea.l2-field__control {
 .l2-permission-denied__link {
   font-size: var(--lumen-text-ui);
   font-weight: var(--lumen-font-weight-semibold);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   text-decoration: none;
 }
 
@@ -1070,4 +1099,13 @@ textarea.l2-field__control {
   display: flex;
   flex-direction: column;
   gap: var(--lumen-space-2);
+}
+
+/* =========================================================================
+ * Data face (F1) — IBM Plex Mono for IDs, timestamps, counts, code
+ * ========================================================================= */
+
+.l2-mono {
+  font-family: var(--lumen-font-mono);
+  font-variant-numeric: tabular-nums;
 }

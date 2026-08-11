@@ -337,8 +337,8 @@ const LUMEN_CSS = `
   --lumen-text: #1d1d1f;
   --lumen-text-secondary: #6e6e73;
   --lumen-border: rgba(0, 0, 0, 0.08);
-  --lumen-brand: #4f46e5;
-  --lumen-brand-soft: #eef2ff;
+  --lumen-brand: #7ba88b;
+  --lumen-brand-soft: #e7efdf;
   --lumen-accent: #0d9488;
   --lumen-success: #059669;
   --lumen-warn: #d97706;

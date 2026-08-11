@@ -81,7 +81,7 @@ Commands (CLI_INVENTORY.md):
   events list [--json]                                    CLI01  events:read
   reports readiness --event E [--json]                    CLI02  reports:read
   design get --event E [--json]                           CLI03  design:read
-  design set --event E --brand '#4F46E5'                  CLI04  design:write
+  design set --event E --brand '#7BA88B'                  CLI04  design:write
   design publish --event E                                CLI05  design:write
   schedule place --event E --session S --room R \\
                  --start ISO --end ISO                    CLI06  schedule:write

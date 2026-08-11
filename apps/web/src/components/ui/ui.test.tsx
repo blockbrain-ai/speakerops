@@ -314,12 +314,19 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
     ) as { dependencies?: Record<string, string> };
     const deps = Object.keys(pkg.dependencies ?? {}).sort();
     expect(deps).toEqual([
+      // F1 (Sage & Honey lock): self-hosted OFL fonts — the ONLY sanctioned
+      // font packages (woff2 binaries only; no runtime JS).
+      "@fontsource/hanken-grotesk",
+      "@fontsource/ibm-plex-mono",
       "@speakerops/shared",
       "react",
       "react-dom",
       "react-router-dom",
     ]);
-    // Explicit ban list for UI kits / icons / charts / fonts / DnD
+    // Explicit ban list for UI kits / icons / charts / DnD.
+    // (@fontsource left the ban list deliberately in F1 — self-hosted fonts
+    // are mandated by the locked theme; scope stays limited by the exact
+    // dependency assertion above.)
     const banned = [
       "@mui/",
       "chakra",
@@ -334,7 +341,6 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
       "framer-motion",
       "@dnd-kit",
       "react-beautiful-dnd",
-      "@fontsource",
       "styled-components",
       "@emotion/",
     ];

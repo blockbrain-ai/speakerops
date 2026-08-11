@@ -1093,7 +1093,7 @@ export function EventSettingsPage() {
             value={trackColor}
             onChange={(ev) => setTrackColor(ev.target.value)}
             disabled={!activeEventId}
-            placeholder="#4f46e5"
+            placeholder="#7BA88B"
           />
           <button
             type="submit"

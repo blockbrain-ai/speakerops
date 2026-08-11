@@ -71,7 +71,7 @@ describe("1.4 lumen.css tokens", () => {
   });
 
   it("is light-default (no dark-default theme)", () => {
-    expect(lumenCss).toMatch(/--lumen-bg\s*:\s*#f5f5f7/);
+    expect(lumenCss).toMatch(/--lumen-bg\s*:\s*#fcfbf9/);
     expect(lumenCss).toMatch(/color-scheme:\s*light/);
     // Must not set a dark body background as default
     expect(lumenCss).not.toMatch(/body\s*\{[^}]*background:\s*#0[0-9a-fA-F]{5}/);
@@ -133,7 +133,7 @@ describe("11.0 lumen.css Lumen 2 extended tokens (AC-11.0-B)", () => {
       ).toBe(true);
     }
     // Frozen brand remains the action color SoT
-    expect(lumenCss).toMatch(/--lumen-brand\s*:\s*#4f46e5/);
+    expect(lumenCss).toMatch(/--lumen-brand\s*:\s*#7ba88b/);
   });
 
   it("shell and components.css have no undefined --lumen var references", () => {

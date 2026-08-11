@@ -1,0 +1,61 @@
+/**
+ * Self-hosted fonts — F1 design-system wave (Sage & Honey lock).
+ *
+ * Faces: Hanken Grotesk (display + UI + body, weights 400/600/700/800) and
+ * IBM Plex Mono (IDs / timestamps / counts / code, weights 400/600).
+ * Source binaries: @fontsource/hanken-grotesk + @fontsource/ibm-plex-mono
+ * (SIL OFL — licenses alongside the files in /public/fonts). The woff2 latin
+ * subsets are served from /fonts/* (stable URLs) so index.html can preload
+ * the primary weights; Vite-hashed @fontsource CSS imports would make static
+ * preloading impossible.
+ *
+ * No Google Fonts. font-display: swap keeps first paint on the system stack.
+ */
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/hanken-grotesk-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/hanken-grotesk-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/hanken-grotesk-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/hanken-grotesk-latin-800-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+}

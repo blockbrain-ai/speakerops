@@ -69,7 +69,7 @@
   display: flex;
   align-items: center;
   gap: var(--lumen-space-2);
-  min-height: 40px;
+  min-height: var(--lumen-control-h);
   padding: var(--lumen-space-2) var(--lumen-space-3);
   border-radius: var(--lumen-radius-sm);
   color: var(--lumen-text-secondary);
@@ -95,12 +95,12 @@
 
 .admin-shell__nav-link:hover {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .admin-shell__nav-link--active {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-weight: 600;
 }
 
@@ -117,7 +117,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--lumen-space-2);
-  min-height: 40px;
+  min-height: var(--lumen-control-h);
   padding: var(--lumen-space-2) var(--lumen-space-3);
   border-radius: var(--lumen-radius-sm);
   color: var(--lumen-text-secondary);
@@ -128,7 +128,7 @@
 
 .admin-shell__account-link:hover {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .admin-shell__sign-out {
@@ -275,12 +275,12 @@
 .admin-shell__new-event {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: var(--lumen-control-h);
   padding: var(--lumen-space-1) var(--lumen-space-3);
   white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   background: var(--lumen-brand-soft);
   border-radius: var(--lumen-radius-pill);
   text-decoration: none;
@@ -296,19 +296,13 @@
 }
 
 /* Section 8.4 — dogfood/dev role switcher (Lumen tokens only).
- * Slim full-width top bar in normal document flow (mounted before the shells
- * in App.tsx) so it can never cover page headers, the portal wordmark, or any
- * primary control at 1440px or 390px. */
+ * F1: no longer a full-width band — a small, subordinate chip that lives
+ * inside the single top bar (AdminShell header / RoleShell account area). */
 .role-switcher {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--lumen-space-2);
-  width: 100%;
-  padding: var(--lumen-space-2) var(--lumen-space-4);
-  background: var(--lumen-surface);
-  border-bottom: 1px solid var(--lumen-border);
   font-family: var(--lumen-font);
 }
 
@@ -325,15 +319,17 @@
 }
 
 .role-switcher__select {
-  min-width: 180px;
-  max-width: 280px;
-  padding: var(--lumen-space-2) var(--lumen-space-3);
+  min-width: 150px;
+  max-width: 240px;
+  height: var(--lumen-control-h-sm);
+  padding: 0 var(--lumen-space-2);
+  line-height: 1;
   border: 1px solid var(--lumen-border);
-  border-radius: var(--lumen-radius-sm);
+  border-radius: var(--lumen-radius-pill);
   background: var(--lumen-bg);
   color: var(--lumen-text);
   font-family: var(--lumen-font);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .role-switcher__badge {
@@ -341,7 +337,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   background: var(--lumen-brand-soft);
   padding: var(--lumen-space-1) var(--lumen-space-2);
   border-radius: var(--lumen-radius-pill);
@@ -386,7 +382,7 @@
 }
 
 .event-settings__hint--shared {
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   background: var(--lumen-brand-soft);
   padding: var(--lumen-space-2) var(--lumen-space-3);
   border-radius: var(--lumen-radius-sm);
@@ -433,8 +429,8 @@
   padding: var(--lumen-space-3) var(--lumen-space-4);
   border: none;
   border-radius: var(--lumen-radius-sm);
-  background: var(--lumen-brand);
-  color: var(--lumen-surface);
+  background: var(--lumen-action);
+  color: var(--lumen-text-on-brand);
   font-family: var(--lumen-font);
   font-size: 14px;
   font-weight: 600;
@@ -558,7 +554,7 @@
 
 .design-kit__color {
   width: 48px;
-  height: 40px;
+  height: var(--lumen-control-h);
   padding: 0;
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-sm);
@@ -576,7 +572,7 @@
 }
 
 .design-kit__link {
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-weight: 600;
   text-decoration: none;
 }
@@ -712,11 +708,11 @@
 }
 
 .eval-queue__item:hover {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
 }
 
 .eval-queue__item--active {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
   background: var(--lumen-brand-soft);
 }
 
@@ -797,7 +793,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-family: var(--lumen-font);
   font-size: 14px;
   font-weight: 600;
@@ -831,7 +827,7 @@
 }
 
 .event-settings__status--warn {
-  color: var(--lumen-warn);
+  color: var(--lumen-clay-ink);
 }
 
 /* Section 3.5 / 11.4 — Submissions & decisions (Lumen tokens only) */
@@ -1095,7 +1091,7 @@
   padding: 2px var(--lumen-space-2);
   border-radius: var(--lumen-radius-sm);
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-size: 12px;
   font-weight: 600;
 }
@@ -1306,7 +1302,7 @@
 
 .public-cfp__progress-item.is-current .public-cfp__progress-index {
   background: var(--event-brand, var(--lumen-brand));
-  color: var(--lumen-surface);
+  color: var(--lumen-brand-fg, var(--lumen-surface));
 }
 
 .public-cfp__recovery {
@@ -1509,7 +1505,7 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  min-height: 40px;
+  min-height: var(--lumen-control-h);
 }
 
 .public-cfp__about-toggle:hover {
@@ -1608,7 +1604,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  min-height: 44px;
+  min-height: var(--lumen-control-h-lg);
 }
 
 .public-cfp__primary:disabled {
@@ -1640,7 +1636,7 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  min-height: 40px;
+  min-height: var(--lumen-control-h);
 }
 
 .public-cfp__btn--secondary {
@@ -1809,7 +1805,7 @@
 }
 
 .login-form__radio input[type="radio"] {
-  accent-color: var(--lumen-brand);
+  accent-color: var(--lumen-action);
 }
 
 .login-form__submit {
@@ -1817,8 +1813,8 @@
   padding: var(--lumen-space-3) var(--lumen-space-4);
   border: none;
   border-radius: var(--lumen-radius-sm);
-  background: var(--lumen-brand);
-  color: var(--lumen-surface);
+  background: var(--lumen-action);
+  color: var(--lumen-text-on-brand);
   font-family: var(--lumen-font);
   font-size: 14px;
   font-weight: 600;
@@ -1853,8 +1849,8 @@
 }
 
 .login-form__logout:hover {
-  color: var(--lumen-brand);
-  border-color: var(--lumen-brand);
+  color: var(--lumen-action);
+  border-color: var(--lumen-action);
 }
 
 /* Section 2.2 — access denied / RequireRole (Lumen tokens only) */
@@ -1911,7 +1907,7 @@
   display: inline-block;
   font-size: 14px;
   font-weight: 500;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   text-decoration: none;
 }
 
@@ -2227,14 +2223,14 @@
 }
 
 .form-builder__btn--primary {
-  background: var(--lumen-brand);
-  color: var(--lumen-surface);
-  border-color: var(--lumen-brand);
+  background: var(--lumen-action);
+  color: var(--lumen-text-on-brand);
+  border-color: var(--lumen-action);
 }
 
 .form-builder__btn--secondary {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   border-color: var(--lumen-border);
 }
 
@@ -2272,7 +2268,7 @@
 }
 
 .form-builder__field-item--selected {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
   background: var(--lumen-brand-soft);
 }
 
@@ -2359,7 +2355,7 @@
 }
 
 .form-builder__status--warn {
-  color: var(--lumen-warn);
+  color: var(--lumen-clay-ink);
 }
 
 .form-builder__meta {
@@ -2478,7 +2474,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .role-shell__overline {
@@ -2518,7 +2514,7 @@
 .role-shell__help {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   background: none;
   border: none;
   cursor: pointer;
@@ -2547,7 +2543,7 @@
 }
 
 .role-shell__help-mail {
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-weight: 600;
 }
 
@@ -2581,12 +2577,12 @@
 
 .role-shell__nav-link:hover {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .role-shell__nav-link--active {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-weight: 600;
 }
 
@@ -2633,7 +2629,7 @@
 }
 
 .portal-summary__card:hover {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
   box-shadow: var(--lumen-shadow-raised);
 }
 
@@ -2642,7 +2638,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .portal-summary__value {
@@ -2778,7 +2774,7 @@
 .portal-nav__link {
   font-size: 13px;
   font-weight: 500;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   text-decoration: none;
   padding: var(--lumen-space-1) var(--lumen-space-2);
   border-radius: var(--lumen-radius-sm);
@@ -2798,7 +2794,7 @@
 }
 
 .portal-card--highlight {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
   box-shadow: var(--lumen-shadow-sm), 0 0 0 1px var(--lumen-brand-soft);
 }
 
@@ -2840,8 +2836,8 @@
   padding: var(--lumen-space-3) var(--lumen-space-4);
   border: none;
   border-radius: var(--lumen-radius-sm);
-  background: var(--lumen-brand);
-  color: var(--lumen-surface);
+  background: var(--lumen-action);
+  color: var(--lumen-text-on-brand);
   font-family: var(--lumen-font);
   font-size: 14px;
   font-weight: 600;
@@ -2861,11 +2857,11 @@
 
 .portal-btn--secondary {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .portal-link {
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   font-weight: 500;
 }
 
@@ -2952,8 +2948,8 @@
   justify-content: center;
   padding: 0.5rem 1rem;
   border-radius: var(--lumen-radius-sm);
-  background: var(--lumen-brand);
-  color: var(--lumen-brand-fg);
+  background: var(--lumen-action);
+  color: var(--lumen-text-on-brand);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -3047,8 +3043,9 @@
 }
 
 .portal-task--overdue {
-  border-color: var(--lumen-danger);
-  background: var(--lumen-danger-soft);
+  /* Ladder: overdue = clay (red stays destructive-only) */
+  border-color: var(--lumen-clay);
+  background: var(--lumen-clay-soft);
 }
 
 .portal-task__main {
@@ -3187,7 +3184,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .portal-welcome__name {
@@ -3219,7 +3216,7 @@
 .portal-progress__percent {
   font-size: 18px;
   font-weight: 600;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   letter-spacing: -0.02em;
 }
 
@@ -3291,7 +3288,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .portal-heading--next {
@@ -3310,7 +3307,7 @@
 .portal-btn--dominant {
   width: 100%;
   justify-content: center;
-  min-height: 44px;
+  min-height: var(--lumen-control-h-lg);
   margin-top: var(--lumen-space-4);
   font-size: 15px;
   padding: var(--lumen-space-3) var(--lumen-space-4);
@@ -3335,7 +3332,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .portal-wizard__title {
@@ -3381,7 +3378,7 @@
 
 .portal-wizard__dot--done {
   background: var(--lumen-brand);
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
 }
 
 .portal-wizard__dot--current {
@@ -3390,8 +3387,8 @@
 }
 
 .portal-wizard__dot--skipped {
-  background: var(--lumen-warn);
-  border-color: var(--lumen-warn);
+  background: var(--lumen-honey);
+  border-color: var(--lumen-honey);
   opacity: 0.85;
 }
 
@@ -3532,12 +3529,12 @@
 
   .portal-bottom-nav__link:hover,
   .portal-bottom-nav__link:focus-visible {
-    color: var(--lumen-brand);
+    color: var(--lumen-action);
     background: var(--lumen-brand-soft);
   }
 
   .portal-bottom-nav__link--active {
-    color: var(--lumen-brand);
+    color: var(--lumen-action);
     background: var(--lumen-brand-soft);
     font-weight: 600;
   }
@@ -3622,7 +3619,7 @@
 
 .schedule-studio__btn-secondary {
   background: var(--lumen-surface);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   border: 1px solid var(--lumen-border);
 }
 
@@ -3646,8 +3643,8 @@
 
 .schedule-studio__view-tab--active {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
-  border-color: var(--lumen-brand);
+  color: var(--lumen-action);
+  border-color: var(--lumen-action);
 }
 
 .schedule-studio__layout {
@@ -3770,11 +3767,11 @@
 }
 
 .schedule-tray-item:hover {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
 }
 
 .schedule-tray-item--selected {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
   background: var(--lumen-brand-soft);
   box-shadow: var(--lumen-focus-ring);
 }
@@ -3861,7 +3858,7 @@
 
 .schedule-tile--selected {
   box-shadow: var(--lumen-focus-ring);
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
 }
 
 .schedule-tile--conflict {
@@ -3961,7 +3958,7 @@
 }
 
 .schedule-studio__slot--over {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
   border-style: solid;
   background: var(--lumen-brand-soft);
   box-shadow: var(--lumen-focus-ring);
@@ -4205,7 +4202,7 @@
 }
 
 .readiness-dashboard__row--overdue {
-  border-left: 3px solid var(--lumen-danger);
+  border-left: 3px solid var(--lumen-clay);
   padding-left: var(--lumen-space-3);
 }
 
@@ -4224,12 +4221,12 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .readiness-dashboard__row--overdue .readiness-dashboard__badge {
-  background: var(--lumen-danger-soft);
-  color: var(--lumen-danger);
+  background: var(--lumen-clay-soft);
+  color: var(--lumen-clay-ink);
 }
 
 .readiness-dashboard__empty {
@@ -4293,7 +4290,7 @@
 
 .overview-dashboard__severity--warn {
   background: var(--lumen-warn-soft);
-  color: var(--lumen-warn);
+  color: var(--lumen-clay-ink);
 }
 
 .overview-dashboard__severity--info {
@@ -4344,7 +4341,7 @@
 }
 
 .overview-dashboard__metric:hover {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
   box-shadow: var(--lumen-shadow-sm);
 }
 
@@ -4378,7 +4375,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--lumen-space-2);
-  min-height: 40px;
+  min-height: var(--lumen-control-h);
   padding: var(--lumen-space-2) var(--lumen-space-3);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-sm);
@@ -4390,8 +4387,8 @@
 }
 
 .overview-dashboard__quick-action:hover {
-  border-color: var(--lumen-brand);
-  color: var(--lumen-brand);
+  border-color: var(--lumen-action);
+  color: var(--lumen-action);
   background: var(--lumen-brand-soft);
 }
 
@@ -4538,8 +4535,8 @@
 
 .speakers-page__ready-dot--ok {
   background: var(--lumen-brand-soft);
-  border-color: var(--lumen-brand);
-  color: var(--lumen-brand);
+  border-color: var(--lumen-action);
+  color: var(--lumen-action);
 }
 
 .speakers-page__ready-dot--gap {
@@ -4664,7 +4661,7 @@
 
 .speakers-page__headshot-slot[data-has-headshot="true"] {
   border-style: solid;
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
 }
 
 .speakers-page__headshot-img {
@@ -4743,7 +4740,7 @@
 
 .speakers-page__session-link {
   font-weight: 600;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   text-decoration: none;
 }
 
@@ -4857,7 +4854,7 @@ a.event-settings__btn {
 }
 
 .api-keys__secret-banner {
-  border-color: var(--lumen-brand);
+  border-color: var(--lumen-action);
   box-shadow: var(--lumen-shadow-sm);
 }
 
@@ -4888,7 +4885,7 @@ a.event-settings__btn {
 .api-keys__secret-row .event-settings__input {
   flex: 1;
   min-width: 200px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--lumen-font-mono);
   font-size: 13px;
 }
 
@@ -4977,7 +4974,7 @@ a.event-settings__btn {
   padding: 2px var(--lumen-space-2);
   border-radius: var(--lumen-radius-sm);
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
 }
 
 .api-keys__copy-prefix {
@@ -5076,7 +5073,7 @@ a.event-settings__btn {
   display: inline-flex;
   align-items: center;
   gap: var(--lumen-space-2);
-  min-height: 36px;
+  min-height: var(--lumen-control-h);
   padding: var(--lumen-space-1) var(--lumen-space-3);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-sm);
@@ -5094,14 +5091,14 @@ a.event-settings__btn {
 
 .comms-campaign__step:hover {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   border-color: transparent;
 }
 
 .comms-campaign__step.is-active {
   background: var(--lumen-brand-soft);
-  color: var(--lumen-brand);
-  border-color: var(--lumen-brand);
+  color: var(--lumen-action);
+  border-color: var(--lumen-action);
 }
 
 .comms-campaign__step-index {
@@ -5492,7 +5489,7 @@ a.event-settings__btn {
   display: inline-block;
   margin-top: var(--lumen-space-1);
   font-size: 0.85rem;
-  color: var(--lumen-brand);
+  color: var(--lumen-action);
   text-decoration: none;
   border-radius: var(--lumen-radius-sm);
 }
@@ -5528,7 +5525,7 @@ a.event-settings__btn {
 }
 .form-builder__char-count--warn,
 .public-cfp__char-count--warn {
-  color: var(--lumen-warn);
+  color: var(--lumen-clay-ink);
   font-weight: var(--lumen-font-weight-medium);
 }
 .form-builder__char-count--over,
@@ -5577,7 +5574,7 @@ a.event-settings__btn {
 
 /* --- Evaluator round strip: closed state + instructions --- */
 .eval-round-strip--closed {
-  border-color: var(--lumen-warn);
+  border-color: var(--lumen-clay-ink);
   background: var(--lumen-warn-soft);
 }
 .eval-round-strip__closed-note {
@@ -5850,8 +5847,8 @@ a.event-settings__btn {
   padding: 2px var(--lumen-space-3);
   border: 1px solid var(--lumen-border-subtle);
   border-radius: 999px;
-  background: var(--lumen-warn-soft);
-  color: var(--lumen-text);
+  background: var(--lumen-honey-soft);
+  color: var(--lumen-honey-ink);
   font-size: 12px;
   font-weight: 500;
 }
@@ -5975,4 +5972,336 @@ a.event-settings__btn {
 .submissions-page__direct-speakers > .eval-queue__row,
 .submissions-page__direct-speakers > .l2-btn {
   margin-top: var(--lumen-space-2);
+}
+
+/* =========================================================================
+ * F1 · Sage & Honey foundation wave — G-PROPORTION enforcement layer
+ * (Doc B §8.4.1). Every interactive control below pairs a fixed height from
+ * the 28/36/44 scale with line-height: 1 so control text can never inherit
+ * body 1.5 and puff the box. Legacy ad-hoc controls are migrated here onto
+ * the shared control tokens; padding is derived from height (horizontal ≈
+ * 2–2.5× the implied vertical rhythm).
+ * ========================================================================= */
+
+/* Inline text-buttons (padding: 0) still declare line-height: 1 so they can
+ * never inherit body 1.5 (G-PROPORTION letter of the law). */
+.eval-queue__link,
+.l2-table__link,
+.portal-wizard__finish-later {
+  line-height: 1;
+}
+
+/* Chip visuals (non-interactive) join the proportion law for pill balance. */
+.eval-bulk__skip-chip,
+.role-switcher__badge {
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* --- md (36px) buttons, tabs, pills --- */
+.event-settings__submit,
+.login-form__submit,
+.login-form__logout,
+.form-builder__btn,
+.form-builder__view-tab,
+.form-builder__disclosure-toggle,
+.form-builder__field-select,
+.schedule-studio__view-tab,
+.public-cfp__btn,
+.public-cfp__about-toggle,
+.public-cfp__progress-btn,
+.portal-btn,
+.portal-file-field__choose,
+.comms-campaign__step,
+.overview-dashboard__quick-action,
+.admin-shell__new-event,
+.admin-shell__nav-link,
+.admin-shell__account-link,
+.role-shell__help,
+.role-shell__nav-link,
+.portal-nav__link,
+.design-kit__preview-btn,
+.eval-queue__item,
+.schedule-studio__conflict-item,
+.form-builder__outline-item,
+.public-cfp__turnstile-label,
+.api-keys__copy-prefix {
+  line-height: 1;
+}
+
+.event-settings__submit,
+.login-form__submit,
+.login-form__logout,
+.form-builder__btn,
+.form-builder__view-tab,
+.form-builder__disclosure-toggle,
+.schedule-studio__view-tab,
+.public-cfp__btn,
+.public-cfp__about-toggle,
+.public-cfp__progress-btn,
+.portal-btn,
+.portal-file-field__choose,
+.comms-campaign__step,
+.overview-dashboard__quick-action,
+.admin-shell__new-event,
+.role-shell__help,
+.role-shell__nav-link,
+.portal-nav__link,
+.design-kit__preview-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--lumen-control-h);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Tabs + pills take the pill radius (G-PROPORTION curvature) */
+.form-builder__view-tab,
+.schedule-studio__view-tab,
+.public-cfp__progress-btn,
+.comms-campaign__step,
+.role-shell__nav-link,
+.portal-nav__link {
+  border-radius: var(--lumen-radius-pill);
+}
+
+/* --- lg (44px) primary CTAs --- */
+.public-cfp__primary,
+.portal-btn--dominant,
+.login-form__submit {
+  min-height: var(--lumen-control-h-lg);
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1;
+}
+
+/* --- sm (28px) subordinate chips --- */
+.api-keys__copy-prefix {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--lumen-control-h-sm);
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: var(--lumen-radius-pill);
+}
+
+/* --- text inputs + selects: fixed 36px box (textareas keep flow height) --- */
+input.event-settings__input,
+select.event-settings__input,
+input.form-builder__input,
+select.form-builder__input,
+input.public-cfp__input,
+select.public-cfp__input,
+input.login-form__input,
+input.portal-input,
+select.portal-input,
+input.speakers-page__profile-input,
+.admin-shell__event-select,
+.role-shell__switcher,
+.schedule-studio__inspector-field select,
+.schedule-studio__inspector-field input {
+  height: var(--lumen-control-h);
+  min-height: var(--lumen-control-h);
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1;
+}
+
+/* Non-flex label rows keep their vertical centering via the fixed box. */
+.event-settings__label,
+.form-builder__label,
+.public-cfp__label,
+.login-form__label,
+.portal-label {
+  line-height: var(--lumen-text-label-lh);
+}
+
+/* Checkbox / radio visual wrappers: single-line rows align to line-height 1 */
+.form-builder__check-row,
+.public-cfp__checkbox-label,
+.public-cfp__multiselect-option,
+.login-form__radio,
+.api-keys__scope-item,
+.readiness-dashboard__filter,
+.submissions-page__evaluator-option,
+.eval-bulk__picker-option {
+  line-height: 1.2;
+}
+
+/* --- ≥44px effective touch target on coarse pointers (visual size intact) --- */
+@media (pointer: coarse) {
+  .form-builder__view-tab,
+  .schedule-studio__view-tab,
+  .public-cfp__progress-btn,
+  .comms-campaign__step,
+  .portal-nav__link,
+  .role-shell__nav-link,
+  .api-keys__copy-prefix,
+  .role-switcher__select {
+    position: relative;
+  }
+
+  .form-builder__view-tab::before,
+  .schedule-studio__view-tab::before,
+  .public-cfp__progress-btn::before,
+  .comms-campaign__step::before,
+  .portal-nav__link::before,
+  .role-shell__nav-link::before,
+  .api-keys__copy-prefix::before,
+  .role-switcher__select::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: var(--lumen-touch-min);
+  }
+}
+
+/* =========================================================================
+ * F1 · One collapsed top bar (~64px) — AdminShell
+ * The old full-width demo role-switcher band is gone; the demo chip now sits
+ * small + subordinate at the right of the single bar.
+ * ========================================================================= */
+
+.admin-shell__header {
+  min-height: 64px;
+  padding-top: var(--lumen-space-2);
+  padding-bottom: var(--lumen-space-2);
+  justify-content: flex-start;
+}
+
+/* Center: reserved region for the future ⌘K Find (no fake control). */
+.admin-shell__find-slot {
+  flex: 1 1 var(--lumen-space-6);
+  min-width: var(--lumen-space-4);
+  max-width: 480px;
+  min-height: var(--lumen-control-h);
+}
+
+.admin-shell__topbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.admin-shell__view-portal {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--lumen-control-h);
+  padding: 0 var(--lumen-space-3);
+  border-radius: var(--lumen-radius-pill);
+  color: var(--lumen-action);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.admin-shell__view-portal:hover {
+  background: var(--lumen-brand-soft);
+}
+
+/* Sidebar brand cell aligns with the 64px bar so the top row reads as one. */
+.admin-shell__brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 64px;
+  padding-top: 0;
+  padding-bottom: 0;
+  box-sizing: border-box;
+}
+
+/* =========================================================================
+ * F1 · BrandMark + lowercase wordmark lockup (`speaker` 700 / `ops` 400)
+ * ========================================================================= */
+
+.brand-mark {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  color: var(--lumen-text);
+  text-decoration: none;
+}
+
+.brand-lockup__wordmark {
+  font-family: var(--lumen-font);
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--lumen-text);
+  white-space: nowrap;
+}
+
+.brand-lockup__word-strong {
+  font-weight: 700;
+}
+
+.brand-lockup__word-light {
+  font-weight: 400;
+}
+
+.role-shell__brand-row {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  margin-bottom: var(--lumen-space-1);
+}
+
+.login-card__brand,
+.judge-card__brand {
+  display: flex;
+  margin-bottom: var(--lumen-space-3);
+}
+
+/* =========================================================================
+ * F1 · Curvy tiles — stat/summary tiles on soft semantic fills (~12px radius)
+ * ========================================================================= */
+
+.readiness-dashboard__stat {
+  border-radius: var(--lumen-radius-md);
+  border-color: transparent;
+  background: var(--lumen-leaf);
+}
+
+.readiness-dashboard__stat-value,
+.overview-dashboard__metric-value,
+.eval-bulk__count-num,
+.comms-campaign__summary-count strong {
+  font-family: var(--lumen-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.portal-summary__card,
+.overview-dashboard__metric,
+.eval-bulk__count {
+  border-radius: var(--lumen-radius-md);
+}
+
+/* =========================================================================
+ * F1 · Data face — IBM Plex Mono for IDs / timestamps / counts
+ * ========================================================================= */
+
+.airtable-status__row dd,
+.form-builder__char-count,
+.public-cfp__char-count,
+.eval-insights__rank,
+.eval-insights__value,
+.api-keys__row-expires,
+.api-keys__row-prefix {
+  font-family: var(--lumen-font-mono);
+  font-variant-numeric: tabular-nums;
 }

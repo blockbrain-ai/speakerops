@@ -659,7 +659,7 @@ describe("2.4 design kit", () => {
           cookie,
         },
         body: JSON.stringify({
-          tokens: { brand: "#4f46e5", radius: "soft" },
+          tokens: { brand: "#7ba88b", radius: "soft" },
         }),
       },
       env,

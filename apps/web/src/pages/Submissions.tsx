@@ -98,7 +98,8 @@ function statusTone(status: string): BadgeTone {
       return "danger";
     case "waitlist":
     case "in_review":
-      return "warn";
+      // F1 urgency ladder: awaiting/in-progress wears honey, not clay
+      return "progress";
     case "submitted":
       return "info";
     default:

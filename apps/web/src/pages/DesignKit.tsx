@@ -41,8 +41,8 @@ const RADIUS_OPTIONS: { value: DesignRadius; label: string }[] = [
 ];
 
 const EMPTY_TOKENS: DesignTokens = {
-  brand: "#4f46e5",
-  brandSoft: "#eef2ff",
+  brand: "#7ba88b",
+  brandSoft: "#e7efdf",
   radius: "soft",
   wordmark: "",
   logoFileId: null,
@@ -464,7 +464,7 @@ export function DesignKitPage() {
                 type="color"
                 className="design-kit__color lumen-focusable"
                 data-testid="design-brand-color"
-                value={brand.length === 7 ? brand : "#4f46e5"}
+                value={brand.length === 7 ? brand : "#7ba88b"}
                 onChange={(ev) => setBrand(ev.target.value)}
                 disabled={formBusy}
               />

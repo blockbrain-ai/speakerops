@@ -74,7 +74,7 @@ async function upsertTrack(
     `/api/events/${encodeURIComponent(eventId)}/tracks/${encodeURIComponent(trackId)}`,
     {
       headers: sessionHeaders(session),
-      data: { name, color: "#4f46e5" },
+      data: { name, color: "#7ba88b" },
     },
   );
   expect(res.status(), await res.text()).toBe(200);

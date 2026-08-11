@@ -17,6 +17,8 @@ import {
   type EventRole,
 } from "@speakerops/shared";
 import { Button } from "../components/ui/Button.js";
+import { BrandMark } from "../components/ui/BrandMark.js";
+import { RoleSwitcher } from "../components/RoleSwitcher.js";
 
 export type RoleShellNavItem = {
   /** Stable view id (e.g. "portal-tasks"). */
@@ -142,9 +144,13 @@ export function RoleShell({
     >
       <header className="role-shell__header" data-testid="role-shell-header">
         <div className="role-shell__brand">
-          <p className="role-shell__product" data-testid="role-shell-product">
-            SpeakerOps
-          </p>
+          {/* F1 — Signal mark beside the product line (portal keeps its warmer identity) */}
+          <div className="role-shell__brand-row">
+            <BrandMark size={18} decorative />
+            <p className="role-shell__product" data-testid="role-shell-product">
+              SpeakerOps
+            </p>
+          </div>
           <p className="role-shell__overline" data-testid="role-shell-role">
             {roleLabel}
           </p>
@@ -228,6 +234,9 @@ export function RoleShell({
               </div>
             ) : null}
           </div>
+          {/* F1 — demo-role chip lives in the single top bar (renders only
+              when the dogfood flag is enabled; no separate band). */}
+          <RoleSwitcher />
           <Button
             type="button"
             variant="quiet"

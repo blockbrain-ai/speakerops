@@ -364,7 +364,7 @@ describe("2.3 event settings", () => {
           cookie,
           "x-correlation-id": "corr-track-1",
         },
-        body: JSON.stringify({ name: "Keynote", color: "#4f46e5" }),
+        body: JSON.stringify({ name: "Keynote", color: "#7ba88b" }),
       },
       env,
     );

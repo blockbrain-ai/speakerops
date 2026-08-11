@@ -59,7 +59,7 @@ async function upsertTrack(
   eventId: string,
   trackId: string,
   name: string,
-  color = "#4f46e5",
+  color = "#7ba88b",
 ) {
   const res = await request.put(
     `/api/events/${encodeURIComponent(eventId)}/tracks/${encodeURIComponent(trackId)}`,

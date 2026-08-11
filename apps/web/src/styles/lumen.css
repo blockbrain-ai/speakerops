@@ -14,30 +14,40 @@
 
 :root {
   /* ------------------------------------------------------------------ */
-  /* 2.1 Canonical frozen palette (do not silently change values)       */
+  /* 2.1 Canonical locked palette — Sage & Honey (DESIGN_THEME_LOCKED)  */
+  /* Owner-approved 2026-08-11. Do not silently change values.          */
   /* ------------------------------------------------------------------ */
-  --lumen-bg: #f5f5f7;
+  --lumen-bg: #fcfbf9; /* ground — warm white */
   --lumen-surface: #ffffff;
-  --lumen-text: #1d1d1f;
-  --lumen-text-secondary: #6e6e73;
-  --lumen-border: rgba(0, 0, 0, 0.08);
-  --lumen-brand: #4f46e5; /* indigo — primary action */
-  --lumen-brand-fg: #ffffff; /* text/icons on brand fills */
-  --lumen-brand-soft: #eef2ff;
-  --lumen-accent: #0d9488; /* teal — healthy completion */
-  --lumen-success: #059669;
-  --lumen-warn: #d97706;
-  --lumen-danger: #dc2626;
-  --lumen-info: #0284c7;
+  --lumen-text: #1e2621; /* ink — green-charcoal */
+  --lumen-text-secondary: #6a736c; /* muted — sage-grey */
+  --lumen-border: #e7e2da; /* hairline */
+  --lumen-brand: #7ba88b; /* sage — brand bands/nav/mark; carries INK text */
+  --lumen-brand-fg: #1e2621; /* ink on sage bands (sage never carries white text) */
+  --lumen-brand-soft: #e7efdf; /* leaf band */
+  --lumen-brand-deep: #3e6b50; /* sage deep — filled buttons, white text (AA) */
+  --lumen-accent: #ce922e; /* honey — highlight / in-progress */
+  --lumen-honey: #ce922e;
+  --lumen-honey-soft: #f6e8c9;
+  --lumen-honey-ink: #8a611c; /* text on honey-soft chips */
+  --lumen-clay: #c2724e; /* clay — warning / overdue */
+  --lumen-clay-soft: #f1ddd1;
+  --lumen-clay-ink: #9a4a2e; /* text on clay-soft chips */
+  --lumen-leaf: #e7efdf;
+  --lumen-success: #3e7d5a; /* done / accepted (status ≠ brand) */
+  --lumen-warn: #c2724e; /* warning slot = clay (honey owns highlight) */
+  --lumen-danger: #b4472f; /* destructive only — redder/darker than clay */
+  --lumen-info: #3f6e8c;
   --lumen-radius-sm: 8px;
   --lumen-radius-md: 12px;
   --lumen-radius-lg: 16px;
   --lumen-radius-xl: 22px;
   --lumen-radius-pill: 9999px;
-  --lumen-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --lumen-font:
+    "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --lumen-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
-  --lumen-focus: #4f46e5;
-  --lumen-focus-ring: 0 0 0 3px rgba(79, 70, 229, 0.35);
+  --lumen-focus: #3e6b50;
+  --lumen-focus-ring: 0 0 0 3px rgba(62, 107, 80, 0.35);
   --lumen-disabled-opacity: 0.45;
   --lumen-space-1: 4px;
   --lumen-space-2: 8px;
@@ -49,11 +59,12 @@
   --lumen-z-toast: 60;
   --lumen-motion: 150ms;
   --lumen-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  /* Status soft pairs (never retheme with brand) */
-  --lumen-success-soft: #d1fae5;
-  --lumen-warn-soft: #fef3c7;
-  --lumen-danger-soft: #fee2e2;
-  --lumen-info-soft: #e0f2fe;
+  /* Status soft pairs (never retheme with brand).
+   * Warm urgency ladder: honey (in-progress) → clay (overdue) → red (danger). */
+  --lumen-success-soft: #e7efdf; /* leaf */
+  --lumen-warn-soft: #f1ddd1; /* clay soft */
+  --lumen-danger-soft: #f6dcd4;
+  --lumen-info-soft: #e4edf3;
 
   /* ------------------------------------------------------------------ */
   /* 11.0 Extended scale — spacing / type / elevation / border / motion */
@@ -76,8 +87,12 @@
   --lumen-radius-control: 10px;
   --lumen-radius-public: 24px;
 
-  /* Typography scale (semantic sizes + line-height / tracking) */
-  --lumen-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* Typography scale (semantic sizes + line-height / tracking).
+   * Hanken Grotesk = titles + controls + body; IBM Plex Mono = IDs,
+   * timestamps, counts, code (tabular-nums where digits align). */
+  --lumen-font-mono:
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    monospace;
   --lumen-text-display: 40px;
   --lumen-text-display-lh: 1.15;
   --lumen-text-display-track: -0.03em;
@@ -100,32 +115,35 @@
   --lumen-text-stat: 28px;
   --lumen-text-stat-lh: 1.15;
   --lumen-text-stat-track: -0.02em;
+  /* Hanken Grotesk ships 400/600/700/800 (locked); medium snaps to 600. */
   --lumen-font-weight-regular: 400;
-  --lumen-font-weight-medium: 500;
+  --lumen-font-weight-medium: 600;
   --lumen-font-weight-semibold: 600;
   --lumen-font-weight-bold: 700;
+  --lumen-font-weight-heavy: 800;
   --lumen-measure-prose: 46rem;
 
   /* Text hierarchy */
-  --lumen-text-tertiary: #8e8e93;
+  --lumen-text-tertiary: #8c948d;
   --lumen-text-inverse: #ffffff;
-  --lumen-text-on-brand: #ffffff;
+  --lumen-text-on-brand: #ffffff; /* white on sage-deep action fills */
   --lumen-text-on-danger: #ffffff;
 
-  /* Action / interactive surfaces (alias brand for semantic clarity) */
-  --lumen-action: var(--lumen-brand);
+  /* Action / interactive surfaces — filled controls + links use sage deep
+   * (#3E6B50, white text, AA); light sage #7BA88B stays a band/border color. */
+  --lumen-action: var(--lumen-brand-deep);
   --lumen-action-soft: var(--lumen-brand-soft);
-  --lumen-action-hover: #4338ca;
-  --lumen-action-pressed: #3730a3;
-  --lumen-surface-muted: #f0f0f2;
+  --lumen-action-hover: #365d45;
+  --lumen-action-pressed: #2e4f3b;
+  --lumen-surface-muted: #f5f2ec;
   --lumen-surface-raised: var(--lumen-surface);
   --lumen-canvas: var(--lumen-bg);
-  --lumen-overlay: rgba(29, 29, 31, 0.45);
+  --lumen-overlay: rgba(30, 38, 33, 0.45);
 
-  /* Border scale */
-  --lumen-border-subtle: rgba(0, 0, 0, 0.06);
-  --lumen-border-control: rgba(0, 0, 0, 0.14);
-  --lumen-border-strong: rgba(0, 0, 0, 0.22);
+  /* Border scale (warmed to ink alpha) */
+  --lumen-border-subtle: rgba(30, 38, 33, 0.06);
+  --lumen-border-control: rgba(30, 38, 33, 0.14);
+  --lumen-border-strong: rgba(30, 38, 33, 0.22);
   --lumen-border-selected: var(--lumen-brand);
   --lumen-border-danger: var(--lumen-danger);
   --lumen-border-focus: var(--lumen-focus);
@@ -138,12 +156,16 @@
   --lumen-shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.08);
   --lumen-shadow-drag: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
 
-  /* Control geometry */
-  --lumen-control-h: 40px;
-  --lumen-control-h-sm: 32px;
-  --lumen-control-h-lg: 46px;
+  /* Control geometry — G-PROPORTION scale 28 / 36 / 44 (Doc B §8.4.1).
+   * Every interactive control pairs a fixed height with line-height: 1;
+   * horizontal padding ≈ 2–2.5× the implied vertical padding. */
+  --lumen-control-h-sm: 28px;
+  --lumen-control-h-md: 36px;
+  --lumen-control-h: var(--lumen-control-h-md);
+  --lumen-control-h-lg: 44px;
   --lumen-control-px: 16px;
   --lumen-control-px-sm: 12px;
+  --lumen-control-px-lg: 22px;
   --lumen-touch-min: 44px;
 
   /* Icon */
@@ -261,7 +283,13 @@ textarea.lumen-focusable:focus-visible,
 
 .lumen-status--warn {
   background: var(--lumen-warn-soft);
-  color: var(--lumen-warn);
+  color: var(--lumen-clay-ink);
+}
+
+/* Honey — in-progress / awaiting (urgency ladder highlight slot) */
+.lumen-status--progress {
+  background: var(--lumen-honey-soft);
+  color: var(--lumen-honey-ink);
 }
 
 .lumen-status--danger {
@@ -319,6 +347,7 @@ textarea.lumen-focusable:focus-visible,
 }
 
 .lumen-type-stat {
+  font-family: var(--lumen-font-mono);
   font-size: var(--lumen-text-stat);
   line-height: var(--lumen-text-stat-lh);
   letter-spacing: var(--lumen-text-stat-track);

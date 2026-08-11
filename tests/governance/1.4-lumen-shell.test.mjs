@@ -100,7 +100,7 @@ describe("1.4 web shell and Lumen tokens", () => {
   it("no dark-default theme (light lock)", () => {
     const css = readFileSync(lumenPath, "utf8");
     assert.match(css, /color-scheme:\s*light/);
-    assert.match(css, /--lumen-bg:\s*#f5f5f7/);
+    assert.match(css, /--lumen-bg:\s*#fcfbf9/); // Sage & Honey lock (F1)
     // Must not default body to near-black cockpit
     assert.equal(
       /prefers-color-scheme:\s*dark[\s\S]*--lumen-bg:\s*#0/.test(css),

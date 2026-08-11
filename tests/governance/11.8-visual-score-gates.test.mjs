@@ -167,10 +167,16 @@ describe("11.8 visual score gates (S-L2-SCORE)", () => {
       "lucide-react",
       "react-icons",
       "fontawesome",
-      "@fontsource",
       "framer-motion",
     ];
+    // F1 (Sage & Honey lock): the two self-hosted OFL font packages are the
+    // ONLY sanctioned @fontsource deps (woff2 binaries, no runtime JS).
+    const allowedFonts = new Set([
+      "@fontsource/hanken-grotesk",
+      "@fontsource/ibm-plex-mono",
+    ]);
     for (const name of Object.keys(deps)) {
+      if (allowedFonts.has(name)) continue;
       for (const bad of forbidden) {
         assert.ok(
           !name.includes(bad) && name !== bad.replace(/\/$/, ""),

@@ -13,6 +13,8 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEventContextOptional } from "../events/EventContext.js";
 import { Icon, type IconName } from "../components/ui/Icon.js";
 import { Button } from "../components/ui/Button.js";
+import { BrandLockup } from "../components/ui/BrandMark.js";
+import { RoleSwitcher } from "../components/RoleSwitcher.js";
 
 export type AdminNavItem = {
   /** Stable path segment under /admin */
@@ -182,7 +184,9 @@ export function AdminShell({
         id="admin-sidebar"
       >
         <div className="admin-shell__brand">
-          <p className="admin-shell__brand-name">SpeakerOps</p>
+          {/* F1 — Signal mark + lowercase wordmark lockup (locked brand) */}
+          <BrandLockup size={22} />
+          <p className="admin-shell__brand-name visually-hidden">SpeakerOps</p>
           <p className="admin-shell__brand-meta">Admin</p>
         </div>
         <nav className="admin-shell__nav" data-testid="admin-nav" aria-label="Primary">
@@ -319,6 +323,24 @@ export function AdminShell({
             >
               {label}
             </span>
+          </div>
+          {/* F1 — reserved center slot for the future ⌘K Find (no fake control) */}
+          <div
+            className="admin-shell__find-slot"
+            data-testid="topbar-find-slot"
+            aria-hidden="true"
+          />
+          <div className="admin-shell__topbar-end" data-testid="admin-topbar-end">
+            <Link
+              to="/portal"
+              className="admin-shell__view-portal lumen-focusable"
+              data-testid="admin-view-portal"
+            >
+              View portal
+            </Link>
+            {/* Demo-role chip — small, subordinate (renders only when enabled).
+                No eventId prop: keeps the exact pre-F1 switch payload. */}
+            <RoleSwitcher />
           </div>
         </header>
         <main className="admin-shell__content" data-testid="admin-content">

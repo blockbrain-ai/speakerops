@@ -160,14 +160,14 @@ export const FileUploadResponseSchema = z.object({
 });
 export type FileUploadResponse = z.infer<typeof FileUploadResponseSchema>;
 
-/** Default Lumen brand when no draft exists. */
+/** Default Lumen brand when no draft exists (Sage & Honey lock). */
 export const DEFAULT_DESIGN_TOKENS: DesignTokens = {
-  brand: "#4f46e5",
-  brandSoft: "#eef2ff",
+  brand: "#7ba88b",
+  brandSoft: "#e7efdf",
   radius: "soft",
   wordmark: null,
   logoFileId: null,
-  brandFg: "#ffffff",
+  brandFg: "#1d1d1f",
 };
 
 /** Map radius scale → CSS pixel token (closed set; not freeform). */
@@ -204,7 +204,7 @@ export function designTokensToCssVariables(tokens: DesignTokens): string {
 /** Simple soft tint: brand at ~10% opacity over white (hex blend approximation). */
 export function softTintFromBrand(brand: string): string {
   const rgb = parseHexRgb(brand);
-  if (!rgb) return "#eef2ff";
+  if (!rgb) return "#e7efdf";
   const mix = (c: number) => Math.round(c * 0.12 + 255 * 0.88);
   return rgbToHex(mix(rgb.r), mix(rgb.g), mix(rgb.b));
 }

@@ -227,8 +227,8 @@ async function publishBrand(
     data: {
       expectedVersion,
       tokens: {
-        brand: "#4f46e5",
-        brandSoft: "#eef2ff",
+        brand: "#7ba88b",
+        brandSoft: "#e7efdf",
         radius: "soft",
         wordmark: "AIE Public CFP",
         logoFileId: null,

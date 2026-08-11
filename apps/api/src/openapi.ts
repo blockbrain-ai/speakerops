@@ -219,7 +219,7 @@ export const DESIGN_OPENAPI_PATHS = {
       operationId: "Design.SetDraft",
       summary: "Design.SetDraft",
       description:
-        "Update draft tokens (no freeform CSS). CLI: speakerops design set --event E --brand '#4F46E5'",
+        "Update draft tokens (no freeform CSS). CLI: speakerops design set --event E --brand '#7BA88B'",
       tags: ["Design"],
       parameters: [
         {

@@ -2,6 +2,12 @@
  * Lumen 2 shared UI primitives (section 11.0 · S-L2-SYSTEM).
  */
 export { Icon, ICON_NAMES, type IconName, type IconProps, type IconSize } from "./Icon.js";
+export {
+  BrandMark,
+  BrandLockup,
+  type BrandMarkProps,
+  type BrandLockupProps,
+} from "./BrandMark.js";
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from "./Button.js";
 export { Field, type FieldProps } from "./Field.js";
 export { Badge, type BadgeProps, type BadgeTone } from "./Badge.js";

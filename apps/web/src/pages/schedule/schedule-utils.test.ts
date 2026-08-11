@@ -454,7 +454,7 @@ describe("schedule-utils", () => {
       },
     ]);
     expect(local[0]!.affectedPlacementIds).toEqual(["plc_x"]);
-    expect(safeTrackColor("#4f46e5")).toBe("#4f46e5");
+    expect(safeTrackColor("#7ba88b")).toBe("#7ba88b");
     expect(safeTrackColor("#abc")).toBe("#abc");
     expect(safeTrackColor("red")).toBeNull();
     expect(safeTrackColor(null)).toBeNull();

@@ -83,7 +83,7 @@ describe("9.5 Beautiful HTML reports", () => {
       expect(html).toMatch(/report-footer/);
       expect(html).toMatch(/data-generated-at="[^"]+"/);
       expect(html).toMatch(/data-git-sha="[^"]+"/);
-      expect(html).toMatch(/--lumen-brand:\s*#4f46e5/);
+      expect(html).toMatch(/--lumen-brand:\s*#7ba88b/);
       if (file !== "e2e-coverage.html") {
         expect(html).toMatch(/color-scheme:\s*light/);
         expect(html).not.toMatch(/prefers-color-scheme:\s*dark/);
@@ -166,7 +166,7 @@ describe("9.5 Beautiful HTML reports", () => {
   });
 
   it("report CSS uses Lumen tokens only (no freeform palette outside :root)", () => {
-    expect(LUMEN_REPORTS_CSS).toMatch(/--lumen-brand:\s*#4f46e5/);
+    expect(LUMEN_REPORTS_CSS).toMatch(/--lumen-brand:\s*#7ba88b/);
     // Split :root block from rule bodies — freeform hex/rgba only allowed as token values
     const withoutRoot = LUMEN_REPORTS_CSS.replace(
       /:root\s*\{[\s\S]*?\}/,

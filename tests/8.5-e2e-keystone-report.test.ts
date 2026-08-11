@@ -130,7 +130,7 @@ describe("8.5 E2E keystone HTML report", () => {
 
   it("Lumen tokens present; no freeform dark default", () => {
     const html = readFileSync(coveragePath, "utf8");
-    expect(html).toMatch(/--lumen-brand:\s*#4f46e5/);
+    expect(html).toMatch(/--lumen-brand:\s*#7ba88b/);
     expect(html).toMatch(/--lumen-success:/);
     expect(html).toMatch(/color-scheme:\s*light/);
     expect(html).not.toMatch(/prefers-color-scheme:\s*dark/);

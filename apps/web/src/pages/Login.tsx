@@ -18,6 +18,7 @@ import {
 import { landingPathForPurpose } from "../auth/sessionLanding.js";
 import { pathForMembership } from "../layout/RoleShell.js";
 import { SessionExpiredPanel } from "../components/ui/SessionExpiredPanel.js";
+import { BrandLockup } from "../components/ui/BrandMark.js";
 
 type FormState = "idle" | "sending" | "sent" | "exchanging" | "error";
 
@@ -235,6 +236,10 @@ export function LoginPage() {
       data-session-expired={sessionExpired ? "true" : "false"}
     >
       <div className="login-card" data-testid="login-card">
+        {/* F1 — Signal mark + wordmark lockup */}
+        <div className="login-card__brand">
+          <BrandLockup size={24} />
+        </div>
         <p className="login-card__overline">SpeakerOps</p>
         <h1 className="login-card__title" data-testid="login-title">
           {sessionExpired ? "Sign in again" : "Sign in"}

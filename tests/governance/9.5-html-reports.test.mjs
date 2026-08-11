@@ -96,7 +96,7 @@ describe("9.5 Beautiful HTML reports", () => {
     const html = readFileSync(paths.index, "utf8");
     assert.match(html, /onboarding\.html/, "index must link onboarding");
     assert.match(html, /e2e-coverage\.html/, "index must link e2e-coverage");
-    assert.match(html, /--lumen-brand:\s*#4f46e5/, "light Lumen brand token");
+    assert.match(html, /--lumen-brand:\s*#7ba88b/, "light Lumen brand token");
     assert.match(html, /color-scheme:\s*light/);
     assert.match(html, /report-footer/);
     assert.match(html, /data-git-sha="/);

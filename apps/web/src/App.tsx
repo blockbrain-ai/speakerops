@@ -21,14 +21,12 @@ import {
   Outlet,
   Route,
   Routes,
-  useLocation,
 } from "react-router-dom";
 import { AdminShell } from "./layout/AdminShell.js";
 import { SettingsShell } from "./layout/SettingsShell.js";
 import { RoleShell } from "./layout/RoleShell.js";
 import { RequireRole } from "./auth/RequireRole.js";
 import { EventProvider } from "./events/EventContext.js";
-import { RoleSwitcher, isRoleSwitcherEnabled } from "./components/RoleSwitcher.js";
 import { LoginPage } from "./pages/Login.js";
 import JudgeAccessPage from "./pages/JudgeAccess.js";
 import { PortalHomePage } from "./pages/PortalHome.js";
@@ -53,22 +51,6 @@ import {
   NotFoundPage,
 } from "./routes/placeholders.js";
 import type { ReactNode } from "react";
-
-/**
- * Dogfood/dev role switcher — only on authenticated product surfaces.
- * Never mount on public CFP / login: the fixed panel covers mobile submit (A09)
- * and other primary controls. Placement CSS keeps it off schedule unschedule.
- */
-function RoleSwitcherMount() {
-  const { pathname } = useLocation();
-  if (!isRoleSwitcherEnabled()) return null;
-  const onDogfoodSurface =
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/portal") ||
-    pathname.startsWith("/eval");
-  if (!onDogfoodSurface) return null;
-  return <RoleSwitcher />;
-}
 
 /**
  * Admin layout route (fix wave A1): RequireRole + EventProvider + AdminShell
@@ -216,8 +198,8 @@ export function App() {
   return (
     <BrowserRouter>
       <div id="speakerops-root" data-section="4.3" data-testid="app-root">
-        {/* Section 8.4 — dogfood surfaces only (not public CFP / login). */}
-        <RoleSwitcherMount />
+        {/* Section 8.4 role switcher now lives INSIDE the single top bar
+            (AdminShell header / RoleShell account) — F1 collapsed chrome. */}
         <AppRoutes />
       </div>
     </BrowserRouter>

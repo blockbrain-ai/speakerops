@@ -2,7 +2,7 @@
  * Security header constants (section 8.3 — E10 production hardening).
  *
  * Shared by API middleware, Vite SPA headers, and docs so CSP cannot drift.
- * Turnstile + Google Fonts are the only intentional third-party origins.
+ * Turnstile is the only intentional third-party origin (fonts are self-hosted).
  */
 
 /**
@@ -10,7 +10,7 @@
  *
  * - default-src 'self' — no open third-party by default
  * - script-src: self + Cloudflare Turnstile widget host
- * - style-src: self + Google Fonts CSS; 'unsafe-inline' for React style attrs / Lumen tokens
+ * - style-src: self; 'unsafe-inline' for React style attrs / Lumen tokens
  * - frame-src: Turnstile challenge iframe only
  * - frame-ancestors 'none' — clickjacking defense (header form; meta cannot set this)
  * - object-src 'none' — no plugins
@@ -23,9 +23,9 @@ export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   // challenges = Turnstile; static.cloudflareinsights = CF Web Analytics beacon
   "script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' https://fonts.gstatic.com data:",
+  "font-src 'self' data:",
   "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
   "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
@@ -49,9 +49,9 @@ export const CONTENT_SECURITY_POLICY = [
 export const CONTENT_SECURITY_POLICY_DEV = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' https://fonts.gstatic.com data:",
+  "font-src 'self' data:",
   "connect-src 'self' ws: wss: https://challenges.cloudflare.com",
   "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",

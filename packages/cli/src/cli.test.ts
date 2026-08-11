@@ -285,14 +285,14 @@ describe("7.2 CLI01–CLI12 inventory", () => {
     setClientFactoryForTests(() => clientFor(app, key.secret));
 
     const code = await main(
-      ["design", "set", "--event", eventId, "--brand", "#4F46E5", "--json"],
+      ["design", "set", "--event", eventId, "--brand", "#7BA88B", "--json"],
       { io: cap.io },
     );
     expect(code).toBe(EXIT_OK);
     const body = JSON.parse(cap.out) as {
       draft?: { tokens?: { brand?: string } };
     };
-    expect(body.draft?.tokens?.brand?.toLowerCase()).toBe("#4f46e5");
+    expect(body.draft?.tokens?.brand?.toLowerCase()).toBe("#7ba88b");
   });
 
   it("CLI05 design publish works (contrast gate may 400)", async () => {

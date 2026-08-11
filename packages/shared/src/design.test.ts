@@ -28,10 +28,10 @@ describe("design contrast helpers", () => {
     }
   });
 
-  it("indigo brand derives light fg", () => {
-    const fg = deriveBrandFg("#4f46e5");
+  it("deep sage brand derives light fg", () => {
+    const fg = deriveBrandFg("#3e6b50");
     expect(fg.toLowerCase()).toBe("#ffffff");
-    expect(contrastRatio("#4f46e5", fg)!).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio("#3e6b50", fg)!).toBeGreaterThanOrEqual(3);
   });
 
   it("designTokensToCssVariables emits brand only (no freeform)", () => {
@@ -50,7 +50,7 @@ describe("design contrast helpers", () => {
   });
 
   it("softTintFromBrand returns valid hex", () => {
-    const soft = softTintFromBrand("#4f46e5");
+    const soft = softTintFromBrand("#7ba88b");
     expect(parseHexRgb(soft)).not.toBeNull();
   });
 

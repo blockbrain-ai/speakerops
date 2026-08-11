@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import { StrictMode } from "react";
 import { HEALTH_OK } from "@speakerops/shared";
 import { App } from "./App.js";
+import "./styles/fonts.css";
 import "./styles/lumen.css";
 import "./styles/components.css";
 import "./styles/shell.css";
