@@ -93,6 +93,17 @@ export function formatSessionRange(
     return `${startIso} – ${endIso}`;
   }
   try {
+    const zoneFmt = zonedFormatter(
+      { hour: "2-digit", minute: "2-digit", timeZoneName: "short" },
+      timeZone,
+    );
+    const zoneLabelOf = (d: Date): string =>
+      zoneFmt.formatToParts(d).find((p) => p.type === "timeZoneName")?.value ??
+      "";
+    // A DST boundary inside the range changes the offset — labelling both
+    // times with the end zone would misstate the start. Label each side
+    // with its own zone when they differ.
+    const zonesDiffer = zoneLabelOf(start) !== zoneLabelOf(end);
     const startFmt = zonedFormatter(
       {
         day: "numeric",
@@ -100,14 +111,11 @@ export function formatSessionRange(
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
+        ...(zonesDiffer ? { timeZoneName: "short" as const } : {}),
       },
       timeZone,
     );
-    const endFmt = zonedFormatter(
-      { hour: "2-digit", minute: "2-digit", timeZoneName: "short" },
-      timeZone,
-    );
-    return `${startFmt.format(start)} – ${endFmt.format(end)}`;
+    return `${startFmt.format(start)} – ${zoneFmt.format(end)}`;
   } catch {
     return `${startIso} – ${endIso}`;
   }

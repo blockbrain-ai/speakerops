@@ -298,5 +298,38 @@ describe("4.3 portal-utils", () => {
     it("falls back to the raw range when unparseable", () => {
       expect(formatSessionRange("bad", "worse", "UTC")).toBe("bad – worse");
     });
+
+    it("labels BOTH sides across the fall-back DST boundary", () => {
+      // US fall-back 2026: Sun 1 Nov, 02:00 EDT → 01:00 EST.
+      // 05:30Z = 01:30 EDT (GMT-4); 06:30Z = 01:30 EST (GMT-5).
+      const out = formatSessionRange(
+        "2026-11-01T05:30:00.000Z",
+        "2026-11-01T06:30:00.000Z",
+        "America/New_York",
+      );
+      expect(out).toMatch(/EDT|GMT-4/); // start keeps its own offset
+      expect(out).toMatch(/EST|GMT-5/); // end labelled separately
+    });
+
+    it("labels BOTH sides across the spring-forward DST boundary", () => {
+      // US spring-forward 2026: Sun 8 Mar, 02:00 EST → 03:00 EDT.
+      // 06:30Z = 01:30 EST (GMT-5); 07:30Z = 03:30 EDT (GMT-4).
+      const out = formatSessionRange(
+        "2026-03-08T06:30:00.000Z",
+        "2026-03-08T07:30:00.000Z",
+        "America/New_York",
+      );
+      expect(out).toMatch(/EST|GMT-5/);
+      expect(out).toMatch(/EDT|GMT-4/);
+    });
+
+    it("keeps a single end label when no boundary is crossed", () => {
+      const out = formatSessionRange(
+        "2026-11-02T14:00:00.000Z",
+        "2026-11-02T15:00:00.000Z",
+        "America/New_York",
+      );
+      expect(out.match(/EST|GMT-5/g)).toHaveLength(1);
+    });
   });
 });

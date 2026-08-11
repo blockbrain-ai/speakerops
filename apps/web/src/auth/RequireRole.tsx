@@ -32,6 +32,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -151,6 +152,27 @@ async function probeSpeakerAccess(
   }
 }
 
+/**
+ * Latest-probe-wins sequencer: concurrent guard probes (mount + visibility
+ * re-checks) can resolve out of order, and a stale slow "ok" must never
+ * overwrite a newer 401/403 verdict — fail closed means the NEWEST verdict
+ * rules. Each begin() supersedes all earlier invocations; commits from a
+ * superseded invocation are dropped. Exported for the deferred-response
+ * regression test.
+ */
+export function createProbeSequencer() {
+  let gen = 0;
+  return {
+    begin() {
+      const mine = ++gen;
+      return {
+        /** True while this invocation is still the newest. */
+        isCurrent: () => mine === gen,
+      };
+    },
+  };
+}
+
 export function AccessDenied({
   message = "You do not have access to this area.",
 }: {
@@ -186,6 +208,7 @@ export function AccessDenied({
 export function RequireRole({ roles, children }: RequireRoleProps) {
   const location = useLocation();
   const [state, setState] = useState<GuardState>({ status: "loading" });
+  const sequencerRef = useRef(createProbeSequencer());
 
   /**
    * Only access-relevant URL inputs re-trigger the probe: pathname and
@@ -205,6 +228,10 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     // non-ok verdict (401/403/error) transitions state and unmounts
     // (fail closed). The blocking "Checking access…" state is reserved
     // for the initial probe on surface entry.
+    const probe = sequencerRef.current.begin();
+    const commit = (next: GuardState) => {
+      if (probe.isCurrent()) setState(next);
+    };
     setState((prev) => (prev.status === "ok" ? prev : { status: "loading" }));
     // Admin surfaces use Event.List probe (server enforceRole)
     const needsAdmin = roles.includes("admin");
@@ -218,61 +245,61 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     if (needsEvaluator) {
       const result = await probeEvaluatorAccess();
       if (result === "ok") {
-        setState({ status: "ok" });
+        commit({ status: "ok" });
         return;
       }
       if (result === "unauthenticated") {
-        setState({ status: "unauthenticated" });
+        commit({ status: "unauthenticated" });
         return;
       }
       if (result === "forbidden") {
-        setState({
+        commit({
           status: "forbidden",
           message: "Evaluator role required for this area.",
         });
         return;
       }
-      setState({ status: "error", message: "Unable to verify access" });
+      commit({ status: "error", message: "Unable to verify access" });
       return;
     }
 
     if (needsSpeaker) {
       const result = await probeSpeakerAccess(eventId);
       if (result === "ok") {
-        setState({ status: "ok" });
+        commit({ status: "ok" });
         return;
       }
       if (result === "unauthenticated") {
-        setState({ status: "unauthenticated" });
+        commit({ status: "unauthenticated" });
         return;
       }
       if (result === "forbidden") {
-        setState({
+        commit({
           status: "forbidden",
           message: "Speaker access required for this programme.",
         });
         return;
       }
-      setState({ status: "error", message: "Unable to verify access" });
+      commit({ status: "error", message: "Unable to verify access" });
       return;
     }
 
     if (!needsAdmin) {
-      setState({ status: "ok" });
+      commit({ status: "ok" });
       return;
     }
 
     const result = await probeAdminAccess();
     if (result === "ok") {
-      setState({ status: "ok" });
+      commit({ status: "ok" });
       return;
     }
     if (result === "unauthenticated") {
-      setState({ status: "unauthenticated" });
+      commit({ status: "unauthenticated" });
       return;
     }
     if (result === "forbidden") {
-      setState({
+      commit({
         status: "forbidden",
         message: "Admin role required for this area.",
       });
@@ -285,12 +312,12 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
       });
       const raw: unknown = await res.json().catch(() => null);
       const env = ErrorEnvelopeSchema.safeParse(raw);
-      setState({
+      commit({
         status: "error",
         message: env.success ? env.data.error : "Unable to verify access",
       });
     } catch {
-      setState({ status: "error", message: "Unable to verify access" });
+      commit({ status: "error", message: "Unable to verify access" });
     }
   }, [roles, eventId]);
 
