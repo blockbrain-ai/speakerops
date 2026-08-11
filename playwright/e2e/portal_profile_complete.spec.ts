@@ -258,7 +258,8 @@ test("speaker onboarding wizard: one step at a time, draft save, headshot choose
     });
   } else {
     await page.getByTestId("portal-nav-profile").click();
-    await expect(page.getByTestId("portal-bio-input")).toHaveValue(
+    // F2: bio is a rich editor (contenteditable) — assert rendered text.
+    await expect(page.getByTestId("portal-bio-input")).toContainText(
       new RegExp(`Bio complete ${run}`),
     );
   }

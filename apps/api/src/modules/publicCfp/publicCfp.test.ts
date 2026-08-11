@@ -1735,3 +1735,169 @@ describe("3.3 rate limiter unit", () => {
     expect(limiter.check("k", t0 + 1001).allowed).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F2 — rich_text field type end-to-end (Codex correction #1)
+// ---------------------------------------------------------------------------
+
+const RICH_FIELD = {
+  fieldKey: "story",
+  type: "rich_text" as const,
+  label: "Your story",
+  required: false,
+  sortOrder: 8,
+  maxChars: 2000,
+};
+
+function richAnswerFields(story: unknown) {
+  return [
+    { fieldKey: "talk_title", value: "Rich Talk" },
+    { fieldKey: "category", value: "ai" },
+    { fieldKey: "gpu_notes", value: "n/a" },
+    { fieldKey: "story", value: story },
+  ];
+}
+
+describe("3.3 public CFP — rich_text field (F2)", () => {
+  it("accepts a valid publicAnswer doc, renders it in the DTO, and exports plain text in CSV", async () => {
+    const { app, cookie, submissions } = await magicLinkSession("admin-rt-ok@example.com");
+    const event = await createEvent(app, cookie, "RT OK Event", "rt-ok-evt");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, RICH_FIELD],
+    });
+
+    const story = {
+      schema: "v1",
+      doc: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "I build " },
+              { type: "text", text: "tools", marks: [{ type: "bold" }] },
+            ],
+          },
+          {
+            type: "bulletList",
+            content: [
+              { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "one" }] }] },
+            ],
+          },
+        ],
+      },
+    };
+
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(baseSubmitBody(formVersionId, { answers: richAnswerFields(story) })),
+      },
+      env,
+    );
+    expect(res.status).toBe(201);
+    const body = SubmissionCreateResponseSchema.parse(await res.json());
+    const answer = body.answers.find((a) => a.fieldKey === "story");
+    // The rich answer round-trips as a structured doc, not a string.
+    expect(JSON.stringify(answer?.value)).toContain('"schema":"v1"');
+    expect(JSON.stringify(answer?.value)).toContain("tools");
+
+    // Stored as JSON doc, never as executable markup.
+    const stored = (await submissions.listAnswers(body.submission.id)).find(
+      (r) => r.fieldKey === "story",
+    );
+    expect(stored?.valueJson).toContain('"schema":"v1"');
+
+    // CSV export serializes the rich answer to deterministic plain text.
+    const csvRes = await app.request(
+      `http://localhost/api/events/${event.id}/submissions/export`,
+      { headers: { cookie, accept: "text/csv" } },
+      env,
+    );
+    expect(csvRes.status).toBe(200);
+    const csv = await csvRes.text();
+    expect(csv).toContain("I build tools");
+    expect(csv).toContain("- one");
+    // The doc JSON envelope must NOT leak into the CSV cell.
+    expect(csv).not.toContain('"schema":"v1"');
+  });
+
+  it("REJECTS (not strips) a doc with a banned heading node at the API boundary", async () => {
+    const { app, cookie } = await magicLinkSession("admin-rt-heading@example.com");
+    const event = await createEvent(app, cookie, "RT Heading Event", "rt-h-evt");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, RICH_FIELD],
+    });
+    const bad = {
+      schema: "v1",
+      doc: { type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "nope" }] }] },
+    };
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(baseSubmitBody(formVersionId, { answers: richAnswerFields(bad) })),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(VALIDATION_ERROR);
+  });
+
+  it("REJECTS a doc whose link mark uses a javascript: protocol", async () => {
+    const { app, cookie } = await magicLinkSession("admin-rt-js@example.com");
+    const event = await createEvent(app, cookie, "RT JS Event", "rt-js-evt");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, RICH_FIELD],
+    });
+    const bad = {
+      schema: "v1",
+      doc: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "x", marks: [{ type: "link", attrs: { href: "javascript:alert(1)" } }] }] },
+        ],
+      },
+    };
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(baseSubmitBody(formVersionId, { answers: richAnswerFields(bad) })),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(ErrorEnvelopeSchema.parse(await res.json()).code).toBe(VALIDATION_ERROR);
+  });
+
+  it("accepts script text WITHIN a paragraph (stored as text, never executed)", async () => {
+    const { app, cookie, submissions } = await magicLinkSession("admin-rt-script@example.com");
+    const event = await createEvent(app, cookie, "RT Script Event", "rt-s-evt");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, RICH_FIELD],
+    });
+    const story = {
+      schema: "v1",
+      doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "<script>alert(1)</script>" }] }] },
+    };
+    const res = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/submissions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(baseSubmitBody(formVersionId, { answers: richAnswerFields(story) })),
+      },
+      env,
+    );
+    expect(res.status).toBe(201);
+    const body = SubmissionCreateResponseSchema.parse(await res.json());
+    const stored = (await submissions.listAnswers(body.submission.id)).find((r) => r.fieldKey === "story");
+    // Payload is preserved as inert text data inside the doc JSON.
+    expect(stored?.valueJson).toContain("script");
+  });
+});

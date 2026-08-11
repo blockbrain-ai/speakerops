@@ -11,6 +11,12 @@ import {
   TemplateKeySchema,
   COMMS_OUTBOX_TOPIC,
   renderMergeFields,
+  mergeRichTextValues,
+  readRichTextValue,
+  richTextIsEmpty,
+  richTextToPlainText,
+  richTextToEmailHtml,
+  type RichTextEnvelope,
   type CommsUpsertTemplateBody,
   type CommsUpsertTemplateResponse,
   type CommsPreviewBody,
@@ -83,10 +89,24 @@ function toTemplateDto(row: EmailTemplateRow): EmailTemplateDto {
     key: row.key as EmailTemplateDto["key"],
     subject: row.subject,
     body: row.bodyMd,
+    // Dual-read (F2): prefer body_rich_json, fall back to legacy body_md as
+    // a paragraph doc AT READ TIME — never writes.
+    bodyRich: readRichTextValue(row.bodyRichJson ?? null, row.bodyMd),
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * Rich body column value from an upsert body (F2 dual-write). When the
+ * client omits bodyRich (legacy client), the rich column CLEARS so the
+ * freshly-sent legacy body text stays authoritative on next read.
+ */
+function bodyRichJsonFromUpsert(body: CommsUpsertTemplateBody): string | null {
+  return body.bodyRich != null && !richTextIsEmpty(body.bodyRich)
+    ? JSON.stringify(body.bodyRich)
+    : null;
 }
 
 function toJobDto(row: MessageJobRow): MessageJobDto {
@@ -382,6 +402,7 @@ export async function upsertTemplate(
     const updated = await deps.comms.updateTemplate(existing.id, {
       subject: input.body.subject,
       bodyMd: input.body.body,
+      bodyRichJson: bodyRichJsonFromUpsert(input.body),
       version: existing.version + 1,
       expectedVersion: existing.version,
       updatedAt: now,
@@ -423,6 +444,7 @@ export async function upsertTemplate(
     key: keyParsed.data,
     subject: input.body.subject,
     bodyMd: input.body.body,
+    bodyRichJson: bodyRichJsonFromUpsert(input.body),
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -448,6 +470,38 @@ export async function upsertTemplate(
   });
 
   return { ok: true, value: { template: toTemplateDto(row) } };
+}
+
+/**
+ * Render a template body for one recipient (F2 text + HTML dual-part).
+ *
+ * Order is load-bearing: merge values are applied IN DOC-SPACE (text nodes)
+ * FIRST, then the merged doc is serialized to the plain-text part and the
+ * email-HTML part. The HTML serializer escapes every text node, so recipient
+ * data (names, bios) can never become markup. Legacy templates without a
+ * rich doc dual-read body_md into a paragraph doc — byte-identical text
+ * output to the old renderMergeFields path.
+ */
+function renderTemplateBody(
+  template: EmailTemplateRow,
+  data: Record<string, string>,
+): {
+  text: string;
+  html: string;
+  doc: RichTextEnvelope;
+  missingFields: string[];
+} {
+  const source =
+    readRichTextValue(template.bodyRichJson ?? null, template.bodyMd) ??
+    // bodyMd is NOT NULL, but keep a total fallback for safety.
+    ({ schema: "v1", doc: { type: "doc", content: [] } } as RichTextEnvelope);
+  const merged = mergeRichTextValues(source, data);
+  return {
+    text: richTextToPlainText(merged.envelope),
+    html: richTextToEmailHtml(merged.envelope),
+    doc: merged.envelope,
+    missingFields: merged.missingFields,
+  };
 }
 
 /**
@@ -539,7 +593,7 @@ export async function previewComms(
       };
 
       const subj = renderMergeFields(template.subject, data);
-      const body = renderMergeFields(template.bodyMd, data);
+      const body = renderTemplateBody(template, data);
       for (const m of subj.missingFields) missingAll.add(m);
       for (const m of body.missingFields) missingAll.add(m);
 
@@ -553,7 +607,9 @@ export async function previewComms(
         participationId: participation?.id ?? null,
         submissionId: sub.id,
         subject: subj.rendered,
-        body: body.rendered,
+        body: body.text,
+        bodyHtml: body.html,
+        bodyDoc: body.doc,
       });
     }
     return finalizePreview(deps, input, template, segment, {
@@ -592,7 +648,7 @@ export async function previewComms(
     if (!data.email) continue;
 
     const subj = renderMergeFields(template.subject, data);
-    const body = renderMergeFields(template.bodyMd, data);
+    const body = renderTemplateBody(template, data);
     for (const m of subj.missingFields) missingAll.add(m);
     for (const m of body.missingFields) missingAll.add(m);
 
@@ -604,7 +660,9 @@ export async function previewComms(
     bodies.push({
       participationId: part.id,
       subject: subj.rendered,
-      body: body.rendered,
+      body: body.text,
+      bodyHtml: body.html,
+      bodyDoc: body.doc,
     });
   }
 
@@ -1014,6 +1072,7 @@ function buildRecipientRows(
       name: r.name,
       subject: body?.subject ?? null,
       body: body?.body ?? null,
+      bodyHtml: body?.bodyHtml ?? null,
       status: "queued",
       createdAt: now,
     };

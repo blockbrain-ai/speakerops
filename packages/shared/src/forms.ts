@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  richTextCfpContentSchema,
+  RichTextEnvelopeSchema,
+} from "./richtext.js";
 
 /**
  * Form builder DTOs (section 3.1).
@@ -31,13 +35,18 @@ export const FormFieldTypeSchema = z.enum([
   "url",
   "date",
   "file",
+  "rich_text",
 ]);
 export type FormFieldType = z.infer<typeof FormFieldTypeSchema>;
 
-/** Field types that accept a character cap (maxChars). */
+/**
+ * Field types that accept a character cap (maxChars).
+ * For rich_text the cap counts PLAIN-TEXT length (richTextCharCount).
+ */
 export const FORM_FIELD_MAX_CHARS_TYPES = [
   "text",
   "textarea",
+  "rich_text",
 ] as const satisfies readonly FormFieldType[];
 
 export function fieldTypeSupportsMaxChars(type: string): boolean {
@@ -139,9 +148,21 @@ export const FormFieldInputSchema = z
     nodeKind: FormNodeKindSchema.default("input"),
     /** section | divider — required when nodeKind is layout, never on input. */
     layoutType: FormLayoutTypeSchema.optional().nullable(),
+    /**
+     * Per-section "Description & Instructions" rich doc (F2; 0036).
+     * Layout SECTION nodes only — helpText is not overloaded.
+     */
+    descriptionRich: richTextCfpContentSchema.optional().nullable(),
   })
   .superRefine((field, ctx) => {
     if (field.nodeKind === "layout") {
+      if (field.layoutType !== "section" && field.descriptionRich != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["descriptionRich"],
+          message: "descriptionRich is only allowed on section layout nodes",
+        });
+      }
       if (field.layoutType == null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -194,22 +215,30 @@ export const FormFieldInputSchema = z
         message: "layoutType is only allowed on layout nodes",
       });
     }
+    if (field.descriptionRich != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["descriptionRich"],
+        message: "descriptionRich is only allowed on section layout nodes",
+      });
+    }
     if (field.maxChars != null && !fieldTypeSupportsMaxChars(field.type)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["maxChars"],
-        message: "maxChars is only allowed on text and textarea fields",
+        message:
+          "maxChars is only allowed on text, textarea and rich_text fields",
       });
     }
     if (
-      field.type === "file" &&
+      (field.type === "file" || field.type === "rich_text") &&
       field.options != null &&
       field.options.length > 0
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["options"],
-        message: "file fields do not take options",
+        message: `${field.type} fields do not take options`,
       });
     }
   });
@@ -248,6 +277,8 @@ export const FormFieldSchema = z.object({
   /** Node discrimination (Wave 1B). Pre-0027 snapshots omit → input. */
   nodeKind: FormNodeKindSchema.optional(),
   layoutType: FormLayoutTypeSchema.optional().nullable(),
+  /** Section description rich doc (F2; pre-0036 snapshots omit). */
+  descriptionRich: RichTextEnvelopeSchema.optional().nullable(),
 });
 export type FormFieldDto = z.infer<typeof FormFieldSchema>;
 
@@ -266,6 +297,9 @@ export type FormRuleDto = z.infer<typeof FormRuleSchema>;
 export const FormSnapshotSchema = z.object({
   welcomeMd: z.string().nullable(),
   thankYouMd: z.string().nullable(),
+  /** Rich welcome/thank-you docs (F2; pre-0036 snapshots omit — dual-read). */
+  welcomeRich: RichTextEnvelopeSchema.optional().nullable(),
+  thankYouRich: RichTextEnvelopeSchema.optional().nullable(),
   opensAt: z.string().nullable(),
   closesAt: z.string().nullable(),
   submissionLimit: z.number().int().positive().nullable(),
@@ -286,6 +320,12 @@ export const FormVersionSchema = z.object({
   versionNum: z.number().int().min(0),
   welcomeMd: z.string().nullable(),
   thankYouMd: z.string().nullable(),
+  /**
+   * Rich welcome/thank-you docs (F2). Dual-read on the server: prefers the
+   * *_rich_json column, falls back to legacy text as a paragraph doc.
+   */
+  welcomeRich: RichTextEnvelopeSchema.optional().nullable(),
+  thankYouRich: RichTextEnvelopeSchema.optional().nullable(),
   opensAt: z.string().nullable(),
   closesAt: z.string().nullable(),
   submissionLimit: z.number().int().positive().nullable(),
@@ -323,6 +363,13 @@ export const FormUpdateDraftBodySchema = z
     rules: z.array(FormRuleInputSchema).max(100).default([]),
     welcomeMd: z.string().max(50_000).optional().nullable(),
     thankYouMd: z.string().max(50_000).optional().nullable(),
+    /**
+     * Rich welcome/thank-you docs (F2). Omitted → keep; null → clear.
+     * Writers persist BOTH the rich doc and its plain-text serialization
+     * into the legacy column (dual-write during the expand window).
+     */
+    welcomeRich: richTextCfpContentSchema.optional().nullable(),
+    thankYouRich: richTextCfpContentSchema.optional().nullable(),
     /** ISO-8601 timestamps (window open/close); validated as non-empty strings when set. */
     opensAt: z.string().min(1).max(64).optional().nullable(),
     closesAt: z.string().min(1).max(64).optional().nullable(),

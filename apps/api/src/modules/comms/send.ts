@@ -22,7 +22,13 @@ export type EmailAttachment = {
 export type EmailMessage = {
   to: string;
   subject: string;
+  /** Plain-text part (always present — serialized from the merged doc). */
   body: string;
+  /**
+   * Optional email-HTML part (F2): serialized from the SAME merged doc as
+   * the text part (merge-before-serialize; recipient data escaped).
+   */
+  html?: string;
   from?: string;
   /** Optional correlation for logs (never magic links / secrets). */
   correlationId?: string;
@@ -150,6 +156,7 @@ export class ResendEmailProvider implements EmailProvider {
           to: [message.to],
           subject: message.subject,
           text: message.body,
+          ...(message.html ? { html: message.html } : {}),
           ...(attachments ? { attachments } : {}),
         }),
       });
@@ -236,6 +243,7 @@ export class CloudflareEmailProvider implements EmailProvider {
           from: { email: parsed.address, name: parsed.name },
           subject: message.subject,
           text: message.body,
+          ...(message.html ? { html: message.html } : {}),
         });
         return {
           ok: true,
@@ -268,6 +276,7 @@ export class CloudflareEmailProvider implements EmailProvider {
             from: { address: parsed.address, name: parsed.name },
             subject: message.subject,
             text: message.body,
+            ...(message.html ? { html: message.html } : {}),
           }),
         },
       );

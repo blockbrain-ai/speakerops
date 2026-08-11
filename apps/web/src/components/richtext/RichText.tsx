@@ -1,0 +1,190 @@
+/**
+ * <RichText doc={...}> — safe React renderer for rich-text envelopes (F2).
+ *
+ * Maps allowed ProseMirror nodes/marks to React elements. NO
+ * dangerouslySetInnerHTML anywhere (E10) — every piece of user content is a
+ * React text child. Links are re-validated at render time and always get
+ * rel="noopener noreferrer" target="_blank". Unknown nodes degrade to their
+ * plain-text content and are counted in a dev-only console warning.
+ *
+ * Image nodes are NOT rendered this wave (image support cut — F2 correction).
+ */
+import type { CSSProperties, ReactNode } from "react";
+import {
+  isAllowedRichTextHref,
+  type RichTextEnvelope,
+  type RichTextNode,
+} from "@speakerops/shared";
+
+type UnknownCounter = { count: number; types: Set<string> };
+
+function alignStyle(node: RichTextNode): CSSProperties | undefined {
+  const align = node.attrs?.["textAlign"];
+  if (align === "center" || align === "right") {
+    return { textAlign: align };
+  }
+  return undefined;
+}
+
+function renderInline(
+  nodes: RichTextNode[] | undefined,
+  keyPrefix: string,
+  unknown: UnknownCounter,
+): ReactNode[] {
+  if (!nodes) return [];
+  return nodes.map((node, i) => {
+    const key = `${keyPrefix}-${i}`;
+    if (node.type === "hardBreak") return <br key={key} />;
+    if (node.type !== "text") {
+      unknown.count += 1;
+      unknown.types.add(node.type);
+      // Unknown inline node → plain text fallback (its own text content).
+      return <span key={key}>{node.text ?? ""}</span>;
+    }
+    let el: ReactNode = node.text ?? "";
+    let href: string | null = null;
+    for (const mark of node.marks ?? []) {
+      switch (mark.type) {
+        case "bold":
+          el = <strong>{el}</strong>;
+          break;
+        case "italic":
+          el = <em>{el}</em>;
+          break;
+        case "underline":
+          el = <u>{el}</u>;
+          break;
+        case "superscript":
+          el = <sup>{el}</sup>;
+          break;
+        case "subscript":
+          el = <sub>{el}</sub>;
+          break;
+        case "link": {
+          const candidate = mark.attrs?.["href"];
+          // Defense-in-depth: protocol allowlist re-checked at render time.
+          if (isAllowedRichTextHref(candidate)) href = candidate;
+          break;
+        }
+        default:
+          unknown.count += 1;
+          unknown.types.add(`mark:${mark.type}`);
+          break; // Unknown mark: content renders unmarked, never as markup.
+      }
+    }
+    if (href != null) {
+      el = (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="l2-richtext__link"
+        >
+          {el}
+        </a>
+      );
+    }
+    return <span key={key}>{el}</span>;
+  });
+}
+
+function plainTextOf(node: RichTextNode): string {
+  let out = "";
+  if (node.type === "text") out += node.text ?? "";
+  for (const child of node.content ?? []) out += plainTextOf(child);
+  return out;
+}
+
+function renderBlock(
+  node: RichTextNode,
+  key: string,
+  unknown: UnknownCounter,
+): ReactNode {
+  switch (node.type) {
+    case "paragraph":
+      return (
+        <p key={key} style={alignStyle(node)}>
+          {renderInline(node.content, key, unknown)}
+        </p>
+      );
+    case "heading": {
+      const level = node.attrs?.["level"] === 3 ? 3 : 2;
+      const children = renderInline(node.content, key, unknown);
+      return level === 2 ? (
+        <h2 key={key} style={alignStyle(node)}>
+          {children}
+        </h2>
+      ) : (
+        <h3 key={key} style={alignStyle(node)}>
+          {children}
+        </h3>
+      );
+    }
+    case "bulletList":
+    case "orderedList": {
+      const items = (node.content ?? []).map((item, i) => (
+        <li key={`${key}-li${i}`}>
+          {(item.content ?? []).map((child, j) =>
+            renderBlock(child, `${key}-li${i}-${j}`, unknown),
+          )}
+        </li>
+      ));
+      if (node.type === "orderedList") {
+        const start =
+          typeof node.attrs?.["start"] === "number" &&
+          (node.attrs["start"] as number) > 1
+            ? (node.attrs["start"] as number)
+            : undefined;
+        return (
+          <ol key={key} start={start}>
+            {items}
+          </ol>
+        );
+      }
+      return <ul key={key}>{items}</ul>;
+    }
+    default: {
+      unknown.count += 1;
+      unknown.types.add(node.type);
+      // Unknown block → plain text fallback (never markup, never dropped).
+      const text = plainTextOf(node);
+      return text.length > 0 ? <p key={key}>{text}</p> : null;
+    }
+  }
+}
+
+export type RichTextProps = {
+  doc: RichTextEnvelope | null | undefined;
+  className?: string;
+  "data-testid"?: string;
+};
+
+/**
+ * Safe rich-text renderer. Renders nothing for null/empty docs.
+ */
+export function RichText({
+  doc,
+  className,
+  "data-testid": testId,
+}: RichTextProps): ReactNode {
+  if (doc == null || doc.doc?.type !== "doc") return null;
+  const unknown: UnknownCounter = { count: 0, types: new Set() };
+  const blocks = (doc.doc.content ?? []).map((node, i) =>
+    renderBlock(node, `rt-${i}`, unknown),
+  );
+  if (unknown.count > 0 && import.meta.env.DEV) {
+    // Dev-only observability for schema drift (spec §3) — never throws.
+    console.warn(
+      `RichText: ${unknown.count} unknown node(s)/mark(s) rendered as plain text:`,
+      [...unknown.types].join(", "),
+    );
+  }
+  return (
+    <div
+      className={className ? `l2-richtext ${className}` : "l2-richtext"}
+      data-testid={testId}
+    >
+      {blocks}
+    </div>
+  );
+}

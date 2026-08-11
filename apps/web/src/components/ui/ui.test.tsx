@@ -319,10 +319,35 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
       "@fontsource/hanken-grotesk",
       "@fontsource/ibm-plex-mono",
       "@speakerops/shared",
+      // F2 (rich-text primitive): TipTap v3 on ProseMirror — the ONLY
+      // sanctioned editor stack (no CDN, no other editor/UI kits). The set
+      // is closed: StarterKit bundles Link + Underline (never re-added as
+      // separate deps); CharacterCount/Placeholder come from
+      // @tiptap/extensions; @tiptap/pm pins the ProseMirror layer.
+      "@tiptap/extension-subscript",
+      "@tiptap/extension-superscript",
+      "@tiptap/extension-text-align",
+      "@tiptap/extensions",
+      "@tiptap/pm",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
       "react",
       "react-dom",
       "react-router-dom",
     ]);
+    // F2 pin law: EVERY @tiptap/* package pinned to ONE exact version —
+    // no ranges (^/~), no mixed versions (TipTap v3 requires lockstep).
+    const tiptapVersions = new Set(
+      Object.entries(pkg.dependencies ?? {})
+        .filter(([name]) => name.startsWith("@tiptap/"))
+        .map(([, version]) => version),
+    );
+    expect(tiptapVersions.size).toBe(1);
+    const pinned = [...tiptapVersions][0] ?? "";
+    expect(/^\d+\.\d+\.\d+$/.test(pinned), `exact pin, got ${pinned}`).toBe(
+      true,
+    );
+    expect(pinned.startsWith("3.")).toBe(true);
     // Explicit ban list for UI kits / icons / charts / DnD.
     // (@fontsource left the ban list deliberately in F1 — self-hosted fonts
     // are mandated by the locked theme; scope stays limited by the exact

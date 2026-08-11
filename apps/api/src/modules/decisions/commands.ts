@@ -13,6 +13,9 @@ import {
   SubmissionStatusSchema,
   isSubmissionDecisionSource,
   csvEscapeField,
+  RichTextEnvelopeSchema,
+  richTextToPlainText,
+  type RichTextEnvelope,
   type DecisionRecordBody,
   type DecisionValue,
   type DecisionDto,
@@ -1581,13 +1584,21 @@ export async function exportSubmissionsCsv(
       } catch {
         value = a.valueJson;
       }
+      // rich_text answers export as deterministic plain text (F2 — CSV
+      // consumers never see doc JSON).
+      const richEnvelope =
+        typeof value === "object" && value !== null
+          ? RichTextEnvelopeSchema.safeParse(value)
+          : null;
       const flat = Array.isArray(value)
         ? value.map((v) => String(v)).join(" | ")
         : value == null
           ? ""
-          : typeof value === "object"
-            ? JSON.stringify(value)
-            : String(value);
+          : richEnvelope?.success
+            ? richTextToPlainText(richEnvelope.data as RichTextEnvelope)
+            : typeof value === "object"
+              ? JSON.stringify(value)
+              : String(value);
       answers.set(a.fieldKey, flat);
       answerKeys.add(a.fieldKey);
     }

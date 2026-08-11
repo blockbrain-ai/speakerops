@@ -604,3 +604,120 @@ describe("5.1 Comms email templates + outbox", () => {
     expect(parsed.template.version).toBe(2);
   });
 });
+
+describe("5.1 Comms rich-text bodies (F2) — dual-part + boundary", () => {
+  function richDoc(text: string) {
+    return {
+      schema: "v1",
+      doc: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text }],
+          },
+        ],
+      },
+    };
+  }
+
+  it("escaped merge value reaches BOTH the text part and the HTML part", async () => {
+    const admin = await magicLinkSession("admin", "comms-f2-dual@example.com");
+    const event = await createEvent(admin.app, admin.cookie, "F2 Comms Event");
+
+    // Seed a recipient whose NAME is a script payload (merge injection attempt).
+    const person = await admin.submissions.insertPerson({
+      id: "person_f2_dual",
+      orgId: "org_dogfood",
+      email: "f2-speaker@example.com",
+      name: "<script>alert(1)</script>",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await admin.decisions.insertParticipation({
+      id: "part_f2_dual",
+      eventId: event.id,
+      personId: person.id,
+      userId: null,
+      roleLabel: "speaker",
+      status: "accepted",
+      bio: null,
+      company: "Acme",
+      title: "Engineer",
+      headshotFileId: null,
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const upsert = await admin.app.request(
+      `http://localhost/api/events/${event.id}/templates/f2-nudge`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          subject: "Hi {{name}}",
+          body: "Hello {{name}}",
+          bodyRich: richDoc("Hello {{name}}"),
+        }),
+      },
+      env,
+    );
+    expect(upsert.status).toBe(201);
+    const tpl = CommsUpsertTemplateResponseSchema.parse(await upsert.json());
+
+    const previewRes = await admin.app.request(
+      "http://localhost/api/comms/preview",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: admin.cookie },
+        body: JSON.stringify({
+          templateId: tpl.template.id,
+          segment: { status: "accepted" },
+        }),
+      },
+      env,
+    );
+    expect(previewRes.status).toBe(200);
+    const preview = CommsPreviewResponseSchema.parse(await previewRes.json());
+    const item = preview.bodies[0]!;
+    // Text part: literal payload survives as plain text (safe — never markup).
+    expect(item.body).toBe("Hello <script>alert(1)</script>");
+    // HTML part: SAME merged doc, but escaped — no live script anywhere.
+    expect(item.bodyHtml).toBeTruthy();
+    expect(item.bodyHtml).not.toContain("<script>");
+    expect(item.bodyHtml).toContain("&lt;script&gt;");
+    // Merged doc for safe client render is present and carries the payload text.
+    expect(JSON.stringify(item.bodyDoc)).toContain("<script>alert(1)</script>");
+  });
+
+  it("rejects a bodyRich with a banned image node at the API boundary (reject, not strip)", async () => {
+    const admin = await magicLinkSession("admin", "comms-f2-reject@example.com");
+    const event = await createEvent(admin.app, admin.cookie, "F2 Reject Event");
+    const res = await admin.app.request(
+      `http://localhost/api/events/${event.id}/templates/f2-bad`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json", cookie: admin.cookie },
+        body: JSON.stringify({
+          subject: "s",
+          body: "b",
+          bodyRich: {
+            schema: "v1",
+            doc: {
+              type: "doc",
+              content: [{ type: "image", attrs: { src: "https://x/y.png" } }],
+            },
+          },
+        }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    const envBody = ErrorEnvelopeSchema.parse(await res.json());
+    expect(envBody.code).toBe(VALIDATION_ERROR);
+  });
+});

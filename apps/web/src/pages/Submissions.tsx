@@ -46,8 +46,10 @@ import {
   type DecisionValue,
   type EventMember,
   type EvalReviewsResponse,
+  RichTextEnvelopeSchema,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
+import { RichText } from "../components/richtext/RichText.js";
 import {
   Alert,
   Badge,
@@ -172,6 +174,12 @@ function renderAnswerValue(value: unknown, options?: AnswerOption[]): ReactNode 
         Uploaded file
       </a>
     );
+  }
+  // F2: rich_text answers are stored envelopes — render via the safe
+  // renderer (never raw markup; unknown shapes fall through to JSON text).
+  const rich = RichTextEnvelopeSchema.safeParse(value);
+  if (typeof value === "object" && value !== null && rich.success) {
+    return <RichText doc={rich.data} />;
   }
   return formatAnswerValue(value, options);
 }

@@ -27,15 +27,18 @@ import {
   FormListResponseSchema,
   FormAdminGetResponseSchema,
   ErrorEnvelopeSchema,
+  richTextToPlainText,
   type FormDto,
   type FormVersionDto,
   type FormFieldType,
   type FormFieldDto,
   type FormLayoutType,
   type FormRuleDto,
+  type RichTextEnvelope,
 } from "@speakerops/shared";
 import { useEventContext } from "../events/EventContext.js";
 import { FormPreview } from "../components/forms/FormPreview.js";
+import { RichTextEditor } from "../components/richtext/RichTextEditor.js";
 import {
   FIELD_PALETTE,
   LAYOUT_PALETTE,
@@ -129,8 +132,16 @@ export function FormBuilderPage() {
   const [fields, setFields] = useState<BuilderField[]>([]);
   const [rules, setRules] = useState<BuilderRule[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [welcomeMd, setWelcomeMd] = useState("");
-  const [thankYouMd, setThankYouMd] = useState("");
+  /**
+   * F2: welcome/thank-you are rich docs (cfpContent schema). The server
+   * dual-reads legacy markdown into paragraph docs, so old drafts load here
+   * losslessly; saves send the doc and the server dual-writes the legacy
+   * column from its plain-text serialization.
+   */
+  const [welcomeRich, setWelcomeRich] = useState<RichTextEnvelope | null>(null);
+  const [thankYouRich, setThankYouRich] = useState<RichTextEnvelope | null>(
+    null,
+  );
   /** Open/close window as datetime-local values (ISO only at the API edge). */
   const [opensAt, setOpensAt] = useState("");
   const [closesAt, setClosesAt] = useState("");
@@ -173,8 +184,8 @@ export function FormBuilderPage() {
       setPublishedVersion(payload.published ?? null);
       setFields(draftFieldsToBuilder(payload.draft.fields ?? []));
       setRules(draftRulesToBuilder(payload.draft.rules ?? []));
-      setWelcomeMd(payload.draft.welcomeMd ?? "");
-      setThankYouMd(payload.draft.thankYouMd ?? "");
+      setWelcomeRich(payload.draft.welcomeRich ?? null);
+      setThankYouRich(payload.draft.thankYouRich ?? null);
       setOpensAt(isoToDatetimeLocal(payload.draft.opensAt));
       setClosesAt(isoToDatetimeLocal(payload.draft.closesAt));
       setSubmissionLimit(
@@ -209,8 +220,8 @@ export function FormBuilderPage() {
     setFields([]);
     setRules([]);
     setSelectedClientId(null);
-    setWelcomeMd("");
-    setThankYouMd("");
+    setWelcomeRich(null);
+    setThankYouRich(null);
     setOpensAt("");
     setClosesAt("");
     setSubmissionLimit("");
@@ -481,8 +492,8 @@ export function FormBuilderPage() {
       setPublishedVersion(null);
       setFields([]);
       setRules([]);
-      setWelcomeMd("");
-      setThankYouMd("");
+      setWelcomeRich(null);
+      setThankYouRich(null);
       setOpensAt("");
       setClosesAt("");
       setSubmissionLimit("");
@@ -523,8 +534,11 @@ export function FormBuilderPage() {
     const body = toDraftBody({
       fields,
       rules,
-      welcomeMd,
-      thankYouMd,
+      welcomeMd: "",
+      thankYouMd: "",
+      // F2: rich docs win — the server derives the legacy columns.
+      welcomeRich,
+      thankYouRich,
       // datetime-local wall-clock values → ISO instants at the API edge.
       opensAt: datetimeLocalToIso(opensAt) ?? "",
       closesAt: datetimeLocalToIso(closesAt) ?? "",
@@ -1175,8 +1189,8 @@ export function FormBuilderPage() {
                 >
                   <FormPreview
                     fields={fields}
-                    welcomeMd={welcomeMd}
-                    thankYouMd={thankYouMd}
+                    welcomeMd={richTextToPlainText(welcomeRich)}
+                    thankYouMd={richTextToPlainText(thankYouRich)}
                   />
                 </aside>
               </div>
@@ -1329,7 +1343,8 @@ export function FormBuilderPage() {
                         }}
                       />
                       {selected.type === "text" ||
-                      selected.type === "textarea" ? (
+                      selected.type === "textarea" ||
+                      selected.type === "rich_text" ? (
                         <Field
                           id="field-edit-maxchars"
                           label="Character limit"
@@ -1525,8 +1540,8 @@ export function FormBuilderPage() {
               <div className="form-builder__card form-builder__preview-full">
                 <FormPreview
                   fields={fields}
-                  welcomeMd={welcomeMd}
-                  thankYouMd={thankYouMd}
+                  welcomeMd={richTextToPlainText(welcomeRich)}
+                  thankYouMd={richTextToPlainText(thankYouRich)}
                 />
               </div>
               {/* Keep palette reachable for D07-style checks when switched back */}
@@ -1781,26 +1796,38 @@ export function FormBuilderPage() {
                   <h3 id="copy-heading" className="form-builder__heading">
                     Welcome & thank-you
                   </h3>
-                  <label className="form-builder__label" htmlFor="welcome-md">
-                    Welcome (markdown)
+                  <label
+                    className="form-builder__label"
+                    id="welcome-md-label"
+                    htmlFor="welcome-md"
+                  >
+                    Welcome
                   </label>
-                  <textarea
+                  <RichTextEditor
                     id="welcome-md"
-                    className="form-builder__input lumen-focusable"
-                    rows={3}
-                    value={welcomeMd}
-                    onChange={(e) => setWelcomeMd(e.target.value)}
+                    context="cfpContent"
+                    variant="full"
+                    value={welcomeRich}
+                    onChange={setWelcomeRich}
+                    ariaLabelledBy="welcome-md-label"
+                    placeholder="Welcome copy shown at the top of the public CFP"
                     data-testid="form-welcome-md"
                   />
-                  <label className="form-builder__label" htmlFor="thankyou-md">
-                    Thank you (markdown)
+                  <label
+                    className="form-builder__label"
+                    id="thankyou-md-label"
+                    htmlFor="thankyou-md"
+                  >
+                    Thank you
                   </label>
-                  <textarea
+                  <RichTextEditor
                     id="thankyou-md"
-                    className="form-builder__input lumen-focusable"
-                    rows={3}
-                    value={thankYouMd}
-                    onChange={(e) => setThankYouMd(e.target.value)}
+                    context="cfpContent"
+                    variant="full"
+                    value={thankYouRich}
+                    onChange={setThankYouRich}
+                    ariaLabelledBy="thankyou-md-label"
+                    placeholder="Shown after a successful submission"
                     data-testid="form-thankyou-md"
                   />
                 </section>

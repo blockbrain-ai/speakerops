@@ -238,6 +238,9 @@ export async function processCommsOutbox(
         to: recipient.toEmail,
         subject: recipient.subject ?? "",
         body: recipient.body ?? "",
+        // Durable HTML part snapshot (F2) — serialized from the same merged
+        // doc as the text part at preview time; absent for legacy jobs.
+        ...(recipient.bodyHtml ? { html: recipient.bodyHtml } : {}),
         jobId: job.id,
         recipientId: recipient.id,
         correlationId: payload.correlationId ?? options.correlationId,

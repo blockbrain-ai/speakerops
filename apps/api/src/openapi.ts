@@ -383,7 +383,7 @@ export const FORM_OPENAPI_PATHS = {
                       type: {
                         type: "string",
                         description:
-                          "text|textarea|select|multiselect|checkbox|number|email|url|date|file",
+                          "text|textarea|select|multiselect|checkbox|number|email|url|date|file|rich_text",
                       },
                       label: { type: "string" },
                       required: { type: "boolean" },
@@ -436,6 +436,18 @@ export const FORM_OPENAPI_PATHS = {
                 },
                 welcomeMd: { type: "string", nullable: true },
                 thankYouMd: { type: "string", nullable: true },
+                welcomeRich: {
+                  type: "object",
+                  nullable: true,
+                  description:
+                    'Rich-text envelope {"schema":"v1","doc":{...}} (F2; cfpContent schema)',
+                },
+                thankYouRich: {
+                  type: "object",
+                  nullable: true,
+                  description:
+                    'Rich-text envelope {"schema":"v1","doc":{...}} (F2; cfpContent schema)',
+                },
                 opensAt: { type: "string", format: "date-time", nullable: true },
                 closesAt: {
                   type: "string",
@@ -1477,6 +1489,12 @@ export const PORTAL_OPENAPI_PATHS = {
               required: ["expectedVersion"],
               properties: {
                 bio: { type: "string", nullable: true },
+                bioRich: {
+                  type: "object",
+                  nullable: true,
+                  description:
+                    'Rich-text envelope {"schema":"v1","doc":{...}} (F2; bio schema — no headings/images)',
+                },
                 company: { type: "string", nullable: true },
                 title: { type: "string", nullable: true },
                 headshotFileId: { type: "string", nullable: true },
@@ -2033,6 +2051,12 @@ export const COMMS_OPENAPI_PATHS = {
               properties: {
                 subject: { type: "string" },
                 body: { type: "string" },
+                bodyRich: {
+                  type: "object",
+                  nullable: true,
+                  description:
+                    'Rich-text envelope {"schema":"v1","doc":{...}} (F2; email schema — inline-safe subset)',
+                },
                 expectedVersion: { type: "integer" },
               },
             },

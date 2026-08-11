@@ -9,6 +9,10 @@
  */
 import {
   uuidv7,
+  readRichTextValue,
+  richTextIsEmpty,
+  richTextToPlainText,
+  type RichTextEnvelope,
   type PortalHomeResponse,
   type ParticipationProfileDto,
   type PortalTaskDto,
@@ -74,6 +78,9 @@ function toProfileDto(
     status: row.status,
     version: row.version,
     bio: row.bio,
+    // Dual-read (F2): prefer bio_rich_json, fall back to legacy bio as a
+    // paragraph doc AT READ TIME — never writes.
+    bioRich: readRichTextValue(row.bioRichJson ?? null, row.bio),
     company: row.company,
     title: row.title,
     headshotFileId: row.headshotFileId,
@@ -82,6 +89,31 @@ function toProfileDto(
     personName: person?.name ?? null,
     personEmail: person?.email ?? null,
   };
+}
+
+/**
+ * Bio patch from an update body (F2 dual-write): bioRich drives both columns
+ * when the legacy bio field was not explicitly sent; explicit legacy bio
+ * still wins for old clients. Whitespace-only docs clear to NULL.
+ */
+function bioPatchFromBody(body: {
+  bio?: string | null;
+  bioRich?: RichTextEnvelope | null;
+}): { bio?: string | null; bioRichJson?: string | null } {
+  const patch: { bio?: string | null; bioRichJson?: string | null } = {};
+  if (body.bioRich !== undefined) {
+    const hasDoc = body.bioRich != null && !richTextIsEmpty(body.bioRich);
+    patch.bioRichJson = hasDoc ? JSON.stringify(body.bioRich) : null;
+    if (body.bio === undefined) {
+      patch.bio = hasDoc ? richTextToPlainText(body.bioRich) : null;
+    }
+  } else if (body.bio !== undefined) {
+    // Legacy-only write (old client): clear the rich column so a stale doc
+    // never shadows the fresh legacy text on the next dual-read.
+    patch.bioRichJson = null;
+  }
+  if (body.bio !== undefined) patch.bio = body.bio;
+  return patch;
 }
 
 function toTaskDto(row: SpeakerTaskRow): SpeakerTaskDto {
@@ -920,7 +952,7 @@ export async function updateParticipationProfile(
   const updated = await deps.decisions.updateParticipation(part.id, {
     version: part.version + 1,
     updatedAt: now,
-    ...(input.body.bio !== undefined ? { bio: input.body.bio } : {}),
+    ...bioPatchFromBody(input.body),
     ...(input.body.company !== undefined ? { company: input.body.company } : {}),
     ...(input.body.title !== undefined ? { title: input.body.title } : {}),
     ...(input.body.headshotFileId !== undefined
@@ -1057,7 +1089,7 @@ export async function adminUpdateSpeakerProfile(
   const updated = await deps.decisions.updateParticipation(part.id, {
     version: part.version + 1,
     updatedAt: now,
-    ...(input.body.bio !== undefined ? { bio: input.body.bio } : {}),
+    ...bioPatchFromBody(input.body),
     ...(input.body.company !== undefined ? { company: input.body.company } : {}),
     ...(input.body.title !== undefined ? { title: input.body.title } : {}),
     ...(input.body.headshotFileId !== undefined

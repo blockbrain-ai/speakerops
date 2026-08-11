@@ -377,6 +377,10 @@ export const formVersions = sqliteTable(
     versionNum: integer("version_num").notNull(),
     welcomeMd: text("welcome_md"),
     thankYouMd: text("thank_you_md"),
+    /** Rich-text welcome doc envelope JSON (F2; 0036). Dual-read with welcome_md. */
+    welcomeRichJson: text("welcome_rich_json"),
+    /** Rich-text thank-you doc envelope JSON (F2; 0036). Dual-read with thank_you_md. */
+    thankYouRichJson: text("thank_you_rich_json"),
     opensAt: text("opens_at"),
     closesAt: text("closes_at"),
     submissionLimit: integer("submission_limit"),
@@ -420,6 +424,11 @@ export const formFields = sqliteTable(
     nodeKind: text("node_kind").notNull().default("input"),
     /** section | divider when node_kind = layout; NULL for inputs (0027). */
     layoutType: text("layout_type"),
+    /**
+     * Per-section "Description & Instructions" rich-text envelope JSON
+     * (F2; 0036). Layout section nodes only; help_text is NOT overloaded.
+     */
+    descriptionRichJson: text("description_rich_json"),
   },
   (t) => [
     index("idx_form_fields_form_version_id").on(t.formVersionId),
@@ -675,6 +684,8 @@ export const eventParticipations = sqliteTable(
     roleLabel: text("role_label"),
     status: text("status").notNull(),
     bio: text("bio"),
+    /** Rich-text bio doc envelope JSON (F2; 0036). Dual-read with bio. */
+    bioRichJson: text("bio_rich_json"),
     company: text("company"),
     title: text("title"),
     headshotFileId: text("headshot_file_id"),
@@ -814,6 +825,8 @@ export const emailTemplates = sqliteTable(
     key: text("key").notNull(),
     subject: text("subject").notNull(),
     bodyMd: text("body_md").notNull(),
+    /** Rich-text body doc envelope JSON (F2; 0036). Dual-read with body_md. */
+    bodyRichJson: text("body_rich_json"),
     version: integer("version").notNull().default(1),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
@@ -879,6 +892,8 @@ export const messageRecipients = sqliteTable(
     name: text("name"),
     subject: text("subject"),
     body: text("body"),
+    /** Durable HTML part snapshot (F2; 0036). body stays the text part. */
+    bodyHtml: text("body_html"),
     status: text("status").notNull().default("pending"),
     createdAt: text("created_at").notNull(),
   },

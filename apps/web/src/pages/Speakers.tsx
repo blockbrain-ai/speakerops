@@ -56,6 +56,7 @@ import {
   type BadgeTone,
   type DataTableColumn,
 } from "../components/ui/index.js";
+import { RichText } from "../components/richtext/RichText.js";
 
 function dimTone(ok: boolean): BadgeTone {
   return ok ? "success" : "warn";
@@ -954,10 +955,17 @@ export function SpeakersPage() {
                               className="speakers-page__profile-value speakers-page__profile-value--bio"
                               data-testid="speakers-detail-bio"
                             >
-                              {detail.participation.bio?.trim() || (
-                                <span className="eval-queue__muted">
-                                  No bio yet.
-                                </span>
+                              {detail.participation.bioRich &&
+                              detail.participation.bio?.trim() ? (
+                                // F2: rich bio rendered via the safe renderer
+                                // (dual-read: legacy bios arrive as docs too).
+                                <RichText doc={detail.participation.bioRich} />
+                              ) : (
+                                detail.participation.bio?.trim() || (
+                                  <span className="eval-queue__muted">
+                                    No bio yet.
+                                  </span>
+                                )
                               )}
                             </span>
                           </div>

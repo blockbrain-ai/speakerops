@@ -539,7 +539,8 @@ test("speaker profile edit and task completion still work in the tab model", asy
     timeout: 10_000,
   });
   // Saved value survives the post-save refresh (server echoed the new bio).
-  await expect(page.getByTestId("portal-bio-input")).toHaveValue(
+  // F2: bio is a rich editor (contenteditable) — assert rendered text.
+  await expect(page.getByTestId("portal-bio-input")).toContainText(
     `Tab bio edited ${run}`,
   );
 
@@ -547,7 +548,7 @@ test("speaker profile edit and task completion still work in the tab model", asy
   await page.getByTestId("portal-nav-tasks").click();
   await expect(page.getByTestId("portal-tasks")).toBeVisible();
   await page.getByTestId("portal-nav-profile").click();
-  await expect(page.getByTestId("portal-bio-input")).toHaveValue(
+  await expect(page.getByTestId("portal-bio-input")).toContainText(
     `Tab bio edited ${run}`,
   );
 
@@ -555,7 +556,7 @@ test("speaker profile edit and task completion still work in the tab model", asy
   await page.goto(
     `${baseURL ?? ""}/portal?eventId=${encodeURIComponent(eventId)}&section=profile`,
   );
-  await expect(page.getByTestId("portal-bio-input")).toHaveValue(
+  await expect(page.getByTestId("portal-bio-input")).toContainText(
     `Tab bio edited ${run}`,
     { timeout: 15_000 },
   );

@@ -17,6 +17,11 @@ import {
   isFieldVisible,
   isInputNode,
   computeCfpWindowState,
+  richTextPublicAnswerSchema,
+  richTextCharCount,
+  richTextIsEmpty,
+  readRichTextValue,
+  type RichTextEnvelope,
   type SubmissionCreateBody,
   type SubmissionSaveDraftBody,
   type SubmissionDto,
@@ -142,6 +147,7 @@ export async function createSubmission(
       answers: SubmissionAnswerDto[];
       speakers: SubmissionSpeakerDto[];
       thankYouMd: string | null;
+      thankYouRich: RichTextEnvelope | null;
     }>
   | CommandErr
 > {
@@ -401,7 +407,11 @@ export async function createSubmission(
     const empty =
       v == null ||
       v === "" ||
-      (Array.isArray(v) && v.length === 0);
+      (Array.isArray(v) && v.length === 0) ||
+      // rich_text: a doc with no visible text is an empty answer (F2).
+      (f.type === "rich_text" &&
+        richTextPublicAnswerSchema.safeParse(v).success &&
+        richTextIsEmpty(v as RichTextEnvelope));
     if (empty) {
       return {
         ok: false,
@@ -449,6 +459,41 @@ export async function createSubmission(
           details: { fieldKey: f.fieldKey },
         };
       }
+    }
+    // rich_text answers must be valid publicAnswer docs — REJECT, never
+    // strip, at the API boundary (F2/E4). Caps (depth/nodes/bytes) and the
+    // link protocol allowlist are enforced by the schema; maxChars counts
+    // plain-text length (richTextCharCount).
+    if (f.type === "rich_text") {
+      const parsedDoc = richTextPublicAnswerSchema.safeParse(val);
+      if (!parsedDoc.success) {
+        return {
+          ok: false,
+          status: 400,
+          error: `“${f.label}” must be a valid rich-text answer`,
+          code: "VALIDATION_ERROR",
+          details: {
+            fieldKey: f.fieldKey,
+            issues: parsedDoc.error.flatten(),
+          },
+        };
+      }
+      const textLength = richTextCharCount(parsedDoc.data);
+      if (f.maxChars != null && textLength > f.maxChars) {
+        return {
+          ok: false,
+          status: 400,
+          error: `“${f.label}” is limited to ${f.maxChars} characters`,
+          code: "VALIDATION_ERROR",
+          details: {
+            fieldKey: f.fieldKey,
+            maxChars: f.maxChars,
+            length: textLength,
+          },
+        };
+      }
+      storedAnswers.push({ fieldKey: f.fieldKey, value: parsedDoc.data });
+      continue;
     }
     storedAnswers.push({ fieldKey: f.fieldKey, value: val });
   }
@@ -765,6 +810,11 @@ export async function createSubmission(
       })),
       speakers: speakerDtos,
       thankYouMd: version.thankYouMd,
+      // Dual-read (F2): prefer the frozen rich doc, fall back to legacy text.
+      thankYouRich: readRichTextValue(
+        version.thankYouRichJson,
+        version.thankYouMd,
+      ),
     },
   };
 }
@@ -1233,14 +1283,40 @@ export async function saveDraft(
   // (no required gate; layout nodes never take answers).
   const fields = (await deps.forms.listFields(version.id)) as Array<{
     fieldKey: string;
+    type?: string;
     nodeKind?: string;
   }>;
   const allowedKeys = new Set(
     fields.filter((f) => isInputNode(f)).map((f) => f.fieldKey),
   );
+  const richTextKeys = new Set(
+    fields
+      .filter((f) => isInputNode(f) && f.type === "rich_text")
+      .map((f) => f.fieldKey),
+  );
   const storedAnswers: Array<{ fieldKey: string; value: unknown }> = [];
   for (const a of input.answers ?? []) {
     if (!allowedKeys.has(a.fieldKey)) continue;
+    // Drafts skip required/maxChars gates, but a rich_text answer must
+    // still be a valid publicAnswer doc (caps + link allowlist) — REJECT,
+    // never strip (F2/E4).
+    if (richTextKeys.has(a.fieldKey) && a.value != null && a.value !== "") {
+      const parsedDoc = richTextPublicAnswerSchema.safeParse(a.value);
+      if (!parsedDoc.success) {
+        return {
+          ok: false,
+          status: 400,
+          error: "Rich-text draft answers must be valid rich-text docs",
+          code: "VALIDATION_ERROR",
+          details: {
+            fieldKey: a.fieldKey,
+            issues: parsedDoc.error.flatten(),
+          },
+        };
+      }
+      storedAnswers.push({ fieldKey: a.fieldKey, value: parsedDoc.data });
+      continue;
+    }
     storedAnswers.push({ fieldKey: a.fieldKey, value: a.value });
   }
 

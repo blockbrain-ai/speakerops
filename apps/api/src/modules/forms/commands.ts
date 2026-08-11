@@ -17,6 +17,11 @@ import {
   CFP_FILE_MAX_BYTES,
   TURNSTILE_TEST_SITE_KEY,
   computeCfpWindowState,
+  parseRichTextJson,
+  readRichTextValue,
+  richTextToPlainText,
+  richTextIsEmpty,
+  type RichTextEnvelope,
   type FormCreateBody,
   type FormUpdateDraftBody,
   type FormFieldDto,
@@ -82,6 +87,7 @@ function toFieldDto(row: FormFieldRow): FormFieldDto {
     maxChars: row.maxChars ?? null,
     nodeKind: row.nodeKind ?? "input",
     layoutType: row.layoutType ?? null,
+    descriptionRich: parseRichTextJson(row.descriptionRichJson ?? null),
   };
 }
 
@@ -106,6 +112,13 @@ async function toVersionDto(
     versionNum: version.versionNum,
     welcomeMd: version.welcomeMd,
     thankYouMd: version.thankYouMd,
+    // Dual-read (F2): prefer *_rich_json, fall back to legacy text as a
+    // paragraph doc AT READ TIME — never writes (migration law).
+    welcomeRich: readRichTextValue(version.welcomeRichJson, version.welcomeMd),
+    thankYouRich: readRichTextValue(
+      version.thankYouRichJson,
+      version.thankYouMd,
+    ),
     opensAt: version.opensAt,
     closesAt: version.closesAt,
     submissionLimit: version.submissionLimit,
@@ -370,12 +383,27 @@ export async function updateDraftFields(
         details: { fieldKey: f.fieldKey, type: f.type },
       };
     }
-    // maxChars only meaningful for text/textarea (Zod also rejects).
-    if (f.maxChars != null && f.type !== "text" && f.type !== "textarea") {
+    // Rich-text fields never carry options (Zod also rejects; defense in depth).
+    if (f.type === "rich_text" && f.options && f.options.length > 0) {
       return {
         ok: false,
         status: 400,
-        error: "maxChars is only allowed on text and textarea fields",
+        error: "rich_text fields do not take options",
+        code: "VALIDATION_ERROR",
+        details: { fieldKey: f.fieldKey, type: f.type },
+      };
+    }
+    // maxChars only meaningful for text/textarea/rich_text (Zod also rejects).
+    if (
+      f.maxChars != null &&
+      f.type !== "text" &&
+      f.type !== "textarea" &&
+      f.type !== "rich_text"
+    ) {
+      return {
+        ok: false,
+        status: 400,
+        error: "maxChars is only allowed on text, textarea and rich_text fields",
         code: "VALIDATION_ERROR",
         details: { fieldKey: f.fieldKey, type: f.type },
       };
@@ -386,10 +414,40 @@ export async function updateDraftFields(
   const beforeFields = await deps.forms.listFields(draft.id);
   const beforeRules = await deps.forms.listRules(draft.id);
 
+  // Rich docs (F2): undefined = keep current, null = clear. When a rich doc
+  // is provided and the legacy text was not explicitly sent, dual-write the
+  // legacy column from the deterministic plain-text serialization so old
+  // readers keep seeing honest text (expand/dual window).
+  const welcomeRich: RichTextEnvelope | null =
+    input.welcomeRich !== undefined
+      ? (input.welcomeRich ?? null)
+      : input.welcomeMd !== undefined
+        ? // Legacy-only write (old client): clear the rich column so a stale
+          // doc never shadows the freshly sent legacy text on dual-read.
+          null
+        : parseRichTextJson(draft.welcomeRichJson ?? null);
+  const thankYouRich: RichTextEnvelope | null =
+    input.thankYouRich !== undefined
+      ? (input.thankYouRich ?? null)
+      : input.thankYouMd !== undefined
+        ? null
+        : parseRichTextJson(draft.thankYouRichJson ?? null);
   const welcomeMd =
-    input.welcomeMd !== undefined ? input.welcomeMd : draft.welcomeMd;
+    input.welcomeMd !== undefined
+      ? input.welcomeMd
+      : input.welcomeRich !== undefined
+        ? richTextIsEmpty(welcomeRich)
+          ? null
+          : richTextToPlainText(welcomeRich)
+        : draft.welcomeMd;
   const thankYouMd =
-    input.thankYouMd !== undefined ? input.thankYouMd : draft.thankYouMd;
+    input.thankYouMd !== undefined
+      ? input.thankYouMd
+      : input.thankYouRich !== undefined
+        ? richTextIsEmpty(thankYouRich)
+          ? null
+          : richTextToPlainText(thankYouRich)
+        : draft.thankYouMd;
   const opensAt = input.opensAt !== undefined ? input.opensAt : draft.opensAt;
   const closesAt =
     input.closesAt !== undefined ? input.closesAt : draft.closesAt;
@@ -423,6 +481,14 @@ export async function updateDraftFields(
   const metaOk = await deps.forms.updateDraftVersionMeta(draft.id, {
     welcomeMd: welcomeMd ?? null,
     thankYouMd: thankYouMd ?? null,
+    welcomeRichJson:
+      welcomeRich != null && !richTextIsEmpty(welcomeRich)
+        ? JSON.stringify(welcomeRich)
+        : null,
+    thankYouRichJson:
+      thankYouRich != null && !richTextIsEmpty(thankYouRich)
+        ? JSON.stringify(thankYouRich)
+        : null,
     opensAt: opensAt ?? null,
     closesAt: closesAt ?? null,
     submissionLimit: submissionLimit ?? null,
@@ -462,6 +528,14 @@ export async function updateDraftFields(
       maxChars: layout ? null : (f.maxChars ?? null),
       nodeKind: layout ? "layout" : "input",
       layoutType: layout ? (f.layoutType ?? null) : null,
+      // Per-section description (F2): SECTION layout nodes only.
+      descriptionRichJson:
+        layout &&
+        f.layoutType === "section" &&
+        f.descriptionRich != null &&
+        !richTextIsEmpty(f.descriptionRich)
+          ? JSON.stringify(f.descriptionRich)
+          : null,
     };
   });
   await deps.forms.replaceFields(draft.id, fieldRows);
@@ -592,6 +666,10 @@ export async function publishForm(
   const snapshot: FormSnapshot = {
     welcomeMd: draft.welcomeMd,
     thankYouMd: draft.thankYouMd,
+    // Frozen rich docs (F2): dual-read the draft at publish time so the
+    // snapshot is self-contained (legacy-only drafts freeze converted docs).
+    welcomeRich: readRichTextValue(draft.welcomeRichJson, draft.welcomeMd),
+    thankYouRich: readRichTextValue(draft.thankYouRichJson, draft.thankYouMd),
     opensAt: draft.opensAt,
     closesAt: draft.closesAt,
     submissionLimit: draft.submissionLimit,
@@ -618,6 +696,8 @@ export async function publishForm(
     versionNum: nextVersionNum,
     welcomeMd: draft.welcomeMd,
     thankYouMd: draft.thankYouMd,
+    welcomeRichJson: draft.welcomeRichJson ?? null,
+    thankYouRichJson: draft.thankYouRichJson ?? null,
     opensAt: draft.opensAt,
     closesAt: draft.closesAt,
     submissionLimit: draft.submissionLimit,

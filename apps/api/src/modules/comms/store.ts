@@ -127,6 +127,8 @@ export type EmailTemplateRow = {
   key: string;
   subject: string;
   bodyMd: string;
+  /** Rich body doc envelope JSON (F2; 0036). Dual-read with bodyMd. */
+  bodyRichJson?: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -168,6 +170,8 @@ export type MessageRecipientRow = {
   name: string | null;
   subject: string | null;
   body: string | null;
+  /** Durable HTML part snapshot (F2; 0036). body stays the text part. */
+  bodyHtml?: string | null;
   status: string;
   createdAt: string;
 };
@@ -229,6 +233,7 @@ export type CommsStore = {
     patch: {
       subject: string;
       bodyMd: string;
+      bodyRichJson?: string | null;
       version: number;
       expectedVersion: number;
       updatedAt: string;
@@ -513,6 +518,7 @@ export class MemoryCommsStore implements CommsStore {
     patch: {
       subject: string;
       bodyMd: string;
+      bodyRichJson?: string | null;
       version: number;
       expectedVersion: number;
       updatedAt: string;
@@ -526,6 +532,9 @@ export class MemoryCommsStore implements CommsStore {
       ...existing,
       subject: patch.subject,
       bodyMd: patch.bodyMd,
+      ...(patch.bodyRichJson !== undefined
+        ? { bodyRichJson: patch.bodyRichJson }
+        : {}),
       version: patch.version,
       updatedAt: patch.updatedAt,
     };
@@ -1072,6 +1081,7 @@ export class D1CommsStore implements CommsStore {
       key: r.key,
       subject: r.subject,
       bodyMd: r.bodyMd,
+      bodyRichJson: r.bodyRichJson ?? null,
       version: r.version,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
@@ -1092,6 +1102,7 @@ export class D1CommsStore implements CommsStore {
       key: r.key,
       subject: r.subject,
       bodyMd: r.bodyMd,
+      bodyRichJson: r.bodyRichJson ?? null,
       version: r.version,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
@@ -1109,6 +1120,7 @@ export class D1CommsStore implements CommsStore {
       key: r.key,
       subject: r.subject,
       bodyMd: r.bodyMd,
+      bodyRichJson: r.bodyRichJson ?? null,
       version: r.version,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
@@ -1122,6 +1134,7 @@ export class D1CommsStore implements CommsStore {
       key: row.key,
       subject: row.subject,
       bodyMd: row.bodyMd,
+      bodyRichJson: row.bodyRichJson ?? null,
       version: row.version,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -1134,6 +1147,7 @@ export class D1CommsStore implements CommsStore {
     patch: {
       subject: string;
       bodyMd: string;
+      bodyRichJson?: string | null;
       version: number;
       expectedVersion: number;
       updatedAt: string;
@@ -1144,6 +1158,9 @@ export class D1CommsStore implements CommsStore {
       .set({
         subject: patch.subject,
         bodyMd: patch.bodyMd,
+        ...(patch.bodyRichJson !== undefined
+          ? { bodyRichJson: patch.bodyRichJson }
+          : {}),
         version: patch.version,
         updatedAt: patch.updatedAt,
       })
@@ -1445,6 +1462,7 @@ export class D1CommsStore implements CommsStore {
       name: row.name,
       subject: row.subject,
       body: row.body,
+      bodyHtml: row.bodyHtml ?? null,
       status: row.status,
       createdAt: row.createdAt,
     });
@@ -1465,6 +1483,7 @@ export class D1CommsStore implements CommsStore {
       name: r.name,
       subject: r.subject,
       body: r.body,
+      bodyHtml: r.bodyHtml ?? null,
       status: r.status,
       createdAt: r.createdAt,
     }));
@@ -1503,6 +1522,7 @@ export class D1CommsStore implements CommsStore {
       name: r.name,
       subject: r.subject,
       body: r.body,
+      bodyHtml: r.bodyHtml ?? null,
       status: r.status,
       createdAt: r.createdAt,
     };
@@ -1533,6 +1553,7 @@ export class D1CommsStore implements CommsStore {
       name: r.name,
       subject: r.subject,
       body: r.body,
+      bodyHtml: r.bodyHtml ?? null,
       status: r.status,
       createdAt: r.createdAt,
     };
@@ -1796,6 +1817,9 @@ export class D1CommsStore implements CommsStore {
             name: sql<string | null>`${r.name}`.as("name"),
             subject: sql<string | null>`${r.subject}`.as("subject"),
             body: sql<string | null>`${r.body}`.as("body"),
+            bodyHtml: sql<string | null>`${r.bodyHtml ?? null}`.as(
+              "body_html",
+            ),
             status: sql<string>`${r.status}`.as("status"),
             createdAt: sql<string>`${r.createdAt}`.as("created_at"),
           })
@@ -1992,7 +2016,7 @@ export class D1CommsStore implements CommsStore {
       }),
     ];
     // D1 bound-parameter limit is 100 per statement — chunk multi-row inserts
-    // (10 columns per recipient row → 9 rows per statement).
+    // (11 columns per recipient row → 9 rows per statement; 99 params).
     const RECIPIENT_CHUNK = 9;
     for (let i = 0; i < input.recipients.length; i += RECIPIENT_CHUNK) {
       const slice = input.recipients.slice(i, i + RECIPIENT_CHUNK);
@@ -2007,6 +2031,7 @@ export class D1CommsStore implements CommsStore {
             name: r.name,
             subject: r.subject,
             body: r.body,
+            bodyHtml: r.bodyHtml ?? null,
             status: r.status,
             createdAt: r.createdAt,
           })),

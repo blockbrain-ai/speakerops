@@ -27,7 +27,22 @@ export type IconName =
   | "file"
   | "filter"
   | "more"
-  | "spark";
+  | "spark"
+  // Rich-text toolbar icons (F2) — same 24×24 stroke-1.75 family.
+  | "bold"
+  | "italic"
+  | "underline"
+  | "superscript"
+  | "subscript"
+  | "link"
+  | "list-bullet"
+  | "list-ordered"
+  | "indent"
+  | "outdent"
+  | "align-left"
+  | "align-center"
+  | "align-right"
+  | "clear-format";
 
 export type IconSize = "sm" | "md" | "lg";
 
@@ -61,6 +76,24 @@ const PATHS: Record<IconName, string> = {
   filter: "M4 5h16l-6 7v5l-4 2v-7L4 5z",
   more: "M6 12h.01M12 12h.01M18 12h.01",
   spark: "M12 3v4M12 17v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M3 12h4M17 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8",
+  // Rich-text toolbar (F2)
+  bold: "M7 4h6a3.5 3.5 0 010 7H7V4zm0 7h7a3.5 3.5 0 010 7H7v-7z",
+  italic: "M14 4h5M5 20h5M15 4l-6 16",
+  underline: "M6 3v7a6 6 0 0012 0V3M5 21h14",
+  superscript:
+    "M4 6l8 12M12 6L4 18M17 4c2-1.5 4 .5 2.5 2L17 8.5h4",
+  subscript: "M4 5l8 12M12 5L4 17M17 15c2-1.5 4 .5 2.5 2L17 19.5h4",
+  link:
+    "M10 14a5 5 0 007.07 0l2.5-2.5a5 5 0 00-7.07-7.07L11 5.9M14 10a5 5 0 00-7.07 0l-2.5 2.5a5 5 0 007.07 7.07L13 18.1",
+  "list-bullet": "M9 6h12M9 12h12M9 18h12M4.5 6h.01M4.5 12h.01M4.5 18h.01",
+  "list-ordered":
+    "M10 6h11M10 12h11M10 18h11M4 5l1.5-1v5M4 13.5c0-1 2-1.5 2-.5 0 .8-2 1.5-2 3h2.5",
+  indent: "M11 6h10M11 12h10M3 12h4m0 0l-2.5-2.5M7 12l-2.5 2.5M11 18h10",
+  outdent: "M11 6h10M11 12h10M7 12H3m0 0l2.5-2.5M3 12l2.5 2.5M11 18h10",
+  "align-left": "M4 6h16M4 10h10M4 14h16M4 18h10",
+  "align-center": "M4 6h16M7 10h10M4 14h16M7 18h10",
+  "align-right": "M4 6h16M10 10h10M4 14h16M10 18h10",
+  "clear-format": "M6 4h12M9 4l-2 16h4M14 14l6 6m0-6l-6 6",
 };
 
 export type IconProps = {

@@ -13,6 +13,13 @@
     "@fontsource/hanken-grotesk": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@speakerops/shared": "workspace:*",
+    "@tiptap/extension-subscript": "3.30.0",
+    "@tiptap/extension-superscript": "3.30.0",
+    "@tiptap/extension-text-align": "3.30.0",
+    "@tiptap/extensions": "3.30.0",
+    "@tiptap/pm": "3.30.0",
+    "@tiptap/react": "3.30.0",
+    "@tiptap/starter-kit": "3.30.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0"

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { richTextEmailSchema, RichTextEnvelopeSchema } from "./richtext.js";
 
 /**
  * Comms DTOs — email templates + outbox message jobs (section 5.1–5.2 / S-COMMS).
@@ -31,6 +32,11 @@ export const EmailTemplateSchema = z.object({
   key: TemplateKeySchema,
   subject: z.string().min(1).max(500),
   body: z.string().min(1).max(50_000),
+  /**
+   * Rich body doc (F2; 0036). Server dual-read: prefers body_rich_json,
+   * falls back to legacy body_md text as a paragraph doc.
+   */
+  bodyRich: RichTextEnvelopeSchema.optional().nullable(),
   version: z.number().int().positive(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
@@ -41,6 +47,12 @@ export type EmailTemplateDto = z.infer<typeof EmailTemplateSchema>;
 export const CommsUpsertTemplateBodySchema = z.object({
   subject: z.string().min(1).max(500),
   body: z.string().min(1).max(50_000),
+  /**
+   * Rich body doc (F2) — email-context schema (inline-safe subset, no
+   * images). Omitted → keep legacy-only; null → clear. Writers persist BOTH
+   * body_rich_json and its plain-text serialization into body_md.
+   */
+  bodyRich: richTextEmailSchema.nullable().optional(),
   /** Optional optimistic concurrency on update (omit on first create). */
   expectedVersion: z.number().int().positive().optional(),
 });
@@ -100,6 +112,16 @@ export const CommsPreviewBodyItemSchema = z.object({
   submissionId: z.string().min(1).nullable().optional(),
   subject: z.string(),
   body: z.string(),
+  /**
+   * Email-HTML part (F2): merged doc serialized AFTER merge values were
+   * applied in doc-space, so recipient data is escaped like any text.
+   */
+  bodyHtml: z.string().optional(),
+  /**
+   * Merged rich doc for safe client-side preview rendering (<RichText>) —
+   * no dangerouslySetInnerHTML anywhere (E10).
+   */
+  bodyDoc: RichTextEnvelopeSchema.optional().nullable(),
 });
 export type CommsPreviewBodyItem = z.infer<typeof CommsPreviewBodyItemSchema>;
 

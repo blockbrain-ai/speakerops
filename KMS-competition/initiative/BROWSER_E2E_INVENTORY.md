@@ -99,6 +99,7 @@
 | D14 | admin | Forms | Form settings speaker min/max (1–15) enforced on public CFP | e2e/admin/form-speaker-bounds | Over-max and under-min submits rejected (400) | REQUIRED | PASS |
 | D15 | admin | Forms | Form settings per-person cap enforced on public CFP by normalized submitter email; total cap independent | e2e/admin/form-per-submitter-limit | Same email second submit rejected (400, human copy) | REQUIRED | PASS |
 | D16 | admin | Forms | Section + divider layout nodes: builder compose/reorder, reload round-trip, public headings/dividers, no layout answers | e2e/admin/form-layout-nodes | Submitted DTO contains no layout answers | REQUIRED | PASS |
+| D17 | admin | Forms | Rich welcome (H2/bold/list) + rich_text field authored in builder; publish; public CFP renders authored nodes; rich answer to admin detail + plain-text CSV | e2e/admin/form-rich-text | Builder link dialog rejects javascript: URL inline | REQUIRED | PASS |
 
 ---
 
@@ -160,6 +161,7 @@
 | G09 | speaker | Portal | Download own session calendar invite (.ics; placed sessions) | e2e/portal/session-ics | Other speaker 404; unscheduled 404 | REQUIRED | PASS |
 | G11 | speaker | Portal | Section nav Home/Profile/Tasks/Sessions active + focus | e2e/portal/section-nav | Short page still shows active change | REQUIRED | PASS |
 | G12 | speaker | Portal | Required task depth: required-first ordering, Required badge, https resource link on task cards (DTO + DOM) | e2e/portal/task-depth | http:// link rejected inline | REQUIRED | PASS |
+| G13 | speaker | Profile | Rich bio (bold) edited in portal profile; admin speaker view renders formatting via safe renderer | e2e/portal/bio-rich | Doc JSON never leaks into rendered admin view | REQUIRED | PASS |
 
 ---
 
@@ -216,6 +218,7 @@
 | J10 | admin | Comms | ICS update after reschedule keeps UID bumps SEQUENCE | e2e/comms/ics-update | — | REQUIRED | PASS |
 | J12 | admin | Comms | Submission confirmation lifecycle: public submit → queued delivery-log job with rendered merge fields; template editable | e2e/comms/submission-confirmation | Disabled toggle → no new lifecycle job | REQUIRED | PASS |
 | J13 | admin | Comms | ICS picker lists actual scheduled sessions (title + time + room); invite carries the placement's real times; reschedule + regenerate bumps SEQUENCE | e2e/comms/ics-picker | Empty picker when nothing scheduled; generate disabled | REQUIRED | PASS |
+| J14 | admin | Comms | Rich template body (bold + merge token) edited in rich editor; preview shows rendered body; markup-shaped merge value stays escaped text | e2e/comms/template-rich | No <b> element from recipient data in rendered preview | REQUIRED | PASS |
 
 ---
 

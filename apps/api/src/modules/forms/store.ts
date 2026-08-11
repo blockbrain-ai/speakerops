@@ -43,6 +43,9 @@ export type FormVersionRow = {
   versionNum: number;
   welcomeMd: string | null;
   thankYouMd: string | null;
+  /** Rich doc envelope JSON (F2; 0036) — dual-read with the legacy columns. */
+  welcomeRichJson?: string | null;
+  thankYouRichJson?: string | null;
   opensAt: string | null;
   closesAt: string | null;
   submissionLimit: number | null;
@@ -72,6 +75,8 @@ export type FormFieldRow = {
   /** Node discrimination (0027; optional for pre-wave rows — input). */
   nodeKind?: FormNodeKind;
   layoutType?: FormLayoutType | null;
+  /** Section description rich doc envelope JSON (F2; 0036). */
+  descriptionRichJson?: string | null;
 };
 
 export type FormRuleRow = {
@@ -100,6 +105,8 @@ export type FormsStore = {
     patch: {
       welcomeMd: string | null;
       thankYouMd: string | null;
+      welcomeRichJson: string | null;
+      thankYouRichJson: string | null;
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
@@ -204,6 +211,8 @@ export class MemoryFormsStore implements FormsStore {
     patch: {
       welcomeMd: string | null;
       thankYouMd: string | null;
+      welcomeRichJson: string | null;
+      thankYouRichJson: string | null;
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
@@ -354,6 +363,8 @@ export class D1FormsStore implements FormsStore {
       versionNum: row.versionNum,
       welcomeMd: row.welcomeMd,
       thankYouMd: row.thankYouMd,
+      welcomeRichJson: row.welcomeRichJson ?? null,
+      thankYouRichJson: row.thankYouRichJson ?? null,
       opensAt: row.opensAt,
       closesAt: row.closesAt,
       submissionLimit: row.submissionLimit,
@@ -416,6 +427,8 @@ export class D1FormsStore implements FormsStore {
     patch: {
       welcomeMd: string | null;
       thankYouMd: string | null;
+      welcomeRichJson: string | null;
+      thankYouRichJson: string | null;
       opensAt: string | null;
       closesAt: string | null;
       submissionLimit: number | null;
@@ -437,6 +450,8 @@ export class D1FormsStore implements FormsStore {
       .set({
         welcomeMd: patch.welcomeMd,
         thankYouMd: patch.thankYouMd,
+        welcomeRichJson: patch.welcomeRichJson,
+        thankYouRichJson: patch.thankYouRichJson,
         opensAt: patch.opensAt,
         closesAt: patch.closesAt,
         submissionLimit: patch.submissionLimit,
@@ -485,6 +500,7 @@ export class D1FormsStore implements FormsStore {
         maxChars: f.maxChars ?? null,
         nodeKind: f.nodeKind ?? "input",
         layoutType: f.layoutType ?? null,
+        descriptionRichJson: f.descriptionRichJson ?? null,
       });
     }
   }
@@ -515,6 +531,7 @@ export class D1FormsStore implements FormsStore {
         row.layoutType === "divider"
           ? row.layoutType
           : null) as FormLayoutType | null,
+        descriptionRichJson: row.descriptionRichJson ?? null,
       }))
       .sort(
         (a, b) =>
@@ -585,6 +602,8 @@ function mapVersion(row: {
   versionNum: number;
   welcomeMd: string | null;
   thankYouMd: string | null;
+  welcomeRichJson?: string | null;
+  thankYouRichJson?: string | null;
   opensAt: string | null;
   closesAt: string | null;
   submissionLimit: number | null;
@@ -602,6 +621,8 @@ function mapVersion(row: {
     versionNum: row.versionNum,
     welcomeMd: row.welcomeMd ?? null,
     thankYouMd: row.thankYouMd ?? null,
+    welcomeRichJson: row.welcomeRichJson ?? null,
+    thankYouRichJson: row.thankYouRichJson ?? null,
     opensAt: row.opensAt ?? null,
     closesAt: row.closesAt ?? null,
     submissionLimit: row.submissionLimit ?? null,

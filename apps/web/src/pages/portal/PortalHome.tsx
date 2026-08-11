@@ -47,7 +47,10 @@ import {
   type PortalTaskDto,
   type ParticipationProfileDto,
   type PortalSessionDto,
+  richTextToPlainText,
+  type RichTextEnvelope,
 } from "@speakerops/shared";
+import { RichTextEditor } from "../../components/richtext/RichTextEditor.js";
 import { RoleShell } from "../../layout/RoleShell.js";
 import { BrandMark } from "../../components/ui/BrandMark.js";
 import { EmptyState } from "../../components/ui/EmptyState.js";
@@ -147,6 +150,12 @@ export function PortalHomePage() {
 
   // Profile form
   const [bio, setBio] = useState("");
+  /**
+   * F2: rich bio doc (bio schema — no headings/images). The profile tab
+   * edits this; the onboarding wizard keeps the legacy plain-text path
+   * (server clears/rebuilds the rich column on legacy-only writes).
+   */
+  const [bioRich, setBioRich] = useState<RichTextEnvelope | null>(null);
   const [company, setCompany] = useState("");
   const [title, setTitle] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
@@ -243,6 +252,7 @@ export function PortalHomePage() {
       const part = primaryParticipation(parsed.data.participations);
       if (part) {
         setBio(part.bio ?? "");
+        setBioRich(part.bioRich ?? null);
         setCompany(part.company ?? "");
         setTitle(part.title ?? "");
       }
@@ -387,11 +397,21 @@ export function PortalHomePage() {
   const focusSectionView = useCallback(
     (sectionId: string, target: "heading" | "bio" = "heading") => {
       if (sectionId === "portal-profile" && target === "bio") {
-        const bioEl = document.getElementById("portal-bio");
-        if (bioEl instanceof HTMLElement) {
-          bioEl.focus({ preventScroll: true });
-          return;
-        }
+        // F2: the bio surface is a TipTap contenteditable that mounts a beat
+        // after the view (immediatelyRender:false) — retry briefly until the
+        // element exists and actually takes focus.
+        let attempts = 0;
+        const tryFocus = () => {
+          const bioEl = document.getElementById("portal-bio");
+          if (bioEl instanceof HTMLElement) {
+            bioEl.focus({ preventScroll: true });
+            if (document.activeElement === bioEl) return;
+          }
+          attempts += 1;
+          if (attempts < 20) window.setTimeout(tryFocus, 50);
+        };
+        tryFocus();
+        return;
       }
       const el = document.getElementById(sectionId);
       const heading = el?.querySelector("h2, h1");
@@ -453,6 +473,8 @@ export function PortalHomePage() {
 
   async function patchProfileFields(fields: {
     bio?: string | null;
+    /** F2: rich bio doc — profile-tab editor path (server dual-writes). */
+    bioRich?: RichTextEnvelope | null;
     company?: string | null;
     title?: string | null;
   }): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -462,7 +484,12 @@ export function PortalHomePage() {
     const body: Record<string, unknown> = {
       expectedVersion: participation.version,
     };
-    if (fields.bio !== undefined) {
+    if (fields.bioRich !== undefined) {
+      // Doc-based path (F2): the API validates against the bio schema and
+      // REJECTS invalid docs; the legacy column gets the plain-text
+      // serialization server-side (dual-write).
+      body.bioRich = fields.bioRich;
+    } else if (fields.bio !== undefined) {
       const cleanBio = sanitizeBioText(fields.bio ?? "");
       if (!bioIsPlainText(cleanBio)) {
         return { ok: false, error: "Bio must be plain text only" };
@@ -505,6 +532,7 @@ export function PortalHomePage() {
       }
       const p = parsed.data.participation;
       setBio(p.bio ?? "");
+      setBioRich(p.bioRich ?? null);
       setCompany(p.company ?? "");
       setTitle(p.title ?? "");
       setHome((prev) =>
@@ -529,7 +557,8 @@ export function PortalHomePage() {
     setProfileSaving(true);
     setProfileStatus(null);
     const result = await patchProfileFields({
-      bio,
+      // F2: profile tab edits the rich doc; server derives the legacy text.
+      bioRich,
       company,
       title,
     });
@@ -1615,26 +1644,33 @@ export function PortalHomePage() {
               data-testid="portal-bio-form"
               onSubmit={(ev) => void onSaveProfile(ev)}
             >
-              <label className="portal-label" htmlFor="portal-bio">
+              <label
+                className="portal-label"
+                id="portal-bio-label"
+                htmlFor="portal-bio"
+              >
                 Bio
               </label>
               <p className="portal-field-why">
-                Shown on the public programme when published. Plain text only.
+                Shown on the public programme when published.
               </p>
-              <textarea
+              {/* F2: compact rich editor (bio schema — no headings/images).
+                  The API rejects anything outside the allowlist. */}
+              <RichTextEditor
                 id="portal-bio"
-                className="portal-textarea lumen-focusable"
-                data-testid="portal-bio-input"
-                value={bio}
-                onChange={(ev) => setBio(ev.target.value)}
-                maxLength={8000}
-                rows={4}
+                context="bio"
+                variant="compact"
+                value={bioRich}
+                onChange={setBioRich}
+                ariaLabelledBy="portal-bio-label"
+                maxChars={8000}
                 disabled={!participation}
-                placeholder="Short bio for the programme (plain text only)"
+                placeholder="Short bio for the programme"
+                data-testid="portal-bio-input"
               />
               {/* Display as text only — React text children, never HTML injection */}
               <p className="portal-muted" data-testid="portal-bio-preview">
-                Preview: {bio || "—"}
+                Preview: {richTextToPlainText(bioRich) || "—"}
               </p>
 
               <label className="portal-label" htmlFor="portal-company">

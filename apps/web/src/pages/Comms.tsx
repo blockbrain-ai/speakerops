@@ -46,7 +46,13 @@ import {
   type CommsGetJobResponse,
   type CalendarInviteDto,
   type AdminSpeakerListItem,
+  richTextFromLegacyText,
+  richTextIsEmpty,
+  richTextToPlainText,
+  type RichTextEnvelope,
 } from "@speakerops/shared";
+import { RichText } from "../components/richtext/RichText.js";
+import { RichTextEditor } from "../components/richtext/RichTextEditor.js";
 import { useEventContext } from "../events/EventContext.js";
 import { Button } from "../components/ui/Button.js";
 import { Badge } from "../components/ui/Badge.js";
@@ -90,9 +96,17 @@ export function CommsPage() {
   const [subject, setSubject] = useState(
     "Your talk was accepted — {{eventName}}",
   );
-  const [body, setBody] = useState(
-    "Hi {{name}},\n\nPlease complete your portal tasks for {{eventName}}.\n\nThanks!",
+  /**
+   * F2: template body is a rich doc (email schema — inline-safe subset).
+   * The legacy plain-text `body` string is DERIVED for the API payload and
+   * merge-field detection; the server dual-writes both columns.
+   */
+  const [bodyRich, setBodyRich] = useState<RichTextEnvelope | null>(
+    richTextFromLegacyText(
+      "Hi {{name}},\n\nPlease complete your portal tasks for {{eventName}}.\n\nThanks!",
+    ),
   );
+  const body = richTextToPlainText(bodyRich);
   const [expectedVersion, setExpectedVersion] = useState<number | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<EmailTemplateDto | null>(null);
@@ -550,8 +564,13 @@ export function CommsPage() {
         const payload: {
           subject: string;
           body: string;
+          bodyRich?: RichTextEnvelope | null;
           expectedVersion?: number;
-        } = { subject, body };
+        } = {
+          subject,
+          body,
+          bodyRich: bodyRich != null && !richTextIsEmpty(bodyRich) ? bodyRich : null,
+        };
         if (expectedVersion != null) {
           payload.expectedVersion = expectedVersion;
         }
@@ -588,7 +607,10 @@ export function CommsPage() {
         setExpectedVersion(parsed.data.template.version);
         setTemplateId(parsed.data.template.id);
         setSubject(parsed.data.template.subject);
-        setBody(parsed.data.template.body);
+        setBodyRich(
+          parsed.data.template.bodyRich ??
+            richTextFromLegacyText(parsed.data.template.body),
+        );
         setTemplateStatus({
           kind: "ok",
           text: `Template “${parsed.data.template.key}” saved (v${parsed.data.template.version})`,
@@ -607,6 +629,7 @@ export function CommsPage() {
       key,
       subject,
       body,
+      bodyRich,
       expectedVersion,
       invalidatePreview,
       loadTemplates,
@@ -617,7 +640,7 @@ export function CommsPage() {
     (tpl: EmailTemplateDto) => {
       setKey(tpl.key);
       setSubject(tpl.subject);
-      setBody(tpl.body);
+      setBodyRich(tpl.bodyRich ?? richTextFromLegacyText(tpl.body));
       setExpectedVersion(tpl.version);
       setTemplateId(tpl.id);
       setLastSaved(tpl);
@@ -1446,22 +1469,25 @@ export function CommsPage() {
 
               <label
                 className="event-settings__label"
+                id="comms-template-body-label"
                 htmlFor="comms-template-body"
               >
                 Body
               </label>
-              <textarea
+              {/* F2: full rich editor (email schema); merge fields stay text
+                  nodes — values are merged in doc-space before both parts. */}
+              <RichTextEditor
                 id="comms-template-body"
-                className="event-settings__input lumen-focusable"
-                data-testid="comms-template-body-input"
-                value={body}
-                onChange={(e) => {
-                  setBody(e.target.value);
+                context="email"
+                variant="full"
+                value={bodyRich}
+                onChange={(env) => {
+                  setBodyRich(env);
                   invalidatePreview();
                 }}
-                required
-                rows={8}
-                maxLength={50_000}
+                ariaLabelledBy="comms-template-body-label"
+                maxChars={50_000}
+                data-testid="comms-template-body-input"
               />
 
               <p className="eval-queue__muted" data-testid="comms-merge-fields">
@@ -1624,7 +1650,15 @@ export function CommsPage() {
                         data-testid={`comms-preview-body-${bid}`}
                       >
                         <h4 className="event-settings__heading">{b.subject}</h4>
-                        <pre className="eval-queue__muted">{b.body}</pre>
+                        {b.bodyDoc ? (
+                          /* F2: rendered rich body (safe renderer — E10) */
+                          <RichText
+                            doc={b.bodyDoc}
+                            data-testid={`comms-preview-rendered-${bid}`}
+                          />
+                        ) : (
+                          <pre className="eval-queue__muted">{b.body}</pre>
+                        )}
                       </article>
                     );
                   })}

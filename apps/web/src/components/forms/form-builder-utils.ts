@@ -12,6 +12,7 @@ import type {
   FormNodeKind,
   FormRuleInput,
   FormUpdateDraftBody,
+  RichTextEnvelope,
 } from "@speakerops/shared";
 import { isInputNode, isLayoutNode } from "@speakerops/shared";
 
@@ -141,6 +142,16 @@ export const FIELD_PALETTE: ReadonlyArray<{
     testId: "palette-date",
     defaultLabel: "Date",
     keyPrefix: "date",
+    needsOptions: false,
+  },
+  {
+    // F2 rich-text primitive: submitter answers use the compact editor with
+    // the publicAnswer schema (no headings/images); maxChars counts plain text.
+    type: "rich_text",
+    label: "Rich text",
+    testId: "palette-rich-text",
+    defaultLabel: "Rich text",
+    keyPrefix: "rich",
     needsOptions: false,
   },
   {
@@ -330,6 +341,13 @@ export function toDraftBody(input: {
   rules: BuilderRule[];
   welcomeMd: string;
   thankYouMd: string;
+  /**
+   * Rich welcome/thank-you docs (F2). When provided (non-undefined), the
+   * legacy welcomeMd/thankYouMd keys are OMITTED from the body so the server
+   * dual-writes the legacy column from the doc's plain-text serialization.
+   */
+  welcomeRich?: RichTextEnvelope | null;
+  thankYouRich?: RichTextEnvelope | null;
   opensAt: string;
   closesAt: string;
   submissionLimit: string;
@@ -356,7 +374,9 @@ export function toDraftBody(input: {
           ? f.placeholder.trim()
           : null,
       maxChars:
-        !layout && f.maxChars != null && (f.type === "text" || f.type === "textarea")
+        !layout &&
+        f.maxChars != null &&
+        (f.type === "text" || f.type === "textarea" || f.type === "rich_text")
           ? f.maxChars
           : null,
       nodeKind: layout ? ("layout" as const) : ("input" as const),
@@ -372,8 +392,13 @@ export function toDraftBody(input: {
   return {
     fields,
     rules,
-    welcomeMd: input.welcomeMd.trim() ? input.welcomeMd : null,
-    thankYouMd: input.thankYouMd.trim() ? input.thankYouMd : null,
+    // Rich docs win: omit the legacy key so the server derives it (dual-write).
+    ...(input.welcomeRich !== undefined
+      ? { welcomeRich: input.welcomeRich }
+      : { welcomeMd: input.welcomeMd.trim() ? input.welcomeMd : null }),
+    ...(input.thankYouRich !== undefined
+      ? { thankYouRich: input.thankYouRich }
+      : { thankYouMd: input.thankYouMd.trim() ? input.thankYouMd : null }),
     opensAt: input.opensAt.trim() ? input.opensAt.trim() : null,
     closesAt: input.closesAt.trim() ? input.closesAt.trim() : null,
     submissionLimit,

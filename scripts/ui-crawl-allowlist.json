@@ -1,9 +1,9 @@
 {
   "version": 1,
   "section": "8.1",
-  "description": "Admin primary-action discovery crawl allowlist (S-E2E-INV). Pure chrome is exempt; every other primary control must map to a REQUIRED inventory ID via data-inv or controlMap. Document reasons \u2014 bare wildcards forbidden.",
+  "description": "Admin primary-action discovery crawl allowlist (S-E2E-INV). Pure chrome is exempt; every other primary control must map to a REQUIRED inventory ID via data-inv or controlMap. Document reasons — bare wildcards forbidden.",
   "docs": [
-    "docs/governance/0.3-e2e-inventory-law.md \u00a76 Discovery crawl",
+    "docs/governance/0.3-e2e-inventory-law.md §6 Discovery crawl",
     "docs/sections/8.1-inventory-completeness.md",
     "KMS-competition/initiative/BROWSER_E2E_INVENTORY.md"
   ],
@@ -19,7 +19,7 @@
   "chrome": [
     {
       "testid": "admin-shell",
-      "reason": "Layout root chrome \u2014 not an action"
+      "reason": "Layout root chrome — not an action"
     },
     {
       "testid": "admin-sidebar",
@@ -59,7 +59,7 @@
     },
     {
       "testid": "design-preview-button",
-      "reason": "Decorative brand preview sample \u2014 not a product action"
+      "reason": "Decorative brand preview sample — not a product action"
     },
     {
       "testid": "form-actions",
@@ -83,7 +83,7 @@
     },
     {
       "testid": "comms-step-nav-*",
-      "reason": "Campaign step chrome (section 11.2); domain send/preview/segment remain J01\u2013J10"
+      "reason": "Campaign step chrome (section 11.2); domain send/preview/segment remain J01–J10"
     },
     {
       "testid": "comms-step-next-message",
@@ -115,7 +115,7 @@
     },
     {
       "testid": "builder-view-build",
-      "reason": "Form builder view switcher chrome (11.3); domain actions remain D01\u2013D10"
+      "reason": "Form builder view switcher chrome (11.3); domain actions remain D01–D10"
     },
     {
       "testid": "builder-view-preview",
@@ -139,11 +139,11 @@
     },
     {
       "testid": "admin-docs-link",
-      "reason": "External docs link (learn.speakerops.org) \u2014 chrome, not a product action"
+      "reason": "External docs link (learn.speakerops.org) — chrome, not a product action"
     },
     {
       "testid": "role-docs-link",
-      "reason": "External docs link in help panel \u2014 chrome, not a product action"
+      "reason": "External docs link in help panel — chrome, not a product action"
     }
   ],
   "controlMap": [
@@ -242,6 +242,12 @@
       "inv": "D01",
       "surface": "admin",
       "journey": "Add date field from palette"
+    },
+    {
+      "testid": "palette-rich-text",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "Add rich-text field from palette (F2)"
     },
     {
       "testid": "palette-speaker",
@@ -559,13 +565,13 @@
       "testid": "schedule-conflict-dismiss",
       "inv": "I07",
       "surface": "admin",
-      "journey": "Dismiss schedule conflict API alerts (L2 summary \u00b7 S-L2-SCHED)"
+      "journey": "Dismiss schedule conflict API alerts (L2 summary · S-L2-SCHED)"
     },
     {
       "testid": "schedule-conflict-item-*",
       "inv": "I08",
       "surface": "admin",
-      "journey": "Navigate conflict summary item to affected placement (L2 \u00b7 S-L2-SCHED)"
+      "journey": "Navigate conflict summary item to affected placement (L2 · S-L2-SCHED)"
     },
     {
       "testid": "comms-template-pick-*",

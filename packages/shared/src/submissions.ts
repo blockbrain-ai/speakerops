@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FieldKeySchema, FormFieldSchema, FormRuleSchema } from "./forms.js";
+import { RichTextEnvelopeSchema } from "./richtext.js";
 
 /**
  * Public CFP submission DTOs (section 3.3).
@@ -203,6 +204,8 @@ export const SubmissionCreateResponseSchema = z.object({
   speakers: z.array(SubmissionSpeakerDtoSchema),
   /** Thank-you copy from pinned form version (text, never HTML-exec). */
   thankYouMd: z.string().nullable(),
+  /** Rich thank-you doc (F2; dual-read from the pinned version/snapshot). */
+  thankYouRich: RichTextEnvelopeSchema.optional().nullable(),
 });
 export type SubmissionCreateResponse = z.infer<
   typeof SubmissionCreateResponseSchema

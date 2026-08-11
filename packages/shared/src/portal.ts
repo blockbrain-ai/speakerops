@@ -5,6 +5,7 @@ import {
   SpeakerTaskSchema,
   TaskTemplateSchema,
 } from "./decisions.js";
+import { richTextBioSchema, RichTextEnvelopeSchema } from "./richtext.js";
 
 /**
  * Portal + admin speakers + task templates DTOs (section 4.1 / S-PORTAL).
@@ -23,6 +24,11 @@ import {
 /** Full participation profile (portal + admin detail). */
 export const ParticipationProfileSchema = EventParticipationSchema.extend({
   bio: z.string().nullable(),
+  /**
+   * Rich bio doc (F2; 0036). Server dual-read: prefers bio_rich_json, falls
+   * back to legacy bio text as a paragraph doc. Optional for old clients.
+   */
+  bioRich: RichTextEnvelopeSchema.optional().nullable(),
   company: z.string().nullable(),
   title: z.string().nullable(),
   headshotFileId: z.string().nullable(),
@@ -163,6 +169,13 @@ export type PortalHomeResponse = z.infer<typeof PortalHomeResponseSchema>;
 export const ParticipationUpdateProfileBodySchema = z
   .object({
     bio: z.string().max(8000).nullable().optional(),
+    /**
+     * Rich bio doc (F2) — bio-context schema (no headings/images), validated
+     * REJECT-not-strip at the API boundary. Omitted → keep; null → clear.
+     * Writers persist BOTH bio_rich_json and the plain-text serialization
+     * into legacy bio (dual-write during the expand window).
+     */
+    bioRich: richTextBioSchema.nullable().optional(),
     company: z.string().max(200).nullable().optional(),
     title: z.string().max(200).nullable().optional(),
     headshotFileId: z.string().min(1).max(128).nullable().optional(),
@@ -171,6 +184,7 @@ export const ParticipationUpdateProfileBodySchema = z
   .refine(
     (b) =>
       b.bio !== undefined ||
+      b.bioRich !== undefined ||
       b.company !== undefined ||
       b.title !== undefined ||
       b.headshotFileId !== undefined,

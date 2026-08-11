@@ -27,6 +27,44 @@ export {
 
 export { HEALTH_OK, type HealthResponse, HealthResponseSchema } from "./health.js";
 
+export {
+  RICH_TEXT_SCHEMA_VERSION,
+  RICH_TEXT_MAX_DEPTH,
+  RICH_TEXT_MAX_NODES,
+  RICH_TEXT_MAX_BYTES,
+  RICH_TEXT_LINK_PROTOCOLS,
+  RICH_TEXT_LINK_HREF_MAX,
+  RICH_TEXT_TEXT_NODE_MAX,
+  RICH_TEXT_HEADING_LEVELS,
+  RICH_TEXT_CONTEXTS,
+  type RichTextContext,
+  type RichTextMark,
+  type RichTextNode,
+  type RichTextDoc,
+  type RichTextEnvelope,
+  RichTextEnvelopeSchema,
+  isAllowedRichTextHref,
+  checkRichTextCaps,
+  richTextCfpContentSchema,
+  richTextEmailSchema,
+  richTextPublicAnswerSchema,
+  richTextBioSchema,
+  richTextSchemaForContext,
+  parseRichTextJson,
+  richTextFromLegacyText,
+  readRichTextValue,
+  emptyRichText,
+  richTextIsEmpty,
+  richTextToPlainText,
+  richTextCharCount,
+  escapeHtml,
+  richTextToEmailHtml,
+  mergeRichTextValues,
+  normalizeRichTextDoc,
+  richTextEnvelopeFromEditorDoc,
+  richTextBodyField,
+} from "./richtext.js";
+
 export { uuidv7, isUuidv7 } from "./uuid.js";
 
 export {

@@ -18,6 +18,10 @@
 import {
   uuidv7,
   renderMergeFields,
+  mergeRichTextValues,
+  readRichTextValue,
+  richTextToPlainText,
+  richTextToEmailHtml,
   parseEventNotificationSettings,
   submissionConfirmationIdempotencyKey,
   SUBMISSION_CONFIRMATION_TEMPLATE_KEY,
@@ -199,7 +203,22 @@ export async function enqueueSubmissionConfirmation(
       category: input.submission.category ?? "",
     };
     const subject = renderMergeFields(template.subject, mergeData);
-    const body = renderMergeFields(template.bodyMd, mergeData);
+    // F2 dual-part: merge values in doc-space, then serialize BOTH parts from
+    // the one merged doc (HTML serializer escapes recipient data).
+    const bodySource = readRichTextValue(
+      template.bodyRichJson ?? null,
+      template.bodyMd,
+    );
+    const bodyMerged = bodySource
+      ? mergeRichTextValues(bodySource, mergeData)
+      : null;
+    const body = bodyMerged
+      ? {
+          rendered: richTextToPlainText(bodyMerged.envelope),
+          html: richTextToEmailHtml(bodyMerged.envelope),
+          missingFields: bodyMerged.missingFields,
+        }
+      : { ...renderMergeFields(template.bodyMd, mergeData), html: null };
     const missingFields = [
       ...new Set([...subject.missingFields, ...body.missingFields]),
     ];
@@ -218,6 +237,7 @@ export async function enqueueSubmissionConfirmation(
         name: primaryName || primaryEmail,
         subject: subject.rendered,
         body: body.rendered,
+        bodyHtml: body.html ?? null,
         status: "queued",
         createdAt: now,
       },

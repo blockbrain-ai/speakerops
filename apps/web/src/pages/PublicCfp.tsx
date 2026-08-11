@@ -43,7 +43,13 @@ import {
   type FormFieldDto,
   type FormRuleDto,
   type SubmissionSpeakerInput,
+  parseRichTextJson,
+  richTextCharCount,
+  richTextIsEmpty,
+  type RichTextEnvelope,
 } from "@speakerops/shared";
+import { RichText } from "../components/richtext/RichText.js";
+import { RichTextEditor } from "../components/richtext/RichTextEditor.js";
 import {
   charCountLabel,
   charCountOverMessage,
@@ -187,7 +193,7 @@ function coerceAnswerForMap(raw: string): unknown {
   return raw;
 }
 
-/** Build submit/draft answer value; multiselect → string[]. */
+/** Build submit/draft answer value; multiselect → string[]; rich_text → doc. */
 function answerValueForPayload(
   fieldKey: string,
   raw: string,
@@ -195,6 +201,10 @@ function answerValueForPayload(
 ): unknown {
   if (fieldTypes.get(fieldKey) === "multiselect") {
     return parseMultiselectValues(raw);
+  }
+  if (fieldTypes.get(fieldKey) === "rich_text") {
+    // Rich answers live in state as envelope JSON strings (F2).
+    return parseRichTextJson(raw) ?? raw;
   }
   return raw;
 }
@@ -230,6 +240,8 @@ export function PublicCfpPage() {
     title: string;
     category: string | null;
     thankYouMd: string | null;
+    /** F2: rich thank-you doc from the pinned version (dual-read). */
+    thankYouRich: RichTextEnvelope | null;
     abstractEcho: string | null;
   } | null>(null);
   const [fileStatus, setFileStatus] = useState<string | null>(null);
@@ -397,6 +409,9 @@ export function PublicCfpPage() {
 
   const welcomeMd =
     formVersion?.welcomeMd ?? formVersion?.snapshotJson?.welcomeMd ?? null;
+  /** F2: rich welcome doc (server dual-reads legacy text into a doc). */
+  const welcomeRich: RichTextEnvelope | null =
+    formVersion?.welcomeRich ?? formVersion?.snapshotJson?.welcomeRich ?? null;
   const isClosed =
     windowState === "closed" ||
     windowState === "not_yet_open" ||
@@ -430,6 +445,9 @@ export function PublicCfpPage() {
           nextAnswers[a.fieldKey] = JSON.stringify(a.value.map(String));
         } else if (typeof a.value === "string") {
           nextAnswers[a.fieldKey] = a.value;
+        } else if (typeof a.value === "object") {
+          // Rich-text draft answers round-trip as envelope JSON strings (F2).
+          nextAnswers[a.fieldKey] = JSON.stringify(a.value);
         } else {
           nextAnswers[a.fieldKey] = String(a.value);
         }
@@ -556,7 +574,25 @@ export function PublicCfpPage() {
         );
         continue;
       }
+      // rich_text cap counts PLAIN-TEXT length (richTextCharCount) — F2.
+      if (
+        f.type === "rich_text" &&
+        f.maxChars != null &&
+        richTextCharCount(parseRichTextJson(answers[f.fieldKey])) > f.maxChars
+      ) {
+        errs[`field:${f.fieldKey}`] = charCountOverMessage(
+          f.label,
+          f.maxChars,
+        );
+        continue;
+      }
       if (!f.required) continue;
+      if (f.type === "rich_text") {
+        if (richTextIsEmpty(parseRichTextJson(answers[f.fieldKey]))) {
+          errs[`field:${f.fieldKey}`] = `${f.label} is required`;
+        }
+        continue;
+      }
       if (f.type === "multiselect") {
         const selected = parseMultiselectValues(answers[f.fieldKey]);
         if (selected.length === 0) {
@@ -996,6 +1032,7 @@ export function PublicCfpPage() {
         title: parsed.data.submission.title,
         category: parsed.data.submission.category,
         thankYouMd: parsed.data.thankYouMd,
+        thankYouRich: parsed.data.thankYouRich ?? null,
         abstractEcho:
           abstractAnswer && typeof abstractAnswer.value === "string"
             ? abstractAnswer.value
@@ -1117,7 +1154,15 @@ export function PublicCfpPage() {
             ) : null}
           </div>
 
-          {welcomeMd ? (
+          {welcomeRich && !richTextIsEmpty(welcomeRich) ? (
+            <div
+              className="public-cfp__welcome"
+              data-testid="public-cfp-welcome"
+            >
+              {/* Safe React renderer — no raw HTML ever (A10/E10, F2) */}
+              <RichText doc={welcomeRich} />
+            </div>
+          ) : welcomeMd ? (
             <div
               className="public-cfp__welcome"
               data-testid="public-cfp-welcome"
@@ -1219,7 +1264,12 @@ export function PublicCfpPage() {
               role="status"
             >
               <h2 className="public-cfp__section-title">Submission received</h2>
-              {confirmation.thankYouMd ? (
+              {confirmation.thankYouRich &&
+              !richTextIsEmpty(confirmation.thankYouRich) ? (
+                <div data-testid="public-cfp-thankyou">
+                  <RichText doc={confirmation.thankYouRich} />
+                </div>
+              ) : confirmation.thankYouMd ? (
                 <p data-testid="public-cfp-thankyou">{confirmation.thankYouMd}</p>
               ) : (
                 <p data-testid="public-cfp-thankyou">
@@ -1358,6 +1408,20 @@ export function PublicCfpPage() {
                       aria-invalid={
                         fieldErrors[`field:${f.fieldKey}`] ? "true" : undefined
                       }
+                    />
+                  ) : f.type === "rich_text" ? (
+                    <RichTextEditor
+                      id={`cfp-field-${f.fieldKey}`}
+                      context="publicAnswer"
+                      variant="compact"
+                      value={parseRichTextJson(answers[f.fieldKey])}
+                      onChange={(env) =>
+                        setAnswer(f.fieldKey, env ? JSON.stringify(env) : "")
+                      }
+                      ariaLabelledBy={`cfp-label-${f.fieldKey}`}
+                      placeholder={f.placeholder ?? undefined}
+                      maxChars={f.maxChars ?? null}
+                      data-testid={`cfp-field-${f.fieldKey}`}
                     />
                   ) : f.type === "select" ? (
                     <select

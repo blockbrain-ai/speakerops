@@ -37,6 +37,8 @@ export type ParticipationRow = {
   roleLabel: string | null;
   status: string;
   bio: string | null;
+  /** Rich bio doc envelope JSON (F2; 0036). Dual-read with bio. */
+  bioRichJson?: string | null;
   company: string | null;
   title: string | null;
   headshotFileId: string | null;
@@ -120,6 +122,7 @@ export type DecisionsStore = {
       status?: string;
       userId?: string | null;
       bio?: string | null;
+      bioRichJson?: string | null;
       company?: string | null;
       title?: string | null;
       headshotFileId?: string | null;
@@ -309,6 +312,7 @@ export class MemoryDecisionsStore implements DecisionsStore {
       status?: string;
       userId?: string | null;
       bio?: string | null;
+      bioRichJson?: string | null;
       company?: string | null;
       title?: string | null;
       headshotFileId?: string | null;
@@ -325,6 +329,9 @@ export class MemoryDecisionsStore implements DecisionsStore {
       ...(patch.status !== undefined ? { status: patch.status } : {}),
       ...(patch.userId !== undefined ? { userId: patch.userId } : {}),
       ...(patch.bio !== undefined ? { bio: patch.bio } : {}),
+      ...(patch.bioRichJson !== undefined
+        ? { bioRichJson: patch.bioRichJson }
+        : {}),
       ...(patch.company !== undefined ? { company: patch.company } : {}),
       ...(patch.title !== undefined ? { title: patch.title } : {}),
       ...(patch.headshotFileId !== undefined
@@ -641,6 +648,7 @@ export class D1DecisionsStore implements DecisionsStore {
       roleLabel: row.roleLabel,
       status: row.status,
       bio: row.bio,
+      bioRichJson: row.bioRichJson ?? null,
       company: row.company,
       title: row.title,
       headshotFileId: row.headshotFileId,
@@ -695,6 +703,7 @@ export class D1DecisionsStore implements DecisionsStore {
       status?: string;
       userId?: string | null;
       bio?: string | null;
+      bioRichJson?: string | null;
       company?: string | null;
       title?: string | null;
       headshotFileId?: string | null;
@@ -709,6 +718,7 @@ export class D1DecisionsStore implements DecisionsStore {
     if (patch.status !== undefined) set.status = patch.status;
     if (patch.userId !== undefined) set.userId = patch.userId;
     if (patch.bio !== undefined) set.bio = patch.bio;
+    if (patch.bioRichJson !== undefined) set.bioRichJson = patch.bioRichJson;
     if (patch.company !== undefined) set.company = patch.company;
     if (patch.title !== undefined) set.title = patch.title;
     if (patch.headshotFileId !== undefined) {
@@ -735,6 +745,7 @@ export class D1DecisionsStore implements DecisionsStore {
     roleLabel: string | null;
     status: string;
     bio: string | null;
+    bioRichJson?: string | null;
     company: string | null;
     title: string | null;
     headshotFileId: string | null;
@@ -750,6 +761,7 @@ export class D1DecisionsStore implements DecisionsStore {
       roleLabel: row.roleLabel,
       status: row.status,
       bio: row.bio,
+      bioRichJson: row.bioRichJson ?? null,
       company: row.company,
       title: row.title,
       headshotFileId: row.headshotFileId,
