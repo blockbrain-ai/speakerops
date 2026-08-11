@@ -4222,8 +4222,9 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  background: var(--lumen-brand-soft);
-  color: var(--lumen-action);
+  /* Urgency ladder: pending/awaiting wears honey (leaf = done/accepted) */
+  background: var(--lumen-honey-soft);
+  color: var(--lumen-honey-ink);
 }
 
 .readiness-dashboard__row--overdue .readiness-dashboard__badge {

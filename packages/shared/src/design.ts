@@ -192,14 +192,23 @@ export function designTokensToCssVariables(tokens: DesignTokens): string {
   const brandSoft = tokens.brandSoft ?? softTintFromBrand(tokens.brand);
   const brandFg = tokens.brandFg ?? "#ffffff";
   const radius = radiusToCss(tokens.radius ?? "soft");
+  // Scoped action pair: the tenant brand drives filled CTAs inside the
+  // branded subtree; unbranded surfaces fall back to sage-deep + white.
+  // Defensive AA: stored brandFg can be stale relative to the current brand
+  // (e.g. a re-themed brand keeping an old white fg → ~2.3:1 CTA). Never
+  // trust the pair blindly — recompute the CTA fg from the brand, and if
+  // even the better fg cannot reach UI AA (3:1), fall back to the locked
+  // sage-deep + white action pair rather than emit an unreadable button.
+  const actionFg = deriveBrandFg(tokens.brand);
+  const actionOk = (contrastRatio(tokens.brand, actionFg) ?? 0) >= 3;
+  const action = actionOk ? tokens.brand : "#3e6b50";
+  const textOnAction = actionOk ? actionFg : "#ffffff";
   return [
     `--lumen-brand: ${tokens.brand}`,
     `--lumen-brand-soft: ${brandSoft}`,
     `--lumen-brand-fg: ${brandFg}`,
-    // Scoped action pair: the tenant brand drives filled CTAs inside the
-    // branded subtree; unbranded surfaces fall back to sage-deep + white.
-    `--lumen-action: ${tokens.brand}`,
-    `--lumen-text-on-brand: ${brandFg}`,
+    `--lumen-action: ${action}`,
+    `--lumen-text-on-brand: ${textOnAction}`,
     `--lumen-radius-md: ${radius}`,
     `--event-wordmark: ${JSON.stringify(tokens.wordmark ?? "")}`,
   ].join("; ");
