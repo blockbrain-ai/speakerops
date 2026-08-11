@@ -6,7 +6,7 @@
  *
  * Plaintext secrets never persist — only key_hash (E10).
  */
-import { eq, isNull, and } from "drizzle-orm";
+import { eq, isNull, and, or, gt, inArray, count } from "drizzle-orm";
 import { API_KEY_CREATED_AT_FALLBACK } from "@speakerops/shared";
 import {
   createDb,
@@ -44,6 +44,15 @@ export type KeysStore = {
   revokeKey(id: string, revokedAt: string): Promise<ApiKeyRow | null>;
   /** Touch last_used_at after successful bearer auth (best-effort). */
   touchLastUsed(id: string, lastUsedAt: string): Promise<void>;
+  /**
+   * COUNT of active keys (not revoked, not expired at nowIso) created by any
+   * of the given user ids. Single aggregate query (idx_api_keys_created_by) —
+   * durable shared-demo mint quota (section 8.4); never materializes rows.
+   */
+  countActiveKeysByCreators(
+    creatorIds: string[],
+    nowIso: string,
+  ): Promise<number>;
 };
 
 /**
@@ -93,6 +102,22 @@ export class MemoryKeysStore implements KeysStore {
     const row = this.keys.get(id);
     if (!row || row.revokedAt) return;
     this.keys.set(id, { ...row, lastUsedAt });
+  }
+
+  async countActiveKeysByCreators(
+    creatorIds: string[],
+    nowIso: string,
+  ): Promise<number> {
+    if (creatorIds.length === 0) return 0;
+    const creators = new Set(creatorIds);
+    let n = 0;
+    for (const row of this.keys.values()) {
+      if (!creators.has(row.createdBy)) continue;
+      if (row.revokedAt) continue;
+      if (row.expiresAt && row.expiresAt <= nowIso) continue;
+      n++;
+    }
+    return n;
   }
 }
 
@@ -191,5 +216,23 @@ export class D1KeysStore implements KeysStore {
       .update(apiKeys)
       .set({ lastUsedAt })
       .where(and(eq(apiKeys.id, id), isNull(apiKeys.revokedAt)));
+  }
+
+  async countActiveKeysByCreators(
+    creatorIds: string[],
+    nowIso: string,
+  ): Promise<number> {
+    if (creatorIds.length === 0) return 0;
+    const rows = await this.db
+      .select({ n: count() })
+      .from(apiKeys)
+      .where(
+        and(
+          inArray(apiKeys.createdBy, creatorIds),
+          isNull(apiKeys.revokedAt),
+          or(isNull(apiKeys.expiresAt), gt(apiKeys.expiresAt, nowIso)),
+        ),
+      );
+    return rows[0]?.n ?? 0;
   }
 }

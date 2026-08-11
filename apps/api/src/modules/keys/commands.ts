@@ -26,6 +26,14 @@ export type KeysCommandDeps = {
   events: EventsStore;
 };
 
+/**
+ * Max active (not revoked, not expired) keys created by demo personas —
+ * durable shared-demo quota across sessions AND descendant bearer keys (8.4).
+ * Self-healing: the 4h demo expiry clamp drains the count automatically, so
+ * the cap also bounds demo row growth to roughly this many mints per 4h.
+ */
+export const DEMO_ACTIVE_KEY_LIMIT = 25;
+
 export type CommandOk<T> = { ok: true; value: T };
 export type CommandErr = {
   ok: false;

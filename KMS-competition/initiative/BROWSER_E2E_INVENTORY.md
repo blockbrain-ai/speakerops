@@ -227,6 +227,7 @@
 | K02 | admin | API Keys | Revoke key | e2e/keys/revoke | — | REQUIRED | PASS |
 | K03 | admin | API Keys | Copy prefix only after dismiss | e2e/keys/secret-once | — | REQUIRED | PASS |
 | K04 | admin | API Keys | Non-admin cannot open keys | e2e/keys/authz | — | REQUIRED | PASS |
+| K05 | admin | API Keys | Judge demo session mints 4h key, uses and revokes it; seeded key revoke blocked | e2e/keys/demo-clamp | Seeded key revoke → 403 with human copy | REQUIRED | PASS |
 
 ---
 

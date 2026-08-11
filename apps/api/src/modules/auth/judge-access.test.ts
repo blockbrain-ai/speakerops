@@ -14,7 +14,7 @@
  * - membership re-entry regression: accepted (provisioned) email NOT on the
  *   magic-link allowlist still receives a link (programReentry)
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   DEMO_ROLE_EMAILS,
   DEFAULT_BOOTSTRAP_EVENT_ID,
@@ -452,12 +452,16 @@ describe("B07 judge access", () => {
       }),
     });
     expect(demoCreate.status).toBe(201);
-    const demoKey = (await demoCreate.json()) as { secret: string };
+    const demoKey = (await demoCreate.json()) as {
+      secret: string;
+      expiresAt: string | null;
+    };
+    expect(demoKey.expiresAt).toBeTruthy();
     const bearer = { authorization: `Bearer ${demoKey.secret}` };
 
-    // Child key minted via the demo bearer is clamped too — the 4h bound
-    // cannot be escaped by chaining through Bearer keys:admin.
-    const before = Date.now();
+    // Child key minted via the demo bearer is clamped too — and capped at
+    // the PARENT key's own expiry, so the 4h bound cannot be escaped by
+    // chaining through Bearer keys:admin (no perpetual renewal).
     const child = await app.request("/api/keys", {
       method: "POST",
       headers: { "content-type": "application/json", ...bearer },
@@ -469,9 +473,9 @@ describe("B07 judge access", () => {
     expect(child.status).toBe(201);
     const childBody = (await child.json()) as { expiresAt: string | null };
     expect(childBody.expiresAt).toBeTruthy();
-    expect(
-      Date.parse(childBody.expiresAt!) - before,
-    ).toBeLessThanOrEqual(4 * 60 * 60 * 1000 + 60_000);
+    expect(Date.parse(childBody.expiresAt!)).toBeLessThanOrEqual(
+      Date.parse(demoKey.expiresAt!),
+    );
 
     // Seeded key revoke via the demo bearer stays blocked.
     const denied = await app.request(
@@ -481,6 +485,191 @@ describe("B07 judge access", () => {
     expect(denied.status).toBe(403);
     const deniedBody = (await denied.json()) as { error: string };
     expect(deniedBody.error).toContain("Seeded demo keys can't be revoked");
+  });
+
+  it("demo key chain cannot outlive its root: 1h parent → child ≤ 1h → grandchild ≤ child", async () => {
+    const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+    await seedPersona(store, "admin");
+    const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
+    expect(mint.status).toBe(200);
+    const cookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
+
+    // Parent: demo session mints a keys:admin key expiring in 1 hour.
+    const oneHour = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const parentRes = await app.request("/api/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        name: "chain-parent-1h",
+        scopes: ["keys:admin"],
+        eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        expiresAt: oneHour,
+      }),
+    });
+    expect(parentRes.status).toBe(201);
+    const parent = (await parentRes.json()) as {
+      secret: string;
+      expiresAt: string | null;
+    };
+    expect(parent.expiresAt).toBe(oneHour);
+
+    // Child minted via the 1h parent (no expiry requested) is capped at the
+    // parent's 1h — NOT the generic now + 4h.
+    const childRes = await app.request("/api/keys", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${parent.secret}`,
+      },
+      body: JSON.stringify({
+        name: "chain-child",
+        scopes: ["keys:admin"],
+      }),
+    });
+    expect(childRes.status).toBe(201);
+    const child = (await childRes.json()) as {
+      secret: string;
+      expiresAt: string | null;
+    };
+    expect(child.expiresAt).toBeTruthy();
+    expect(Date.parse(child.expiresAt!)).toBeLessThanOrEqual(
+      Date.parse(oneHour),
+    );
+    expect(Date.parse(child.expiresAt!)).toBeGreaterThan(Date.now());
+
+    // Grandchild (30d requested) inherits the cap through the chain.
+    const thirtyDays = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const grandchildRes = await app.request("/api/keys", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${child.secret}`,
+      },
+      body: JSON.stringify({
+        name: "chain-grandchild",
+        scopes: ["events:read"],
+        expiresAt: thirtyDays,
+      }),
+    });
+    expect(grandchildRes.status).toBe(201);
+    const grandchild = (await grandchildRes.json()) as {
+      expiresAt: string | null;
+    };
+    expect(grandchild.expiresAt).toBeTruthy();
+    expect(Date.parse(grandchild.expiresAt!)).toBeLessThanOrEqual(
+      Date.parse(child.expiresAt!),
+    );
+  });
+
+  it("session-minted demo keys never outlive the judge session (cap = session expiry)", async () => {
+    const t0 = Date.now();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(t0);
+      const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+      await seedPersona(store, "admin");
+      const mint = await app.request(
+        "/api/auth/judge-access",
+        judgeBody("admin"),
+      );
+      expect(mint.status).toBe(200);
+      const cookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
+      const sessionExpMs = new Date(
+        (await store.listSessions())[0]!.expiresAt,
+      ).getTime();
+
+      // 3 hours into the 4h judge session: a fresh key must be capped at the
+      // session's remaining ~1h — not granted a fresh now + 4h.
+      vi.setSystemTime(t0 + 3 * 60 * 60 * 1000);
+      const res = await app.request("/api/keys", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "late-session-key",
+          scopes: ["events:read"],
+          eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        }),
+      });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { expiresAt: string | null };
+      expect(body.expiresAt).toBeTruthy();
+      expect(
+        Math.abs(Date.parse(body.expiresAt!) - sessionExpMs),
+      ).toBeLessThan(2_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("durable demo mint quota: 25 active demo keys max; revoke frees quota; real admins unaffected", async () => {
+    const { app, store, outbox } = createAppWithAuth({
+      judgeAccessCode: JUDGE_CODE,
+    });
+    await seedPersona(store, "admin");
+    const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
+    expect(mint.status).toBe(200);
+    const cookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
+
+    const createDemoKey = (name: string) =>
+      app.request("/api/keys", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name,
+          scopes: ["events:read"],
+          eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        }),
+      });
+
+    // Boundary: creates 1..25 succeed.
+    let lastId = "";
+    for (let i = 1; i <= 25; i++) {
+      const res = await createDemoKey(`quota-key-${i}`);
+      expect(res.status, `create #${i} should succeed`).toBe(201);
+      lastId = ((await res.json()) as { id: string }).id;
+    }
+
+    // 26th is rejected with human copy pointing at revocation.
+    const over = await createDemoKey("quota-key-26");
+    expect(over.status).toBe(403);
+    const overBody = (await over.json()) as { error: string };
+    expect(overBody.error).toContain("Demo key limit reached");
+    expect(overBody.error).toContain("Revoke keys you no longer need");
+
+    // Revoking a demo key frees quota (active-count design).
+    const revoke = await app.request(
+      `/api/keys/${encodeURIComponent(lastId)}`,
+      { method: "DELETE", headers: { cookie } },
+    );
+    expect(revoke.status).toBe(200);
+    const retry = await createDemoKey("quota-key-after-revoke");
+    expect(retry.status).toBe(201);
+
+    // Real admins are not subject to the demo quota even while it is full.
+    const adminEmail = "real-admin-quota@example.com";
+    await app.request("/api/auth/magic-link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: adminEmail, purpose: "admin" }),
+    });
+    const linkToken = outbox.lastForEmail(adminEmail)!.token;
+    const exchange = await app.request("/api/auth/exchange", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: linkToken }),
+    });
+    const adminCookie = (exchange.headers.get("set-cookie") ?? "").split(";")[0]!;
+    const adminCreate = await app.request("/api/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: adminCookie },
+      body: JSON.stringify({
+        name: "real-admin-at-demo-cap",
+        scopes: ["events:read"],
+      }),
+    });
+    expect(adminCreate.status).toBe(201);
   });
 
   it("membership re-entry: provisioned email off the allowlist still gets a link", async () => {

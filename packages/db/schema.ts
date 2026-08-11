@@ -1088,6 +1088,8 @@ export const apiKeys = sqliteTable(
     index("idx_api_keys_org_id").on(t.orgId),
     index("idx_api_keys_key_prefix").on(t.keyPrefix),
     index("idx_api_keys_event_id").on(t.eventId),
+    // Demo mint quota COUNT (8.4) — one indexed aggregate per demo create.
+    index("idx_api_keys_created_by").on(t.createdBy),
   ],
 );
 

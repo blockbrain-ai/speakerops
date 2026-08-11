@@ -166,6 +166,7 @@ export async function resolveBearer(
     eventId: row.eventId,
     orgId: row.orgId,
     createdBy: row.createdBy,
+    expiresAt: row.expiresAt,
   };
   c.set("apiKey", principal);
   // Expose createdBy as user for membership/createdBy fields only.
@@ -199,6 +200,7 @@ export async function resolveSession(
 
   c.set("user", { id: user.id, email: user.email });
   c.set("sessionId", session.id);
+  c.set("sessionExpiresAt", session.expiresAt);
   return { user, session };
 }
 

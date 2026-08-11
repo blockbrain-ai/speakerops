@@ -190,6 +190,8 @@ export type AuthzApiKey = {
   eventId: string | null;
   orgId: string;
   createdBy: string;
+  /** Authorizing key's own expiry — child keys minted by demo-linked keys are capped to it (8.4). */
+  expiresAt: string | null;
 };
 
 export type ApiEnv = {
@@ -199,6 +201,8 @@ export type ApiEnv = {
     /** Set by requireSession / requireRole (section 2.2). */
     user?: { id: string; email: string };
     sessionId?: string;
+    /** Authorizing session's expiry (ISO) — demo key mints are capped to it (8.4). */
+    sessionExpiresAt?: string;
     membership?: MembershipRow;
     /** Set by Bearer API key auth (section 7.1). */
     apiKey?: AuthzApiKey;

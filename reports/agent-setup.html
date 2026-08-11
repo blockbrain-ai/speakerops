@@ -428,7 +428,7 @@ speakerops keys create \
 <li>Secret is returned <strong>once</strong> in the create response. Store it in the host secret channel as <code>SPEAKEROPS_API_KEY</code>.</li>
 <li>List endpoints never re-display the secret.</li>
 <li>Without <code>keys:admin</code> → <strong>exit 2</strong> / HTTP <strong>403</strong> <code>FORBIDDEN</code> (CLI11).</li>
-<li><strong>Shared-demo note:</strong> demo-persona sessions (role switcher / <code>/judge</code> judge access) cannot create API keys — key mint needs a real admin login.</li>
+<li><strong>Shared-demo note:</strong> demo-persona sessions (role switcher / <code>/judge</code> judge access) can create API keys, but the server clamps their expiry to 4 hours (forced when omitted), and only demo-created keys can be revoked from a demo session.</li>
 </ul>
 <h3>Scope recipes (examples — not values)</h3>
 <table><thead><tr><th>Agent role</th><th>Example scopes (comma-separated)</th></tr></thead><tbody><tr><td>Reporting only</td><td><code>events:read</code>, <code>reports:read</code></td></tr><tr><td>Design publish</td><td><code>events:read</code>, <code>design:read</code>, <code>design:write</code></td></tr><tr><td>Schedule ops</td><td><code>events:read</code>, <code>schedule:read</code>, <code>schedule:write</code></td></tr><tr><td>Comms draft</td><td><code>comms:draft</code> (<strong>not</strong> <code>comms:send</code>)</td></tr><tr><td>Key admin</td><td><code>keys:admin</code> (<strong>default-deny</strong> — grant explicitly)</td></tr></tbody></table>
@@ -551,9 +551,9 @@ speakerops design publish --event &quot;$EVENT_ID&quot; --json || test $? -eq 1<
 <p><em>— Section 9.3 · S-ONB-AGENT agent setup and CLI runbook</em></p>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-10T18:14:51.973Z" data-git-sha="0f96fca7f">
-  <div><strong>Generated:</strong> <time datetime="2026-08-10T18:14:51.973Z">2026-08-10T18:14:51.973Z</time></div>
-  <div><strong>Git SHA:</strong> <code>0f96fca7f</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-11T07:53:27.660Z" data-git-sha="f7ff2d009">
+  <div><strong>Generated:</strong> <time datetime="2026-08-11T07:53:27.660Z">2026-08-11T07:53:27.660Z</time></div>
+  <div><strong>Git SHA:</strong> <code>f7ff2d009</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/AGENT_SETUP.md · no secrets in report</div>
 </footer>
   </div>

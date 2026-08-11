@@ -19,6 +19,7 @@ import {
   errorEnvelope,
   isDemoEmail,
   DEMO_API_KEY_TTL_MS,
+  DEMO_ROLE_EMAILS,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
   NOT_FOUND,
@@ -38,6 +39,7 @@ import {
   listKeys,
   revokeKey,
   keyVisibleToScope,
+  DEMO_ACTIVE_KEY_LIMIT,
   type KeysAdminScope,
 } from "./commands.js";
 
@@ -194,11 +196,49 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
 
     // Shared-demo blast radius: demo personas (role switcher / judge access)
     // may exercise every surface, but keys they mint never outlive the demo
-    // window — expiresAt is clamped to min(requested, now + 4h), forced to
-    // now + 4h when absent. Bearer auth already rejects expired keys.
+    // window — expiresAt is clamped to min(requested, now + 4h, the
+    // authorizing credential's own expiry), forced to the cap when absent.
+    // Chaining through the parent credential's expiry means a demo key can
+    // never mint a successor that outlives it (no perpetual renewal), and a
+    // durable quota bounds how many active demo keys can exist at once.
+    // Bearer auth already rejects expired keys.
     let expiresAt = parsed.data.expiresAt ?? null;
     if (await isDemoActor(store, c.get("user")?.email, actor.userId)) {
-      const capMs = Date.now() + DEMO_API_KEY_TTL_MS;
+      // Durable quota — shared across every demo session and every bearer
+      // key descending from one (isolate-local limits are insufficient on
+      // Workers). One indexed COUNT (idx_api_keys_created_by) per mint.
+      const demoCreatorIds = new Set<string>([actor.userId]);
+      for (const email of Object.values(DEMO_ROLE_EMAILS)) {
+        const persona = await store.findUserByEmail(email);
+        if (persona) demoCreatorIds.add(persona.id);
+      }
+      const activeDemoKeys = await keys.countActiveKeysByCreators(
+        [...demoCreatorIds],
+        new Date().toISOString(),
+      );
+      if (activeDemoKeys >= DEMO_ACTIVE_KEY_LIMIT) {
+        return c.json(
+          errorEnvelope(
+            `Demo key limit reached — the shared demo allows ${DEMO_ACTIVE_KEY_LIMIT} active demo-created keys. Revoke keys you no longer need (or wait for older demo keys to expire) and try again.`,
+            FORBIDDEN,
+          ),
+          403,
+        );
+      }
+
+      let capMs = Date.now() + DEMO_API_KEY_TTL_MS;
+      // Bearer path: child never outlives the minting key.
+      const parentKey = c.get("apiKey");
+      if (parentKey?.expiresAt) {
+        const parentMs = Date.parse(parentKey.expiresAt);
+        if (Number.isFinite(parentMs)) capMs = Math.min(capMs, parentMs);
+      }
+      // Session path: key never outlives the judge session that minted it.
+      const sessionExp = c.get("sessionExpiresAt");
+      if (sessionExp) {
+        const sessionMs = Date.parse(sessionExp);
+        if (Number.isFinite(sessionMs)) capMs = Math.min(capMs, sessionMs);
+      }
       const requestedMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
       if (!Number.isFinite(requestedMs) || requestedMs > capMs) {
         expiresAt = new Date(capMs).toISOString();

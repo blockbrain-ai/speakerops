@@ -22,7 +22,8 @@ export const AUTH_OPENAPI_PATHS = {
         "session as a seeded demo persona on the demo event. Registered only " +
         "when ROLE_SWITCHER_ENABLED=1 AND the code secret are set; 404 " +
         "otherwise. Constant-time code compare; generic 401 failures; " +
-        "rate-limited; audit event on mint; demo sessions cannot create API keys.",
+        "rate-limited; audit event on mint; demo sessions mint API keys " +
+        "clamped to a 4-hour expiry (revoke limited to demo-created keys).",
       tags: ["Auth"],
       requestBody: {
         required: true,
