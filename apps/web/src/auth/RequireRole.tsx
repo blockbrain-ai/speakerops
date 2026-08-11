@@ -9,6 +9,22 @@
  * Wrong role (403) → AccessDenied / PermissionDenied surface
  * OK (200) → children
  *
+ * Mounting model (fix wave A1): mount ONCE per surface as a layout route
+ * (admin tree wraps RequireRole + EventProvider + AdminShell around an
+ * <Outlet/>), so the guard probes once per surface entry and in-app
+ * navigation never unmounts chrome or shows "Checking access…".
+ * Re-probes (visibilitychange session recovery) run in the BACKGROUND when
+ * the guard is already ok — children stay mounted, and a 401/403/error
+ * verdict still unmounts to /login/AccessDenied (fail closed, unchanged).
+ *
+ * INVARIANT — role switching must invalidate guard state: today every role
+ * switch performs a full document load (RoleSwitcher calls
+ * window.location.assign after /api/auth/dev/role-switch, and login/logout
+ * navigate to fresh documents), which remounts this guard and forces a fresh
+ * probe. Any future SOFT role switch (SPA-only cookie swap) MUST remount the
+ * surface or otherwise re-run this guard's check() — the ok verdict is
+ * session-scoped and never survives a credential change by design.
+ *
  * Inventory: B04 unauth admin blocked · B05 speaker blocked from admin
  * · L2-02 session recovery
  */
@@ -184,7 +200,12 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
   );
 
   const check = useCallback(async () => {
-    setState({ status: "loading" });
+    // Background re-validation: when the guard has already verified this
+    // session (ok), keep children mounted while re-probing — only a
+    // non-ok verdict (401/403/error) transitions state and unmounts
+    // (fail closed). The blocking "Checking access…" state is reserved
+    // for the initial probe on surface entry.
+    setState((prev) => (prev.status === "ok" ? prev : { status: "loading" }));
     // Admin surfaces use Event.List probe (server enforceRole)
     const needsAdmin = roles.includes("admin");
     const needsEvaluator =
@@ -274,10 +295,15 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
   }, [roles, eventId]);
 
   useEffect(() => {
+    // One probe per surface entry (mount) — the guard now lives on a layout
+    // route, so in-app navigation does not re-run this effect. Deliberately
+    // NOT keyed on location.pathname (fix wave A1): per-pathname re-probes
+    // were the ~0.6s blocking "Checking access…" on every admin click.
     void check();
     // Session restore (10.4): re-probe when tab becomes visible so an expired
     // or swapped cookie (role switcher / logout elsewhere) fails closed instead
-    // of leaving a stale privileged shell painted.
+    // of leaving a stale privileged shell painted. Runs in the background when
+    // already ok (see check()).
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         void check();
@@ -287,7 +313,7 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [check, location.pathname]);
+  }, [check]);
 
   if (state.status === "loading") {
     return (

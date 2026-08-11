@@ -127,10 +127,31 @@ test("@inv:C01 e2e/admin/event-create create event with timezone", async ({
   expect(body.event.timezone).toBe("America/Chicago");
   expect(body.event.name).toBe("C01 Summit");
 
-  // UI: create form on settings
-  await page.goto(`${baseURL ?? ""}/admin/settings`);
+  // UI: "+ New event" beside the header event switcher (fix wave A3) is the
+  // discoverable route into creation from ANY admin page.
+  await page.goto(`${baseURL ?? ""}/admin`);
   await expect(page.getByTestId("admin-shell")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("admin-new-event")).toBeVisible();
+
+  // A1 evidence: capture the mounted shell node — in-app navigation must not
+  // remount the admin chrome (no per-page "Checking access…" teardown).
+  const shellHandle = await page.getByTestId("admin-shell").elementHandle();
+
+  await page.getByTestId("admin-new-event").click();
+  await expect(page).toHaveURL(/\/admin\/settings\?intent=create-event/);
   await expect(page.getByTestId("event-create-form")).toBeVisible();
+  // Create intent: card scrolled into view with the Name input focused.
+  await expect(page.getByTestId("event-create-name")).toBeFocused();
+  // Judge guidance: start-from-scratch hint + shared-demo expectation copy.
+  await expect(page.getByTestId("event-create-hint")).toBeVisible();
+  await expect(page.getByTestId("event-create-shared-note")).toContainText(
+    /shared/i,
+  );
+
+  // The pre-navigation shell node is still connected — chrome persisted.
+  expect(
+    await page.evaluate((el) => el?.isConnected === true, shellHandle),
+  ).toBe(true);
   await page.getByTestId("event-create-name").fill("C01 UI Event");
   await page.getByTestId("event-create-timezone").fill("Europe/Paris");
   await page.getByTestId("event-create-submit").click();

@@ -11,6 +11,8 @@ import {
   sanitizeBioText,
   bioIsPlainText,
   taskDisplayStatus,
+  formatTaskDue,
+  formatSessionRange,
   applyOptimisticComplete,
   revertOptimisticComplete,
   pickNextIncomplete,
@@ -234,5 +236,67 @@ describe("4.3 portal-utils", () => {
     const talk = steps.find((s) => s.taskId === "t1")!;
     const idx = pickWizardStepIndex(steps, [talk.id]);
     expect(steps[idx]!.id).toBe(talk.id);
+  });
+
+  /* B1 — timezone-labelled formatters. Explicit timeZone options only, so
+   * assertions never depend on the machine's local zone. */
+  describe("formatTaskDue zone labels (B1)", () => {
+    const iso = "2026-08-17T14:30:00.000Z";
+
+    it("renders event-local time with a short UTC zone label", () => {
+      const out = formatTaskDue(iso, "UTC");
+      expect(out).toContain("17 Aug 2026");
+      expect(out).toContain("14:30");
+      expect(out).toContain("UTC");
+    });
+
+    it("renders event-local time in a non-UTC event zone with its label", () => {
+      const out = formatTaskDue(iso, "America/New_York");
+      // 14:30Z on 17 Aug = 10:30 in New York (DST) — labelled EDT or GMT-4
+      // depending on ICU data, never bare.
+      expect(out).toContain("17 Aug 2026");
+      expect(out).toContain("10:30");
+      expect(out).toMatch(/EDT|GMT-4/);
+    });
+
+    it("falls back to the viewer zone — still labelled — for an invalid event zone", () => {
+      const out = formatTaskDue(iso, "Not/AZone");
+      // Time varies by machine; the zone LABEL must still be present
+      // (more than the bare "d MMM yyyy, HH:mm" prefix).
+      expect(out).toMatch(/\d{2}:\d{2}\s+\S+/);
+    });
+
+    it("returns the raw input when unparseable (data never hidden)", () => {
+      expect(formatTaskDue("not-a-date", "UTC")).toBe("not-a-date");
+    });
+  });
+
+  describe("formatSessionRange zone labels (B1)", () => {
+    const startIso = "2026-10-01T09:00:00.000Z";
+    const endIso = "2026-10-01T10:00:00.000Z";
+
+    it("renders the event-local range with one zone label at the end", () => {
+      const out = formatSessionRange(startIso, endIso, "UTC");
+      expect(out).toContain("1 Oct 2026");
+      expect(out).toContain("09:00");
+      expect(out).toContain("– ");
+      expect(out).toContain("10:00");
+      expect(out).toContain("UTC");
+      // Zone label appears exactly once (on the end time).
+      expect(out.match(/UTC/g)).toHaveLength(1);
+    });
+
+    it("converts to a non-UTC event zone", () => {
+      const out = formatSessionRange(startIso, endIso, "America/New_York");
+      // 09:00Z–10:00Z = 05:00–06:00 New York (DST).
+      expect(out).toContain("1 Oct 2026");
+      expect(out).toContain("05:00");
+      expect(out).toContain("06:00");
+      expect(out).toMatch(/EDT|GMT-4/);
+    });
+
+    it("falls back to the raw range when unparseable", () => {
+      expect(formatSessionRange("bad", "worse", "UTC")).toBe("bad – worse");
+    });
   });
 });

@@ -7,7 +7,7 @@
  *
  * Tokens are stored only as hashes — callers must hash before insert.
  */
-import { eq, and, isNull, sql, desc } from "drizzle-orm";
+import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import type { EventRole, MagicLinkPurpose } from "@speakerops/shared";
 import {
@@ -75,6 +75,13 @@ export type CapturedMagicLink = {
 export type AuthStore = {
   findUserByEmail(email: string): Promise<UserRow | null>;
   findUserById(id: string): Promise<UserRow | null>;
+  /**
+   * Batch user lookup for aggregate views (eval rollup / CSV export).
+   * One query per D1 parameter chunk instead of one per user — never
+   * call findUserById in a loop (S-EVAL performance).
+   * Missing ids are simply absent from the returned map.
+   */
+  findUsersByIds(ids: string[]): Promise<Map<string, UserRow>>;
   createUser(input: {
     email: string;
     name?: string | null;
@@ -147,6 +154,15 @@ export class MemoryAuthStore implements AuthStore {
 
   async findUserById(id: string): Promise<UserRow | null> {
     return this.users.get(id) ?? null;
+  }
+
+  async findUsersByIds(ids: string[]): Promise<Map<string, UserRow>> {
+    const out = new Map<string, UserRow>();
+    for (const id of new Set(ids)) {
+      const row = this.users.get(id);
+      if (row) out.set(id, row);
+    }
+    return out;
   }
 
   async createUser(input: {
@@ -348,6 +364,32 @@ export class D1AuthStore implements AuthStore {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
+  }
+
+  async findUsersByIds(ids: string[]): Promise<Map<string, UserRow>> {
+    const out = new Map<string, UserRow>();
+    if (ids.length === 0) return out;
+    const unique = [...new Set(ids)];
+    // D1 bound-parameter limit is 100 per query — chunk IN lists (mirror
+    // D1EvalStore.listScoresForAssignments).
+    const CHUNK = 90;
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const slice = unique.slice(i, i + CHUNK);
+      const rows = await this.db
+        .select()
+        .from(users)
+        .where(inArray(users.id, slice));
+      for (const row of rows) {
+        out.set(row.id, {
+          id: row.id,
+          email: row.email,
+          name: row.name ?? null,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        });
+      }
+    }
+    return out;
   }
 
   async createUser(input: {

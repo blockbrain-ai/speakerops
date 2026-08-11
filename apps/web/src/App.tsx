@@ -18,6 +18,7 @@
 import {
   BrowserRouter,
   Navigate,
+  Outlet,
   Route,
   Routes,
   useLocation,
@@ -69,26 +70,35 @@ function RoleSwitcherMount() {
   return <RoleSwitcher />;
 }
 
-/** Wrap admin chrome with server-backed admin role guard (B04/B05) + event context. */
-function AdminGuard({ children }: { children: ReactNode }) {
+/**
+ * Admin layout route (fix wave A1): RequireRole + EventProvider + AdminShell
+ * mount ONCE for the whole /admin tree; child pages render through <Outlet/>.
+ * The guard therefore probes once per surface entry — in-app navigation never
+ * unmounts the chrome or shows "Checking access…" (B04/B05 fail-closed
+ * behaviour is unchanged: visibility re-probes still unmount on 401/403).
+ */
+function AdminLayout() {
   return (
     <RequireRole roles={["admin"]}>
       <EventProvider>
-        <AdminShell>{children}</AdminShell>
+        <AdminShell>
+          <Outlet />
+        </AdminShell>
       </EventProvider>
     </RequireRole>
   );
 }
 
 /**
- * Settings two-pane shell (section 11.7 · S-L2-A11Y).
- * Nested under AdminGuard so chrome + event context remain shared.
+ * Settings two-pane shell (section 11.7 · S-L2-A11Y) — nested layout route
+ * under the admin layout, so settings sub-navigation swaps only the detail
+ * pane (chrome + event context + category nav all stay mounted).
  */
-function SettingsGuard({ children }: { children: ReactNode }) {
+function SettingsLayout() {
   return (
-    <AdminGuard>
-      <SettingsShell>{children}</SettingsShell>
-    </AdminGuard>
+    <SettingsShell>
+      <Outlet />
+    </SettingsShell>
   );
 }
 
@@ -152,118 +162,36 @@ export function AppRoutes() {
           </EvaluatorGuard>
         }
       />
-      <Route
-        path="/admin"
-        element={
-          <AdminGuard>
-            <ReadinessPage />
-          </AdminGuard>
-        }
-      />
-      <Route
-        path="/admin/cfp"
-        element={
-          <AdminGuard>
-            <FormBuilderPage />
-          </AdminGuard>
-        }
-      />
-      <Route
-        path="/admin/submissions"
-        element={
-          <AdminGuard>
-            <SubmissionsPage />
-          </AdminGuard>
-        }
-      />
-      <Route
-        path="/admin/evaluations"
-        element={
-          <AdminGuard>
-            <AdminEvaluationsPage />
-          </AdminGuard>
-        }
-      />
-      <Route
-        path="/admin/speakers"
-        element={
-          <AdminGuard>
-            <SpeakersPage />
-          </AdminGuard>
-        }
-      />
-      <Route
-        path="/admin/schedule"
-        element={
-          <AdminGuard>
-            <ScheduleStudioPage />
-          </AdminGuard>
-        }
-      />
-      <Route
-        path="/admin/comms"
-        element={
-          <AdminGuard>
-            <CommsPage />
-          </AdminGuard>
-        }
-      />
-      <Route
-        path="/admin/settings"
-        element={
-          <SettingsGuard>
-            <EventSettingsPage />
-          </SettingsGuard>
-        }
-      />
-      <Route
-        path="/admin/settings/design"
-        element={
-          <SettingsGuard>
-            <DesignKitPage />
-          </SettingsGuard>
-        }
-      />
-      <Route
-        path="/admin/settings/rubric"
-        element={
-          <SettingsGuard>
-            <RubricSettingsPage />
-          </SettingsGuard>
-        }
-      />
-      <Route
-        path="/admin/settings/task-templates"
-        element={
-          <SettingsGuard>
-            <TaskTemplatesSettingsPage />
-          </SettingsGuard>
-        }
-      />
-      <Route
-        path="/admin/settings/api-keys"
-        element={
-          <SettingsGuard>
-            <ApiKeysPage />
-          </SettingsGuard>
-        }
-      />
-      <Route
-        path="/admin/settings/airtable"
-        element={
-          <SettingsGuard>
-            <AirtableStatusPage />
-          </SettingsGuard>
-        }
-      />
-      <Route
-        path="/admin/settings/l2-state-sheet"
-        element={
-          <SettingsGuard>
-            <L2StateSheetPage />
-          </SettingsGuard>
-        }
-      />
+      {/* Admin surface — ONE guard + chrome mount for the whole tree (A1).
+          Child paths are absolute (React Router allows this when they match
+          the parent prefix) so route strings stay grep-able as full URLs. */}
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route index element={<ReadinessPage />} />
+        <Route path="/admin/cfp" element={<FormBuilderPage />} />
+        <Route path="/admin/submissions" element={<SubmissionsPage />} />
+        <Route path="/admin/evaluations" element={<AdminEvaluationsPage />} />
+        <Route path="/admin/speakers" element={<SpeakersPage />} />
+        <Route path="/admin/schedule" element={<ScheduleStudioPage />} />
+        <Route path="/admin/comms" element={<CommsPage />} />
+        <Route path="/admin/settings" element={<SettingsLayout />}>
+          <Route index element={<EventSettingsPage />} />
+          <Route path="/admin/settings/design" element={<DesignKitPage />} />
+          <Route path="/admin/settings/rubric" element={<RubricSettingsPage />} />
+          <Route
+            path="/admin/settings/task-templates"
+            element={<TaskTemplatesSettingsPage />}
+          />
+          <Route path="/admin/settings/api-keys" element={<ApiKeysPage />} />
+          <Route
+            path="/admin/settings/airtable"
+            element={<AirtableStatusPage />}
+          />
+          <Route
+            path="/admin/settings/l2-state-sheet"
+            element={<L2StateSheetPage />}
+          />
+        </Route>
+      </Route>
       <Route
         path="/cfp/:slug"
         element={

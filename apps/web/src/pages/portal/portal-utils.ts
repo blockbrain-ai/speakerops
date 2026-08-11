@@ -30,24 +30,90 @@ export function taskDisplayStatus(
   return "pending";
 }
 
-/** True when task still needs speaker action. */
 /**
- * Human due timestamp for task cards — "17 Aug 2026, 14:30".
- * Minute precision (no seconds), never raw ISO; falls back to the input when
- * unparseable so data is never hidden.
+ * Build a date-time formatter that always carries a SHORT ZONE LABEL, so a
+ * time can never read as a bug ("3:00 AM" with no zone). When the event
+ * schema provides a timezone we render event-local time in that zone; an
+ * invalid/absent zone falls back to the viewer's zone — still labelled.
+ * (Intl forbids mixing dateStyle/timeStyle with timeZoneName, hence the
+ * explicit component options.)
  */
-export function formatTaskDue(iso: string): string {
+function zonedFormatter(
+  options: Intl.DateTimeFormatOptions,
+  timeZone?: string | null,
+): Intl.DateTimeFormat {
+  const tz = timeZone?.trim() ? timeZone.trim() : undefined;
+  try {
+    return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: tz });
+  } catch {
+    // Unknown IANA zone in event data — viewer's zone, still labelled.
+    return new Intl.DateTimeFormat("en-GB", options);
+  }
+}
+
+/**
+ * Human due timestamp for task cards — "17 Aug 2026, 14:30 UTC".
+ * Minute precision (no seconds), never raw ISO, ALWAYS a short zone label;
+ * event-local when the event carries a timezone (else viewer-local).
+ * Falls back to the input when unparseable so data is never hidden.
+ */
+export function formatTaskDue(iso: string, timeZone?: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   try {
-    return new Intl.DateTimeFormat("en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(d);
+    return zonedFormatter(
+      {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      },
+      timeZone,
+    ).format(d);
   } catch {
     return iso.slice(0, 10);
   }
 }
+
+/**
+ * Session slot range — "1 Oct 2026, 09:00 – 10:00 UTC" (+ zone label once,
+ * on the end time). Event-local when a timezone is given (else viewer-local,
+ * still labelled). Unparseable inputs fall back to the raw range.
+ */
+export function formatSessionRange(
+  startIso: string,
+  endIso: string,
+  timeZone?: string | null,
+): string {
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${startIso} – ${endIso}`;
+  }
+  try {
+    const startFmt = zonedFormatter(
+      {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      },
+      timeZone,
+    );
+    const endFmt = zonedFormatter(
+      { hour: "2-digit", minute: "2-digit", timeZoneName: "short" },
+      timeZone,
+    );
+    return `${startFmt.format(start)} – ${endFmt.format(end)}`;
+  } catch {
+    return `${startIso} – ${endIso}`;
+  }
+}
+
+/** True when task still needs speaker action. */
 
 export function isIncompleteTask(task: Pick<PortalTaskDto, "status">): boolean {
   const s = (task.status ?? "").toLowerCase();

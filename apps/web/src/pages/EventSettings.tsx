@@ -4,7 +4,14 @@
  * Inventory: C01 create, C07 settings, O01 event fields, O02 rooms, O03 tracks.
  * Wired to real COMMANDS.md APIs (no placeholders).
  */
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   EventCreateBodySchema,
   EventResponseSchema,
@@ -35,6 +42,20 @@ type StatusMsg = { kind: "ok" | "error"; text: string } | null;
 export function EventSettingsPage() {
   const { activeEventId, activeEvent, refreshEvents, setActiveEventId } =
     useEventContext();
+
+  // --- "+ New event" intent (fix wave A3) ---
+  // The header "+ New event" affordance routes here with
+  // ?intent=create-event: scroll the create card into view and focus the
+  // Name input so a judge lands ready to type.
+  const [searchParams] = useSearchParams();
+  const createIntent = searchParams.get("intent") === "create-event";
+  const createSectionRef = useRef<HTMLElement | null>(null);
+  const createNameRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (!createIntent) return;
+    createSectionRef.current?.scrollIntoView({ block: "start" });
+    createNameRef.current?.focus();
+  }, [createIntent]);
 
   // --- Create event (C01) ---
   const [createName, setCreateName] = useState("");
@@ -575,10 +596,22 @@ export function EventSettingsPage() {
         className="event-settings__card"
         data-testid="event-create-section"
         aria-labelledby="event-create-heading"
+        ref={createSectionRef}
       >
         <h3 id="event-create-heading" className="event-settings__heading">
           Create event
         </h3>
+        <p className="event-settings__hint" data-testid="event-create-hint">
+          Start from scratch: a new event begins with an empty CFP, rubric,
+          and schedule — you shape all of it from here.
+        </p>
+        <p
+          className="event-settings__hint event-settings__hint--shared"
+          data-testid="event-create-shared-note"
+        >
+          Heads up: this demo admin is shared, so events created here appear
+          in every reviewer&apos;s event switcher.
+        </p>
         <form
           className="event-settings__form"
           onSubmit={onCreateEvent}
@@ -595,6 +628,7 @@ export function EventSettingsPage() {
             onChange={(ev) => setCreateName(ev.target.value)}
             required
             maxLength={200}
+            ref={createNameRef}
           />
           <label className="event-settings__label" htmlFor="create-tz">
             Timezone

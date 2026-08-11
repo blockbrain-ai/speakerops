@@ -9,7 +9,7 @@
  * Mobile nav toggle: data-testid="admin-nav-toggle" (390px usable).
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEventContextOptional } from "../events/EventContext.js";
 import { Icon, type IconName } from "../components/ui/Icon.js";
 import { Button } from "../components/ui/Button.js";
@@ -284,6 +284,15 @@ export function AdminShell({
                   ))}
                 </select>
               </label>
+            ) : eventCtx && !eventCtx.loading ? (
+              /* Empty state: no events yet — surface the create path here. */
+              <div
+                className="admin-shell__event admin-shell__event--empty"
+                data-testid="event-context"
+                data-event-id=""
+              >
+                No events yet
+              </div>
             ) : (
               <div
                 className="admin-shell__event"
@@ -293,6 +302,16 @@ export function AdminShell({
                 Event: {label}
               </div>
             )}
+            {/* A real link, not a select option — selects change value, they
+                don't navigate (a11y). ?intent=create-event focuses the
+                create form on arrival. */}
+            <Link
+              to="/admin/settings?intent=create-event"
+              className="admin-shell__new-event lumen-focusable"
+              data-testid="admin-new-event"
+            >
+              + New event
+            </Link>
             <span
               className="admin-shell__event-active-name"
               data-testid="admin-active-event"

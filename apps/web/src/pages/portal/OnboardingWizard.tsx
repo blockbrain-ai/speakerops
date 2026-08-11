@@ -9,7 +9,7 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { OnboardingStep } from "./portal-utils.js";
-import { taskDisplayStatus } from "./portal-utils.js";
+import { formatTaskDue, taskDisplayStatus } from "./portal-utils.js";
 import { PortalFileField } from "../../components/portal/PortalFileField.js";
 
 export type OnboardingWizardProps = {
@@ -22,6 +22,8 @@ export type OnboardingWizardProps = {
   /** Optional dueAt for current step's linked task (overdue styling). */
   currentTaskDueAt?: string | null;
   currentTaskStatus?: string | null;
+  /** Event timezone — due dates render event-local with a zone label (B1). */
+  eventTimezone?: string | null;
   /** Profile field drafts bound by parent (authoritative while editing). */
   bio: string;
   company: string;
@@ -66,6 +68,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
     eventName,
     currentTaskDueAt,
     currentTaskStatus,
+    eventTimezone,
     bio,
     company,
     title,
@@ -251,7 +254,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             </span>
             {currentTaskDueAt ? (
               <span className="portal-muted" data-testid="portal-wizard-task-due">
-                Due {new Date(currentTaskDueAt).toLocaleDateString()}
+                Due {formatTaskDue(currentTaskDueAt, eventTimezone)}
               </span>
             ) : null}
           </div>

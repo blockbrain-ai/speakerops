@@ -226,6 +226,11 @@
     max-width: 160px;
   }
 
+  /* Keep "+ New event" usable in the wrapping mobile header (A3). */
+  .admin-shell__event-switcher {
+    flex-wrap: wrap;
+  }
+
   .admin-shell__content {
     padding: var(--lumen-space-4);
   }
@@ -263,6 +268,31 @@
   color: var(--lumen-text);
   font-family: var(--lumen-font);
   font-size: 13px;
+}
+
+/* "+ New event" beside the switcher (fix wave A3) — quiet brand link that
+ * survives the wrapping mobile header (whitespace nowrap, 44px hit area). */
+.admin-shell__new-event {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: var(--lumen-space-1) var(--lumen-space-3);
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lumen-brand);
+  background: var(--lumen-brand-soft);
+  border-radius: var(--lumen-radius-pill);
+  text-decoration: none;
+}
+
+.admin-shell__new-event:hover {
+  background: var(--lumen-brand);
+  color: var(--lumen-brand-fg);
+}
+
+.admin-shell__event--empty {
+  font-style: italic;
 }
 
 /* Section 8.4 — dogfood/dev role switcher (Lumen tokens only).
@@ -346,6 +376,21 @@
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--lumen-text);
+}
+
+/* Create-card guidance (fix wave A3) — "start from scratch" + shared-demo. */
+.event-settings__hint {
+  margin: calc(-1 * var(--lumen-space-2)) 0 var(--lumen-space-3);
+  font-size: 13px;
+  color: var(--lumen-text-secondary);
+}
+
+.event-settings__hint--shared {
+  color: var(--lumen-brand);
+  background: var(--lumen-brand-soft);
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border-radius: var(--lumen-radius-sm);
+  margin-top: 0;
 }
 
 .event-settings__form {
@@ -3458,6 +3503,9 @@
     box-shadow: var(--lumen-shadow-sm);
   }
 
+  /* Tabs are <button>s — reset UA form-button chrome (gray fill + border)
+   * so inactive tabs read as a Lumen tab bar, matching the desktop pill
+   * tabs (B3). Active state: brand-soft pill, same as role-shell nav. */
   .portal-bottom-nav__link {
     flex: 1 1 0;
     display: inline-flex;
@@ -3466,17 +3514,32 @@
     min-height: 44px;
     min-width: 44px;
     padding: var(--lumen-space-2) var(--lumen-space-1);
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: 0;
+    font-family: var(--lumen-font);
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lumen-text-secondary);
     text-decoration: none;
-    border-radius: var(--lumen-radius-sm);
+    border-radius: var(--lumen-radius-pill);
+    cursor: pointer;
+    transition:
+      background var(--lumen-motion) var(--lumen-ease),
+      color var(--lumen-motion) var(--lumen-ease);
   }
 
   .portal-bottom-nav__link:hover,
   .portal-bottom-nav__link:focus-visible {
     color: var(--lumen-brand);
     background: var(--lumen-brand-soft);
+  }
+
+  .portal-bottom-nav__link--active {
+    color: var(--lumen-brand);
+    background: var(--lumen-brand-soft);
+    font-weight: 600;
   }
 
   .portal-welcome__name {

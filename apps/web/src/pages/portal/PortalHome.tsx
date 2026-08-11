@@ -60,6 +60,7 @@ import {
   bioIsPlainText,
   taskDisplayStatus,
   formatTaskDue,
+  formatSessionRange,
   applyOptimisticComplete,
   revertOptimisticComplete,
   pickNextIncomplete,
@@ -130,8 +131,16 @@ export function PortalHomePage() {
    * deep links open the right tab, and browser Back walks tab history.
    */
   const activeSection = SECTION_FROM_PARAM[sectionParam] ?? "portal-home";
-  /** Tab switched by user this render cycle — move focus to the new view. */
-  const pendingFocusRef = useRef<string | null>(null);
+  /**
+   * Tab switched by user this render cycle — move focus to the new view.
+   * `target` distinguishes a plain tab switch (view heading — mobile
+   * keyboards must never pop uninvited) from the explicit "Update profile"
+   * CTA (bio field).
+   */
+  const pendingFocusRef = useRef<{
+    section: string;
+    target: "heading" | "bio";
+  } | null>(null);
 
   // Profile form
   const [bio, setBio] = useState("");
@@ -365,37 +374,52 @@ export function PortalHomePage() {
     return style;
   }, [home?.brandColor, home?.brandSoft, home?.brandFg]);
 
-  /** Move focus into the (already rendered) tab view — no scroll jank. */
-  const focusSectionView = useCallback((sectionId: string) => {
-    // Profile: focus bio so "Update profile" lands in the editable form.
-    if (sectionId === "portal-profile") {
-      const bioEl = document.getElementById("portal-bio");
-      if (bioEl instanceof HTMLElement) {
-        bioEl.focus({ preventScroll: true });
-        return;
+  /**
+   * Move focus into the (already rendered) tab view — no scroll jank.
+   * A plain tab switch ALWAYS lands on the view heading (tabindex=-1) —
+   * focusing the bio textarea on a plain switch pops the mobile keyboard
+   * uninvited (B2). Only the explicit "Update profile" CTA passes
+   * target="bio" to land in the editable form.
+   */
+  const focusSectionView = useCallback(
+    (sectionId: string, target: "heading" | "bio" = "heading") => {
+      if (sectionId === "portal-profile" && target === "bio") {
+        const bioEl = document.getElementById("portal-bio");
+        if (bioEl instanceof HTMLElement) {
+          bioEl.focus({ preventScroll: true });
+          return;
+        }
       }
-    }
-    const el = document.getElementById(sectionId);
-    const heading = el?.querySelector("h2, h1");
-    if (heading instanceof HTMLElement) {
-      heading.focus({ preventScroll: true });
-    }
-  }, []);
+      const el = document.getElementById(sectionId);
+      const heading = el?.querySelector("h2, h1");
+      if (heading instanceof HTMLElement) {
+        heading.focus({ preventScroll: true });
+      }
+    },
+    [],
+  );
 
   /**
    * Switch tabs: push `?section=` (tabs are navigation — Back returns to the
-   * previous tab), keep `eventId`, and move focus to the new view's heading.
+   * previous tab), keep `eventId`, and move focus into the new view.
+   * Canonical home URL carries NO section param (B4) — every nav path
+   * (desktop Home tab, mobile Home button, summary cards) agrees.
    */
   const selectSection = useCallback(
-    (sectionId: string) => {
+    (sectionId: string, opts?: { focus?: "heading" | "bio" }) => {
+      const target = opts?.focus ?? "heading";
       if (sectionId === activeSection) {
-        focusSectionView(sectionId);
+        focusSectionView(sectionId, target);
         return;
       }
-      pendingFocusRef.current = sectionId;
+      pendingFocusRef.current = { section: sectionId, target };
       const next = new URLSearchParams(searchParams);
       if (eventId) next.set("eventId", eventId);
-      next.set("section", sectionId.replace(/^portal-/, ""));
+      if (sectionId === "portal-home") {
+        next.delete("section");
+      } else {
+        next.set("section", sectionId.replace(/^portal-/, ""));
+      }
       setSearchParams(next);
     },
     [activeSection, eventId, focusSectionView, searchParams, setSearchParams],
@@ -404,18 +428,22 @@ export function PortalHomePage() {
   // After a user-initiated tab switch renders, focus the new view.
   // Deep links / Back-Forward simply show the tab without stealing focus.
   useEffect(() => {
-    const target = pendingFocusRef.current;
-    if (!target || target !== activeSection) return;
+    const pending = pendingFocusRef.current;
+    if (!pending || pending.section !== activeSection) return;
     pendingFocusRef.current = null;
-    focusSectionView(target);
+    focusSectionView(pending.section, pending.target);
   }, [activeSection, focusSectionView]);
 
-  /** Header tabs carry real URLs (copy link / open in new tab both work). */
+  /** Header tabs carry real URLs (copy link / open in new tab both work).
+   *  Home is canonical without a section param (B4). */
   const navSections = useMemo(
     () =>
       PORTAL_SECTIONS.map((s) => ({
         ...s,
-        href: `/portal?eventId=${encodeURIComponent(eventId)}&section=${s.id.replace(/^portal-/, "")}`,
+        href:
+          s.id === "portal-home"
+            ? `/portal?eventId=${encodeURIComponent(eventId)}`
+            : `/portal?eventId=${encodeURIComponent(eventId)}&section=${s.id.replace(/^portal-/, "")}`,
       })),
     [eventId],
   );
@@ -1155,6 +1183,7 @@ export function PortalHomePage() {
             freeformDrafts={draftState.freeformDrafts}
             speakerName={speakerName}
             eventName={home.eventName}
+            eventTimezone={home.eventTimezone}
             currentTaskDueAt={
               onboardingSteps[wizardStepIndex]?.taskId
                 ? tasks.find(
@@ -1419,7 +1448,7 @@ export function PortalHomePage() {
                       className="portal-muted"
                       data-testid="portal-next-task-due"
                     >
-                      Due {formatTaskDue(nextTask.dueAt)}
+                      Due {formatTaskDue(nextTask.dueAt, home?.eventTimezone)}
                     </span>
                   ) : null}
                 </div>
@@ -1475,7 +1504,7 @@ export function PortalHomePage() {
               type="button"
               className="portal-summary__card lumen-focusable"
               data-testid="portal-summary-profile"
-              onClick={() => selectSection("portal-profile")}
+              onClick={() => selectSection("portal-profile", { focus: "bio" })}
             >
               <span className="portal-summary__label">Profile</span>
               <span className="portal-summary__value">
@@ -1484,7 +1513,7 @@ export function PortalHomePage() {
                   : `${overallProg.profileDone} of ${overallProg.profileTotal} details added`}
               </span>
               <span className="portal-summary__hint">
-                Bio, headshot and slides
+                Update profile — bio, headshot and slides
               </span>
             </button>
             <button
@@ -1764,7 +1793,7 @@ export function PortalHomePage() {
                       </div>
                       {t.dueAt ? (
                         <p className="portal-muted portal-task__due">
-                          Due {formatTaskDue(t.dueAt)}
+                          Due {formatTaskDue(t.dueAt, home?.eventTimezone)}
                         </p>
                       ) : null}
                       {t.linkUrl ? (
@@ -1826,21 +1855,15 @@ export function PortalHomePage() {
                   let whenWhere =
                     "Not scheduled yet — organisers will place this session.";
                   if (place) {
-                    try {
-                      const start = new Date(place.startsAt);
-                      const end = new Date(place.endsAt);
-                      const tz = home.eventTimezone ?? undefined;
-                      const fmt: Intl.DateTimeFormatOptions = {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                        timeZone: tz,
-                      };
-                      whenWhere = `${start.toLocaleString(undefined, fmt)} – ${end.toLocaleTimeString(undefined, { timeStyle: "short", timeZone: tz })}`;
-                      if (place.roomName) {
-                        whenWhere += ` · ${place.roomName}`;
-                      }
-                    } catch {
-                      whenWhere = `${place.startsAt} – ${place.endsAt}`;
+                    // Event-local time with a short zone label (B1) — a bare
+                    // viewer-local "3:00 AM" reads as a bug.
+                    whenWhere = formatSessionRange(
+                      place.startsAt,
+                      place.endsAt,
+                      home.eventTimezone,
+                    );
+                    if (place.roomName) {
+                      whenWhere += ` · ${place.roomName}`;
                     }
                   }
                   return (

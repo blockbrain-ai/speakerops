@@ -296,7 +296,10 @@ test("@inv:G11 e2e/portal/section-nav speaker tabs switch views in place — no 
     page.locator("[data-testid^='portal-task-link-']").first(),
   ).toHaveAttribute("href", GUIDE_LINK_URL);
 
-  // Profile tab: focus lands in the editable bio field.
+  // Profile tab (plain switch): focus lands on the VIEW HEADING, never the
+  // bio textarea — focusing an editable field on a plain tab switch pops
+  // the mobile keyboard uninvited (B2). The explicit "Update profile" CTA
+  // path (asserted below) is the only route into the bio field.
   await page.getByTestId("portal-nav-profile").click();
   await expect(page.getByTestId("portal-profile")).toBeVisible();
   await expect(page.getByTestId("portal-tasks")).toHaveCount(0);
@@ -305,7 +308,8 @@ test("@inv:G11 e2e/portal/section-nav speaker tabs switch views in place — no 
     "aria-current",
     "page",
   );
-  await expect(page.getByTestId("portal-bio-input")).toBeFocused();
+  await expect(page.locator("#portal-profile h2").first()).toBeFocused();
+  await expect(page.getByTestId("portal-bio-input")).not.toBeFocused();
 
   // Sessions tab: focus moves to the view heading.
   await page.getByTestId("portal-nav-sessions").click();
@@ -321,7 +325,8 @@ test("@inv:G11 e2e/portal/section-nav speaker tabs switch views in place — no 
     `Nav Talk ${run}`,
   );
 
-  // Home tab again.
+  // Home tab again. Canonical home URL carries NO section param (B4) —
+  // desktop Home link and mobile Home button must agree.
   await page.getByTestId("portal-nav-home").click();
   await expect(page.getByTestId("portal-section-home")).toBeVisible();
   await expect(page.getByTestId("portal-sessions")).toHaveCount(0);
@@ -329,6 +334,7 @@ test("@inv:G11 e2e/portal/section-nav speaker tabs switch views in place — no 
     "aria-current",
     "page",
   );
+  await expect(page).not.toHaveURL(/[?&]section=/);
   await expect(page.getByTestId("portal-welcome-name")).toBeFocused();
 
   // Summary cards are real navigation too.
@@ -350,6 +356,16 @@ test("@inv:G11 e2e/portal/section-nav speaker tabs switch views in place — no 
     "page",
   );
   // Still no document reload across the whole journey.
+  expect(await readReloadMarker(page)).toBe(1);
+
+  // Explicit "Update profile" CTA path (B2): the Home profile summary card
+  // is an edit intent, so focus DOES land in the editable bio field.
+  await page.getByTestId("portal-nav-home").click();
+  await expect(page.getByTestId("portal-section-home")).toBeVisible();
+  await page.getByTestId("portal-summary-profile").click();
+  await expect(page.getByTestId("portal-profile")).toBeVisible();
+  await expect(page).toHaveURL(/[?&]section=profile/);
+  await expect(page.getByTestId("portal-bio-input")).toBeFocused();
   expect(await readReloadMarker(page)).toBe(1);
 
   guards.assertClean();
@@ -437,6 +453,20 @@ test("speaker mobile bottom nav switches tabs", async ({
     "aria-current",
     "page",
   );
+  // Plain mobile tab switch also lands on the heading, not the bio field
+  // (B2 — the mobile keyboard must never pop uninvited).
+  await expect(page.locator("#portal-profile h2").first()).toBeFocused();
+  await expect(page.getByTestId("portal-bio-input")).not.toBeFocused();
+
+  // Mobile Home button produces the canonical URL — NO section param (B4),
+  // agreeing with the desktop Home link.
+  await page.getByTestId("portal-bottom-home").click();
+  await expect(page.getByTestId("portal-section-home")).toBeVisible();
+  await expect(page.getByTestId("portal-bottom-home")).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page).not.toHaveURL(/[?&]section=/);
 
   // No document reload across mobile tab switches.
   expect(await readReloadMarker(page)).toBe(1);

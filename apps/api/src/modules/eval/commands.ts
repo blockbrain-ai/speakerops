@@ -149,13 +149,18 @@ function toScoreDto(row: ScoreRow): ScoreDto {
   };
 }
 
-async function assignmentAggregate(
-  deps: EvalCommandDeps,
-  assignment: EvalAssignmentRow,
+/**
+ * Pure weighted aggregate from prefetched score rows (no store round-trips).
+ * Only `scored` assignments aggregate; scores for unknown criteria are ignored.
+ * Single source of aggregation semantics for both the per-assignment path
+ * (assignmentAggregate) and the batched paths (queue + admin rollup).
+ */
+function aggregateFromScoreRows(
+  status: string,
   criteria: EvalCriterionRow[],
-): Promise<number | null> {
-  if (assignment.status !== "scored") return null;
-  const scoreRows = await deps.eval.listScores(assignment.id);
+  scoreRows: ScoreRow[],
+): number | null {
+  if (status !== "scored") return null;
   const byCriterion = new Map(criteria.map((c) => [c.id, c]));
   const items: Array<{ value: number; weight: number }> = [];
   for (const s of scoreRows) {
@@ -164,6 +169,16 @@ async function assignmentAggregate(
     items.push({ value: s.value, weight: c.weight });
   }
   return computeWeightedAggregate(items);
+}
+
+async function assignmentAggregate(
+  deps: EvalCommandDeps,
+  assignment: EvalAssignmentRow,
+  criteria: EvalCriterionRow[],
+): Promise<number | null> {
+  if (assignment.status !== "scored") return null;
+  const scoreRows = await deps.eval.listScores(assignment.id);
+  return aggregateFromScoreRows(assignment.status, criteria, scoreRows);
 }
 
 async function toAssignmentDto(
@@ -207,17 +222,7 @@ function toAssignmentDtoWithScores(
   criteria: EvalCriterionRow[],
   scoreRows: ScoreRow[],
 ): EvalAssignmentDto {
-  let aggregateScore: number | null = null;
-  if (row.status === "scored") {
-    const byCriterion = new Map(criteria.map((c) => [c.id, c]));
-    const items: Array<{ value: number; weight: number }> = [];
-    for (const s of scoreRows) {
-      const c = byCriterion.get(s.criterionId);
-      if (!c) continue;
-      items.push({ value: s.value, weight: c.weight });
-    }
-    aggregateScore = computeWeightedAggregate(items);
-  }
+  const aggregateScore = aggregateFromScoreRows(row.status, criteria, scoreRows);
   return {
     id: row.id,
     roundId: row.roundId,
@@ -1484,6 +1489,26 @@ export async function getAdminEvalRollup(
   const allAssignments = await deps.eval.listAssignmentsForRound(round.id);
   const submissions = await deps.submissions.listSubmissionsForEvent(eventId);
 
+  // Batched lookups (S-EVAL performance): the previous shape awaited
+  // assignmentAggregate + listScores + findUserById PER assignment — hundreds
+  // of sequential D1 round-trips (~4s live; blew the 12s client abort for far
+  // viewers). Batch, don't fan out: one chunked scores query for ALL
+  // assignment ids, one chunked users query for ALL evaluator ids, and
+  // aggregates computed in memory from the preloaded scores.
+  const validAssignments = allAssignments.filter((a) => (a.id ?? "").trim());
+  // Pre-group by submissionId — repeated allAssignments.filter(...) per
+  // submission is avoidable quadratic work.
+  const assignmentsBySubmission = new Map<string, EvalAssignmentRow[]>();
+  for (const a of validAssignments) {
+    const list = assignmentsBySubmission.get(a.submissionId);
+    if (list) list.push(a);
+    else assignmentsBySubmission.set(a.submissionId, [a]);
+  }
+  const [scoresByAssignment, usersById] = await Promise.all([
+    deps.eval.listScoresForAssignments(validAssignments.map((a) => a.id)),
+    deps.auth.findUsersByIds(validAssignments.map((a) => a.evaluatorUserId)),
+  ]);
+
   const rollups: EvalAdminSubmissionRollup[] = [];
   for (const sub of submissions) {
     // Harden against corrupt SoR rows — skip rather than 500 the whole rollup.
@@ -1502,23 +1527,20 @@ export async function getAdminEvalRollup(
         ? null
         : String(sub.category);
 
-    const subAssignments = allAssignments.filter(
-      (a) => a.submissionId === submissionId,
-    );
+    const subAssignments = assignmentsBySubmission.get(submissionId) ?? [];
     const assignmentSummaries: EvalAdminSubmissionRollup["assignments"] = [];
     const aggregates: number[] = [];
     for (const a of subAssignments) {
-      if (!(a.id ?? "").trim()) continue;
-      const agg = await assignmentAggregate(deps, a, criteria);
+      const scoreRows = scoresByAssignment.get(a.id) ?? [];
+      const agg = aggregateFromScoreRows(a.status, criteria, scoreRows);
       const safeAgg =
         agg != null && Number.isFinite(agg) ? agg : null;
       if (safeAgg != null) aggregates.push(safeAgg);
-      const scoreRows = await deps.eval.listScores(a.id);
       const scores = scoreRows.map((s) => ({
         criterionId: s.criterionId,
         value: finiteOr(s.value, 0),
       }));
-      const evaluator = await deps.auth.findUserById(a.evaluatorUserId);
+      const evaluator = usersById.get(a.evaluatorUserId) ?? null;
       assignmentSummaries.push({
         id: a.id,
         evaluatorUserId: a.evaluatorUserId,
@@ -1675,6 +1697,8 @@ export async function getSubmissionEvalReviews(
  * Eval.ExportScores — CSV of submission scores/status for the active round.
  * Section 10.6 / S-EVAL-EXPORT (ABS-13-class single-round export).
  * Sort defaults to score_desc (null aggregates last).
+ * Delegates to getAdminEvalRollup, so it shares the batched (non-N+1)
+ * scores/users lookups — as does the Overview readiness request.
  */
 export async function exportAdminEvalCsv(
   deps: EvalCommandDeps,
