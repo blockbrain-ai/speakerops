@@ -163,3 +163,132 @@ describe("D1KeysStore created_at tolerance (7.1 Keys.List)", () => {
     }
   });
 });
+
+describe("D1KeysStore demo quota (8.4 atomic INSERT...SELECT enforcement)", () => {
+  const DEMO_UID = "user_demo_quota";
+
+  function keyRow(id: string, overrides: Partial<import("../../apps/api/src/modules/keys/store.js").ApiKeyRow> = {}) {
+    const nowIso = new Date().toISOString();
+    return {
+      id,
+      orgId: "org_quota",
+      name: id,
+      keyPrefix: `spk_${id.slice(-8).padStart(8, "0")}`,
+      keyHash: `hash_${id}`,
+      scopesJson: JSON.stringify(["events:read"]),
+      eventId: null,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      revokedAt: null,
+      createdBy: DEMO_UID,
+      createdAt: nowIso,
+      lastUsedAt: null,
+      ...overrides,
+    };
+  }
+
+  function quota(overrides: Partial<import("../../apps/api/src/modules/keys/store.js").DemoMintQuota> = {}) {
+    return {
+      creatorIds: [DEMO_UID],
+      nowIso: new Date().toISOString(),
+      activeLimit: 2,
+      mintWindowStartIso: new Date(
+        Date.now() - 24 * 60 * 60 * 1000,
+      ).toISOString(),
+      mintLimit: 100,
+      ...overrides,
+    };
+  }
+
+  async function quotaDb(prefix: string) {
+    const db = await migratedDb(prefix);
+    db.run(`INSERT INTO organizations (id, name, created_at, updated_at)
+            VALUES ('org_quota', 'Quota Org', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`);
+    return db;
+  }
+
+  it("active cap enforced inside the INSERT statement; revoke frees it", async () => {
+    const db = await quotaDb("spo-d1-quota-act-");
+    try {
+      const store = new D1KeysStore(new SqlJsD1(db));
+      expect(
+        await store.insertKeyWithinDemoQuota(keyRow("qa_1"), quota()),
+      ).toBe("inserted");
+      expect(
+        await store.insertKeyWithinDemoQuota(keyRow("qa_2"), quota()),
+      ).toBe("inserted");
+      // Third insert loses inside the single statement — no row written.
+      expect(
+        await store.insertKeyWithinDemoQuota(keyRow("qa_3"), quota()),
+      ).toBe("quota");
+      expect(await store.findById("qa_3")).toBeNull();
+
+      // Revocation frees the ACTIVE cap (releasing arm).
+      await store.revokeKey("qa_1", new Date().toISOString());
+      expect(
+        await store.insertKeyWithinDemoQuota(keyRow("qa_3"), quota()),
+      ).toBe("inserted");
+      expect(await store.findById("qa_3")).not.toBeNull();
+    } finally {
+      db.close();
+    }
+  });
+
+  it("rolling mint cap counts revoked rows too (non-releasing arm)", async () => {
+    const db = await quotaDb("spo-d1-quota-mint-");
+    try {
+      const store = new D1KeysStore(new SqlJsD1(db));
+      const q = () => quota({ activeLimit: 25, mintLimit: 3 });
+      expect(await store.insertKeyWithinDemoQuota(keyRow("qm_1"), q())).toBe(
+        "inserted",
+      );
+      // Revoke immediately — a create→revoke loop's residue.
+      await store.revokeKey("qm_1", new Date().toISOString());
+      expect(await store.insertKeyWithinDemoQuota(keyRow("qm_2"), q())).toBe(
+        "inserted",
+      );
+      expect(await store.insertKeyWithinDemoQuota(keyRow("qm_3"), q())).toBe(
+        "inserted",
+      );
+      // Only 2 active, but 3 mints in the window → blocked; nothing written.
+      expect(await store.insertKeyWithinDemoQuota(keyRow("qm_4"), q())).toBe(
+        "quota",
+      );
+      expect(await store.findById("qm_4")).toBeNull();
+      expect(
+        await store.countKeysCreatedSince([DEMO_UID], q().mintWindowStartIso),
+      ).toBe(3);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("offset-form future expiry counts as ACTIVE (datetime(), not lexical)", async () => {
+    const db = await quotaDb("spo-d1-quota-off-");
+    try {
+      const store = new D1KeysStore(new SqlJsD1(db));
+      // Instant 2h in the future written as -10:00 — the string sorts BEFORE
+      // now-Z, so a lexical compare would wrongly treat it as expired.
+      const instant = Date.now() + 2 * 60 * 60 * 1000;
+      const offsetIso = new Date(instant - 10 * 60 * 60 * 1000)
+        .toISOString()
+        .replace(/Z$/, "-10:00");
+      const nowIso = new Date().toISOString();
+      expect(offsetIso < nowIso).toBe(true); // the lexical trap is real
+      expect(Date.parse(offsetIso)).toBe(instant); // same future instant
+
+      await store.insertKey(keyRow("qo_1", { expiresAt: offsetIso }));
+      expect(await store.countActiveKeysByCreators([DEMO_UID], nowIso)).toBe(1);
+
+      // And an offset-form PAST expiry is correctly not active.
+      const pastOffset = new Date(Date.now() - 30 * 60 * 1000 - 10 * 60 * 60 * 1000)
+        .toISOString()
+        .replace(/Z$/, "-10:00");
+      await store.insertKey(
+        keyRow("qo_2", { keyHash: "hash_qo_2b", expiresAt: pastOffset }),
+      );
+      expect(await store.countActiveKeysByCreators([DEMO_UID], nowIso)).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+});

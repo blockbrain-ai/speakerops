@@ -6,7 +6,7 @@
  *
  * Plaintext secrets never persist — only key_hash (E10).
  */
-import { eq, isNull, and, or, gt, inArray, count } from "drizzle-orm";
+import { eq, isNull, and, or, gt, inArray, count, sql } from "drizzle-orm";
 import { API_KEY_CREATED_AT_FALLBACK } from "@speakerops/shared";
 import {
   createDb,
@@ -32,8 +32,35 @@ export type ApiKeyRow = {
   lastUsedAt: string | null;
 };
 
+/**
+ * Durable shared-demo mint quota (section 8.4) — enforced AT insertion so
+ * concurrent requests cannot all pass a pre-check and insert (TOCTOU).
+ */
+export type DemoMintQuota = {
+  /** Demo persona user ids the quota is shared across (created_by values). */
+  creatorIds: string[];
+  /** Evaluation instant (UTC Z ISO). */
+  nowIso: string;
+  /** Max active (not revoked, not expired) demo-created keys. */
+  activeLimit: number;
+  /** Rolling window start (UTC Z ISO) for the non-releasing mint cap. */
+  mintWindowStartIso: string;
+  /** Max mints inside the window — counted over ALL rows, revoked/expired included. */
+  mintLimit: number;
+};
+
 export type KeysStore = {
   insertKey(row: ApiKeyRow): Promise<ApiKeyRow>;
+  /**
+   * Quota-bounded insert — the enforcement point for demo mints. The count
+   * checks and the INSERT are one atomic operation (single SQL statement on
+   * D1; synchronous check+insert in memory), so N racing requests can never
+   * exceed the caps. Returns "quota" (no row written) when either cap is hit.
+   */
+  insertKeyWithinDemoQuota(
+    row: ApiKeyRow,
+    quota: DemoMintQuota,
+  ): Promise<"inserted" | "quota">;
   findById(id: string): Promise<ApiKeyRow | null>;
   findByHash(keyHash: string): Promise<ApiKeyRow | null>;
   listKeys(options?: { orgId?: string }): Promise<ApiKeyRow[]>;
@@ -47,13 +74,30 @@ export type KeysStore = {
   /**
    * COUNT of active keys (not revoked, not expired at nowIso) created by any
    * of the given user ids. Single aggregate query (idx_api_keys_created_by) —
-   * durable shared-demo mint quota (section 8.4); never materializes rows.
+   * demo quota fast-path/reporting (section 8.4); never materializes rows.
    */
   countActiveKeysByCreators(
     creatorIds: string[],
     nowIso: string,
   ): Promise<number>;
+  /**
+   * COUNT of ALL keys (any state — revoked/expired included) created by the
+   * given user ids after sinceIso. Non-releasing rolling mint window (8.4):
+   * a create→revoke loop cannot reset it.
+   */
+  countKeysCreatedSince(
+    creatorIds: string[],
+    sinceIso: string,
+  ): Promise<number>;
 };
+
+/** Robust instant comparison — never lexical; offset-form ISO handled. */
+function isAfterInstant(iso: string | null, thresholdIso: string): boolean {
+  if (!iso) return false;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return false;
+  return t > Date.parse(thresholdIso);
+}
 
 /**
  * In-memory keys store — unit tests + e2e-api-server without D1.
@@ -104,20 +148,66 @@ export class MemoryKeysStore implements KeysStore {
     this.keys.set(id, { ...row, lastUsedAt });
   }
 
-  async countActiveKeysByCreators(
-    creatorIds: string[],
-    nowIso: string,
-  ): Promise<number> {
-    if (creatorIds.length === 0) return 0;
+  /** Synchronous counts — shared by the quota-bounded insert (atomicity). */
+  private countActiveSync(creatorIds: string[], nowIso: string): number {
     const creators = new Set(creatorIds);
     let n = 0;
     for (const row of this.keys.values()) {
       if (!creators.has(row.createdBy)) continue;
       if (row.revokedAt) continue;
-      if (row.expiresAt && row.expiresAt <= nowIso) continue;
+      // Robust instant comparison (never lexical): an offset-form future
+      // expiry must count as active even when it sorts before now-Z.
+      if (row.expiresAt && !isAfterInstant(row.expiresAt, nowIso)) continue;
       n++;
     }
     return n;
+  }
+
+  private countCreatedSinceSync(creatorIds: string[], sinceIso: string): number {
+    const creators = new Set(creatorIds);
+    let n = 0;
+    for (const row of this.keys.values()) {
+      if (!creators.has(row.createdBy)) continue;
+      // Any state counts (revoked/expired included) — non-releasing window.
+      if (isAfterInstant(row.createdAt, sinceIso)) n++;
+    }
+    return n;
+  }
+
+  async countActiveKeysByCreators(
+    creatorIds: string[],
+    nowIso: string,
+  ): Promise<number> {
+    if (creatorIds.length === 0) return 0;
+    return this.countActiveSync(creatorIds, nowIso);
+  }
+
+  async countKeysCreatedSince(
+    creatorIds: string[],
+    sinceIso: string,
+  ): Promise<number> {
+    if (creatorIds.length === 0) return 0;
+    return this.countCreatedSinceSync(creatorIds, sinceIso);
+  }
+
+  async insertKeyWithinDemoQuota(
+    row: ApiKeyRow,
+    quota: DemoMintQuota,
+  ): Promise<"inserted" | "quota"> {
+    // Check + insert with no awaits in between — atomic within the event
+    // loop, mirroring the single-statement D1 semantics.
+    if (
+      this.countActiveSync(quota.creatorIds, quota.nowIso) >=
+        quota.activeLimit ||
+      this.countCreatedSinceSync(quota.creatorIds, quota.mintWindowStartIso) >=
+        quota.mintLimit
+    ) {
+      return "quota";
+    }
+    const copy = { ...row };
+    this.keys.set(copy.id, copy);
+    this.byHash.set(copy.keyHash, copy.id);
+    return "inserted";
   }
 }
 
@@ -230,9 +320,74 @@ export class D1KeysStore implements KeysStore {
         and(
           inArray(apiKeys.createdBy, creatorIds),
           isNull(apiKeys.revokedAt),
-          or(isNull(apiKeys.expiresAt), gt(apiKeys.expiresAt, nowIso)),
+          // datetime() normalizes offset-form ISO to UTC before comparing —
+          // never a lexical string compare (offset expiries must count).
+          or(
+            isNull(apiKeys.expiresAt),
+            gt(
+              sql`datetime(${apiKeys.expiresAt})`,
+              sql`datetime(${nowIso})`,
+            ),
+          ),
         ),
       );
     return rows[0]?.n ?? 0;
+  }
+
+  async countKeysCreatedSince(
+    creatorIds: string[],
+    sinceIso: string,
+  ): Promise<number> {
+    if (creatorIds.length === 0) return 0;
+    const rows = await this.db
+      .select({ n: count() })
+      .from(apiKeys)
+      .where(
+        and(
+          inArray(apiKeys.createdBy, creatorIds),
+          // Any state counts (revoked/expired included) — non-releasing.
+          // Raw compare keeps the (created_by, created_at) index range scan:
+          // created_at is always server-written Z-form ISO (never
+          // client-supplied), so lexical order IS instant order here.
+          gt(apiKeys.createdAt, sinceIso),
+        ),
+      );
+    return rows[0]?.n ?? 0;
+  }
+
+  async insertKeyWithinDemoQuota(
+    row: ApiKeyRow,
+    quota: DemoMintQuota,
+  ): Promise<"inserted" | "quota"> {
+    // Single statement: both quota counts AND the insert evaluate atomically
+    // inside one INSERT ... SELECT ... WHERE — racing requests serialize on
+    // the write and the losers insert nothing (meta.changes === 0).
+    const creators = sql.join(
+      quota.creatorIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
+    const result = await this.db.run(sql`
+      INSERT INTO api_keys (
+        id, org_id, name, key_prefix, key_hash, scopes_json,
+        event_id, expires_at, revoked_at, created_by, created_at, last_used_at
+      )
+      SELECT ${row.id}, ${row.orgId}, ${row.name}, ${row.keyPrefix},
+             ${row.keyHash}, ${row.scopesJson}, ${row.eventId},
+             ${row.expiresAt}, ${row.revokedAt}, ${row.createdBy},
+             ${row.createdAt}, ${row.lastUsedAt}
+      WHERE (
+        SELECT COUNT(*) FROM api_keys
+        WHERE created_by IN (${creators})
+          AND revoked_at IS NULL
+          AND (expires_at IS NULL
+               OR datetime(expires_at) > datetime(${quota.nowIso}))
+      ) < ${quota.activeLimit}
+      AND (
+        SELECT COUNT(*) FROM api_keys
+        WHERE created_by IN (${creators})
+          AND created_at > ${quota.mintWindowStartIso}
+      ) < ${quota.mintLimit}
+    `);
+    return d1Changes(result) === 0 ? "quota" : "inserted";
   }
 }

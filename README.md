@@ -6,7 +6,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 
 ## Judges — start here
 
-**Live demo:** <https://www.speakerops.org> · **Entry:** open [`/judge`](https://www.speakerops.org/judge) and use the access code from the competition submission (not in this repo) to explore as **admin**, **evaluator**, or **speaker** on the seeded ~150-speaker demo event. The role switcher (top of every shell) moves between roles without re-entering the code. Sessions last ~4 hours; the demo is shared and reset periodically; API keys minted in demo sessions expire after 4 hours (only demo-created keys can be revoked).
+**Live demo:** <https://www.speakerops.org> · **Entry:** open [`/judge`](https://www.speakerops.org/judge) and use the access code from the competition submission (not in this repo) to explore as **admin**, **evaluator**, or **speaker** on the seeded ~150-speaker demo event. The role switcher (top of every shell) moves between roles without re-entering the code. Sessions last ~4 hours; the demo is shared and reset periodically; API keys minted in demo sessions expire within at most 4 hours (only demo-created keys can be revoked).
 
 **10-minute happy path:** publish a CFP form (`Admin → CFP/Forms`) → submit it from [`/cfp/dogfood-2026`](https://www.speakerops.org/cfp/dogfood-2026) (or your own form's public link) → assign an evaluator (`Submissions → detail → Assign`) → score it with the proposal panel (`/eval`) → accept (`Submissions → decision`) → speaker portal onboarding (`/portal`) → place the session by drag-and-drop (`Schedule`) → download the `.ics` from the portal → watch `Overview` readiness update. Full feature map: [`docs/COMPETITION.md`](./docs/COMPETITION.md).
 

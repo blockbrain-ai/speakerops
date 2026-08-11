@@ -40,6 +40,10 @@ import {
   revokeKey,
   keyVisibleToScope,
   DEMO_ACTIVE_KEY_LIMIT,
+  DEMO_ACTIVE_KEY_LIMIT_COPY,
+  DEMO_MINT_LIMIT,
+  DEMO_MINT_LIMIT_COPY,
+  DEMO_MINT_WINDOW_MS,
   type KeysAdminScope,
 } from "./commands.js";
 
@@ -203,27 +207,33 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
     // durable quota bounds how many active demo keys can exist at once.
     // Bearer auth already rejects expired keys.
     let expiresAt = parsed.data.expiresAt ?? null;
+    let demoQuotaCreatorIds: string[] | undefined;
     if (await isDemoActor(store, c.get("user")?.email, actor.userId)) {
       // Durable quota — shared across every demo session and every bearer
       // key descending from one (isolate-local limits are insufficient on
-      // Workers). One indexed COUNT (idx_api_keys_created_by) per mint.
-      const demoCreatorIds = new Set<string>([actor.userId]);
+      // Workers). The counts below are only a FAST PATH for friendly errors:
+      // the atomic enforcement point is the quota-bounded INSERT inside
+      // createKey (TOCTOU-safe under concurrent requests).
+      const creatorIdSet = new Set<string>([actor.userId]);
       for (const email of Object.values(DEMO_ROLE_EMAILS)) {
         const persona = await store.findUserByEmail(email);
-        if (persona) demoCreatorIds.add(persona.id);
+        if (persona) creatorIdSet.add(persona.id);
       }
+      demoQuotaCreatorIds = [...creatorIdSet];
+      const nowIso = new Date().toISOString();
       const activeDemoKeys = await keys.countActiveKeysByCreators(
-        [...demoCreatorIds],
-        new Date().toISOString(),
+        demoQuotaCreatorIds,
+        nowIso,
       );
       if (activeDemoKeys >= DEMO_ACTIVE_KEY_LIMIT) {
-        return c.json(
-          errorEnvelope(
-            `Demo key limit reached — the shared demo allows ${DEMO_ACTIVE_KEY_LIMIT} active demo-created keys. Revoke keys you no longer need (or wait for older demo keys to expire) and try again.`,
-            FORBIDDEN,
-          ),
-          403,
-        );
+        return c.json(errorEnvelope(DEMO_ACTIVE_KEY_LIMIT_COPY, FORBIDDEN), 403);
+      }
+      const mintedInWindow = await keys.countKeysCreatedSince(
+        demoQuotaCreatorIds,
+        new Date(Date.parse(nowIso) - DEMO_MINT_WINDOW_MS).toISOString(),
+      );
+      if (mintedInWindow >= DEMO_MINT_LIMIT) {
+        return c.json(errorEnvelope(DEMO_MINT_LIMIT_COPY, FORBIDDEN), 403);
       }
 
       let capMs = Date.now() + DEMO_API_KEY_TTL_MS;
@@ -248,6 +258,7 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
     const result = await createKey(deps, {
       ...parsed.data,
       expiresAt,
+      demoQuotaCreatorIds,
       // createdBy must be the human user (session id or parent key.createdBy)
       // so child keys retain membership context (E2). Audit uses actorId.
       actorUserId: actor.userId,

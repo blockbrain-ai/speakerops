@@ -29,10 +29,24 @@ export type KeysCommandDeps = {
 /**
  * Max active (not revoked, not expired) keys created by demo personas —
  * durable shared-demo quota across sessions AND descendant bearer keys (8.4).
- * Self-healing: the 4h demo expiry clamp drains the count automatically, so
- * the cap also bounds demo row growth to roughly this many mints per 4h.
+ * Self-healing: the 4h demo expiry clamp drains the count automatically.
  */
 export const DEMO_ACTIVE_KEY_LIMIT = 25;
+
+/**
+ * Non-releasing rolling mint cap: max demo mints per 24h window counted over
+ * ALL demo-created rows regardless of revoked/expired state — so a
+ * create→revoke loop cannot grow api_keys/audit rows unbounded by freeing
+ * the active quota.
+ */
+export const DEMO_MINT_LIMIT = 100;
+export const DEMO_MINT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Human copy — active cap (releasing: revoke or expiry frees it). */
+export const DEMO_ACTIVE_KEY_LIMIT_COPY = `Demo key limit reached — the shared demo allows ${DEMO_ACTIVE_KEY_LIMIT} active demo-created keys. Revoke keys you no longer need (or wait for older demo keys to expire) and try again.`;
+
+/** Human copy — rolling mint cap (non-releasing: only time frees it). */
+export const DEMO_MINT_LIMIT_COPY = `Demo key mint limit reached for today — the shared demo allows ${DEMO_MINT_LIMIT} new keys per 24 hours. Try again later.`;
 
 export type CommandOk<T> = { ok: true; value: T };
 export type CommandErr = {
@@ -148,6 +162,12 @@ export type CreateKeyInput = KeysCreateBody & {
   correlationId: string;
   /** Caller authorization boundary — required for event/org isolation. */
   scope: KeysAdminScope;
+  /**
+   * Present when the acting principal is demo-linked (8.4): the demo persona
+   * user ids sharing the durable mint quota. Enforced atomically at the
+   * insert (never only by a pre-check — TOCTOU).
+   */
+  demoQuotaCreatorIds?: string[];
 };
 
 /**
@@ -282,7 +302,12 @@ export async function createKey(
     }
   }
 
-  const expiresAt = input.expiresAt ?? null;
+  // Normalize ALL stored expiry to UTC Z-form at write time: offset-form ISO
+  // ("…-10:00") must never reach storage, where lexical comparisons could
+  // mis-order it against Z-form instants.
+  const expiresAt = input.expiresAt
+    ? new Date(input.expiresAt).toISOString()
+    : null;
   if (expiresAt && isExpired(expiresAt)) {
     return {
       ok: false,
@@ -349,7 +374,34 @@ export async function createKey(
     lastUsedAt: null,
   };
 
-  await deps.keys.insertKey(row);
+  if (input.demoQuotaCreatorIds && input.demoQuotaCreatorIds.length > 0) {
+    // Demo-linked mint: the INSERT itself enforces both caps atomically
+    // (TOCTOU-safe). "quota" means no row was written.
+    const outcome = await deps.keys.insertKeyWithinDemoQuota(row, {
+      creatorIds: input.demoQuotaCreatorIds,
+      nowIso: now,
+      activeLimit: DEMO_ACTIVE_KEY_LIMIT,
+      mintWindowStartIso: new Date(
+        Date.parse(now) - DEMO_MINT_WINDOW_MS,
+      ).toISOString(),
+      mintLimit: DEMO_MINT_LIMIT,
+    });
+    if (outcome === "quota") {
+      // Follow-up read is for the error message only — enforcement already
+      // happened at the insert.
+      const active = await deps.keys.countActiveKeysByCreators(
+        input.demoQuotaCreatorIds,
+        now,
+      );
+      const error =
+        active >= DEMO_ACTIVE_KEY_LIMIT
+          ? DEMO_ACTIVE_KEY_LIMIT_COPY
+          : DEMO_MINT_LIMIT_COPY;
+      return { ok: false, status: 403, error, code: "FORBIDDEN" };
+    }
+  } else {
+    await deps.keys.insertKey(row);
+  }
 
   await deps.auth.insertAudit({
     id: uuidv7(),

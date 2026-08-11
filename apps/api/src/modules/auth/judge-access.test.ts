@@ -10,7 +10,9 @@
  * - enableRoleSwitcher off → route absent (404) even with a code
  * - rate limit: >10 attempts in window → 429
  * - audit event Auth.JudgeAccess recorded on mint (no token in payload)
- * - shared-demo blast radius: demo persona session cannot Keys.Create (403)
+ * - shared-demo blast radius: demo Keys.Create is expiry-clamped (≤4h,
+ *   capped by the authorizing credential) and quota-bounded (25 active /
+ *   100 mints per 24h); revoke limited to demo-created keys
  * - membership re-entry regression: accepted (provisioned) email NOT on the
  *   magic-link allowlist still receives a link (programReentry)
  */
@@ -18,6 +20,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   DEMO_ROLE_EMAILS,
   DEFAULT_BOOTSTRAP_EVENT_ID,
+  DEFAULT_ORG_ID,
   SESSION_COOKIE_NAME,
   JUDGE_SESSION_COOKIE_NAME,
 } from "@speakerops/shared";
@@ -601,6 +604,171 @@ describe("B07 judge access", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("concurrent demo creates cannot exceed the active cap (atomic insert, no TOCTOU)", async () => {
+    const { app, store, keys } = createAppWithAuth({
+      judgeAccessCode: JUDGE_CODE,
+    });
+    const demoUser = await seedPersona(store, "admin");
+    const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
+    expect(mint.status).toBe(200);
+    const cookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
+
+    // 40 parallel creates race the 25-active cap. The pre-check reads all
+    // observe the same low count — only the atomic quota-bounded INSERT can
+    // hold the line.
+    const results = await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        app.request("/api/keys", {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie },
+          body: JSON.stringify({
+            name: `race-${i}`,
+            scopes: ["events:read"],
+            eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+          }),
+        }),
+      ),
+    );
+    const statuses = results.map((r) => r.status);
+    expect(statuses.filter((s) => s === 201).length).toBe(25);
+    expect(statuses.filter((s) => s === 403).length).toBe(15);
+
+    // Durable proof: exactly 25 rows landed in the store.
+    expect(
+      await keys.countActiveKeysByCreators(
+        [demoUser.id],
+        new Date().toISOString(),
+      ),
+    ).toBe(25);
+  });
+
+  it("create→revoke loops stop at the non-releasing 24h mint cap (100) with its own copy", async () => {
+    const { app, store, keys } = createAppWithAuth({
+      judgeAccessCode: JUDGE_CODE,
+    });
+    const demoUser = await seedPersona(store, "admin");
+    const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
+    expect(mint.status).toBe(200);
+    const cookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
+
+    // Residue of a create→revoke loop: 99 demo mints inside the window,
+    // every one already revoked — the ACTIVE cap sees none of them.
+    const nowIso = new Date().toISOString();
+    for (let i = 0; i < 99; i++) {
+      await keys.insertKey({
+        id: `loop_${i}`,
+        orgId: DEFAULT_ORG_ID,
+        name: `loop-${i}`,
+        keyPrefix: `spk_loop${String(i).padStart(4, "0")}`,
+        keyHash: `hash_loop_${i}`,
+        scopesJson: JSON.stringify(["events:read"]),
+        eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        revokedAt: nowIso,
+        createdBy: demoUser.id,
+        createdAt: nowIso,
+        lastUsedAt: null,
+      });
+    }
+
+    const createDemoKey = (name: string) =>
+      app.request("/api/keys", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name,
+          scopes: ["events:read"],
+          eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        }),
+      });
+
+    // Mint #100 is still inside the cap.
+    const hundredth = await createDemoKey("loop-100");
+    expect(hundredth.status).toBe(201);
+    const created = (await hundredth.json()) as { id: string };
+
+    // Mint #101 blocked by the MINT cap (active count is only 1).
+    const over = await createDemoKey("loop-101");
+    expect(over.status).toBe(403);
+    const overBody = (await over.json()) as { error: string };
+    expect(overBody.error).toContain("Demo key mint limit reached for today");
+    expect(overBody.error).toContain("Try again later");
+
+    // Revoking does NOT free the mint window (non-releasing).
+    const revoke = await app.request(
+      `/api/keys/${encodeURIComponent(created.id)}`,
+      { method: "DELETE", headers: { cookie } },
+    );
+    expect(revoke.status).toBe(200);
+    const retry = await createDemoKey("loop-after-revoke");
+    expect(retry.status).toBe(403);
+    expect(((await retry.json()) as { error: string }).error).toContain(
+      "Demo key mint limit reached for today",
+    );
+  });
+
+  it("offset-form expiry is normalized to UTC Z and counts as active (no lexical evasion)", async () => {
+    const { app, store, keys } = createAppWithAuth({
+      judgeAccessCode: JUDGE_CODE,
+    });
+    const demoUser = await seedPersona(store, "admin");
+    const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
+    expect(mint.status).toBe(200);
+    const cookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
+
+    // Instant 2h in the future written in -10:00 form: the raw string sorts
+    // BEFORE now-Z, so lexical comparisons would treat it as expired.
+    const instant = Date.now() + 2 * 60 * 60 * 1000;
+    const offsetIso = new Date(instant - 10 * 60 * 60 * 1000)
+      .toISOString()
+      .replace(/Z$/, "-10:00");
+    expect(offsetIso < new Date().toISOString()).toBe(true); // trap is real
+    expect(Date.parse(offsetIso)).toBe(instant);
+
+    const res = await app.request("/api/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        name: "offset-expiry",
+        scopes: ["events:read"],
+        eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        expiresAt: offsetIso,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { expiresAt: string | null };
+    // Stored/returned in UTC Z-form, same instant.
+    expect(body.expiresAt).toBeTruthy();
+    expect(body.expiresAt!.endsWith("Z")).toBe(true);
+    expect(Date.parse(body.expiresAt!)).toBe(instant);
+
+    // Counts toward the active quota despite the offset form.
+    expect(
+      await keys.countActiveKeysByCreators(
+        [demoUser.id],
+        new Date().toISOString(),
+      ),
+    ).toBe(1);
+
+    // Offset-form PAST expiry is still rejected as expired (numeric parse).
+    const pastOffset = new Date(
+      Date.now() - 30 * 60 * 1000 - 10 * 60 * 60 * 1000,
+    )
+      .toISOString()
+      .replace(/Z$/, "-10:00");
+    const past = await app.request("/api/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        name: "offset-past",
+        scopes: ["events:read"],
+        eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        expiresAt: pastOffset,
+      }),
+    });
+    expect(past.status).toBe(400);
   });
 
   it("durable demo mint quota: 25 active demo keys max; revoke frees quota; real admins unaffected", async () => {
