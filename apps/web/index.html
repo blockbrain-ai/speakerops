@@ -20,28 +20,13 @@
     <title>SpeakerOps</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32" />
-    <!-- Self-hosted fonts (F1 · Sage & Honey lock): preload primary weights -->
-    <link
-      rel="preload"
-      href="/fonts/hanken-grotesk-latin-400-normal.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      href="/fonts/hanken-grotesk-latin-600-normal.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      href="/fonts/hanken-grotesk-latin-700-normal.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
+    <!--
+      Self-hosted fonts (F1 · Sage & Honey lock) load via @font-face in
+      fonts.css (font-display: swap). Manual <link rel=preload> was removed:
+      the SPA paints text after the JS boot, so the preloaded faces were not
+      applied "within a few seconds of load" and Chrome logged ~21 unused-
+      preload warnings (auditor-confirmed: F1 preloads, not DnD/modulepreload).
+    -->
   </head>
   <body>
     <div id="root"></div>

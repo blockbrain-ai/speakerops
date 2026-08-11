@@ -5,9 +5,10 @@
  * IBM Plex Mono (IDs / timestamps / counts / code, weights 400/600).
  * Source binaries: @fontsource/hanken-grotesk + @fontsource/ibm-plex-mono
  * (SIL OFL — licenses alongside the files in /public/fonts). The woff2 latin
- * subsets are served from /fonts/* (stable URLs) so index.html can preload
- * the primary weights; Vite-hashed @fontsource CSS imports would make static
- * preloading impossible.
+ * subsets are served from /fonts/* (stable URLs). index.html no longer
+ * <link rel=preload>s them: the SPA paints text after JS boot, so the
+ * preloaded faces logged Chrome "unused preload" warnings; @font-face with
+ * font-display: swap loads each weight on demand.
  *
  * No Google Fonts. font-display: swap keeps first paint on the system stack.
  */
