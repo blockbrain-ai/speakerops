@@ -62,9 +62,9 @@ The brief names nine primary feature areas. Six are implemented end-to-end; thre
 | 4 | Evaluation & scoring (human) | **Implemented** — proposal panel, rubric, peer reviews, deliberation, bulk decisions | §2 row 4 |
 | 5 | Drag-drop schedule + conflict detection (5 views) | **Implemented** | §2 row 5 |
 | 6 | Real-time readiness dashboard | **Implemented** | §2 row 6 |
-| 7 | Accelevents one-way integration | **Not built** — the outbox/projection pattern (see Airtable, 7.3) is the designed extension point for a second one-way target | [AIRTABLE.md](./AIRTABLE.md) |
-| 8 | Portal wiki / HTML embeds | **Not built** — portal is token-themed React; a sanitized rich-text block would slot into the portal home sections | — |
-| 9 | Embeddable mobile-friendly gallery/schedule | **Not built** — the public CFP page shows the public-surface pattern (SPA route + published tokens); a read-only schedule route would reuse it | — |
+| 7 | Accelevents one-way integration | **In build** (constitution Amendment A1, 2026-08-11) — outbox projector on the proven Airtable pattern: idempotent one-way upserts, retries, tombstones, replay; never dual-write | [AIRTABLE.md](./AIRTABLE.md) |
+| 8 | Portal resources/wiki + HTML embeds | **In build** (Amendment A1) — versioned rich-content pages with sandboxed, allowlisted embeds (separate CSP; never in the SPA origin) | — |
+| 9 | Embeddable mobile-friendly gallery/schedule | **In build** (Amendment A1) — Speaker Gallery, Schedule Itinerary, Sessions, Speakers, Agenda as public pages + styled-HTML embeds with device preview & copy-code, from a versioned published-programme read model | — |
 | — | AI-assisted multi-round review (brief: optional) | **Not built** (human single-round evaluation is complete; scoped API keys + CLI give an agent everything needed to draft reviews externally) | [CLI.md](./CLI.md) |
 
 ### Deliberate scope exclusions (product judgment, not brief items)

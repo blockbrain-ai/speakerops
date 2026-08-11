@@ -7,7 +7,7 @@ This file is loaded automatically by Claude Code at the start of every session. 
 - **UI:** React + Vite + TypeScript + Lumen (CSS variables; Design Kit tokens only)
 - **API:** Hono on Cloudflare Workers
 - **DB / SoR:** Cloudflare D1 + Drizzle (sole system of record — no Postgres dual-stack)
-- **Files:** R2 · **Jobs:** Queues + transactional outbox · **Live:** Durable Object invalidation only
+- **Files:** R2 (dogfood: D1 `file_blobs` fallback) · **Jobs:** Queues + transactional outbox · **Live:** near-real-time polling with freshness labels (DO invalidation is a design option, not deployed)
 - **Airtable:** one-way projection only (never SoR, never dual-write)
 - **Auth:** HttpOnly cookies (humans); scoped API keys + CLI (agents)
 - **E2E:** Playwright inventory-driven (`BROWSER_E2E_INVENTORY.md`)

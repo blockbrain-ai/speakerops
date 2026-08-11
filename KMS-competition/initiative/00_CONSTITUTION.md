@@ -54,10 +54,19 @@ A production-hard, Apple-level, agentic-first Program OS that replaces Sessionbo
 - Thin weekend mock with prototype shortcuts
 
 ### Non-goals (explicit)
-- Struck brief items: Accelevents integration, portal wiki/embeds, embeddable gallery, AI-assisted multi-round review
+- ~~Struck brief items: Accelevents integration, portal wiki/embeds, embeddable gallery~~ — **re-scoped to in-scope primary by Amendment A1 (below)**
+- AI-assisted multi-round review (**remains struck** — owner re-confirmed 2026-08-11: evaluation stays fully human-authority)
 - OR-Tools auto-scheduler, Temporal, Next/RSC default, multi-region HA
 - Freeform custom CSS/HTML theming
 - Production cutover of AIE’s live events (dogfood deploy only unless owner amends claim)
+- Event microsite; Forge source mirror (owner-excluded 2026-08-11)
+
+### Amendment A1 — 2026-08-11 (owner-directed; competition brief v2)
+The updated competition brief (`$10,0000 Kill My SaaS - Competition Brief.docx`, 2026-08-11, 42 screenshots) names as **primary** three features this constitution originally struck. By owner direction they are promoted to **in-scope primary**:
+1. **Accelevents one-way integration** — outbox projector (same pattern as Airtable): identity mapping, idempotent upserts, retries, tombstones, lag/status, replay. Never dual-write; no request-path calls; D1 stays SoR. Conditional on API credentials — if genuinely unavailable, the limitation is disclosed honestly, never stubbed.
+2. **Portal resources / wiki + sandboxed HTML embeds** — versioned rich-content pages, audience/event scoping, allowlisted embed blocks rendered in a sandboxed iframe with separate CSP (never in the SPA origin).
+3. **Embeddable, mobile-friendly public programme** — Speaker Gallery + Schedule Itinerary (plus Sessions/Speakers/Agenda) as first-class public pages AND styled-HTML embeds with device preview + copy-code, driven by a versioned **published programme read model** (public field allowlist; drafts never public).
+Also ratified under A1: **Airtable projection reactivated** (brief bonus); the master build governance lives outside this repo (owner's `MASTER_FIX_PLAN.md`); estate-truth correction — live invalidation is **polling-based** today (Durable Object invalidation is a design intent, not a deployed fact) and dogfood file storage uses the D1 `file_blobs` fallback where R2 is not provisioned. Judge-facing coverage docs (`docs/COMPETITION.md` §3) are updated to "in build" now and to "delivered" only when each feature ships with proof.
 
 ---
 
