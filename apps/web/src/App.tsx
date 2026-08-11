@@ -17,7 +17,6 @@
  */
 import {
   BrowserRouter,
-  Navigate,
   Outlet,
   Route,
   Routes,
@@ -50,6 +49,7 @@ import {
   BareLayout,
   NotFoundPage,
 } from "./routes/placeholders.js";
+import { PublicLandingPage } from "./pages/PublicLanding.js";
 import type { ReactNode } from "react";
 
 /**
@@ -111,7 +111,15 @@ function SpeakerGuard({ children }: { children: ReactNode }) {
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/admin" replace />} />
+      {/* Wave-1 public front door (owner-approved mock) — not a redirect to /admin. */}
+      <Route
+        path="/"
+        element={
+          <BareLayout>
+            <PublicLandingPage />
+          </BareLayout>
+        }
+      />
       <Route
         path="/login"
         element={

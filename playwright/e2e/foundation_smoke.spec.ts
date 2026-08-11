@@ -117,12 +117,13 @@ test.describe("1.6 foundation smoke (I12 keystone)", () => {
       event: { id: string };
     };
 
-    // --- assert page.goto baseURL shows text matching /CFP|Forms/i ---
+    // --- assert authenticated admin shell (CFP chrome).
+    // Wave-1: anonymous `/` is the public landing (not a redirect to /admin).
     await page.goto(baseURL ?? "/");
     await page.evaluate((id) => {
       localStorage.setItem("speakerops.activeEventId", id);
     }, created.event.id);
-    await page.goto(baseURL ?? "/");
+    await page.goto("/admin");
     await expect(page.getByTestId("app-root")).toBeVisible();
     await expect(page.getByTestId("admin-shell")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("admin-sidebar")).toBeVisible();
