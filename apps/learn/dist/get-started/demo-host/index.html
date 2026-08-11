@@ -89,7 +89,7 @@
 </section>
 <section class="learn-section">
 <h2 id="who-can-log-in">Who can log in</h2>
-<p><strong>Judges:</strong> open <code>https://www.speakerops.org/judge</code> and enter the access code from the competition submission. This mints a shared demo-persona session (admin, evaluator, or speaker) on the seeded demo event lasting about four hours; the role switcher at the top of every shell moves between roles without re-entering the code and is badged “Shared demo”. Demo sessions cannot create API keys.</p>
+<p><strong>Judges:</strong> open <code>https://www.speakerops.org/judge</code> and enter the access code from the competition submission. This mints a shared demo-persona session (admin, evaluator, or speaker) on the seeded demo event lasting about four hours; the role switcher at the top of every shell moves between roles without re-entering the code and is badged “Shared demo”. Demo sessions can create API keys with a server-clamped 4-hour expiry; only demo-created keys can be revoked.</p>
 <p><strong>Everyone else:</strong> login is membership-aware — there is no email allowlist. Existing users and provisioned members (for example a speaker whose CFP submission was accepted) can request a magic link on the login page; unknown emails cannot self-register. Check the inbox for the Cloudflare-delivered message, open the link once, and the Worker sets an HttpOnly session cookie. Links are single-use and short-lived.</p>
 <ol class="learn-steps">
 <li>Judges: open https://www.speakerops.org/judge, enter the access code, and pick a role.</li>
@@ -108,7 +108,7 @@
 <li>Seeded multi-speaker program graph on remote D1</li>
 <li>Public CFP open with Turnstile; uploads mime/size-restricted and rate limited</li>
 <li>Comms and auth email via Cloudflare Email Sending (no attachments — calendar .ics is a portal download)</li>
-<li>Role switcher on (shared demo); AUTH_DEV_OUTBOX off; demo sessions cannot mint API keys</li>
+<li>Role switcher on (shared demo); AUTH_DEV_OUTBOX off; demo sessions mint API keys clamped to a 4-hour expiry</li>
 </ul>
 </section>
 <section class="learn-section">

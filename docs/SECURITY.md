@@ -66,7 +66,7 @@ Magic-link exchange issues the cookie server-side. Tokens themselves are single-
 
 **Magic-link request policy (controlled dogfood):** existing users and provisioned members (e.g. accepted speakers via program re-entry) may request a login link; unknown emails cannot self-register. There is **no active email allowlist on the demo** (`MAGIC_LINK_ALLOWLIST` is unset on dogfood; it remains an optional extra-allow env name).
 
-**Judge access (competition demo):** the public `/judge` page posts to `POST /api/auth/judge-access`, which registers only when `JUDGE_ACCESS_CODE` (Worker secret) **and** `ROLE_SWITCHER_ENABLED=1` are set — otherwise the path 404s, indistinguishable from a non-existent route. The code is compared constant-time (both sides SHA-256), attempts are rate-limited (10 / 5 min / IP — best-effort per Worker isolate, in-memory), failures are generic 401s, and success mints a 4-hour demo-persona session on the server-fixed demo event. Demo sessions cannot create API keys.
+**Judge access (competition demo):** the public `/judge` page posts to `POST /api/auth/judge-access`, which registers only when `JUDGE_ACCESS_CODE` (Worker secret) **and** `ROLE_SWITCHER_ENABLED=1` are set — otherwise the path 404s, indistinguishable from a non-existent route. The code is compared constant-time (both sides SHA-256), attempts are rate-limited (10 / 5 min / IP — best-effort per Worker isolate, in-memory), failures are generic 401s, and success mints a 4-hour demo-persona session on the server-fixed demo event. Demo sessions can create API keys, but the server clamps their expiry to at most 4 hours (forced when omitted), and demo sessions may revoke only demo-created keys — seeded/owner keys stay protected.
 
 ---
 
@@ -77,7 +77,7 @@ Magic-link exchange issues the cookie server-side. Tokens themselves are single-
 | Format | Bearer secret prefix `spk_…` (minted once; store hashed server-side) |
 | Enforcement | Worker `requireScope` — CLI cannot bypass |
 | High-risk default-deny | `comms:send`, `decisions:write`, `keys:admin` on new keys |
-| Mint / revoke | Admin role + `keys:admin` for key admin operations; **demo-persona sessions (role switcher / judge access) cannot create keys** |
+| Mint / revoke | Admin role + `keys:admin` for key admin operations; **demo-persona sessions (role switcher / judge access) mint keys clamped to a 4-hour expiry and may revoke only demo-created keys** |
 | Env for CLI | `SPEAKEROPS_API_KEY` (name only in docs) |
 
 Canonical scopes: [SCOPES.md](../KMS-competition/initiative/contracts/SCOPES.md).  

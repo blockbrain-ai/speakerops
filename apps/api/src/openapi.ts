@@ -2355,7 +2355,7 @@ export const KEYS_OPENAPI_PATHS = {
       operationId: "Keys.Create",
       summary: "Keys.Create",
       description:
-        "Mint API key; secret returned once only; hash stored. Default-deny high-risk scopes unless explicitly listed.",
+        "Mint API key; secret returned once only; hash stored. Default-deny high-risk scopes unless explicitly listed. Demo (judge / role-switcher) sessions CAN create keys — the server clamps expiresAt to at most 4 hours from mint (forced to now + 4h when omitted). Revoke from demo sessions is limited to demo-created keys.",
       tags: ["Keys"],
       requestBody: {
         required: true,
@@ -2397,7 +2397,7 @@ export const KEYS_OPENAPI_PATHS = {
       operationId: "Keys.Revoke",
       summary: "Keys.Revoke",
       description:
-        "Soft-revoke API key; subsequent Bearer auth returns 401",
+        "Soft-revoke API key; subsequent Bearer auth returns 401. Demo (judge / role-switcher) sessions may revoke only demo-created keys; seeded/owner keys return 403.",
       tags: ["Keys"],
       parameters: [
         {

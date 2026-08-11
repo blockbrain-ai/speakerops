@@ -99,7 +99,7 @@
 <li>Confirm the list shows prefix and scopes without the full secret.</li>
 <li>To disable a compromised key, revoke it from the same screen.</li>
 </ol>
-<aside class="learn-callout learn-callout--warning" data-testid="learn-callout"><p><strong>WARNING.</strong> Default-deny scopes on new keys include comms:send, decisions:write, and keys:admin. Opt in only for trusted automation with human oversight. On the shared demo, judge and role-switcher demo sessions cannot create API keys — key mint requires a real admin login.</p></aside>
+<aside class="learn-callout learn-callout--warning" data-testid="learn-callout"><p><strong>WARNING.</strong> Default-deny scopes on new keys include comms:send, decisions:write, and keys:admin. Opt in only for trusted automation with human oversight. On the shared demo, judge and role-switcher demo sessions can create API keys — the server clamps their expiry to 4 hours (forced when omitted), and only demo-created keys can be revoked from a demo session.</p></aside>
 <div class="learn-table-wrap"><table class="learn-table">
 <thead><tr><th>Agent role</th><th>Example scopes</th></tr></thead>
 <tbody>

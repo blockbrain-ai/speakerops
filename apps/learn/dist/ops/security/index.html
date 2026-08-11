@@ -81,7 +81,7 @@
 </section>
 <section class="learn-section">
 <h2 id="session-cookies">Session cookies</h2>
-<p>Human sessions use the speakerops_session cookie with HttpOnly, Secure, SameSite=Lax, Path=/, and bounded Max-Age. Judge demo sessions minted on /judge share the same cookie discipline with a shorter four-hour TTL and cannot create API keys. Magic-link tokens are single-use and short-lived. Never place auth material in localStorage or sessionStorage.</p>
+<p>Human sessions use the speakerops_session cookie with HttpOnly, Secure, SameSite=Lax, Path=/, and bounded Max-Age. Judge demo sessions minted on /judge share the same cookie discipline with a shorter four-hour TTL; API keys they mint are clamped to the same four-hour expiry and only demo-created keys can be revoked. Magic-link tokens are single-use and short-lived. Never place auth material in localStorage or sessionStorage.</p>
 <ul class="learn-bullets">
 <li>HttpOnly + Secure + SameSite=Lax on production sessions</li>
 <li>No auth secrets in frontend storage APIs</li>

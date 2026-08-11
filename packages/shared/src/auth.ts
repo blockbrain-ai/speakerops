@@ -126,6 +126,24 @@ export const DEMO_ROLE_EMAILS = {
   speaker: "speaker@demo.speakerops.local",
 } as const satisfies Record<EventRole, string>;
 
+/**
+ * Email domain suffix identifying shared-demo personas (judge access /
+ * role switcher). Matches DEMO_ROLE_EMAILS and scripts/seed.ts.
+ */
+export const DEMO_EMAIL_DOMAIN = "@demo.speakerops.local" as const;
+
+/** True when the email belongs to a shared-demo persona. */
+export function isDemoEmail(email: string | null | undefined): boolean {
+  return !!email && email.toLowerCase().endsWith(DEMO_EMAIL_DOMAIN);
+}
+
+/**
+ * Max lifetime of API keys minted by demo personas (shared-demo blast
+ * radius, section 8.4): the server clamps Keys.Create expiresAt to
+ * now + this TTL for demo sessions — matching the judge session's 4h window.
+ */
+export const DEMO_API_KEY_TTL_MS = 4 * 60 * 60 * 1000;
+
 /** Session cookie name (HttpOnly Secure SameSite=Lax). */
 export const SESSION_COOKIE_NAME = "speakerops_session" as const;
 

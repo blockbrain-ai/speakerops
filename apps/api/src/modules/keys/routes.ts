@@ -17,6 +17,8 @@ import {
   KeysListResponseSchema,
   KeysRevokeResponseSchema,
   errorEnvelope,
+  isDemoEmail,
+  DEMO_API_KEY_TTL_MS,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
   NOT_FOUND,
@@ -35,6 +37,7 @@ import {
   createKey,
   listKeys,
   revokeKey,
+  keyVisibleToScope,
   type KeysAdminScope,
 } from "./commands.js";
 
@@ -100,6 +103,26 @@ async function resolveKeysAdminScope(
 }
 
 /**
+ * Whether the acting human principal is a shared-demo persona.
+ *
+ * Covers both auth paths (shared-demo blast radius, section 8.4):
+ * - session: the session user's email ends with the demo domain
+ * - bearer: the key's createdBy chains to a demo persona user id, so keys
+ *   minted by demo sessions cannot be used to escape the demo bounds
+ *   (e.g. mint a non-expiring child key or revoke owner keys).
+ */
+async function isDemoActor(
+  store: AuthStore,
+  sessionEmail: string | null | undefined,
+  actorUserId: string,
+): Promise<boolean> {
+  if (isDemoEmail(sessionEmail)) return true;
+  if (sessionEmail) return false; // real (non-demo) session user
+  const creator = await store.findUserById(actorUserId);
+  return isDemoEmail(creator?.email);
+}
+
+/**
  * Mount at /api/keys
  */
 export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
@@ -141,18 +164,6 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
         401,
       );
     }
-    // Shared-demo blast radius: demo personas (role switcher / judge access)
-    // may explore every surface but must not mint durable API credentials.
-    const sessionUser = c.get("user");
-    if (sessionUser?.email?.toLowerCase().endsWith("@demo.speakerops.local")) {
-      return c.json(
-        errorEnvelope(
-          "Demo sessions cannot create API keys (shared demo)",
-          "FORBIDDEN",
-        ),
-        403,
-      );
-    }
     const scope = await resolveKeysAdminScope(c, store, events);
     if (!scope) {
       return c.json(
@@ -181,8 +192,22 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
       );
     }
 
+    // Shared-demo blast radius: demo personas (role switcher / judge access)
+    // may exercise every surface, but keys they mint never outlive the demo
+    // window — expiresAt is clamped to min(requested, now + 4h), forced to
+    // now + 4h when absent. Bearer auth already rejects expired keys.
+    let expiresAt = parsed.data.expiresAt ?? null;
+    if (await isDemoActor(store, c.get("user")?.email, actor.userId)) {
+      const capMs = Date.now() + DEMO_API_KEY_TTL_MS;
+      const requestedMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+      if (!Number.isFinite(requestedMs) || requestedMs > capMs) {
+        expiresAt = new Date(capMs).toISOString();
+      }
+    }
+
     const result = await createKey(deps, {
       ...parsed.data,
+      expiresAt,
       // createdBy must be the human user (session id or parent key.createdBy)
       // so child keys retain membership context (E2). Audit uses actorId.
       actorUserId: actor.userId,
@@ -217,19 +242,6 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
         401,
       );
     }
-    // Shared-demo blast radius: demo personas (role switcher / judge access)
-    // must not perform durable key mutations — revoke included, or a judge
-    // could kill real API credentials for every other reviewer.
-    const sessionUser = c.get("user");
-    if (sessionUser?.email?.toLowerCase().endsWith("@demo.speakerops.local")) {
-      return c.json(
-        errorEnvelope(
-          "Demo sessions cannot revoke API keys (shared demo)",
-          "FORBIDDEN",
-        ),
-        403,
-      );
-    }
     const scope = await resolveKeysAdminScope(c, store, events);
     if (!scope) {
       return c.json(
@@ -244,6 +256,27 @@ export function createKeysRoutes(options: KeysRouteOptions): Hono<ApiEnv> {
         errorEnvelope("keyId required", VALIDATION_ERROR),
         400,
       );
+    }
+
+    // Shared-demo blast radius: demo personas (role switcher / judge access)
+    // may revoke only keys minted by demo personas — never seeded/owner
+    // credentials, or one judge could kill real API keys for every other
+    // reviewer. Out-of-boundary keys still fall through to the command's
+    // 404 (existence is never leaked).
+    if (await isDemoActor(store, c.get("user")?.email, actor.userId)) {
+      const target = await keys.findById(keyId);
+      if (target && keyVisibleToScope(target, scope)) {
+        const creator = await store.findUserById(target.createdBy);
+        if (!isDemoEmail(creator?.email)) {
+          return c.json(
+            errorEnvelope(
+              "Seeded demo keys can't be revoked — create your own key to try revocation.",
+              "FORBIDDEN",
+            ),
+            403,
+          );
+        }
+      }
     }
 
     const result = await revokeKey(deps, {

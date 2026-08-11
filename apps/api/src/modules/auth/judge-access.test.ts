@@ -161,25 +161,108 @@ describe("B07 judge access", () => {
     );
   });
 
-  it("demo persona session cannot create API keys (shared-demo blast radius)", async () => {
+  it("demo persona session mints keys with expiry clamped to 4h (shared-demo blast radius)", async () => {
     const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
-    await seedPersona(store, "admin");
+    const demoUser = await seedPersona(store, "admin");
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
     expect(mint.status).toBe(200);
     const cookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
 
-    const res = await app.request("/api/keys", {
+    const FOUR_H = 4 * 60 * 60 * 1000;
+    const createKey = (body: Record<string, unknown>) =>
+      app.request("/api/keys", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          scopes: ["events:read"],
+          eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+          ...body,
+        }),
+      });
+
+    // No expiresAt requested → server forces now + 4h.
+    const before = Date.now();
+    const absent = await createKey({ name: "judge-key-no-expiry" });
+    expect(absent.status).toBe(201);
+    const absentBody = (await absent.json()) as { expiresAt: string | null };
+    expect(absentBody.expiresAt).toBeTruthy();
+    expect(
+      Math.abs(Date.parse(absentBody.expiresAt!) - (before + FOUR_H)),
+    ).toBeLessThan(60_000);
+
+    // 30 days requested → clamped down to now + 4h.
+    const thirtyDays = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const clampStart = Date.now();
+    const clamped = await createKey({
+      name: "judge-key-30d",
+      expiresAt: thirtyDays,
+    });
+    expect(clamped.status).toBe(201);
+    const clampedBody = (await clamped.json()) as { expiresAt: string | null };
+    expect(clampedBody.expiresAt).toBeTruthy();
+    expect(clampedBody.expiresAt).not.toBe(thirtyDays);
+    expect(
+      Math.abs(Date.parse(clampedBody.expiresAt!) - (clampStart + FOUR_H)),
+    ).toBeLessThan(60_000);
+
+    // 1 hour requested (below the cap) → honored unchanged.
+    const oneHour = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const short = await createKey({
+      name: "judge-key-1h",
+      expiresAt: oneHour,
+    });
+    expect(short.status).toBe(201);
+    const shortBody = (await short.json()) as { expiresAt: string | null };
+    expect(shortBody.expiresAt).toBe(oneHour);
+
+    // Audit trail attributes every demo-minted key to the demo persona.
+    const audits = await store.listAudits();
+    const creates = audits.filter((a) => a.action === "Keys.Create");
+    expect(creates.length).toBe(3);
+    for (const a of creates) {
+      expect(a.actorId).toBe(demoUser.id);
+      expect(a.actorType).toBe("user");
+    }
+  });
+
+  it("demo persona can revoke a demo-created key (audit records demo actor)", async () => {
+    const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+    const demoUser = await seedPersona(store, "admin");
+    const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
+    expect(mint.status).toBe(200);
+    const cookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
+
+    const create = await app.request("/api/keys", {
       method: "POST",
       headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({
-        name: "judge-should-fail",
+        name: "judge-revoke-own",
         scopes: ["events:read"],
         eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
       }),
     });
-    expect(res.status).toBe(403);
-    const body = (await res.json()) as { error: string };
-    expect(body.error.toLowerCase()).toContain("demo");
+    expect(create.status).toBe(201);
+    const created = (await create.json()) as { id: string; secret: string };
+
+    const revoke = await app.request(
+      `/api/keys/${encodeURIComponent(created.id)}`,
+      { method: "DELETE", headers: { cookie } },
+    );
+    expect(revoke.status).toBe(200);
+
+    // Revoked demo key can no longer authenticate.
+    const denied = await app.request("/api/keys", {
+      headers: { authorization: `Bearer ${created.secret}` },
+    });
+    expect(denied.status).toBe(401);
+
+    const audits = await store.listAudits();
+    const revokeAudit = audits.find((a) => a.action === "Keys.Revoke");
+    expect(revokeAudit).toBeTruthy();
+    expect(revokeAudit!.actorId).toBe(demoUser.id);
+    expect(revokeAudit!.entityId).toBe(created.id);
   });
 
   it("role switch never extends the judge 4h TTL (child session ≤ authorizing session)", async () => {
@@ -264,7 +347,7 @@ describe("B07 judge access", () => {
     );
   });
 
-  it("demo persona session cannot revoke API keys; real admin revoke still works", async () => {
+  it("demo persona cannot revoke seeded (non-demo-created) keys; real admin revoke still works", async () => {
     const { app, store, outbox } = createAppWithAuth({
       judgeAccessCode: JUDGE_CODE,
     });
@@ -295,7 +378,12 @@ describe("B07 judge access", () => {
       }),
     });
     expect(create.status).toBe(201);
-    const created = (await create.json()) as { id: string };
+    const created = (await create.json()) as {
+      id: string;
+      expiresAt: string | null;
+    };
+    // Non-demo sessions are unchanged: no forced expiry.
+    expect(created.expiresAt).toBeNull();
 
     // Judge-minted demo admin session must NOT be able to revoke it.
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
@@ -307,8 +395,9 @@ describe("B07 judge access", () => {
     );
     expect(denied.status).toBe(403);
     const deniedBody = (await denied.json()) as { error: string };
-    expect(deniedBody.error.toLowerCase()).toContain("demo");
-    expect(deniedBody.error.toLowerCase()).toContain("revoke");
+    expect(deniedBody.error).toContain(
+      "Seeded demo keys can't be revoked — create your own key to try revocation.",
+    );
 
     // Key untouched; real admin revoke still works.
     const revoke = await app.request(
@@ -316,6 +405,82 @@ describe("B07 judge access", () => {
       { method: "DELETE", headers: { cookie: adminCookie } },
     );
     expect(revoke.status).toBe(200);
+  });
+
+  it("bearer keys minted by demo sessions stay demo-bounded (child clamp + seeded revoke 403)", async () => {
+    const { app, store, outbox } = createAppWithAuth({
+      judgeAccessCode: JUDGE_CODE,
+    });
+    await seedPersona(store, "admin");
+
+    // Seeded key from a real admin (target the demo bearer must not revoke).
+    const adminEmail = "real-admin-bearer-guard@example.com";
+    await app.request("/api/auth/magic-link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: adminEmail, purpose: "admin" }),
+    });
+    const linkToken = outbox.lastForEmail(adminEmail)!.token;
+    const exchange = await app.request("/api/auth/exchange", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: linkToken }),
+    });
+    const adminCookie = (exchange.headers.get("set-cookie") ?? "").split(";")[0]!;
+    const seeded = await app.request("/api/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: adminCookie },
+      body: JSON.stringify({
+        name: "seeded-bearer-guard-target",
+        scopes: ["events:read"],
+      }),
+    });
+    expect(seeded.status).toBe(201);
+    const seededKey = (await seeded.json()) as { id: string };
+
+    // Demo session mints a keys:admin bearer key (explicit default-deny opt-in).
+    const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
+    expect(mint.status).toBe(200);
+    const demoCookie = (mint.headers.get("set-cookie") ?? "").split(";")[0]!;
+    const demoCreate = await app.request("/api/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: demoCookie },
+      body: JSON.stringify({
+        name: "judge-keys-admin",
+        scopes: ["keys:admin"],
+        eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+      }),
+    });
+    expect(demoCreate.status).toBe(201);
+    const demoKey = (await demoCreate.json()) as { secret: string };
+    const bearer = { authorization: `Bearer ${demoKey.secret}` };
+
+    // Child key minted via the demo bearer is clamped too — the 4h bound
+    // cannot be escaped by chaining through Bearer keys:admin.
+    const before = Date.now();
+    const child = await app.request("/api/keys", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...bearer },
+      body: JSON.stringify({
+        name: "judge-bearer-child",
+        scopes: ["events:read"],
+      }),
+    });
+    expect(child.status).toBe(201);
+    const childBody = (await child.json()) as { expiresAt: string | null };
+    expect(childBody.expiresAt).toBeTruthy();
+    expect(
+      Date.parse(childBody.expiresAt!) - before,
+    ).toBeLessThanOrEqual(4 * 60 * 60 * 1000 + 60_000);
+
+    // Seeded key revoke via the demo bearer stays blocked.
+    const denied = await app.request(
+      `/api/keys/${encodeURIComponent(seededKey.id)}`,
+      { method: "DELETE", headers: bearer },
+    );
+    expect(denied.status).toBe(403);
+    const deniedBody = (await denied.json()) as { error: string };
+    expect(deniedBody.error).toContain("Seeded demo keys can't be revoked");
   });
 
   it("membership re-entry: provisioned email off the allowlist still gets a link", async () => {

@@ -1,6 +1,6 @@
 {
   "ratified_section": "0.3",
-  "ratified_date": "2026-08-10",
+  "ratified_date": "2026-08-11",
   "description": "Exact REQUIRED inventory ID set ratified at section 0.3. Anti-shrinkage: every ID must remain present; omission only via owner DEFER status on that row. IDs must not be deleted or reused for different behavior. fingerprints lock stable test_id + journey per ID (anti-reuse).",
   "required_ids": [
     "A01",
@@ -120,6 +120,7 @@
     "K02",
     "K03",
     "K04",
+    "K05",
     "L01",
     "L02",
     "L2-01",
@@ -530,6 +531,10 @@
     "K04": {
       "test_id": "e2e/keys/authz",
       "journey": "Non-admin cannot open keys"
+    },
+    "K05": {
+      "test_id": "e2e/keys/demo-clamp",
+      "journey": "Judge demo session mints 4h key, uses and revokes it; seeded key revoke blocked"
     },
     "L01": {
       "test_id": "e2e/states/empty-sub",

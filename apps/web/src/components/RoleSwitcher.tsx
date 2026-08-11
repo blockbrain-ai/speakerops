@@ -151,7 +151,7 @@ export function RoleSwitcher({
       <span
         className="role-switcher__badge"
         data-testid="role-switcher-badge"
-        title="Shared demo — data is shared between reviewers and reset periodically; demo sessions cannot create API keys"
+        title="Shared demo — data is shared between reviewers and reset periodically; API keys created here expire after 4 hours"
       >
         Shared demo
       </span>

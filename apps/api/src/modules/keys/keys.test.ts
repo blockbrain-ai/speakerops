@@ -258,6 +258,65 @@ describe("7.1 API keys", () => {
     expect(err.code).toBe(UNAUTHORIZED);
   });
 
+  it("assert expired key 401 on API call (bearer auth honors expiresAt)", async () => {
+    const { app, keys, userId } = await magicLinkSession(
+      "admin",
+      "keys-expired@example.com",
+    );
+    const { DEFAULT_ORG_ID, DEFAULT_BOOTSTRAP_EVENT_ID } = await import(
+      "@speakerops/shared"
+    );
+
+    const insertBearerKey = async (
+      id: string,
+      secret: string,
+      expiresAt: string | null,
+    ) => {
+      await keys.insertKey({
+        id,
+        orgId: DEFAULT_ORG_ID,
+        name: id,
+        keyPrefix: secret.slice(0, 12),
+        keyHash: await hashToken(secret),
+        scopesJson: JSON.stringify(["keys:admin"]),
+        eventId: DEFAULT_BOOTSTRAP_EVENT_ID,
+        expiresAt,
+        revokedAt: null,
+        createdBy: userId,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: null,
+      });
+    };
+
+    // Control: identical key without expiry authenticates (proves the 401
+    // below is caused by expiry, not by the fixture shape).
+    const liveSecret = "spk_11aa22bb_expirycontrolsecret000000";
+    await insertBearerKey("key_expiry_control", liveSecret, null);
+    const ok = await app.request(
+      "http://localhost/api/keys",
+      { headers: { authorization: `Bearer ${liveSecret}` } },
+      env,
+    );
+    expect(ok.status).toBe(200);
+
+    // Expired key (expiresAt in the past) must be rejected with 401.
+    const expiredSecret = "spk_33cc44dd_expiredbearersecret00000";
+    await insertBearerKey(
+      "key_expiry_expired",
+      expiredSecret,
+      new Date(Date.now() - 60_000).toISOString(),
+    );
+    const denied = await app.request(
+      "http://localhost/api/keys",
+      { headers: { authorization: `Bearer ${expiredSecret}` } },
+      env,
+    );
+    expect(denied.status).toBe(401);
+    expect(ErrorEnvelopeSchema.parse(await denied.json()).code).toBe(
+      UNAUTHORIZED,
+    );
+  });
+
   it("default-deny scopes not auto-granted on create", async () => {
     const { app, cookie, keys } = await magicLinkSession(
       "admin",

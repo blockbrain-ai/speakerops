@@ -81,7 +81,7 @@
 </section>
 <section class="learn-section">
 <h2 id="judge-access">Judge access</h2>
-<p>Competition judges open <code>/judge</code> and enter the access code from the submission. This mints a shared demo-persona session (admin, evaluator, or speaker) on the seeded demo event that lasts about four hours. The role switcher at the top of every shell moves between roles without re-entering the code and is badged “Shared demo”. Attempts are rate-limited (10 per 5 minutes per IP), the page 404s when judge access is disabled, and demo sessions cannot create API keys.</p>
+<p>Competition judges open <code>/judge</code> and enter the access code from the submission. This mints a shared demo-persona session (admin, evaluator, or speaker) on the seeded demo event that lasts about four hours. The role switcher at the top of every shell moves between roles without re-entering the code and is badged “Shared demo”. Attempts are rate-limited (10 per 5 minutes per IP), the page 404s when judge access is disabled, and demo sessions mint API keys clamped to a 4-hour expiry (revoke limited to demo-created keys).</p>
 </section>
 <section class="learn-section">
 <h2 id="get-access">Get access as a real entrant</h2>

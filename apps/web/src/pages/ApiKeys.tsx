@@ -26,6 +26,7 @@ import {
   KeysListResponseSchema,
   KeysCreateResponseSchema,
   KeysRevokeResponseSchema,
+  isDemoEmail,
   type ApiKeyDto,
   type ApiScope,
   type KeysCreateResponse,
@@ -39,6 +40,16 @@ import {
 } from "../components/ui/index.js";
 
 type StatusMsg = { kind: "ok" | "error"; text: string } | null;
+
+/** Human-readable expiry for key rows and the secret banner. */
+function formatExpiry(iso: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return iso;
+  return new Date(ms).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
 
 export function ApiKeysPage() {
   const { activeEventId } = useEventContext();
@@ -63,6 +74,31 @@ export function ApiKeysPage() {
 
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [revokeStatus, setRevokeStatus] = useState<StatusMsg>(null);
+
+  /** Shared-demo session (judge access / role switcher persona). */
+  const [demoSession, setDemoSession] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          headers: { accept: "application/json" },
+        });
+        if (!res.ok) return;
+        const raw = (await res.json()) as { email?: unknown };
+        if (!cancelled && typeof raw.email === "string") {
+          setDemoSession(isDemoEmail(raw.email));
+        }
+      } catch {
+        // Note is progressive enhancement only — never block the page.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loadKeys = useCallback(async () => {
     setLoadError(null);
@@ -300,6 +336,19 @@ export function ApiKeysPage() {
         explicitly select them.
       </p>
 
+      {/* Shared-demo note (K05) — demo keys are real but short-lived */}
+      {demoSession ? (
+        <p
+          className="api-keys__demo-note"
+          data-testid="api-keys-demo-note"
+          role="note"
+        >
+          You&apos;re in the shared demo: keys you create work everywhere but
+          expire after 4 hours, and only keys created in demo sessions can be
+          revoked.
+        </p>
+      ) : null}
+
       {/* K01 / K03 — one-time secret reveal */}
       {revealed ? (
         <section
@@ -339,6 +388,11 @@ export function ApiKeysPage() {
           <p className="api-keys__meta" data-testid="api-key-created-prefix">
             Prefix: <code data-testid="api-key-prefix-value">{revealed.prefix}</code>
           </p>
+          {revealed.expiresAt ? (
+            <p className="api-keys__meta" data-testid="api-key-created-expiry">
+              Expires {formatExpiry(revealed.expiresAt)}
+            </p>
+          ) : null}
           <button
             type="button"
             className="event-settings__submit lumen-focusable"
@@ -531,6 +585,14 @@ export function ApiKeysPage() {
                     data-testid="api-key-row-scopes"
                   >
                     {k.scopes.join(", ")}
+                  </span>
+                  <span
+                    className="api-keys__row-expires"
+                    data-testid="api-key-row-expires"
+                  >
+                    {k.expiresAt
+                      ? `expires ${formatExpiry(k.expiresAt)}`
+                      : "no expiry"}
                   </span>
                 </div>
                 <button

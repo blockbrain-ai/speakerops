@@ -126,7 +126,7 @@ speakerops keys create \
 - Secret is returned **once** in the create response. Store it in the host secret channel as `SPEAKEROPS_API_KEY`.
 - List endpoints never re-display the secret.
 - Without `keys:admin` → **exit 2** / HTTP **403** `FORBIDDEN` (CLI11).
-- **Shared-demo note:** demo-persona sessions (role switcher / `/judge` judge access) cannot create API keys — key mint needs a real admin login.
+- **Shared-demo note:** demo-persona sessions (role switcher / `/judge` judge access) can create API keys, but the server clamps their expiry to 4 hours (forced when omitted), and only demo-created keys can be revoked from a demo session.
 
 ### Scope recipes (examples — not values)
 
