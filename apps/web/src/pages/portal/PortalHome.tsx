@@ -49,6 +49,7 @@ import {
   type PortalSessionDto,
 } from "@speakerops/shared";
 import { RoleShell } from "../../layout/RoleShell.js";
+import { BrandMark } from "../../components/ui/BrandMark.js";
 import { EmptyState } from "../../components/ui/EmptyState.js";
 import { PortalFileField } from "../../components/portal/PortalFileField.js";
 import {
@@ -1062,22 +1063,24 @@ export function PortalHomePage() {
         style={portalStyle}
       >
         <div className="portal-card" data-testid="portal-missing-event">
-          <p className="portal-overline">Speaker portal</p>
+          {/* F1 — Signal mark on the bare programme-chooser card */}
+          <div className="role-shell__brand-row">
+            <BrandMark size={20} decorative />
+            <p className="portal-overline">Speaker portal</p>
+          </div>
           <h1 className="portal-title">Choose your programme</h1>
           <p className="portal-subtitle">
             Sign in with the email used for your invitation. We&apos;ll open
             your event automatically — or let you pick if you have more than
             one.
           </p>
-          <p className="portal-muted">
-            <Link
-              className="portal-link lumen-focusable"
-              to="/login"
-              data-testid="portal-login-link-no-event"
-            >
-              Sign in
-            </Link>
-          </p>
+          <Link
+            className="portal-btn lumen-focusable"
+            to="/login"
+            data-testid="portal-login-link-no-event"
+          >
+            Sign in
+          </Link>
         </div>
       </div>
     );
@@ -1092,7 +1095,10 @@ export function PortalHomePage() {
         style={portalStyle}
       >
         <div className="portal-card" data-testid="portal-unauthenticated">
-          <p className="portal-overline">Speaker portal</p>
+          <div className="role-shell__brand-row">
+            <BrandMark size={20} decorative />
+            <p className="portal-overline">Speaker portal</p>
+          </div>
           <h1 className="portal-title">Sign in required</h1>
           <p className="portal-subtitle">
             Your session expired or is missing. Request a speaker magic link.

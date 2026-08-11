@@ -198,7 +198,7 @@ Without `reports:read` → **exit 2** / **403**.
 speakerops design get --event evt_dogfood --json
 
 # CLI04 — set draft tokens only (no freeform CSS — E6 Lumen)
-speakerops design set --event evt_dogfood --brand '#4F46E5' --radius soft
+speakerops design set --event evt_dogfood --brand '#7BA88B' --radius soft
 
 # CLI05 — publish (fetches draft version then publishes)
 speakerops design publish --event evt_dogfood --json

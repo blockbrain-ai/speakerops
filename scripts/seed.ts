@@ -309,8 +309,8 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedResult> {
 
     for (const [id, name, color] of [
       ["track_seed_core", "Core AI", "#7ba88b"],
-      ["track_seed_ops", "Ops & Platform", "#0d9488"],
-      ["track_seed_product", "Product", "#d97706"],
+      ["track_seed_ops", "Ops & Platform", "#3f6e8c"],
+      ["track_seed_product", "Product", "#ce922e"],
     ] as const) {
       run(
         db,

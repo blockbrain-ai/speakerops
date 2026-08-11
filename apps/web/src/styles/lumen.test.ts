@@ -83,6 +83,74 @@ describe("1.4 lumen.css tokens", () => {
   });
 });
 
+describe("F1 Sage & Honey — WCAG contrast (chip + filled pairs)", () => {
+  /** Resolve a --lumen-* token to its literal hex from :root. */
+  function tokenHex(name: string): string {
+    const m = lumenCss.match(
+      new RegExp(`${name}\\s*:\\s*(#[0-9a-fA-F]{6})`),
+    );
+    expect(m, `token ${name} must be a literal hex in lumen.css`).toBeTruthy();
+    return m![1]!;
+  }
+
+  function relLum(hex: string): number {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const f = (v: number) =>
+      v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    const [r, g, b] = c.map(f) as [number, number, number];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function contrast(a: string, b: string): number {
+    const [hi, lo] = [relLum(a), relLum(b)].sort((x, y) => y - x) as [
+      number,
+      number,
+    ];
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  // Every soft-bg + fg chip pair must be AA (≥4.5:1) — C1 of the F1 audit.
+  const chipPairs: Array<[string, string]> = [
+    ["--lumen-success-soft", "--lumen-success-ink"],
+    ["--lumen-danger-soft", "--lumen-danger-ink"],
+    ["--lumen-warn-soft", "--lumen-clay-ink"],
+    ["--lumen-honey-soft", "--lumen-honey-ink"],
+    ["--lumen-clay-soft", "--lumen-clay-ink"],
+    ["--lumen-info-soft", "--lumen-info"],
+    ["--lumen-brand-soft", "--lumen-brand-deep"],
+    ["--lumen-leaf", "--lumen-success-ink"],
+  ];
+
+  it.each(chipPairs)("chip pair %s on %s is AA (≥4.5:1)", (bg, fg) => {
+    const ratio = contrast(tokenHex(bg), tokenHex(fg));
+    expect(ratio, `${fg} on ${bg} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(
+      4.5,
+    );
+  });
+
+  // Filled controls: white text on the deep fills.
+  const filledPairs: Array<[string, string]> = [
+    ["--lumen-brand-deep", "--lumen-text-on-brand"],
+    ["--lumen-action-hover", "--lumen-text-on-brand"],
+    ["--lumen-action-pressed", "--lumen-text-on-brand"],
+    ["--lumen-danger", "--lumen-text-on-danger"],
+    ["--lumen-success", "--lumen-text-inverse"],
+  ];
+
+  it.each(filledPairs)("filled pair %s with %s is AA (≥4.5:1)", (bg, fg) => {
+    const ratio = contrast(tokenHex(bg), tokenHex(fg));
+    expect(ratio, `${fg} on ${bg} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(
+      4.5,
+    );
+  });
+
+  // Sage bands carry ink (never white) — the locked-theme invariant.
+  it("light sage band carries ink text at ≥4.5:1", () => {
+    const ratio = contrast(tokenHex("--lumen-brand"), tokenHex("--lumen-text"));
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe("11.0 lumen.css Lumen 2 extended tokens (AC-11.0-B)", () => {
   it("defines extended space scale including space-5 used by shell", () => {
     expect(lumenCss).toMatch(/--lumen-space-5\s*:/);

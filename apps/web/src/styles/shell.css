@@ -609,8 +609,8 @@
   padding: var(--lumen-space-3) var(--lumen-space-4);
   border: none;
   border-radius: var(--lumen-radius-md);
-  background: var(--lumen-brand);
-  color: var(--lumen-brand-fg, var(--lumen-surface));
+  background: var(--lumen-action);
+  color: var(--lumen-text-on-brand, var(--lumen-surface));
   font-family: var(--lumen-font);
   font-size: 14px;
   font-weight: 600;
@@ -1598,8 +1598,10 @@
   padding: var(--lumen-space-3) var(--lumen-space-4);
   border: none;
   border-radius: var(--lumen-radius-md);
-  background: var(--lumen-brand);
-  color: var(--lumen-brand-fg, var(--lumen-surface));
+  /* Scoped: designTokensToCssVariables re-points --lumen-action at the
+     tenant brand; default (unbranded) is sage-deep + white (AA). */
+  background: var(--lumen-action);
+  color: var(--lumen-text-on-brand, var(--lumen-surface));
   font-family: var(--lumen-font);
   font-size: 14px;
   font-weight: 600;
@@ -2094,7 +2096,7 @@
 }
 
 .form-builder__outline-req {
-  color: var(--lumen-danger, var(--lumen-text-secondary));
+  color: var(--lumen-clay-ink);
   font-weight: 700;
 }
 
@@ -2378,7 +2380,7 @@
 }
 
 .form-builder__required-mark {
-  color: var(--lumen-danger);
+  color: var(--lumen-clay-ink);
   font-weight: 600;
 }
 
@@ -2523,7 +2525,7 @@
 }
 
 .role-shell__help:hover {
-  background: var(--lumen-brand-soft);
+  background: var(--lumen-leaf);
 }
 
 .role-shell__help-panel {
@@ -2576,12 +2578,12 @@
 }
 
 .role-shell__nav-link:hover {
-  background: var(--lumen-brand-soft);
+  background: var(--lumen-leaf);
   color: var(--lumen-action);
 }
 
 .role-shell__nav-link--active {
-  background: var(--lumen-brand-soft);
+  background: var(--lumen-leaf);
   color: var(--lumen-action);
   font-weight: 600;
 }
@@ -2781,7 +2783,7 @@
 }
 
 .portal-nav__link:hover {
-  background: var(--lumen-brand-soft);
+  background: var(--lumen-leaf);
 }
 
 .portal-card {
@@ -2795,7 +2797,7 @@
 
 .portal-card--highlight {
   border-color: var(--lumen-action);
-  box-shadow: var(--lumen-shadow-sm), 0 0 0 1px var(--lumen-brand-soft);
+  box-shadow: var(--lumen-shadow-sm), 0 0 0 1px var(--lumen-leaf);
 }
 
 .portal-form {
@@ -2856,7 +2858,7 @@
 }
 
 .portal-btn--secondary {
-  background: var(--lumen-brand-soft);
+  background: var(--lumen-leaf);
   color: var(--lumen-action);
 }
 
@@ -2980,7 +2982,7 @@
   padding: var(--lumen-space-4);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-md);
-  background: var(--lumen-brand-soft);
+  background: var(--lumen-leaf);
 }
 
 .eval-round-strip__row {
@@ -3022,7 +3024,7 @@
   border-radius: var(--lumen-radius-md);
   border: 1px solid var(--lumen-border);
   margin-top: var(--lumen-space-2);
-  background: var(--lumen-brand-soft);
+  background: var(--lumen-leaf);
 }
 
 .portal-task-list,
@@ -3165,7 +3167,7 @@
   margin-bottom: var(--lumen-space-4);
   padding: var(--lumen-space-5) var(--lumen-space-4);
   border-radius: var(--lumen-radius-md);
-  background: var(--lumen-brand-soft);
+  background: var(--lumen-leaf);
   border: 1px solid var(--lumen-border);
   box-shadow: var(--lumen-shadow-sm);
 }
@@ -3174,7 +3176,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 6px;
-  background: var(--lumen-brand);
+  background: var(--lumen-action);
   border-radius: var(--lumen-radius-md) 0 0 var(--lumen-radius-md);
 }
 
@@ -3232,7 +3234,7 @@
 .portal-progress__fill {
   height: 100%;
   min-width: 0;
-  background: var(--lumen-brand);
+  background: var(--lumen-action);
   border-radius: var(--lumen-radius-pill);
   transition: width var(--lumen-motion) var(--lumen-ease);
 }
@@ -3256,8 +3258,8 @@
 }
 
 .portal-progress__step--done {
-  border-color: var(--lumen-success, var(--lumen-brand));
-  background: var(--lumen-brand-soft);
+  border-color: var(--lumen-success);
+  background: var(--lumen-leaf);
 }
 
 .portal-progress__step-label {
@@ -3278,8 +3280,8 @@
 }
 
 .portal-card--celebrate {
-  border-color: var(--lumen-success, var(--lumen-brand));
-  background: var(--lumen-brand-soft);
+  border-color: var(--lumen-success);
+  background: var(--lumen-leaf);
 }
 
 .portal-next-kicker {
@@ -3377,12 +3379,12 @@
 }
 
 .portal-wizard__dot--done {
-  background: var(--lumen-brand);
+  background: var(--lumen-action);
   border-color: var(--lumen-action);
 }
 
 .portal-wizard__dot--current {
-  outline: 2px solid var(--lumen-brand);
+  outline: 2px solid var(--lumen-action);
   outline-offset: 2px;
 }
 
@@ -3530,12 +3532,12 @@
   .portal-bottom-nav__link:hover,
   .portal-bottom-nav__link:focus-visible {
     color: var(--lumen-action);
-    background: var(--lumen-brand-soft);
+    background: var(--lumen-leaf);
   }
 
   .portal-bottom-nav__link--active {
     color: var(--lumen-action);
-    background: var(--lumen-brand-soft);
+    background: var(--lumen-leaf);
     font-weight: 600;
   }
 
@@ -5609,9 +5611,10 @@ a.event-settings__btn {
 /* --- Admin evaluations insights (top 10 + divergence) --- */
 .eval-insights {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: var(--lumen-space-4);
   margin: var(--lumen-space-4) 0;
+  min-width: 0;
 }
 .eval-insights__list {
   list-style: none;
@@ -5626,6 +5629,8 @@ a.event-settings__btn {
   gap: var(--lumen-space-2);
   padding: var(--lumen-space-1) var(--lumen-space-2);
   border-radius: var(--lumen-radius-sm);
+  min-width: 0;
+  max-width: 100%;
 }
 .eval-insights__row:hover {
   background: var(--lumen-surface-muted);
@@ -6137,8 +6142,7 @@ input.speakers-page__profile-input,
   .comms-campaign__step,
   .portal-nav__link,
   .role-shell__nav-link,
-  .api-keys__copy-prefix,
-  .role-switcher__select {
+  .api-keys__copy-prefix {
     position: relative;
   }
 
@@ -6148,8 +6152,7 @@ input.speakers-page__profile-input,
   .comms-campaign__step::before,
   .portal-nav__link::before,
   .role-shell__nav-link::before,
-  .api-keys__copy-prefix::before,
-  .role-switcher__select::before {
+  .api-keys__copy-prefix::before {
     content: "";
     position: absolute;
     left: 0;
@@ -6157,6 +6160,15 @@ input.speakers-page__profile-input,
     top: 50%;
     transform: translateY(-50%);
     height: var(--lumen-touch-min);
+  }
+
+  /* Native <select> ignores ::before — pad the wrapping label instead so the
+     demo-role chip's tap area is a real ≥44px on coarse pointers. */
+  .role-switcher__label {
+    padding-top: calc((var(--lumen-touch-min) - var(--lumen-control-h-sm)) / 2);
+    padding-bottom: calc(
+      (var(--lumen-touch-min) - var(--lumen-control-h-sm)) / 2
+    );
   }
 }
 

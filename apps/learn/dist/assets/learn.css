@@ -1,16 +1,16 @@
 /* SpeakerOps Learn — docs layout: left sidebar + article + optional TOC */
 :root {
-  --lumen-bg: #f4f5f7;
+  --lumen-bg: #fcfbf9;
   --lumen-surface: #ffffff;
-  --lumen-text: #1d1d1f;
-  --lumen-text-secondary: #5c5c63;
-  --lumen-border: rgba(0, 0, 0, 0.08);
-  --lumen-brand: #4f46e5;
-  --lumen-brand-soft: #eef2ff;
+  --lumen-text: #1e2621;
+  --lumen-text-secondary: #6a736c;
+  --lumen-border: #e7e2da;
+  --lumen-brand: #3e6b50;
+  --lumen-brand-soft: #e7efdf;
   --lumen-radius-sm: 8px;
   --lumen-radius-md: 12px;
-  --lumen-focus: #4f46e5;
-  --lumen-focus-ring: 0 0 0 3px rgba(79, 70, 229, 0.35);
+  --lumen-focus: #3e6b50;
+  --lumen-focus-ring: 0 0 0 3px rgba(62, 107, 80, 0.35);
   --lumen-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --sidebar-w: 280px;
   --toc-w: 220px;
@@ -159,7 +159,7 @@ body {
   background: var(--lumen-brand-soft);
 }
 .learn-callout--tip { border-left: 4px solid var(--lumen-brand); }
-.learn-callout--warning { border-left: 4px solid #d97706; background: #fff7ed; }
+.learn-callout--warning { border-left: 4px solid #c2724e; background: #f1ddd1; }
 .learn-callout--note { border-left: 4px solid #64748b; background: #f8fafc; }
 .learn-callout p { margin: 0; }
 .learn-table-wrap { overflow-x: auto; margin: 0 0 18px; }

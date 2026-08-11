@@ -462,7 +462,7 @@ test("@inv:O03 e2e/settings/tracks tracks CRUD", async ({
   const switcher = await waitForEventSelect(page);
   await switcher.selectOption(event.id);
   await page.getByTestId("track-name-input").fill("Platform");
-  await page.getByTestId("track-color-input").fill("#0d9488");
+  await page.getByTestId("track-color-input").fill("#3f6e8c");
   await page.getByTestId("track-save").click();
   await expect(page.getByTestId("track-status")).toContainText(/Platform/i, {
     timeout: 10_000,

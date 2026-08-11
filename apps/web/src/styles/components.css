@@ -203,15 +203,16 @@
 .l2-field__control {
   display: block;
   width: 100%;
+  height: var(--lumen-control-h);
   min-height: var(--lumen-control-h);
-  padding: var(--lumen-space-2) var(--lumen-space-3);
+  padding: 0 var(--lumen-space-3);
   border: 1px solid var(--lumen-border-control);
   border-radius: var(--lumen-radius-control);
   background: var(--lumen-surface);
   color: var(--lumen-text);
   font-family: var(--lumen-font);
   font-size: var(--lumen-text-ui);
-  line-height: var(--lumen-text-ui-lh);
+  line-height: 1;
   transition:
     border-color var(--lumen-motion-fast) var(--lumen-ease),
     box-shadow var(--lumen-motion-fast) var(--lumen-ease),
@@ -264,7 +265,9 @@
 }
 
 textarea.l2-field__control {
+  height: auto;
   min-height: 96px;
+  padding: var(--lumen-space-2) var(--lumen-space-3);
   resize: vertical;
   line-height: var(--lumen-text-body-lh);
 }
@@ -306,7 +309,7 @@ textarea.l2-field__control {
 
 .l2-badge--success {
   background: var(--lumen-success-soft);
-  color: var(--lumen-success);
+  color: var(--lumen-success-ink);
 }
 
 .l2-badge--warn {
@@ -323,7 +326,7 @@ textarea.l2-field__control {
 
 .l2-badge--danger {
   background: var(--lumen-danger-soft);
-  color: var(--lumen-danger);
+  color: var(--lumen-danger-ink);
 }
 
 .l2-badge--info {
@@ -457,7 +460,7 @@ textarea.l2-field__control {
 .l2-alert--success {
   background: var(--lumen-success-soft);
   border-color: transparent;
-  color: var(--lumen-success);
+  color: var(--lumen-success-ink);
 }
 
 .l2-alert--success .l2-alert__body {
@@ -477,7 +480,7 @@ textarea.l2-field__control {
 .l2-alert--danger {
   background: var(--lumen-danger-soft);
   border-color: transparent;
-  color: var(--lumen-danger);
+  color: var(--lumen-danger-ink);
 }
 
 .l2-alert--danger .l2-alert__body {

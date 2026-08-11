@@ -8,18 +8,18 @@
   <title>Lumen design kit — SpeakerOps Reports</title>
   <style>
 :root {
-  --lumen-bg: #f5f5f7;
+  --lumen-bg: #fcfbf9;
   --lumen-surface: #ffffff;
-  --lumen-text: #1d1d1f;
-  --lumen-text-secondary: #6e6e73;
+  --lumen-text: #1e2621;
+  --lumen-text-secondary: #6a736c;
   --lumen-border: rgba(0, 0, 0, 0.08);
-  --lumen-brand: #4f46e5;
-  --lumen-brand-soft: #eef2ff;
-  --lumen-accent: #0d9488;
-  --lumen-success: #059669;
-  --lumen-warn: #d97706;
-  --lumen-danger: #dc2626;
-  --lumen-info: #0284c7;
+  --lumen-brand: #7ba88b;
+  --lumen-brand-soft: #e7efdf;
+  --lumen-accent: #ce922e;
+  --lumen-success: #3e7d5a;
+  --lumen-warn: #c2724e;
+  --lumen-danger: #b4472f;
+  --lumen-info: #3f6e8c;
   --lumen-radius-sm: 8px;
   --lumen-radius-md: 12px;
   --lumen-radius-lg: 16px;
@@ -27,7 +27,7 @@
   --lumen-radius-pill: 9999px;
   --lumen-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --lumen-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
-  --lumen-focus: #4f46e5;
+  --lumen-focus: #3e6b50;
   --lumen-focus-ring: 0 0 0 3px rgba(79, 70, 229, 0.35);
   --lumen-space-1: 4px;
   --lumen-space-2: 8px;
@@ -361,10 +361,10 @@ footer.report-footer code {
   <div class="swatch-row">
     <div class="swatch"><div class="chip" style="background:#f5f5f7"></div><div class="label">bg #f5f5f7</div></div>
     <div class="swatch"><div class="chip" style="background:#ffffff;border-bottom:1px solid rgba(0,0,0,0.08)"></div><div class="label">surface</div></div>
-    <div class="swatch"><div class="chip" style="background:#4f46e5"></div><div class="label">brand #4f46e5</div></div>
-    <div class="swatch"><div class="chip" style="background:#0d9488"></div><div class="label">accent #0d9488</div></div>
+    <div class="swatch"><div class="chip" style="background:#7ba88b"></div><div class="label">brand #7ba88b</div></div>
+    <div class="swatch"><div class="chip" style="background:#ce922e"></div><div class="label">accent #ce922e</div></div>
     <div class="swatch"><div class="chip" style="background:#059669"></div><div class="label">success</div></div>
-    <div class="swatch"><div class="chip" style="background:#d97706"></div><div class="label">warn</div></div>
+    <div class="swatch"><div class="chip" style="background:#c2724e"></div><div class="label">warn (clay)</div></div>
     <div class="swatch"><div class="chip" style="background:#dc2626"></div><div class="label">danger</div></div>
     <div class="swatch"><div class="chip" style="background:#0284c7"></div><div class="label">info</div></div>
   </div>
@@ -383,31 +383,32 @@ footer.report-footer code {
 <table><thead><tr><th>Fold</th><th>Rule</th></tr></thead><tbody><tr><td>MF contrast</td><td>Brand publish blocked if primary button fails AA on public CFP</td></tr><tr><td>MF focus</td><td><code>--lumen-focus</code> + <code>--lumen-focus-ring</code> required on interactive controls</td></tr><tr><td>MF retheme blast radius</td><td>Public CFP + speaker portal only; admin + evaluator stay Lumen default</td></tr><tr><td>MF SVG</td><td>SVG logos <strong>rejected</strong> in dogfood (no half-sanitizer)</td></tr><tr><td>MF status</td><td>Never color-only; soft-bg + strong-fg pairs; status colors do not retheme with brand</td></tr></tbody></table>
 <hr />
 <h2>2. Visual lock — token CSS variables</h2>
-<p><strong>Mood:</strong> Apple Calendar calm × Linear restraint × conference ops density only where needed.   <strong>Light default.</strong> Soft graphite text on cool gray canvas. No dark-dingy cockpit.   <strong>Dark mode:</strong> out of scope; ignore <code>prefers-color-scheme</code> dark (still honor <code>prefers-reduced-motion</code>).</p>
+<p><strong>Mood:</strong> Apple Calendar calm × Linear restraint × conference ops density only where needed.   <strong>Light default.</strong> Ink (green-charcoal) text on warm-white ground — gently pastel Sage &amp; Honey. No dark-dingy cockpit.   <strong>Dark mode:</strong> out of scope; ignore <code>prefers-color-scheme</code> dark (still honor <code>prefers-reduced-motion</code>).</p>
+<blockquote><p><strong>Re-locked 2026-08-11 (F1 wave):</strong> palette + type migrated to the owner-approved <strong>Sage &amp;amp; Honey</strong> theme (<code>~/Documents/KMS-competition/DESIGN_THEME_LOCKED.md</code>). Token <em>names</em> below are unchanged (still the SoT contract); <em>values</em> now carry the locked sage/honey/clay palette and self-hosted Hanken Grotesk / IBM Plex Mono.</p><p><strong>No-purple sweep allowlist (historical evidence — do NOT rewrite):</strong> the old indigo palette may legitimately survive in git history and in frozen evidence artifacts that document past runs: <code>KMS-competition/initiative/evidence/**</code>, committed Playwright traces/screenshots under <code>test-results/**</code> and <code>playwright-report/**</code>, and prior-phase audit captures under <code>docs/audits/**</code> history. Everything ACTIVE (source, styles, seeds, docs, report generators, regenerated reports) must be purple-free.</p></blockquote>
 <h3>2.1 Canonical CSS variable list</h3>
 <p>Implement exactly these names in <code>apps/web/src/styles/lumen.css</code> (section 1.4+). Values are the dogfood default; event brand may override <strong>only</strong> the brand pair on public + portal surfaces (see §4).</p>
 <pre><code>:root {
-  --lumen-bg: #f5f5f7;
+  --lumen-bg: #fcfbf9;
   --lumen-surface: #ffffff;
-  --lumen-text: #1d1d1f;
-  --lumen-text-secondary: #6e6e73;
-  --lumen-border: rgba(0,0,0,0.08);
-  --lumen-brand: #4f46e5;      /* indigo — primary action */
-  --lumen-brand-soft: #eef2ff;
-  --lumen-accent: #0d9488;     /* teal — healthy completion */
-  --lumen-success: #059669;
-  --lumen-warn: #d97706;
-  --lumen-danger: #dc2626;
-  --lumen-info: #0284c7;
+  --lumen-text: #1e2621;
+  --lumen-text-secondary: #6a736c;
+  --lumen-border: #e7e2da;
+  --lumen-brand: #7ba88b;      /* sage — bands/nav/mark; carries ink text */
+  --lumen-brand-soft: #e7efdf; /* leaf */
+  --lumen-accent: #ce922e;     /* honey — highlight / in-progress */
+  --lumen-success: #3e7d5a;
+  --lumen-warn: #c2724e;       /* clay — warning/overdue (honey owns highlight) */
+  --lumen-danger: #b4472f;
+  --lumen-info: #3f6e8c;
   --lumen-radius-sm: 8px;
   --lumen-radius-md: 12px;
   --lumen-radius-lg: 16px;
   --lumen-radius-xl: 22px;
   --lumen-radius-pill: 9999px;
-  --lumen-font: &quot;Inter&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
+  --lumen-font: &quot;Hanken Grotesk&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
   --lumen-shadow-sm: 0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
-  --lumen-focus: #4f46e5;
-  --lumen-focus-ring: 0 0 0 3px rgba(79, 70, 229, 0.35);
+  --lumen-focus: #3e6b50;
+  --lumen-focus-ring: 0 0 0 3px rgba(62, 107, 80, 0.35);
   --lumen-disabled-opacity: 0.45;
   --lumen-space-1: 4px;
   --lumen-space-2: 8px;
@@ -419,19 +420,19 @@ footer.report-footer code {
   --lumen-z-toast: 60;
   --lumen-motion: 150ms;
   --lumen-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --lumen-success-soft: #d1fae5;
-  --lumen-warn-soft: #fef3c7;
-  --lumen-danger-soft: #fee2e2;
-  --lumen-info-soft: #e0f2fe;
+  --lumen-success-soft: #e7efdf;
+  --lumen-warn-soft: #f1ddd1;
+  --lumen-danger-soft: #f6dcd4;
+  --lumen-info-soft: #e4edf3;
 }</code></pre>
 <p><strong>Required token (a11y):</strong> <code>--lumen-focus-ring</code> must appear on all interactive controls; modals trap focus + Esc + restore. Do not ship components with browser-default-only focus.</p>
 <h3>2.2 Token invariants</h3>
-<table><thead><tr><th>Invariant</th><th>Rule</th></tr></thead><tbody><tr><td>Status vs brand</td><td><code>success</code> / <code>warn</code> / <code>danger</code> / <code>info</code> <strong>do not</strong> retheme with brand — Accepted stays green under any event brand</td></tr><tr><td>Status never color-only</td><td>Every badge has a text label (optional icon). Soft-bg + strong-fg pairs required</td></tr><tr><td>Theme via tokens only</td><td>No freeform CSS/HTML/JS in Design Kit (XSS)</td></tr><tr><td>Type</td><td>Inter / system UI. Display tight tracking (−0.03em). Body 16/1.5. Overlines 12 caps for section labels</td></tr></tbody></table>
+<table><thead><tr><th>Invariant</th><th>Rule</th></tr></thead><tbody><tr><td>Status vs brand</td><td><code>success</code> / <code>warn</code> / <code>danger</code> / <code>info</code> <strong>do not</strong> retheme with brand — Accepted stays green under any event brand</td></tr><tr><td>Status never color-only</td><td>Every badge has a text label (optional icon). Soft-bg + strong-fg pairs required</td></tr><tr><td>Theme via tokens only</td><td>No freeform CSS/HTML/JS in Design Kit (XSS)</td></tr><tr><td>Type</td><td>Hanken Grotesk (self-hosted, OFL) / system UI; IBM Plex Mono for data. Display tight tracking (−0.03em). Body 16/1.5. Overlines 12 caps for section labels</td></tr></tbody></table>
 <h3>2.3 Schema shape (<code>design_tokens</code>)</h3>
 <p>From <a href="../KMS-competition/initiative/contracts/SCHEMA.md"> C0 </a>:</p>
 <pre><code>{
-  &quot;brand&quot;: &quot;#4f46e5&quot;,
-  &quot;brandSoft&quot;: &quot;#eef2ff&quot;,
+  &quot;brand&quot;: &quot;#7ba88b&quot;,
+  &quot;brandSoft&quot;: &quot;#e7efdf&quot;,
   &quot;radius&quot;: &quot;md&quot;,
   &quot;wordmark&quot;: &quot;Event name&quot;,
   &quot;logoFileId&quot;: null
@@ -514,9 +515,9 @@ Public: CFP form only</code></pre>
 <p><em>— Ratified Lumen design system lock for SpeakerOps section 0.2</em></p>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-11T08:29:27.372Z" data-git-sha="c8e846004">
-  <div><strong>Generated:</strong> <time datetime="2026-08-11T08:29:27.372Z">2026-08-11T08:29:27.372Z</time></div>
-  <div><strong>Git SHA:</strong> <code>c8e846004</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-11T13:12:08.142Z" data-git-sha="e0ecce671">
+  <div><strong>Generated:</strong> <time datetime="2026-08-11T13:12:08.142Z">2026-08-11T13:12:08.142Z</time></div>
+  <div><strong>Git SHA:</strong> <code>e0ecce671</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/governance/0.2-lumen-lock.md · no secrets in report</div>
 </footer>
   </div>

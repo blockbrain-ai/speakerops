@@ -36,6 +36,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { BrandLockup } from "../components/ui/BrandMark.js";
 import { Navigate, useLocation } from "react-router-dom";
 import type { EventRole } from "@speakerops/shared";
 import { ErrorEnvelopeSchema } from "@speakerops/shared";
@@ -186,6 +187,10 @@ export function AccessDenied({
       role="alert"
     >
       <div className="access-denied__card">
+        {/* F1 — brand lockup on the access-denied card */}
+        <div className="login-card__brand">
+          <BrandLockup size={22} />
+        </div>
         <p className="access-denied__overline">SpeakerOps</p>
         <h1 className="access-denied__title" data-testid="access-denied-title">
           Access denied

@@ -35,8 +35,10 @@
   --lumen-clay-ink: #9a4a2e; /* text on clay-soft chips */
   --lumen-leaf: #e7efdf;
   --lumen-success: #3e7d5a; /* done / accepted (status ≠ brand) */
+  --lumen-success-ink: #2f6647; /* text on leaf chips (AA ≥4.5) */
   --lumen-warn: #c2724e; /* warning slot = clay (honey owns highlight) */
   --lumen-danger: #b4472f; /* destructive only — redder/darker than clay */
+  --lumen-danger-ink: #9e3b24; /* text on danger-soft chips (AA ≥4.5) */
   --lumen-info: #3f6e8c;
   --lumen-radius-sm: 8px;
   --lumen-radius-md: 12px;
@@ -278,7 +280,7 @@ textarea.lumen-focusable:focus-visible,
 
 .lumen-status--success {
   background: var(--lumen-success-soft);
-  color: var(--lumen-success);
+  color: var(--lumen-success-ink);
 }
 
 .lumen-status--warn {
@@ -294,7 +296,7 @@ textarea.lumen-focusable:focus-visible,
 
 .lumen-status--danger {
   background: var(--lumen-danger-soft);
-  color: var(--lumen-danger);
+  color: var(--lumen-danger-ink);
 }
 
 .lumen-status--info {

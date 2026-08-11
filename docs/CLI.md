@@ -95,7 +95,7 @@ speakerops design get --event <eventId> --json
 ### CLI04 — `design set`
 
 ```bash
-speakerops design set --event <eventId> --brand '#4F46E5' [--radius soft|curvy|round]
+speakerops design set --event <eventId> --brand '#7BA88B' [--radius soft|curvy|round]
 ```
 
 - **Scope:** `design:write`

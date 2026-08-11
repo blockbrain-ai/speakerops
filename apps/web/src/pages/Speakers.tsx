@@ -763,7 +763,7 @@ export function SpeakersPage() {
                     </Badge>
                     <Badge
                       tone={
-                        detail.participation.userId ? "success" : "warn"
+                        detail.participation.userId ? "success" : "progress"
                       }
                       data-testid="speakers-detail-confirmed"
                     >
@@ -1111,10 +1111,10 @@ export function SpeakersPage() {
                                 t.status === "completed"
                                   ? "success"
                                   : t.status === "overdue"
-                                    ? "danger"
+                                    ? "warn"
                                     : t.status === "cancelled"
                                       ? "neutral"
-                                      : "warn"
+                                      : "progress"
                               }
                               showDot
                               data-testid={`speakers-task-status-${t.id}`}

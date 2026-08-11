@@ -167,7 +167,7 @@ export const DEFAULT_DESIGN_TOKENS: DesignTokens = {
   radius: "soft",
   wordmark: null,
   logoFileId: null,
-  brandFg: "#1d1d1f",
+  brandFg: "#1e2621",
 };
 
 /** Map radius scale → CSS pixel token (closed set; not freeform). */
@@ -196,6 +196,10 @@ export function designTokensToCssVariables(tokens: DesignTokens): string {
     `--lumen-brand: ${tokens.brand}`,
     `--lumen-brand-soft: ${brandSoft}`,
     `--lumen-brand-fg: ${brandFg}`,
+    // Scoped action pair: the tenant brand drives filled CTAs inside the
+    // branded subtree; unbranded surfaces fall back to sage-deep + white.
+    `--lumen-action: ${tokens.brand}`,
+    `--lumen-text-on-brand: ${brandFg}`,
     `--lumen-radius-md: ${radius}`,
     `--event-wordmark: ${JSON.stringify(tokens.wordmark ?? "")}`,
   ].join("; ");
@@ -268,7 +272,7 @@ export function contrastRatio(hexA: string, hexB: string): number | null {
  */
 export function deriveBrandFg(brand: string): string {
   const white = "#ffffff";
-  const dark = "#1d1d1f";
+  const dark = "#1e2621"; // locked ink (Sage & Honey)
   const cWhite = contrastRatio(brand, white) ?? 0;
   const cDark = contrastRatio(brand, dark) ?? 0;
   return cDark >= cWhite ? dark : white;

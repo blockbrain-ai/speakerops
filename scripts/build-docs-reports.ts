@@ -57,18 +57,18 @@ export function resolveGitSha(root: string, override?: string): string {
 /** Lumen tokens inlined for offline HTML (E6 — no freeform palette). */
 export const LUMEN_REPORTS_CSS = `
 :root {
-  --lumen-bg: #f5f5f7;
+  --lumen-bg: #fcfbf9;
   --lumen-surface: #ffffff;
-  --lumen-text: #1d1d1f;
-  --lumen-text-secondary: #6e6e73;
+  --lumen-text: #1e2621;
+  --lumen-text-secondary: #6a736c;
   --lumen-border: rgba(0, 0, 0, 0.08);
   --lumen-brand: #7ba88b;
   --lumen-brand-soft: #e7efdf;
-  --lumen-accent: #0d9488;
-  --lumen-success: #059669;
-  --lumen-warn: #d97706;
-  --lumen-danger: #dc2626;
-  --lumen-info: #0284c7;
+  --lumen-accent: #ce922e;
+  --lumen-success: #3e7d5a;
+  --lumen-warn: #c2724e;
+  --lumen-danger: #b4472f;
+  --lumen-info: #3f6e8c;
   --lumen-radius-sm: 8px;
   --lumen-radius-md: 12px;
   --lumen-radius-lg: 16px;
@@ -857,9 +857,9 @@ function designLumenExtras(): string {
     <div class="swatch"><div class="chip" style="background:#f5f5f7"></div><div class="label">bg #f5f5f7</div></div>
     <div class="swatch"><div class="chip" style="background:#ffffff;border-bottom:1px solid rgba(0,0,0,0.08)"></div><div class="label">surface</div></div>
     <div class="swatch"><div class="chip" style="background:#7ba88b"></div><div class="label">brand #7ba88b</div></div>
-    <div class="swatch"><div class="chip" style="background:#0d9488"></div><div class="label">accent #0d9488</div></div>
+    <div class="swatch"><div class="chip" style="background:#ce922e"></div><div class="label">accent #ce922e</div></div>
     <div class="swatch"><div class="chip" style="background:#059669"></div><div class="label">success</div></div>
-    <div class="swatch"><div class="chip" style="background:#d97706"></div><div class="label">warn</div></div>
+    <div class="swatch"><div class="chip" style="background:#c2724e"></div><div class="label">warn (clay)</div></div>
     <div class="swatch"><div class="chip" style="background:#dc2626"></div><div class="label">danger</div></div>
     <div class="swatch"><div class="chip" style="background:#0284c7"></div><div class="label">info</div></div>
   </div>

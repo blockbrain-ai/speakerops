@@ -712,7 +712,7 @@ export function AdminEvaluationsPage() {
                                     ? "success"
                                     : a.status === "abstained"
                                       ? "warn"
-                                      : "neutral"
+                                      : "progress"
                                 }
                               >
                                 {a.status}
