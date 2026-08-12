@@ -7,6 +7,7 @@ import {
   CONTENT_SECURITY_POLICY_DEV,
   SECURITY_HEADERS,
   SECURITY_HEADERS_DEV,
+  SECURITY_HEADERS_EMBED,
 } from "@speakerops/shared";
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,17 @@ const productionHeaders: Record<string, string> = { ...SECURITY_HEADERS };
  * inline preamble and HMR websockets. Never used for preview or Worker.
  */
 const devHeaders: Record<string, string> = { ...SECURITY_HEADERS_DEV };
+
+/** /embed/* must be framable in local e2e (mirrors Worker SECURITY_HEADERS_EMBED). */
+const embedDevHeaders: Record<string, string> = {
+  ...SECURITY_HEADERS_DEV,
+  "Content-Security-Policy": CONTENT_SECURITY_POLICY_DEV.replace(
+    /frame-ancestors\s+'none'/i,
+    "frame-ancestors *",
+  ),
+};
+// Drop DENY so device-preview iframes work locally.
+delete embedDevHeaders["X-Frame-Options"];
 
 /**
  * Meta CSP must not include header-only directives. Chromium logs a console.error
@@ -66,8 +78,65 @@ function cspMetaAlignPlugin(): Plugin {
  * Production CSP on preview; dev/E2E CSP allows React preamble without
  * weakening Worker / production SECURITY_HEADERS.
  */
+function isEmbedUrl(url: string | undefined): boolean {
+  const path = (url ?? "").split("?")[0] ?? "";
+  return path === "/embed" || path.startsWith("/embed/");
+}
+
+/**
+ * Intercept setHeader so Vite's static `server.headers` DENY/frame-ancestors
+ * none cannot override embed framability (admin preview + N4 third-party).
+ */
+function interceptEmbedResponseHeaders(
+  req: { url?: string },
+  res: {
+    setHeader: (name: string | number, value: string | number | readonly string[]) => unknown;
+    removeHeader: (name: string) => void;
+  },
+  headers: Record<string, string>,
+) {
+  if (!isEmbedUrl(req.url)) return;
+  const orig = res.setHeader.bind(res);
+  res.setHeader = (name, value) => {
+    const key = String(name).toLowerCase();
+    if (key === "content-security-policy") {
+      return orig("Content-Security-Policy", headers["Content-Security-Policy"]!);
+    }
+    if (key === "x-frame-options") {
+      // Skip DENY for embed documents.
+      return res;
+    }
+    return orig(name, value);
+  };
+  // Ensure embed policy is present even if Vite never sets CSP.
+  for (const [k, v] of Object.entries(headers)) {
+    if (k.toLowerCase() === "x-frame-options") continue;
+    orig(k, v);
+  }
+  res.removeHeader("X-Frame-Options");
+}
+
+function embedPathPlugin(): Plugin {
+  return {
+    name: "speakerops-embed-csp",
+    configureServer(server) {
+      // Pre-middleware: wrap setHeader before Vite applies server.headers.
+      server.middlewares.use((req, res, next) => {
+        interceptEmbedResponseHeaders(req, res, embedDevHeaders);
+        next();
+      });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        interceptEmbedResponseHeaders(req, res, { ...SECURITY_HEADERS_EMBED });
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), cspMetaAlignPlugin()],
+  plugins: [react(), cspMetaAlignPlugin(), embedPathPlugin()],
   root: rootDir,
   publicDir: "public",
   build: {

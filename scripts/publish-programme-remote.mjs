@@ -59,17 +59,44 @@ if (!eventRows.length) {
 }
 const event = eventRows[0];
 
-const sessions = wranglerJson(
-  `SELECT id, title, description, track_id, status FROM sessions WHERE event_id='${esc(EVENT_ID)}' AND status != 'cancelled' LIMIT 500;`,
+// Keep snapshot under D1 SQLITE_TOOBIG: placed sessions + their speakers only
+// (full 150+ session dump exceeds wrangler execute statement size).
+const placements = wranglerJson(
+  `SELECT id, session_id, room_id, starts_at, ends_at FROM schedule_placements WHERE event_id='${esc(EVENT_ID)}' LIMIT 200;`,
 );
+const placedSessionIds = [
+  ...new Set(placements.map((p) => p.session_id).filter(Boolean)),
+];
+const sessionIdList =
+  placedSessionIds.length > 0
+    ? placedSessionIds.map((id) => `'${esc(id)}'`).join(",")
+    : "''";
+const sessions = wranglerJson(
+  `SELECT id, title, description, track_id, status FROM sessions WHERE event_id='${esc(EVENT_ID)}' AND status != 'cancelled' AND id IN (${sessionIdList}) LIMIT 200;`,
+);
+// Fallback: if no placements, publish first 40 sessions so public pages are non-empty
+const sessionsFallback =
+  sessions.length > 0
+    ? sessions
+    : wranglerJson(
+        `SELECT id, title, description, track_id, status FROM sessions WHERE event_id='${esc(EVENT_ID)}' AND status != 'cancelled' LIMIT 40;`,
+      );
+const sessionsFinal = sessions.length > 0 ? sessions : sessionsFallback;
+const sessionIdsForSpeakers = sessionsFinal.map((s) => s.id);
+const sessionIdList2 =
+  sessionIdsForSpeakers.length > 0
+    ? sessionIdsForSpeakers.map((id) => `'${esc(id)}'`).join(",")
+    : "''";
 const parts = wranglerJson(
   `SELECT ep.id, ep.person_id, ep.title, ep.company, ep.bio, ep.role_label, ep.status, p.name AS person_name
    FROM event_participations ep
    LEFT JOIN people p ON p.id = ep.person_id
-   WHERE ep.event_id='${esc(EVENT_ID)}' LIMIT 500;`,
-);
-const placements = wranglerJson(
-  `SELECT id, session_id, room_id, starts_at, ends_at FROM schedule_placements WHERE event_id='${esc(EVENT_ID)}' LIMIT 500;`,
+   WHERE ep.event_id='${esc(EVENT_ID)}'
+     AND (
+       ep.id IN (SELECT participation_id FROM session_speakers WHERE session_id IN (${sessionIdList2}))
+       OR ep.status IN ('accepted','confirmed','active')
+     )
+   LIMIT 120;`,
 );
 const rooms = wranglerJson(
   `SELECT id, name FROM rooms WHERE event_id='${esc(EVENT_ID)}';`,
@@ -99,7 +126,7 @@ const nameForPart = (pid) => {
   return (p?.person_name || "Speaker").trim() || "Speaker";
 };
 
-const publicSessions = sessions.map((s) => {
+const publicSessions = sessionsFinal.map((s) => {
   const track = s.track_id ? trackById.get(s.track_id) : null;
   const place = placementBySession.get(s.id);
   const room = place?.room_id ? roomById.get(place.room_id) : null;

@@ -419,26 +419,42 @@ test.describe("Portal library N1–N3", () => {
     if (presign.status() === 200) {
       const p = (await presign.json()) as { fileId: string; url: string };
       fileId = p.fileId;
+      // Cookie only — must not overwrite content-type with application/json.
       const up = await request.put(p.url, {
-        headers: { "content-type": "image/png", ...spHeaders },
+        headers: {
+          cookie: `speakerops_session=${spSession}`,
+          "content-type": "image/png",
+        },
         data: png,
       });
-      expect([200, 201, 204]).toContain(up.status());
+      expect(
+        [200, 201, 204],
+        `upload status ${up.status()} body=${await up.text()}`,
+      ).toContain(up.status());
+      const checksum = await crypto.subtle
+        .digest("SHA-256", png)
+        .then((buf) =>
+          [...new Uint8Array(buf)]
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(""),
+        );
       const complete = await request.post(
         `/api/files/${encodeURIComponent(p.fileId)}/complete`,
         {
           headers: spHeaders,
           data: {
             eventId: event.id,
-            checksum: "a".repeat(64),
+            checksum,
             filename: "deck-stub.png",
           },
         },
       );
-      // Complete may validate checksum — if it fails, still try fulfill with fileId
-      if (complete.status() === 200) {
-        fileId = p.fileId;
-      }
+      expect(complete.status(), await complete.text()).toBe(200);
+      fileId = p.fileId;
+    } else {
+      throw new Error(
+        `presign failed ${presign.status()} ${await presign.text()}`,
+      );
     }
 
     // Direct fulfill (API outcome) — durable linkage
@@ -449,7 +465,7 @@ test.describe("Portal library N1–N3", () => {
         data: {
           eventId: event.id,
           participationId,
-          fileId: fileId ?? `file_fulfill_${Date.now()}`,
+          fileId: fileId!,
         },
       },
     );
