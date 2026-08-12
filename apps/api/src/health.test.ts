@@ -231,8 +231,18 @@ describe("1.2 Worker API health", () => {
       DB: {} as WorkerBindings["DB"],
       TURNSTILE_SECRET_KEY: "prod-secret-not-a-test-value",
       TURNSTILE_SITE_KEY: "prod-site-key-not-a-test-value",
+      AUTH_LINK_ENCRYPTION_KEY: "test-auth-link-encryption-key-32b",
     } as WorkerBindings;
     expect(() => createAppFromBindings(env)).not.toThrow();
+  });
+
+  it("createAppFromBindings requires AUTH_LINK_ENCRYPTION_KEY (A6 fail-closed)", () => {
+    const env = {
+      DB: {} as WorkerBindings["DB"],
+      TURNSTILE_SECRET_KEY: "prod-secret-not-a-test-value",
+      TURNSTILE_SITE_KEY: "prod-site-key-not-a-test-value",
+    } as WorkerBindings;
+    expect(() => createAppFromBindings(env)).toThrow(/AUTH_LINK_ENCRYPTION_KEY/);
   });
 
   it("createAppFromBindings DEMO_MODE accepts missing Turnstile keys with allowlist", () => {
@@ -241,6 +251,7 @@ describe("1.2 Worker API health", () => {
       DEMO_MODE: "1",
       DEMO_ALLOWLIST_ENABLED: "1",
       DEMO_ALLOWLIST_HOSTS: "www.speakerops.org,localhost",
+      AUTH_LINK_ENCRYPTION_KEY: "test-auth-link-encryption-key-32b",
     } as WorkerBindings;
     expect(() => createAppFromBindings(env)).not.toThrow();
   });
