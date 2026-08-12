@@ -7202,15 +7202,15 @@ input.speakers-page__profile-input,
   }
 }
 
-/* F1 SegmentedControl — compact radiogroup */
+/* F1 SegmentedControl — compact radiogroup (Lumen tokens only) */
 .l2-segmented {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 2px;
   border-radius: 8px;
-  background: var(--lumen-surface-muted, #f0eee9);
-  border: 1px solid var(--lumen-hairline, #e7e2da);
+  background: var(--lumen-surface-muted);
+  border: 1px solid var(--lumen-hairline);
 }
 .l2-segmented__opt {
   line-height: 1;
@@ -7220,17 +7220,17 @@ input.speakers-page__profile-input,
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--lumen-ink, #1e2621);
+  color: var(--lumen-ink);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
 .l2-segmented__opt--active {
-  background: var(--lumen-sage-deep, #3e6b50);
-  color: #fff;
+  background: var(--lumen-sage-deep);
+  color: var(--lumen-surface);
 }
 .l2-segmented__opt:focus-visible {
-  outline: 2px solid var(--lumen-sage, #7ba88b);
+  outline: 2px solid var(--lumen-sage);
   outline-offset: 1px;
 }
 .l2-segmented__opt:disabled {
