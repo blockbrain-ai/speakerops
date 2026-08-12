@@ -149,6 +149,12 @@ import {
 } from "./modules/grid/store.js";
 import { createEventGridRoutes } from "./modules/grid/routes.js";
 import {
+  MemorySearchStore,
+  D1SearchStore,
+  type SearchStore,
+} from "./modules/search/store.js";
+import { createEventSearchRoutes } from "./modules/search/routes.js";
+import {
   processCommsOutbox,
   type ProcessOutboxResult,
 } from "./workers/emailConsumer.js";
@@ -193,6 +199,8 @@ export type CreateAppOptions = {
   airtableStore?: AirtableStore;
   /** Inject saved views store (F3; defaults to in-memory for local/test). */
   savedViewsStore?: SavedViewsStore;
+  /** Inject search store (F5; defaults to in-memory for local/test). */
+  searchStore?: SearchStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /**
@@ -285,6 +293,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const airtableStore = options.airtableStore ?? new MemoryAirtableStore();
   const savedViewsStore =
     options.savedViewsStore ?? new MemorySavedViewsStore();
+  const searchStore = options.searchStore ?? new MemorySearchStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -552,6 +561,21 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     createEventGridRoutes({
       store: authStore,
       savedViews: savedViewsStore,
+    }),
+  );
+
+  // F5 — global permissioned Find
+  app.route(
+    "/api/events",
+    createEventSearchRoutes({
+      store: authStore,
+      search: searchStore,
+      events: eventsStore,
+      submissions: submissionsStore,
+      decisions: decisionsStore,
+      forms: formsStore,
+      eval: evalStore,
+      auth: authStore,
     }),
   );
 
@@ -849,6 +873,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     keysStore: new D1KeysStore(d1),
     airtableStore: new D1AirtableStore(d1),
     savedViewsStore: new D1SavedViewsStore(d1),
+    searchStore: new D1SearchStore(d1),
     turnstileSecret,
     demoMode,
     demoAllowlistEnabled,

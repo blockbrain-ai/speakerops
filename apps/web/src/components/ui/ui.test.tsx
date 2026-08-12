@@ -337,6 +337,8 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
       "@tiptap/pm",
       "@tiptap/react",
       "@tiptap/starter-kit",
+      // F5: cmdk command palette for ⌘K Find.
+      "cmdk",
       "react",
       "react-dom",
       "react-router-dom",
@@ -385,5 +387,7 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
     expect(deps["@dnd-kit/core"]).toMatch(/^6\./);
     expect(deps["@dnd-kit/sortable"]).toMatch(/^10\./);
     expect(deps["@dnd-kit/utilities"]).toMatch(/^3\./);
+    // F5: cmdk pinned to 1.x
+    expect(deps["cmdk"]).toMatch(/^1\./);
   });
 });

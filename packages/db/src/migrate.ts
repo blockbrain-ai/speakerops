@@ -332,3 +332,6 @@ export const PROJECTION_TABLES = ["projection_records"] as const;
 
 /** F3 data-grid saved views (migration 0037). */
 export const GRID_TABLES = ["saved_views"] as const;
+
+/** F5 global Find projection (migration 0038). FTS virtual table not listed. */
+export const SEARCH_TABLES = ["search_documents"] as const;

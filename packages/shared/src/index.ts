@@ -562,6 +562,28 @@ export {
 } from "./grid.js";
 
 export {
+  SEARCH_ENTITY_TYPES,
+  type SearchEntityType,
+  SearchEntityTypeSchema,
+  SEARCH_QUERY_MAX,
+  SEARCH_DEFAULT_LIMIT,
+  SEARCH_MAX_LIMIT,
+  SearchQuerySchema,
+  type SearchQuery,
+  SearchHitSchema,
+  type SearchHit,
+  SearchResponseSchema,
+  type SearchResponse,
+  SearchReindexResponseSchema,
+  type SearchReindexResponse,
+  sanitizeFtsQuery,
+  makeSnippet,
+  searchHitRoute,
+  isAllowedSearchRoute,
+  escapeLikePattern,
+} from "./search.js";
+
+export {
   isHttpsUrl,
   TASK_LINK_URL_MAX_LENGTH,
   ParticipationProfileSchema,

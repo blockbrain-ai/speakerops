@@ -50,6 +50,7 @@ export {
   apiKeys,
   projectionRecords,
   savedViews,
+  searchDocuments,
   baselineTables,
   authTables,
   membershipTables,
@@ -64,6 +65,7 @@ export {
   apiKeysTables,
   projectionTables,
   gridTables,
+  searchTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -189,6 +191,7 @@ export {
   API_KEYS_TABLES,
   PROJECTION_TABLES,
   GRID_TABLES,
+  SEARCH_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

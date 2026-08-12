@@ -1182,6 +1182,37 @@ export const gridTables = {
   savedViews,
 } as const;
 
+/**
+ * search_documents — F5 global Find projection (migration 0038).
+ * FTS5 virtual table search_documents_fts is SQL-only (not Drizzle-mapped).
+ */
+export const searchDocuments = sqliteTable(
+  "search_documents",
+  {
+    id: text("id").primaryKey().notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    eventId: text("event_id").notNull(),
+    title: text("title").notNull().default(""),
+    body: text("body").notNull().default(""),
+    ownerUserId: text("owner_user_id"),
+    participationId: text("participation_id"),
+    status: text("status"),
+    route: text("route").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_search_docs_event_type").on(t.eventId, t.entityType),
+    index("idx_search_docs_event_owner").on(t.eventId, t.ownerUserId),
+    index("idx_search_docs_event_part").on(t.eventId, t.participationId),
+    index("idx_search_docs_entity").on(t.entityType, t.entityId),
+  ],
+);
+
+export const searchTables = {
+  searchDocuments,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -1314,7 +1345,10 @@ export const schema = {
   apiKeys,
   projectionRecords,
   savedViews,
+  searchDocuments,
 } as const;
 
 export type SavedView = typeof savedViews.$inferSelect;
 export type NewSavedView = typeof savedViews.$inferInsert;
+export type SearchDocument = typeof searchDocuments.$inferSelect;
+export type NewSearchDocument = typeof searchDocuments.$inferInsert;

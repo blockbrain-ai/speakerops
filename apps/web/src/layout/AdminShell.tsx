@@ -15,6 +15,7 @@ import { Icon, type IconName } from "../components/ui/Icon.js";
 import { Button } from "../components/ui/Button.js";
 import { BrandLockup } from "../components/ui/BrandMark.js";
 import { RoleSwitcher } from "../components/RoleSwitcher.js";
+import { FindTrigger } from "../components/FindPalette.js";
 
 export type AdminNavItem = {
   /** Stable path segment under /admin */
@@ -324,12 +325,10 @@ export function AdminShell({
               {label}
             </span>
           </div>
-          {/* F1 — reserved center slot for the future ⌘K Find (no fake control) */}
-          <div
-            className="admin-shell__find-slot"
-            data-testid="topbar-find-slot"
-            aria-hidden="true"
-          />
+          {/* F5 — permissioned ⌘K Find */}
+          <div className="admin-shell__find-slot" data-testid="topbar-find-slot">
+            <FindTrigger />
+          </div>
           <div className="admin-shell__topbar-end" data-testid="admin-topbar-end">
             <Link
               to="/portal"

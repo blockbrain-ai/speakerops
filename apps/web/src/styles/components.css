@@ -1549,3 +1549,184 @@ textarea.l2-field__control {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================================
+ * F5 Find palette (cmdk)
+ * ========================================================================= */
+
+.admin-shell__find-slot {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.admin-shell__find-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  width: 100%;
+  min-height: var(--lumen-control-h);
+  padding: 0 var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius);
+  background: var(--lumen-surface-muted);
+  color: var(--lumen-text-tertiary);
+  font: inherit;
+  font-size: var(--lumen-text-ui);
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-shell__find-placeholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-shell__find-kbd,
+.find-palette__kbd {
+  font-family: var(--lumen-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--lumen-border);
+  border-radius: 5px;
+  padding: 2px 6px;
+  background: var(--lumen-surface);
+  color: var(--lumen-text-secondary);
+  line-height: 1;
+}
+
+.find-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: start center;
+  padding-top: 12vh;
+}
+
+.find-palette__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: color-mix(in srgb, var(--lumen-text) 35%, transparent);
+  cursor: pointer;
+}
+
+.find-palette__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(560px, calc(100vw - 32px));
+  background: var(--lumen-surface);
+  border: 1px solid var(--lumen-border);
+  border-radius: 14px;
+  box-shadow: var(--lumen-shadow-modal);
+  overflow: hidden;
+}
+
+.find-palette__header {
+  display: flex;
+  align-items: center;
+  gap: var(--lumen-space-2);
+  padding: var(--lumen-space-3) var(--lumen-space-4);
+  border-bottom: 1px solid var(--lumen-border-subtle);
+}
+
+.find-palette__input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--lumen-control-h);
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--lumen-text-ui);
+  color: var(--lumen-text);
+  outline: none;
+}
+
+.find-palette__list {
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+  padding: var(--lumen-space-2);
+}
+
+.find-palette__list [cmdk-group-heading] {
+  font-family: var(--lumen-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lumen-text-tertiary);
+  padding: var(--lumen-space-2) var(--lumen-space-2) var(--lumen-space-1);
+}
+
+.find-palette__list [cmdk-item] {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  align-items: center;
+  min-height: var(--lumen-control-h);
+  padding: var(--lumen-space-2) var(--lumen-space-3);
+  border-radius: var(--lumen-radius);
+  cursor: pointer;
+  font-size: var(--lumen-text-ui);
+  color: var(--lumen-text);
+}
+
+.find-palette__list [cmdk-item][data-selected="true"] {
+  background: var(--lumen-brand-soft);
+  color: var(--lumen-action);
+}
+
+.find-palette__hit-title {
+  font-weight: 600;
+  grid-column: 1;
+}
+
+.find-palette__hit-snippet {
+  grid-column: 1;
+  font-size: var(--lumen-text-meta);
+  color: var(--lumen-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.find-palette__hit-type {
+  font-size: var(--lumen-text-meta);
+  color: var(--lumen-text-tertiary);
+}
+
+.find-palette__hit-status {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-family: var(--lumen-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--lumen-text-secondary);
+}
+
+.find-palette__state {
+  padding: var(--lumen-space-4);
+  text-align: center;
+  color: var(--lumen-text-secondary);
+  font-size: var(--lumen-text-ui);
+}
+
+.find-palette__state--error {
+  color: var(--lumen-danger);
+}
+
+.find-palette__footer {
+  border-top: 1px solid var(--lumen-border-subtle);
+  padding: var(--lumen-space-2) var(--lumen-space-4);
+  font-size: 11px;
+  color: var(--lumen-text-tertiary);
+  font-family: var(--lumen-font-mono);
+}
