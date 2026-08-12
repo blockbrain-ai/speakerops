@@ -406,9 +406,12 @@ test("@inv:F02 e2e/eval/score Score criteria + comment; out-of-range rejected", 
     timeout: 15_000,
   });
 
-  // Fill valid scores
+  // Fill valid scores via segmented control (F1/F2)
   for (const c of criteria) {
-    await page.getByTestId(`eval-score-input-${c.id}`).fill("4");
+    await page
+      .getByTestId(`eval-score-input-${c.id}`)
+      .getByRole("radio", { name: "4" })
+      .click();
   }
   await page.getByTestId("eval-score-comment").fill("Solid proposal");
   await page.getByTestId("eval-score-save").click();
@@ -516,12 +519,15 @@ test("@inv:F04 e2e/eval/a11y-keyboard Keyboard-only complete score", async ({
     timeout: 15_000,
   });
 
-  // Tab into first score field and type without mouse clicks on inputs
-  await page.getByTestId(`eval-score-input-${criteria[0]!.id}`).focus();
-  await page.keyboard.type("3");
-  await page.keyboard.press("Tab");
-  await page.keyboard.type("4");
-  await page.keyboard.press("Tab");
+  // Keyboard-only: focus each score radio and activate with Space (F04)
+  for (const c of criteria) {
+    const radio = page
+      .getByTestId(`eval-score-input-${c.id}`)
+      .getByRole("radio", { name: "3" });
+    await radio.focus();
+    await page.keyboard.press("Space");
+  }
+  await page.getByTestId("eval-score-comment").focus();
   await page.keyboard.type("Keyboard comment");
   // Ctrl+Enter saves (F04)
   await page.keyboard.press("Control+Enter");

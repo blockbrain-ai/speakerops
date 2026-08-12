@@ -235,7 +235,10 @@ test.describe("3.6 cfp eval keystone (I12)", () => {
       timeout: 15_000,
     });
     for (const c of criteria) {
-      await page.getByTestId(`eval-score-input-${c.id}`).fill("4");
+      await page
+        .getByTestId(`eval-score-input-${c.id}`)
+        .getByRole("radio", { name: "4" })
+        .click();
     }
     await page
       .getByTestId("eval-score-comment")
