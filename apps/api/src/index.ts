@@ -177,6 +177,7 @@ import {
   type SearchStore,
 } from "./modules/search/store.js";
 import { createEventSearchRoutes } from "./modules/search/routes.js";
+import { reindexEvent } from "./modules/search/commands.js";
 import {
   MemoryProgrammeStore,
   D1ProgrammeStore,
@@ -1124,6 +1125,55 @@ export async function drainAirtableOutboxFromEnv(
   );
 }
 
+/**
+ * B3: Reindex events with generation lag (queue + cron).
+ */
+export async function drainSearchIndexFromEnv(
+  env: WorkerBindings,
+  options: { limit?: number } = {},
+): Promise<{ processed: number }> {
+  if (!env.DB) return { processed: 0 };
+  const d1 = env.DB as D1DatabaseLike;
+  const search = new D1SearchStore(d1);
+  const deps = {
+    search,
+    events: new D1EventsStore(d1),
+    decisions: new D1DecisionsStore(d1),
+    submissions: new D1SubmissionsStore(d1),
+    forms: new D1FormsStore(d1),
+    auth: new D1AuthStore(d1),
+  };
+  const limit = options.limit ?? 10;
+  let processed = 0;
+  try {
+    // D1DatabaseLike may not type prepare; cast for admin SQL.
+    const raw = await (
+      d1 as unknown as {
+        prepare: (s: string) => {
+          bind: (...a: unknown[]) => { all: () => Promise<{ results?: unknown[] }> };
+        };
+      }
+    )
+      .prepare(
+        `SELECT event_id FROM search_index_state
+         WHERE built_generation < requested_generation
+         LIMIT ?`,
+      )
+      .bind(limit)
+      .all();
+    const ids = ((raw.results ?? []) as { event_id: string }[]).map(
+      (r) => r.event_id,
+    );
+    for (const eventId of ids) {
+      const r = await reindexEvent(deps, eventId);
+      if (r.ok) processed += 1;
+    }
+  } catch {
+    // Table may not exist pre-migration 0044
+  }
+  return { processed };
+}
+
 /** Minimal queue batch surface (Cloudflare Queues consumer). */
 export type QueueMessageBatch = {
   messages: ReadonlyArray<{
@@ -1275,6 +1325,7 @@ export default {
     await drainAuthMagicLinkOutboxFromEnv(env);
     // S-AIRTABLE: drain projection outbox (pauses safely when key unset)
     await drainAirtableOutboxFromEnv(env, { correlationId });
+    await drainSearchIndexFromEnv(env, { limit: 5 });
     for (const msg of batch.messages) {
       msg.ack();
     }
@@ -1289,5 +1340,7 @@ export default {
     await drainCommsOutboxFromEnv(env, { correlationId });
     await drainAuthMagicLinkOutboxFromEnv(env);
     await drainAirtableOutboxFromEnv(env, { correlationId });
+    // B3: ≤60s freshness SLA via cron sweep of stale search generations.
+    await drainSearchIndexFromEnv(env, { limit: 20 });
   },
 };

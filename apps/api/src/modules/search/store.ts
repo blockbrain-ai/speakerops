@@ -297,6 +297,20 @@ export class D1SearchStore implements SearchStore {
         /* rebuild optional if FTS content= sync already complete */
       }
     }
+    // Mark generation caught up after successful full replace.
+    try {
+      await this.db.run(sql`
+        UPDATE search_index_state
+        SET built_generation = requested_generation,
+            built_at = ${new Date().toISOString()},
+            doc_count = ${docs.length},
+            lease_token = NULL,
+            lease_until = NULL
+        WHERE event_id = ${eventId}
+      `);
+    } catch {
+      /* table may not exist pre-0044 */
+    }
   }
 
   async search(input: {

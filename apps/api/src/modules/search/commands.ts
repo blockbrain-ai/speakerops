@@ -235,10 +235,24 @@ export async function reindexEvent(
     }
   }
 
+  // B3: ensure state row, write docs, mark built == requested (Memory via replace).
+  if (deps.search.invalidateIndex) {
+    await deps.search.invalidateIndex(eventId);
+  }
   await deps.search.replaceEventDocuments(eventId, docs);
   const freshness = new Date().toISOString();
   lastRebuildAt.set(eventId, freshness);
   return { ok: true, value: { indexed: docs.length, freshness } };
+}
+
+/** B3: bump generation after domain mutations (best-effort queue kick separate). */
+export async function invalidateSearchIndex(
+  deps: SearchCommandDeps,
+  eventId: string,
+): Promise<void> {
+  if (deps.search.invalidateIndex) {
+    await deps.search.invalidateIndex(eventId);
+  }
 }
 
 export async function searchEvent(
