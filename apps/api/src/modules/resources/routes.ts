@@ -492,14 +492,30 @@ export function createPortalLibraryRoutes(
           400,
         );
       }
-      // Owner must match participation when the asset is participation-bound.
+      // Fail-closed ownership: purpose=other must still bind a participation;
+      // null owner cannot be claimed by any speaker who knows the fileId.
       if (
-        file.ownerParticipationId &&
+        !file.ownerParticipationId ||
         file.ownerParticipationId !== participationId
       ) {
         return c.json(
           errorEnvelope("File is not owned by this participation", FORBIDDEN),
           403,
+        );
+      }
+      // Purpose compatibility: request purpose must match the file purpose,
+      // or either side may be "other" for generic library asks.
+      if (
+        req.purpose !== "other" &&
+        file.purpose !== "other" &&
+        req.purpose !== file.purpose
+      ) {
+        return c.json(
+          errorEnvelope("File purpose does not match this request", VALIDATION_ERROR, {
+            requestPurpose: req.purpose,
+            filePurpose: file.purpose,
+          }),
+          400,
         );
       }
       const now = new Date().toISOString();

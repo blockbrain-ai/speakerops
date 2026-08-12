@@ -124,14 +124,16 @@ export const FilePresignBodySchema = z
   })
   .superRefine((b, ctx) => {
     if (
-      (b.purpose === "headshot" || b.purpose === "slides") &&
+      (b.purpose === "headshot" ||
+        b.purpose === "slides" ||
+        b.purpose === "other") &&
       (b.ownerParticipationId === undefined ||
         b.ownerParticipationId.trim().length === 0)
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "ownerParticipationId is required for headshot and slides uploads",
+          "ownerParticipationId is required for headshot, slides, and other uploads",
         path: ["ownerParticipationId"],
       });
     }

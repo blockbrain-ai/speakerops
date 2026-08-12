@@ -225,16 +225,18 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
     const correlationId =
       c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown";
 
-    // Bind headshot/slides to a participation; logo has no owner.
+    // Bind headshot/slides/other to a participation; logo has no owner.
+    // purpose=other is used for file-request fulfilment — must be owned.
     if (
       parsed.data.purpose === "headshot" ||
-      parsed.data.purpose === "slides"
+      parsed.data.purpose === "slides" ||
+      parsed.data.purpose === "other"
     ) {
       const ownerId = parsed.data.ownerParticipationId?.trim();
       if (!ownerId) {
         return c.json(
           errorEnvelope(
-            "ownerParticipationId is required for headshot and slides uploads",
+            "ownerParticipationId is required for headshot, slides, and other uploads",
             VALIDATION_ERROR,
             { purpose: parsed.data.purpose },
           ),

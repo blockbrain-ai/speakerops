@@ -498,19 +498,21 @@ export async function presignFileUpload(
   // expiresAt is created_at + FILE_PRESIGN_TTL_MS (File.Upload enforces the same deadline).
   const expiresAt = new Date(nowMs + FILE_PRESIGN_TTL_MS).toISOString();
 
-  // Portal headshot/slides must bind owner_participation_id; logo stays null.
+  // Portal headshot/slides/other must bind owner_participation_id; logo stays null.
+  // purpose=other is used for file-request fulfilment — never null-owner.
   const ownerParticipationId =
     purpose === "logo"
       ? null
       : (input.ownerParticipationId?.trim() || null);
   if (
-    (purpose === "headshot" || purpose === "slides") &&
+    (purpose === "headshot" || purpose === "slides" || purpose === "other") &&
     !ownerParticipationId
   ) {
     return {
       ok: false,
       status: 400,
-      error: "ownerParticipationId is required for headshot and slides uploads",
+      error:
+        "ownerParticipationId is required for headshot, slides, and other uploads",
       code: "VALIDATION_ERROR",
       details: { purpose },
     };

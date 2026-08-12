@@ -194,6 +194,11 @@ test.describe("Portal library N1–N3", () => {
     await expect(page.getByText(/published/i).first()).toBeVisible({
       timeout: 10_000,
     });
+    // Persist proof: reload list still shows title
+    await page.getByTestId("portal-forms-refresh").click();
+    await expect(page.getByText("Travel form").first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("@inv:Q03 e2e/portal-lib/resource-edit create select save publish resource", async ({
@@ -243,7 +248,13 @@ test.describe("Portal library N1–N3", () => {
     const publish = page.locator("[data-testid^=resource-publish-]").first();
     await expect(publish).toBeVisible({ timeout: 10_000 });
     await publish.click();
-    await expect(page.getByTestId("page-resources")).toBeVisible();
+    await expect(page.getByText(/published|Code of conduct/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.getByTestId("resources-refresh").click();
+    await expect(page.getByText(/Code of conduct \(revised\)/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("@inv:Q04 e2e/portal-lib/file-request-publish create + publish file request", async ({
@@ -293,6 +304,10 @@ test.describe("Portal library N1–N3", () => {
     const pub = page.locator("[data-testid^=file-request-publish-]").first();
     await expect(pub).toBeVisible({ timeout: 10_000 });
     await pub.click();
+    await page.getByTestId("file-requests-refresh").click();
+    await expect(page.getByText("Session PDF").first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("@inv:Q05 e2e/portal-lib/speaker-list published forms + resources for speaker", async ({
