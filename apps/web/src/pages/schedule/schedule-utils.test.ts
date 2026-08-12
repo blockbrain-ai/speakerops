@@ -21,9 +21,12 @@ import {
   intervalsOverlap,
   isDayWithinEventRange,
   isScheduleView,
+  LAST_SLOT_FALLBACK_MS,
+  mayUseLastSlotFallback,
   placementInSlot,
   placementOccupiesSlot,
   placementsOnDay,
+  pointInsideClientRect,
   wouldRoomOverlap,
   safeTrackColor,
   slotKey,
@@ -518,6 +521,52 @@ describe("schedule-utils", () => {
     // Custom threshold honored
     expect(exceedsDragThreshold(0, 0, 3, 0, 2)).toBe(true);
     expect(exceedsDragThreshold(0, 0, 1, 0, 2)).toBe(false);
+  });
+
+  it("mayUseLastSlotFallback only when recent and inside board", () => {
+    const board = { left: 100, top: 100, right: 400, bottom: 400 };
+    const now = 10_000;
+    expect(
+      mayUseLastSlotFallback({
+        lastSlotAt: now - 100,
+        nowMs: now,
+        clientX: 200,
+        clientY: 200,
+        boardRect: board,
+      }),
+    ).toBe(true);
+    // Stale last hover
+    expect(
+      mayUseLastSlotFallback({
+        lastSlotAt: now - 400,
+        nowMs: now,
+        clientX: 200,
+        clientY: 200,
+        boardRect: board,
+      }),
+    ).toBe(false);
+    // Outside board (tray / toolbar)
+    expect(
+      mayUseLastSlotFallback({
+        lastSlotAt: now - 50,
+        nowMs: now,
+        clientX: 50,
+        clientY: 50,
+        boardRect: board,
+      }),
+    ).toBe(false);
+    expect(
+      mayUseLastSlotFallback({
+        lastSlotAt: null,
+        nowMs: now,
+        clientX: 200,
+        clientY: 200,
+        boardRect: board,
+      }),
+    ).toBe(false);
+    expect(pointInsideClientRect(200, 200, board)).toBe(true);
+    expect(pointInsideClientRect(10, 10, board)).toBe(false);
+    expect(LAST_SLOT_FALLBACK_MS).toBe(250);
   });
 
   it("slotTargetFromElement walks up to the enclosing slot", () => {

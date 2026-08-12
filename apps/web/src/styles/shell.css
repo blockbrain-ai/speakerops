@@ -4299,12 +4299,15 @@ button.submissions-page__evaluator-option {
 }
 
 .schedule-studio__toast {
+  /* Sticky so miss/cancel/conflict feedback stays visible over a tall board (R2). */
+  position: sticky;
+  top: var(--lumen-space-2);
   padding: var(--lumen-space-3) var(--lumen-space-4);
   border-radius: var(--lumen-radius-md);
   font-size: 14px;
   font-weight: 500;
-  box-shadow: var(--lumen-shadow-sm);
-  z-index: var(--lumen-z-toast);
+  box-shadow: var(--lumen-shadow-raised, var(--lumen-shadow-sm));
+  z-index: var(--lumen-z-toast, 60);
 }
 
 .schedule-studio__toast--conflict,

@@ -626,6 +626,41 @@ export function slotTargetFromElement(
 }
 
 /**
+ * Max age for board-gap last-slot fallback (R2 intermittent miss).
+ * Only used when pointerup is still inside the board rect but not on a slot
+ * (grid gutters / sticky chrome). Never used for tray/toolbar/outside release.
+ */
+export const LAST_SLOT_FALLBACK_MS = 250;
+
+/** Axis-aligned hit test against a client rect (unit-testable without DOM). */
+export function pointInsideClientRect(
+  x: number,
+  y: number,
+  rect: { left: number; top: number; right: number; bottom: number } | null,
+): boolean {
+  if (!rect) return false;
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+/**
+ * Whether board-gap lastSlot fallback may auto-place on pointerup.
+ * Requires: recent last slot, and release still inside the board rect.
+ */
+export function mayUseLastSlotFallback(input: {
+  lastSlotAt: number | null | undefined;
+  nowMs: number;
+  clientX: number;
+  clientY: number;
+  boardRect: { left: number; top: number; right: number; bottom: number } | null;
+  maxAgeMs?: number;
+}): boolean {
+  if (input.lastSlotAt == null) return false;
+  const age = input.nowMs - input.lastSlotAt;
+  if (age < 0 || age > (input.maxAgeMs ?? LAST_SLOT_FALLBACK_MS)) return false;
+  return pointInsideClientRect(input.clientX, input.clientY, input.boardRect);
+}
+
+/**
  * True when placement **starts** in this grid slot (start-row only).
  * Occupies the slot whose [startsAt, startsAt+step) window contains placement.startsAt
  * (not only exact equality), so off-hour placements like 10:30 remain visible.

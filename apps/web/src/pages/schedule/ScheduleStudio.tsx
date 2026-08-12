@@ -13,7 +13,9 @@
  * when capture failed or was lost (source unmount, view switch, UA revoke),
  * pointerup never hit our handler and dragPayload/ghostPos stuck forever.
  *
- * Contract (auditors 2026-08-12, docs/reports/SCHEDULE_STUCK_DRAG_INVESTIGATION_*.md):
+ * Contract (auditors 2026-08-12):
+ * docs/reports/SCHEDULE_STUCK_DRAG_INVESTIGATION_*.md (R1 stuck-ghost)
+ * docs/reports/SCHEDULE_DRAG_INTERMITTENT_R2_*.md (R2 silent miss)
  * - Window-level pointermove/up/cancel (capture phase) are the SOLE authority
  *   while a gesture is armed. Do NOT re-bind move/up only to the source element.
  * - lostpointercapture → cancel only if that pointerId is still armed (own
@@ -24,6 +26,9 @@
  * - Do NOT gate pointerdown on busy/pending (post-drop dead-window regression).
  * - setPointerCapture is best-effort; the window net makes it non-optional for UX.
  * - Escape still cancels. No native HTML5 DnD.
+ * - R2: never silent-miss on active up (toast). Board-gap lastSlot only when
+ *   release is inside schedule-board but not on a slot; never place on tray/toolbar.
+ * - R2: lost/cancel while active → cancel toast; never performDrop on lost.
  *
  * Inventory I01–I16. APIs (COMMANDS.md):
  *   GET  /api/events/:eventId/schedule
@@ -89,6 +94,7 @@ import {
   formatTimeLabel,
   groupByRoom,
   groupByTrack,
+  mayUseLastSlotFallback,
   placementInSlot,
   placementOccupiesSlot,
   placementsOnDay,
@@ -232,6 +238,17 @@ export function ScheduleStudioPage() {
     onCancel: (_e: PointerEvent) => {},
     onLost: (_e: PointerEvent) => {},
   });
+  /**
+   * Last slot under the cursor during an active drag (R2).
+   * Used only for board-gap near-miss fallback — never when release is outside
+   * the schedule board (tray/toolbar intentional cancel).
+   */
+  const lastSlotRef = useRef<{
+    roomId: string;
+    startsAt: string;
+    key: string;
+    at: number;
+  } | null>(null);
 
   /** Click-to-reschedule inspector (non-drag path). */
   const [inspectorRoomId, setInspectorRoomId] = useState("");
@@ -1220,6 +1237,8 @@ export function ScheduleStudioPage() {
       setDrag(null);
       setDragOverSlot(null);
       setGhostPos(null);
+      // lastSlot kept until up/cancel decides — cleared in handlers below when
+      // reason is not "up" (up needs it for board-gap fallback).
 
       if (snapshot.active) {
         suppressClickRef.current = true;
@@ -1243,14 +1262,21 @@ export function ScheduleStudioPage() {
   const cancelPointerDrag = useCallback(() => {
     const st = pointerDragRef.current;
     if (st) {
+      const wasActive = st.active;
       endPointerGestureRef.current({
         pointerId: st.pointerId,
         reason: "escape",
       });
+      lastSlotRef.current = null;
+      // Escape is intentional — no cancel toast (user knows they cancelled).
+      if (!wasActive) {
+        /* armed-only: nothing to say */
+      }
       return;
     }
     // Orphan chrome (should not happen) — still clear.
     detachWindowDragListeners();
+    lastSlotRef.current = null;
     setDrag(null);
     setDragOverSlot(null);
     setGhostPos(null);
@@ -1270,11 +1296,21 @@ export function ScheduleStudioPage() {
       setDrag(st.payload);
     }
     e.preventDefault();
+    // Ghost offset kept small so aim tracks the cursor (R2 ghost-offset nit).
     setGhostPos({ x: e.clientX, y: e.clientY });
     // Ghost is pointer-events:none, so elementFromPoint sees the slot below.
+    // R2: also record lastSlot for board-gap near-miss (grid gutters).
     const slot = slotTargetFromElement(
       document.elementFromPoint(e.clientX, e.clientY),
     );
+    if (slot) {
+      lastSlotRef.current = {
+        roomId: slot.roomId,
+        startsAt: slot.startsAt,
+        key: slot.key,
+        at: Date.now(),
+      };
+    }
     setDragOverSlot(slot ? slot.key : null);
   };
 
@@ -1288,33 +1324,85 @@ export function ScheduleStudioPage() {
     if (!snap) return;
     if (!snap.active) {
       // Below threshold — a click; let the click handler select/open.
+      lastSlotRef.current = null;
       return;
     }
     e.preventDefault();
-    const slot = slotTargetFromElement(
+    /**
+     * R2 hit-test (owner: intermittent drop, no console error):
+     * 1) Prefer live elementFromPoint slot.
+     * 2) Else board-gap lastSlot if release is still inside schedule-board
+     *    and last hover is ≤ LAST_SLOT_FALLBACK_MS old.
+     * 3) Else toast miss — never silent no-op (was the residual flake).
+     * Never lastSlot when releasing on tray/toolbar/outside board.
+     */
+    let slot = slotTargetFromElement(
       document.elementFromPoint(snap.clientX, snap.clientY),
     );
+    if (!slot && lastSlotRef.current) {
+      const boardEl = document.querySelector(
+        '[data-testid="schedule-board"]',
+      ) as HTMLElement | null;
+      const boardRect = boardEl?.getBoundingClientRect() ?? null;
+      if (
+        mayUseLastSlotFallback({
+          lastSlotAt: lastSlotRef.current.at,
+          nowMs: Date.now(),
+          clientX: snap.clientX,
+          clientY: snap.clientY,
+          boardRect,
+        })
+      ) {
+        const last = lastSlotRef.current;
+        slot = {
+          roomId: last.roomId,
+          startsAt: last.startsAt,
+          key: last.key,
+        };
+      }
+    }
+    lastSlotRef.current = null;
     if (slot) {
-      // Chrome already cleared; commit from local snapshot only.
       performDropRef.current(snap.payload, slot.roomId, slot.startsAt);
+    } else {
+      setToast({
+        kind: "error",
+        text: "Drop on a time slot on the board (not the tray, toolbar, or gaps between cells).",
+      });
     }
   };
 
   dragMachineRef.current.onCancel = (e: PointerEvent) => {
-    endPointerGestureRef.current({
+    const snap = endPointerGestureRef.current({
       pointerId: e.pointerId,
       reason: "cancel",
       clientX: e.clientX,
       clientY: e.clientY,
     });
+    lastSlotRef.current = null;
+    // R2: never silent M4 — cancel while active must be visible (no console path).
+    if (snap?.active) {
+      setToast({
+        kind: "error",
+        text: "Drag cancelled — try again.",
+      });
+    }
   };
 
   dragMachineRef.current.onLost = (e: PointerEvent) => {
     // Only unexpected loss: after normal up we already cleared the ref.
-    endPointerGestureRef.current({
+    // Never performDrop here (stale coords) — toast only if still armed/active.
+    const snap = endPointerGestureRef.current({
       pointerId: e.pointerId,
       reason: "lost",
     });
+    lastSlotRef.current = null;
+    if (snap?.active) {
+      setToast({
+        kind: "error",
+        text: "Drag cancelled — try again.",
+      });
+    }
   };
 
   /**
@@ -1333,6 +1421,7 @@ export function ScheduleStudioPage() {
           reason: "cancel",
         });
       }
+      lastSlotRef.current = null;
       suppressClickRef.current = false;
       const el = e.currentTarget;
       pointerDragRef.current = {
@@ -2416,7 +2505,7 @@ export function ScheduleStudioPage() {
               data-drag-source={dragPayload.source}
               style={
                 ghostPos
-                  ? { left: ghostPos.x + 14, top: ghostPos.y + 12 }
+                  ? { left: ghostPos.x + 6, top: ghostPos.y + 6 }
                   : undefined
               }
               aria-hidden

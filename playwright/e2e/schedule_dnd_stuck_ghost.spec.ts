@@ -205,6 +205,13 @@ test.describe("schedule DnD stuck-ghost regressions", () => {
       timeout: 5_000,
     });
     expect(placePosts).toBe(0);
+    // R2: outside/toolbar release must not be silent — miss toast, no POST.
+    await expect(page.getByTestId("schedule-status-toast")).toBeVisible({
+      timeout: 5_000,
+    });
+    await expect(page.getByTestId("schedule-status-toast")).toContainText(
+      /time slot|board|tray|toolbar|gaps/i,
+    );
     await expect(
       page.getByTestId(`schedule-tray-item-${tray.sessionId}`),
     ).toBeVisible();
@@ -344,6 +351,13 @@ test.describe("schedule DnD stuck-ghost regressions", () => {
     await expect(page.getByTestId("schedule-dnd-ghost")).toHaveCount(0, {
       timeout: 5_000,
     });
+    // R2: unexpected capture loss while active → cancel toast, no place.
+    await expect(page.getByTestId("schedule-status-toast")).toBeVisible({
+      timeout: 5_000,
+    });
+    await expect(page.getByTestId("schedule-status-toast")).toContainText(
+      /cancelled|try again/i,
+    );
     await page.mouse.up();
   });
 });
