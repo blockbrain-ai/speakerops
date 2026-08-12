@@ -16,6 +16,7 @@ import { Button } from "../components/ui/Button.js";
 import { BrandLockup } from "../components/ui/BrandMark.js";
 import { RoleSwitcher } from "../components/RoleSwitcher.js";
 import { FindTrigger } from "../components/FindPalette.js";
+import { ToastProvider } from "../components/ui/Toast.js";
 
 export type AdminNavItem = {
   /** Stable path segment under /admin */
@@ -157,6 +158,7 @@ export function AdminShell({
   }, [navigate]);
 
   return (
+    <ToastProvider>
     <div
       className={[
         "admin-shell",
@@ -347,5 +349,6 @@ export function AdminShell({
         </main>
       </div>
     </div>
+    </ToastProvider>
   );
 }
