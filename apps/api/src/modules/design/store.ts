@@ -385,6 +385,8 @@ export class MemoryDesignStore implements DesignStore {
     const uploadState =
       existing.uploadState ??
       (existing.uploaded ? FILE_UPLOAD_STORED : FILE_UPLOAD_PENDING);
+    // A3: only complete checksum when bytes are STORED (reject PENDING/CLAIMED).
+    if (uploadState !== FILE_UPLOAD_STORED) return null;
     const updated = rowFromUploadState(
       {
         id: existing.id,
@@ -399,7 +401,7 @@ export class MemoryDesignStore implements DesignStore {
         createdAt: existing.createdAt,
         virusScanStatus: existing.virusScanStatus,
       },
-      uploadState,
+      FILE_UPLOAD_STORED,
     );
     this.files.set(this.fileKey(eventId, fileId), updated);
     this.filesById.set(fileId, updated);
@@ -750,11 +752,16 @@ export class D1DesignStore implements DesignStore {
     if (patch.filename !== undefined && patch.filename.trim().length > 0) {
       set.filename = patch.filename.trim();
     }
+    // A3: predicate includes STORED so PENDING/CLAIMED cannot complete (no TOCTOU).
     const result = await this.db
       .update(fileAssets)
       .set(set)
       .where(
-        and(eq(fileAssets.eventId, eventId), eq(fileAssets.id, fileId)),
+        and(
+          eq(fileAssets.eventId, eventId),
+          eq(fileAssets.id, fileId),
+          eq(fileAssets.uploaded, FILE_UPLOAD_STORED),
+        ),
       );
     if (d1Changes(result) === 0) return null;
     return this.findFile(eventId, fileId);

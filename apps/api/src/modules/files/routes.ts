@@ -47,6 +47,7 @@ import {
   completeFileUpload,
   getPrivateFileBytes,
   rolesForFilePurpose,
+  filePurposeRequiresOwnerCheck,
 } from "./commands.js";
 import { resolveOwnParticipations } from "../portal/commands.js";
 
@@ -355,10 +356,7 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
         );
       }
 
-      if (
-        existing.purpose === "headshot" ||
-        existing.purpose === "slides"
-      ) {
+      if (filePurposeRequiresOwnerCheck(existing.purpose)) {
         const ownership = await assertSpeakerOwnsFile(
           { store, events, decisions, submissions },
           {
@@ -517,10 +515,7 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
             403,
           );
         }
-        if (
-          row &&
-          (row.purpose === "headshot" || row.purpose === "slides")
-        ) {
+        if (row && filePurposeRequiresOwnerCheck(row.purpose)) {
           const ownership = await assertSpeakerOwnsFile(
             { store, events, decisions, submissions },
             {
@@ -569,7 +564,8 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
 
   /**
    * GET /:fileId — File.Get (authenticated private download)
-   * Admin of event or owning speaker may fetch headshot/slides bytes.
+   * Admin of event or owning speaker may fetch headshot/slides/other bytes.
+   * Authorize **before** reading blob bytes (A2). Cross-event/org → 404.
    * Bearer: files:write (CLI / tools).
    */
   files.get("/:fileId", fileAuth, async (c) => {
@@ -582,19 +578,22 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       );
     }
 
-    const result = await getPrivateFileBytes(deps, fileId);
-    if (!result.ok) {
-      return commandError(c, result);
+    // Metadata only first — never load bytes until authz passes (A2).
+    const meta = await designStore.findFileById(fileId);
+    if (!meta || !meta.uploaded) {
+      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
     }
-    const { eventId, purpose, ownerParticipationId, bytes, mime, filename } =
-      result.value;
+    const eventId = meta.eventId;
+    const purpose = meta.purpose;
+    const ownerParticipationId = meta.ownerParticipationId ?? null;
 
     const apiKey = c.get("apiKey");
     if (apiKey) {
-      if (apiKey.eventId && apiKey.eventId !== eventId) {
+      const access = await assertApiKeyEventAccess(events, apiKey, eventId);
+      if (access === "denied") {
         return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
       }
-      // Bearer files:write — treat as admin-equivalent for private fetch
+      // Bearer files:write — admin-equivalent for private fetch
     } else {
       const membership = await store.findMembership(eventId, user.id);
       if (!membership) {
@@ -609,7 +608,7 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
           403,
         );
       }
-      if (purpose === "headshot" || purpose === "slides") {
+      if (filePurposeRequiresOwnerCheck(purpose)) {
         const ownership = await assertSpeakerOwnsFile(
           { store, events, decisions, submissions },
           {
@@ -626,6 +625,12 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
         }
       }
     }
+
+    const result = await getPrivateFileBytes(deps, fileId);
+    if (!result.ok) {
+      return commandError(c, result);
+    }
+    const { bytes, mime, filename } = result.value;
 
     return new Response(bytes, {
       status: 200,

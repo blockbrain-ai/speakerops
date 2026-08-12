@@ -14,7 +14,10 @@ import { z } from "zod";
 import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
-import type { DesignStore } from "../design/store.js";
+import {
+  FILE_UPLOAD_STORED,
+  type DesignStore,
+} from "../design/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
 import { requireRole, requireSession } from "../../middleware/authz.js";
@@ -482,11 +485,12 @@ export function createPortalLibraryRoutes(
       if (!file) {
         return c.json(errorEnvelope("File not found", NOT_FOUND), 404);
       }
-      const uploaded =
+      // A3: only STORED (1) may fulfill — CLAIMED(2)/PENDING(0) rejected.
+      const isStored =
         typeof file.uploadState === "number"
-          ? file.uploadState >= 1
+          ? file.uploadState === FILE_UPLOAD_STORED
           : Boolean(file.uploaded);
-      if (!uploaded) {
+      if (!isStored) {
         return c.json(
           errorEnvelope("File upload is not complete", VALIDATION_ERROR),
           400,

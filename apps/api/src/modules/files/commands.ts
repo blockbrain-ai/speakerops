@@ -194,7 +194,7 @@ export async function completeFileUpload(
 }
 
 /**
- * Roles allowed for portal file purposes (headshot/slides).
+ * Roles allowed for portal file purposes (headshot/slides/other).
  * Logo remains admin-only at the route layer.
  */
 export function rolesForFilePurpose(
@@ -202,4 +202,15 @@ export function rolesForFilePurpose(
 ): readonly ("admin" | "speaker")[] {
   if (purpose === "logo") return ["admin"];
   return ["admin", "speaker"];
+}
+
+/**
+ * Whether speakers must own the participation bound to this purpose
+ * (upload / complete / private GET / fulfill). Logo is admin-only and
+ * has no ownerParticipationId.
+ */
+export function filePurposeRequiresOwnerCheck(purpose: string): boolean {
+  return (
+    purpose === "headshot" || purpose === "slides" || purpose === "other"
+  );
 }
