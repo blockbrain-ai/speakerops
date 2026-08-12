@@ -25,6 +25,10 @@ export function PortalFormsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [fieldLabel, setFieldLabel] = useState("");
   const [fieldKey, setFieldKey] = useState("");
+  const [fieldType, setFieldType] = useState<
+    "text" | "textarea" | "url" | "checkbox"
+  >("text");
+  const [fieldRequired, setFieldRequired] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const selected = forms.find((f) => f.id === selectedId) ?? null;
@@ -168,14 +172,42 @@ export function PortalFormsPage() {
       {
         key,
         label: fieldLabel.trim(),
-        type: "text",
-        required: false,
+        type: fieldType,
+        required: fieldRequired,
       },
     ];
     void patchForm(selected, { fields: next }).then(() => {
       setFieldLabel("");
       setFieldKey("");
+      setFieldType("text");
+      setFieldRequired(false);
     });
+  }
+
+  async function removeField(key: string) {
+    if (!selected) return;
+    const next = selected.fields.filter((f) => f.key !== key);
+    await patchForm(selected, { fields: next });
+  }
+
+  async function deleteForm(form: PortalFormDto) {
+    if (!activeEventId) return;
+    if (!window.confirm(`Delete “${form.title}”?`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}/portal-forms/${encodeURIComponent(form.id)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      if (!res.ok && res.status !== 204) {
+        setError(`Delete failed (${res.status})`);
+        return;
+      }
+      setForms((prev) => prev.filter((f) => f.id !== form.id));
+      if (selectedId === form.id) setSelectedId(null);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -388,6 +420,16 @@ export function PortalFormsPage() {
                         {f.key} · {f.type}
                         {f.required ? " · required" : ""}
                       </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        data-testid={`portal-form-field-remove-${f.key}`}
+                        disabled={busy}
+                        onClick={() => void removeField(f.key)}
+                      >
+                        Remove
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -413,6 +455,38 @@ export function PortalFormsPage() {
                     onChange={(e) => setFieldKey(e.target.value)}
                     placeholder="dietary_needs"
                   />
+                  <label className="portal-label" htmlFor="pf-field-type">
+                    Type
+                  </label>
+                  <select
+                    id="pf-field-type"
+                    className="portal-input lumen-focusable"
+                    data-testid="portal-form-field-type"
+                    value={fieldType}
+                    onChange={(e) =>
+                      setFieldType(
+                        e.target.value as
+                          | "text"
+                          | "textarea"
+                          | "url"
+                          | "checkbox",
+                      )
+                    }
+                  >
+                    <option value="text">Text</option>
+                    <option value="textarea">Long text</option>
+                    <option value="url">URL</option>
+                    <option value="checkbox">Checkbox</option>
+                  </select>
+                  <label className="portal-label">
+                    <input
+                      type="checkbox"
+                      data-testid="portal-form-field-required"
+                      checked={fieldRequired}
+                      onChange={(e) => setFieldRequired(e.target.checked)}
+                    />{" "}
+                    Required
+                  </label>
                   <Button
                     type="button"
                     size="sm"
@@ -421,7 +495,17 @@ export function PortalFormsPage() {
                     disabled={busy}
                     onClick={addField}
                   >
-                    Add text field
+                    Add field
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    data-testid="portal-form-delete"
+                    disabled={busy}
+                    onClick={() => void deleteForm(selected)}
+                  >
+                    Delete form
                   </Button>
                 </div>
               </>

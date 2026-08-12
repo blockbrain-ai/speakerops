@@ -1254,6 +1254,72 @@
       "inv": "D01",
       "surface": "admin",
       "journey": "N2 prefill starter resource"
+    },
+    {
+      "testid": "portal-form-delete",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N1 delete portal form"
+    },
+    {
+      "testid": "portal-form-field-remove-*",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N1 remove portal form field"
+    },
+    {
+      "testid": "portal-nav-forms",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Portal forms section nav"
+    },
+    {
+      "testid": "portal-nav-resources",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Portal library nav"
+    },
+    {
+      "testid": "portal-nav-file-requests",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Portal file requests nav"
+    },
+    {
+      "testid": "portal-form-submit",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Portal form submit answers"
+    },
+    {
+      "testid": "portal-form-open-*",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Open portal form"
+    },
+    {
+      "testid": "portal-resource-open-*",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Open portal resource"
+    },
+    {
+      "testid": "portal-bottom-forms",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Mobile portal forms"
+    },
+    {
+      "testid": "portal-bottom-resources",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Mobile portal resources"
+    },
+    {
+      "testid": "portal-bottom-file-requests",
+      "inv": "G11",
+      "surface": "portal",
+      "journey": "Mobile portal file requests"
     }
   ]
 }

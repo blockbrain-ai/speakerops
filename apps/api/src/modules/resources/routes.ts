@@ -7,13 +7,14 @@ import {
   VALIDATION_ERROR,
   NOT_FOUND,
   CONFLICT,
+  FORBIDDEN,
   uuidv7,
 } from "@speakerops/shared";
 import { z } from "zod";
 import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
-import { requireRole } from "../../middleware/authz.js";
+import { requireRole, requireSession } from "../../middleware/authz.js";
 import type { ResourcesStore } from "./store.js";
 
 const StatusSchema = z.enum(["draft", "published", "archived"]);
@@ -275,6 +276,81 @@ export function createResourcesRoutes(
       return c.body(null, 204);
     },
   );
+
+  return app;
+}
+
+/**
+ * Speaker-facing library: published resources + file requests.
+ * Mounted at /api/portal
+ */
+export function createPortalLibraryRoutes(
+  options: ResourcesRouteOptions,
+): Hono<ApiEnv> {
+  const app = new Hono<ApiEnv>();
+  const { store, resources } = options;
+
+  app.get("/resources", requireSession(store), async (c) => {
+    const eventId = c.req.query("eventId")?.trim();
+    if (!eventId) {
+      return c.json(errorEnvelope("eventId query required", VALIDATION_ERROR), 400);
+    }
+    const user = c.get("user");
+    if (!user) {
+      return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
+    }
+    const membership = await store.findMembership(eventId, user.id);
+    if (!membership) {
+      return c.json(errorEnvelope("Not a member of this event", FORBIDDEN), 403);
+    }
+    const rows = await resources.listResources(eventId);
+    return c.json(
+      {
+        resources: rows
+          .filter((r) => r.status === "published")
+          .map((r) => ({
+            id: r.id,
+            title: r.title,
+            bodyMd: r.bodyMd,
+            updatedAt: r.updatedAt,
+          })),
+      },
+      200,
+    );
+  });
+
+  app.get("/file-requests", requireSession(store), async (c) => {
+    const eventId = c.req.query("eventId")?.trim();
+    if (!eventId) {
+      return c.json(errorEnvelope("eventId query required", VALIDATION_ERROR), 400);
+    }
+    const user = c.get("user");
+    if (!user) {
+      return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
+    }
+    const membership = await store.findMembership(eventId, user.id);
+    if (!membership || membership.role !== "speaker") {
+      return c.json(
+        errorEnvelope("Speaker membership required", FORBIDDEN),
+        403,
+      );
+    }
+    const rows = await resources.listFileRequests(eventId);
+    return c.json(
+      {
+        fileRequests: rows
+          .filter((r) => r.status === "published")
+          .map((r) => ({
+            id: r.id,
+            title: r.title,
+            instructions: r.instructions,
+            purpose: r.purpose,
+            updatedAt: r.updatedAt,
+          })),
+      },
+      200,
+    );
+  });
 
   return app;
 }

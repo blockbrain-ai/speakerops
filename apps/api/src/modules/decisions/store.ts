@@ -42,6 +42,8 @@ export type ParticipationRow = {
   company: string | null;
   title: string | null;
   headshotFileId: string | null;
+  /** P6 social links JSON string or null. */
+  socialLinksJson?: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -126,6 +128,7 @@ export type DecisionsStore = {
       company?: string | null;
       title?: string | null;
       headshotFileId?: string | null;
+      socialLinksJson?: string | null;
     },
   ): Promise<ParticipationRow | null>;
 
@@ -316,6 +319,7 @@ export class MemoryDecisionsStore implements DecisionsStore {
       company?: string | null;
       title?: string | null;
       headshotFileId?: string | null;
+      socialLinksJson?: string | null;
     },
   ): Promise<ParticipationRow | null> {
     const existing = this.participations.get(id);
@@ -336,6 +340,9 @@ export class MemoryDecisionsStore implements DecisionsStore {
       ...(patch.title !== undefined ? { title: patch.title } : {}),
       ...(patch.headshotFileId !== undefined
         ? { headshotFileId: patch.headshotFileId }
+        : {}),
+      ...(patch.socialLinksJson !== undefined
+        ? { socialLinksJson: patch.socialLinksJson }
         : {}),
     };
     this.participations.set(id, next);
@@ -707,6 +714,7 @@ export class D1DecisionsStore implements DecisionsStore {
       company?: string | null;
       title?: string | null;
       headshotFileId?: string | null;
+      socialLinksJson?: string | null;
     },
   ): Promise<ParticipationRow | null> {
     // Callers always set version = prior + 1; include prior in WHERE for E1 atomicity.
@@ -723,6 +731,9 @@ export class D1DecisionsStore implements DecisionsStore {
     if (patch.title !== undefined) set.title = patch.title;
     if (patch.headshotFileId !== undefined) {
       set.headshotFileId = patch.headshotFileId;
+    }
+    if (patch.socialLinksJson !== undefined) {
+      set.socialLinksJson = patch.socialLinksJson;
     }
     const result = await this.db
       .update(eventParticipations)
@@ -749,6 +760,7 @@ export class D1DecisionsStore implements DecisionsStore {
     company: string | null;
     title: string | null;
     headshotFileId: string | null;
+    socialLinksJson?: string | null;
     version: number;
     createdAt: string;
     updatedAt: string;
@@ -765,6 +777,7 @@ export class D1DecisionsStore implements DecisionsStore {
       company: row.company,
       title: row.title,
       headshotFileId: row.headshotFileId,
+      socialLinksJson: row.socialLinksJson ?? null,
       version: row.version,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,

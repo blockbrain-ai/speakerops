@@ -36,6 +36,11 @@ import {
 } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
+  PortalResourcesPanel,
+  PortalFileRequestsPanel,
+  PortalFormsPanel,
+} from "./PortalLibrary.js";
+import {
   PortalHomeResponseSchema,
   ParticipationUpdateProfileResponseSchema,
   TaskCompleteResponseSchema,
@@ -113,6 +118,13 @@ const PORTAL_SECTIONS = [
   { id: "portal-profile", label: "Profile", testId: "portal-nav-profile" },
   { id: "portal-tasks", label: "Tasks", testId: "portal-nav-tasks" },
   { id: "portal-sessions", label: "Sessions", testId: "portal-nav-sessions" },
+  { id: "portal-forms", label: "Forms", testId: "portal-nav-forms" },
+  { id: "portal-resources", label: "Library", testId: "portal-nav-resources" },
+  {
+    id: "portal-file-requests",
+    label: "Files asks",
+    testId: "portal-nav-file-requests",
+  },
 ] as const;
 
 /** `?section=` value → tab view id. Unknown/absent values open Home. */
@@ -121,6 +133,9 @@ const SECTION_FROM_PARAM: Record<string, string> = {
   profile: "portal-profile",
   tasks: "portal-tasks",
   sessions: "portal-sessions",
+  forms: "portal-forms",
+  resources: "portal-resources",
+  "file-requests": "portal-file-requests",
 };
 
 export function PortalHomePage() {
@@ -158,6 +173,10 @@ export function PortalHomePage() {
   const [bioRich, setBioRich] = useState<RichTextEnvelope | null>(null);
   const [company, setCompany] = useState("");
   const [title, setTitle] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [socialX, setSocialX] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [website, setWebsite] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileStatus, setProfileStatus] = useState<string | null>(null);
 
@@ -255,6 +274,10 @@ export function PortalHomePage() {
         setBioRich(part.bioRich ?? null);
         setCompany(part.company ?? "");
         setTitle(part.title ?? "");
+        setLinkedin(part.socialLinks?.linkedin ?? "");
+        setSocialX(part.socialLinks?.x ?? "");
+        setFacebook(part.socialLinks?.facebook ?? "");
+        setWebsite(part.socialLinks?.website ?? "");
       }
       setLoadState("ready");
     } catch {
@@ -477,6 +500,12 @@ export function PortalHomePage() {
     bioRich?: RichTextEnvelope | null;
     company?: string | null;
     title?: string | null;
+    socialLinks?: {
+      linkedin?: string | null;
+      x?: string | null;
+      facebook?: string | null;
+      website?: string | null;
+    } | null;
   }): Promise<{ ok: true } | { ok: false; error: string }> {
     if (!participation || !eventId) {
       return { ok: false, error: "No speaker record linked" };
@@ -508,6 +537,9 @@ export function PortalHomePage() {
           ? null
           : fields.title.trim();
     }
+    if (fields.socialLinks !== undefined) {
+      body.socialLinks = fields.socialLinks;
+    }
     try {
       const res = await fetch(
         `/api/portal/participations/${encodeURIComponent(participation.id)}`,
@@ -535,6 +567,10 @@ export function PortalHomePage() {
       setBioRich(p.bioRich ?? null);
       setCompany(p.company ?? "");
       setTitle(p.title ?? "");
+      setLinkedin(p.socialLinks?.linkedin ?? "");
+      setSocialX(p.socialLinks?.x ?? "");
+      setFacebook(p.socialLinks?.facebook ?? "");
+      setWebsite(p.socialLinks?.website ?? "");
       setHome((prev) =>
         prev
           ? {
@@ -561,6 +597,12 @@ export function PortalHomePage() {
       bioRich,
       company,
       title,
+      socialLinks: {
+        linkedin: linkedin.trim() || null,
+        x: socialX.trim() || null,
+        facebook: facebook.trim() || null,
+        website: website.trim() || null,
+      },
     });
     if (!result.ok) {
       setProfileStatus(result.error);
@@ -1704,6 +1746,57 @@ export function PortalHomePage() {
                 maxLength={200}
                 disabled={!participation}
               />
+              <p className="portal-field-why">
+                Social links (https only) for the public programme.
+              </p>
+              <label className="portal-label" htmlFor="portal-linkedin">
+                LinkedIn
+              </label>
+              <input
+                id="portal-linkedin"
+                className="portal-input lumen-focusable"
+                data-testid="portal-linkedin-input"
+                value={linkedin}
+                onChange={(ev) => setLinkedin(ev.target.value)}
+                placeholder="https://linkedin.com/in/…"
+                disabled={!participation}
+              />
+              <label className="portal-label" htmlFor="portal-x">
+                X / Twitter
+              </label>
+              <input
+                id="portal-x"
+                className="portal-input lumen-focusable"
+                data-testid="portal-x-input"
+                value={socialX}
+                onChange={(ev) => setSocialX(ev.target.value)}
+                placeholder="https://x.com/…"
+                disabled={!participation}
+              />
+              <label className="portal-label" htmlFor="portal-facebook">
+                Facebook
+              </label>
+              <input
+                id="portal-facebook"
+                className="portal-input lumen-focusable"
+                data-testid="portal-facebook-input"
+                value={facebook}
+                onChange={(ev) => setFacebook(ev.target.value)}
+                placeholder="https://facebook.com/…"
+                disabled={!participation}
+              />
+              <label className="portal-label" htmlFor="portal-website">
+                Website
+              </label>
+              <input
+                id="portal-website"
+                className="portal-input lumen-focusable"
+                data-testid="portal-website-input"
+                value={website}
+                onChange={(ev) => setWebsite(ev.target.value)}
+                placeholder="https://…"
+                disabled={!participation}
+              />
               <button
                 type="submit"
                 className="portal-btn lumen-focusable"
@@ -1959,6 +2052,39 @@ export function PortalHomePage() {
               Only your own sessions are shown.
             </p>
           </section>
+        </div>
+      ) : null}
+
+      {/* N1 Portal forms */}
+      {loadState === "ready" &&
+      home &&
+      portalMode === "review" &&
+      activeSection === "portal-forms" ? (
+        <div className="portal-home-stack">
+          <PortalFormsPanel
+            eventId={home.eventId}
+            participationId={participation?.id ?? null}
+          />
+        </div>
+      ) : null}
+
+      {/* N2 Resources library */}
+      {loadState === "ready" &&
+      home &&
+      portalMode === "review" &&
+      activeSection === "portal-resources" ? (
+        <div className="portal-home-stack">
+          <PortalResourcesPanel eventId={home.eventId} />
+        </div>
+      ) : null}
+
+      {/* N3 File requests */}
+      {loadState === "ready" &&
+      home &&
+      portalMode === "review" &&
+      activeSection === "portal-file-requests" ? (
+        <div className="portal-home-stack">
+          <PortalFileRequestsPanel eventId={home.eventId} />
         </div>
       ) : null}
 

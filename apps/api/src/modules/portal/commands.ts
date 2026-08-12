@@ -84,11 +84,33 @@ function toProfileDto(
     company: row.company,
     title: row.title,
     headshotFileId: row.headshotFileId,
+    socialLinks: parseSocialLinks(row.socialLinksJson),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     personName: person?.name ?? null,
     personEmail: person?.email ?? null,
   };
+}
+
+function parseSocialLinks(
+  raw: string | null | undefined,
+): ParticipationProfileDto["socialLinks"] {
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw) as Record<string, unknown>;
+    const pick = (k: string) =>
+      typeof o[k] === "string" && (o[k] as string).trim()
+        ? (o[k] as string).trim()
+        : null;
+    return {
+      linkedin: pick("linkedin"),
+      x: pick("x"),
+      facebook: pick("facebook"),
+      website: pick("website"),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -946,8 +968,24 @@ export async function updateParticipationProfile(
     company: part.company,
     title: part.title,
     headshotFileId: part.headshotFileId,
+    socialLinksJson: part.socialLinksJson ?? null,
     version: part.version,
   };
+
+  let socialLinksJson: string | null | undefined;
+  if (input.body.socialLinks !== undefined) {
+    if (input.body.socialLinks === null) {
+      socialLinksJson = null;
+    } else {
+      const cleaned: Record<string, string> = {};
+      for (const k of ["linkedin", "x", "facebook", "website"] as const) {
+        const v = input.body.socialLinks[k];
+        if (typeof v === "string" && v.trim()) cleaned[k] = v.trim();
+      }
+      socialLinksJson =
+        Object.keys(cleaned).length > 0 ? JSON.stringify(cleaned) : null;
+    }
+  }
 
   const updated = await deps.decisions.updateParticipation(part.id, {
     version: part.version + 1,
@@ -958,6 +996,7 @@ export async function updateParticipationProfile(
     ...(input.body.headshotFileId !== undefined
       ? { headshotFileId: input.body.headshotFileId }
       : {}),
+    ...(socialLinksJson !== undefined ? { socialLinksJson } : {}),
   });
   if (!updated) {
     return {

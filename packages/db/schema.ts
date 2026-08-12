@@ -803,6 +803,8 @@ export const eventParticipations = sqliteTable(
     company: text("company"),
     title: text("title"),
     headshotFileId: text("headshot_file_id"),
+    /** P6 social links JSON: { linkedin?, x?, facebook?, website? } */
+    socialLinksJson: text("social_links_json"),
     version: integer("version").notNull().default(1),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),

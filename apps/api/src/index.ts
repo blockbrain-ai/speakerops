@@ -83,7 +83,10 @@ import {
   D1PortalFormsStore,
   type PortalFormsStore,
 } from "./modules/portal-forms/store.js";
-import { createResourcesRoutes } from "./modules/resources/routes.js";
+import {
+  createResourcesRoutes,
+  createPortalLibraryRoutes,
+} from "./modules/resources/routes.js";
 import {
   MemoryResourcesStore,
   D1ResourcesStore,
@@ -497,6 +500,14 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   app.route(
     "/api/events",
     createResourcesRoutes({
+      store: authStore,
+      events: eventsStore,
+      resources: resourcesStore,
+    }),
+  );
+  app.route(
+    "/api/portal",
+    createPortalLibraryRoutes({
       store: authStore,
       events: eventsStore,
       resources: resourcesStore,

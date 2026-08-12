@@ -32,6 +32,18 @@ export const ParticipationProfileSchema = EventParticipationSchema.extend({
   company: z.string().nullable(),
   title: z.string().nullable(),
   headshotFileId: z.string().nullable(),
+  /**
+   * Public social / web links (https only). Optional keys omitted when empty.
+   */
+  socialLinks: z
+    .object({
+      linkedin: z.string().nullable().optional(),
+      x: z.string().nullable().optional(),
+      facebook: z.string().nullable().optional(),
+      website: z.string().nullable().optional(),
+    })
+    .optional()
+    .nullable(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
   /** Person display name when joined. */
@@ -166,6 +178,15 @@ export const PortalHomeResponseSchema = z.object({
 export type PortalHomeResponse = z.infer<typeof PortalHomeResponseSchema>;
 
 /** Participation.UpdateProfile body */
+const SocialLinkFieldSchema = z
+  .string()
+  .max(TASK_LINK_URL_MAX_LENGTH)
+  .refine((v) => v === "" || isHttpsUrl(v), {
+    message: "social links must be https:// URLs",
+  })
+  .nullable()
+  .optional();
+
 export const ParticipationUpdateProfileBodySchema = z
   .object({
     bio: z.string().max(8000).nullable().optional(),
@@ -179,6 +200,15 @@ export const ParticipationUpdateProfileBodySchema = z
     company: z.string().max(200).nullable().optional(),
     title: z.string().max(200).nullable().optional(),
     headshotFileId: z.string().min(1).max(128).nullable().optional(),
+    socialLinks: z
+      .object({
+        linkedin: SocialLinkFieldSchema,
+        x: SocialLinkFieldSchema,
+        facebook: SocialLinkFieldSchema,
+        website: SocialLinkFieldSchema,
+      })
+      .optional()
+      .nullable(),
     expectedVersion: z.number().int().positive(),
   })
   .refine(
@@ -187,7 +217,8 @@ export const ParticipationUpdateProfileBodySchema = z
       b.bioRich !== undefined ||
       b.company !== undefined ||
       b.title !== undefined ||
-      b.headshotFileId !== undefined,
+      b.headshotFileId !== undefined ||
+      b.socialLinks !== undefined,
     { message: "At least one profile field is required" },
   );
 export type ParticipationUpdateProfileBody = z.infer<
