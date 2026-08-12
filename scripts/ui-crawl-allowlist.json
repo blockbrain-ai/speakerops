@@ -1026,6 +1026,84 @@
       "inv": "H01",
       "surface": "admin",
       "journey": "F7 publish public programme from Overview"
+    },
+    {
+      "testid": "nav-files",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N6 Files nav"
+    },
+    {
+      "testid": "nav-history",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N6 History nav"
+    },
+    {
+      "testid": "nav-team",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N6 Team nav"
+    },
+    {
+      "testid": "cfp-wizard-back",
+      "inv": "A01",
+      "surface": "public",
+      "journey": "P5 CFP wizard back"
+    },
+    {
+      "testid": "cfp-wizard-next",
+      "inv": "A01",
+      "surface": "public",
+      "journey": "P5 CFP wizard next"
+    },
+    {
+      "testid": "history-refresh",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "History refresh"
+    },
+    {
+      "testid": "team-refresh",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "Team refresh"
+    },
+    {
+      "testid": "files-refresh",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "Files refresh"
+    },
+    {
+      "testid": "schedule-view-month",
+      "inv": "I01",
+      "surface": "admin",
+      "journey": "P8 month view tab"
+    },
+    {
+      "testid": "schedule-view-conflicts",
+      "inv": "I01",
+      "surface": "admin",
+      "journey": "P8 conflicts view tab"
+    },
+    {
+      "testid": "schedule-month-day-*",
+      "inv": "I02",
+      "surface": "admin",
+      "journey": "P8 month cell jumps to day view for that date"
+    },
+    {
+      "testid": "schedule-conflict-focus-*",
+      "inv": "I08",
+      "surface": "admin",
+      "journey": "P8 conflicts work-queue focus on affected placement"
+    },
+    {
+      "testid": "settings-hub-*",
+      "inv": "C07",
+      "surface": "admin",
+      "journey": "P7 settings hub category tiles"
     }
   ]
 }

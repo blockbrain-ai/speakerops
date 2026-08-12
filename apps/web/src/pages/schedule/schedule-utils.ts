@@ -17,14 +17,21 @@ import type {
 /** Default session length when placing into a grid slot (minutes). */
 export const DEFAULT_SLOT_MINUTES = 60;
 
-/** Canonical five views (COMMANDS Schedule.List view hint). */
-export const SCHEDULE_VIEWS = [
+/** API-backed schedule views (COMMANDS Schedule.List view hint). */
+export const SCHEDULE_API_VIEWS = [
   "list",
   "day",
   "week",
   "track",
   "room",
 ] as const satisfies readonly NonNullable<ScheduleView>[];
+
+/** UI views including P8 Month + Conflicts work-queue. */
+export const SCHEDULE_VIEWS = [
+  ...SCHEDULE_API_VIEWS,
+  "month",
+  "conflicts",
+] as const;
 
 export type ScheduleViewMode = (typeof SCHEDULE_VIEWS)[number];
 

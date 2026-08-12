@@ -548,6 +548,61 @@ export function EventSettingsPage() {
         Use the settings categories on the left for brand, rubric, tasks, API
         keys, and Airtable.
       </p>
+      {/* P7 settings hub tiles */}
+      <section
+        className="settings-hub"
+        data-testid="settings-hub"
+        aria-label="Settings hub"
+      >
+        {[
+          {
+            href: "/admin/settings/design",
+            title: "Design Kit",
+            desc: "Brand tokens, logo, public CFP theme",
+            testId: "settings-hub-design",
+          },
+          {
+            href: "/admin/settings/rubric",
+            title: "Eval rubric",
+            desc: "Criteria and scoring plan",
+            testId: "settings-hub-rubric",
+          },
+          {
+            href: "/admin/settings/task-templates",
+            title: "Task templates",
+            desc: "Speaker onboarding tasks",
+            testId: "settings-hub-tasks",
+          },
+          {
+            href: "/admin/settings/api-keys",
+            title: "API keys",
+            desc: "Scoped machine access",
+            testId: "settings-hub-keys",
+          },
+          {
+            href: "/admin/settings/airtable",
+            title: "Airtable",
+            desc: "One-way projection status",
+            testId: "settings-hub-airtable",
+          },
+          {
+            href: "/admin/team",
+            title: "Event team",
+            desc: "Admins, evaluators, speakers",
+            testId: "settings-hub-team",
+          },
+        ].map((t) => (
+          <a
+            key={t.href}
+            href={t.href}
+            className="settings-hub__card lumen-focusable"
+            data-testid={t.testId}
+          >
+            <strong>{t.title}</strong>
+            <span>{t.desc}</span>
+          </a>
+        ))}
+      </section>
       {/* Legacy deep-link anchors kept for existing e2e (settings-*-link). */}
       <nav
         className="event-settings__legacy-links"

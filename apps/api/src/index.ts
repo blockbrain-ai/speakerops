@@ -382,6 +382,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       events: eventsStore,
       keys: keysStore,
       airtable: airtableStore,
+      design: designStore,
     }),
   );
 

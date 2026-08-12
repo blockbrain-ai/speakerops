@@ -124,6 +124,8 @@ export type DesignStore = {
     eventId: string,
     ownerParticipationId: string,
   ): Promise<FileAssetRow[]>;
+  /** N6 operator library: all file assets for an event (admin). */
+  listFilesForEvent?(eventId: string): Promise<FileAssetRow[]>;
   /**
    * Atomic single-use claim: transition pending (0) → claimed (2) with actual size.
    * Returns the updated row, or null if missing / not pending.
@@ -280,6 +282,13 @@ export class MemoryDesignStore implements DesignStore {
           f.ownerParticipationId === ownerParticipationId,
       )
       .map((f) => ({ ...f }));
+  }
+
+  async listFilesForEvent(eventId: string): Promise<FileAssetRow[]> {
+    return [...this.files.values()]
+      .filter((f) => f.eventId === eventId)
+      .map((f) => ({ ...f }))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async claimFileUpload(
@@ -652,6 +661,16 @@ export class D1DesignStore implements DesignStore {
         ),
       );
     return rows.map((r) => this.mapFile(r));
+  }
+
+  async listFilesForEvent(eventId: string): Promise<FileAssetRow[]> {
+    const rows = await this.db
+      .select()
+      .from(fileAssets)
+      .where(eq(fileAssets.eventId, eventId));
+    return rows
+      .map((r) => this.mapFile(r))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async claimFileUpload(

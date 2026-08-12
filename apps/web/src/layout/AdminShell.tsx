@@ -40,6 +40,24 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     icon: "inbox",
   },
   {
+    path: "/admin/files",
+    label: "Files",
+    testId: "nav-files",
+    icon: "file",
+  },
+  {
+    path: "/admin/history",
+    label: "History",
+    testId: "nav-history",
+    icon: "clock",
+  },
+  {
+    path: "/admin/team",
+    label: "Team",
+    testId: "nav-team",
+    icon: "users",
+  },
+  {
     path: "/admin/evaluations",
     label: "Evaluations",
     testId: "nav-evaluations",

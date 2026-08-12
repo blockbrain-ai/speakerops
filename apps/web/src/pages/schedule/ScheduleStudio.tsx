@@ -1777,6 +1777,94 @@ export function ScheduleStudioPage() {
     </div>
   );
 
+  // P8 Month view — calendar of event days with placement counts + jump-to-day.
+  const monthView = (
+    <div className="schedule-studio__month" data-testid="schedule-month-view">
+      <div className="schedule-studio__month-grid">
+        {dayKeys.map((dk) => {
+          const dayPlacements = placementsOnDay(placements, dk, timezone);
+          return (
+            <button
+              key={dk}
+              type="button"
+              className="schedule-studio__month-cell lumen-focusable"
+              data-testid={`schedule-month-day-${dk}`}
+              data-count={dayPlacements.length}
+              onClick={() => {
+                setFocusedDayKey(dk);
+                setView("day");
+              }}
+            >
+              <span className="schedule-studio__month-date">{dk}</span>
+              <span className="schedule-studio__month-count">
+                {dayPlacements.length} session
+                {dayPlacements.length === 1 ? "" : "s"}
+              </span>
+              <ul className="schedule-studio__month-titles">
+                {dayPlacements.slice(0, 3).map((p) => (
+                  <li key={p.id}>{p.title ?? p.sessionId}</li>
+                ))}
+                {dayPlacements.length > 3 ? (
+                  <li>+{dayPlacements.length - 3} more</li>
+                ) : null}
+              </ul>
+            </button>
+          );
+        })}
+      </div>
+      {dayKeys.length === 0 ? (
+        <p className="eval-queue__muted">Set event dates to build the month grid.</p>
+      ) : null}
+    </div>
+  );
+
+  // P8 Conflicts work-queue view.
+  const conflictsView = (
+    <div
+      className="schedule-studio__conflicts-view"
+      data-testid="schedule-conflicts-view"
+    >
+      {allConflicts.length === 0 ? (
+        <p className="eval-queue__muted" data-testid="schedule-conflicts-empty">
+          No hard conflicts on the board.
+        </p>
+      ) : (
+        <ul className="schedule-studio__conflicts-list">
+          {allConflicts.map((c, i) => (
+            <li
+              key={`${c.sessionId ?? "x"}-${i}`}
+              className="schedule-studio__conflict-row"
+              data-testid={`schedule-conflict-row-${i}`}
+            >
+              <Badge tone="danger" showDot>
+                Conflict
+              </Badge>
+              <span>{c.message || "Schedule conflict"}</span>
+              {c.sessionId ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  data-testid={`schedule-conflict-focus-${c.sessionId}`}
+                  onClick={() => {
+                    setSearchParams((prev) => {
+                      const n = new URLSearchParams(prev);
+                      n.set("sessionId", c.sessionId!);
+                      return n;
+                    });
+                    setView("day");
+                  }}
+                >
+                  Focus
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
   const viewBody = (() => {
     switch (view) {
       case "list":
@@ -1789,6 +1877,10 @@ export function ScheduleStudioPage() {
         return trackView;
       case "room":
         return roomView;
+      case "month":
+        return monthView;
+      case "conflicts":
+        return conflictsView;
       default:
         return listView;
     }

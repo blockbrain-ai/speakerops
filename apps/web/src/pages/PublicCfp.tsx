@@ -1968,6 +1968,67 @@ export function PublicCfpPage() {
                 </p>
               ) : null}
 
+              {/* P5 staged wizard rail actions — all fields stay on-page for e2e */}
+              <div
+                className="public-cfp__wizard-nav"
+                data-testid="cfp-wizard-nav"
+              >
+                <button
+                  type="button"
+                  className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"
+                  data-testid="cfp-wizard-back"
+                  disabled={
+                    (["proposal", "details", "speakers", "submit"] as const).indexOf(
+                      activeSection,
+                    ) <= 0
+                  }
+                  onClick={() => {
+                    const order = [
+                      "proposal",
+                      "details",
+                      "speakers",
+                      "submit",
+                    ] as const;
+                    const i = order.indexOf(activeSection);
+                    if (i > 0) {
+                      const prev = order[i - 1]!;
+                      setActiveSection(prev);
+                      sectionScrollLockUntil.current = Date.now() + 1000;
+                      document
+                        .querySelector(`[data-cfp-section="${prev}"]`)
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                  }}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="public-cfp__btn public-cfp__btn--secondary lumen-focusable"
+                  data-testid="cfp-wizard-next"
+                  disabled={activeSection === "submit"}
+                  onClick={() => {
+                    const order = [
+                      "proposal",
+                      "details",
+                      "speakers",
+                      "submit",
+                    ] as const;
+                    const i = order.indexOf(activeSection);
+                    if (i >= 0 && i < order.length - 1) {
+                      const next = order[i + 1]!;
+                      setActiveSection(next);
+                      sectionScrollLockUntil.current = Date.now() + 1000;
+                      document
+                        .querySelector(`[data-cfp-section="${next}"]`)
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                  }}
+                >
+                  Next step
+                </button>
+              </div>
+
               <div className="public-cfp__actions" data-cfp-section="submit">
                 <button
                   type="button"

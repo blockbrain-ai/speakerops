@@ -37,6 +37,7 @@ import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "./store.js";
 import type { KeysStore } from "../keys/store.js";
 import type { AirtableStore } from "../airtable/store.js";
+import type { DesignStore } from "../design/store.js";
 import { requireRole, actorFromContext } from "../../middleware/authz.js";
 import {
   createEvent,
@@ -59,6 +60,8 @@ export type EventsRouteOptions = {
   keys?: KeysStore;
   /** When set, Event.Create/Update enqueue airtable.project (7.3 / S-AIRTABLE). */
   airtable?: AirtableStore;
+  /** When set, N6 GET /:eventId/files lists file_assets for the event. */
+  design?: DesignStore;
 };
 
 function commandError(
@@ -76,7 +79,7 @@ function commandError(
 
 export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
   const events = new Hono<ApiEnv>();
-  const { store, events: eventsStore, keys, airtable } = options;
+  const { store, events: eventsStore, keys, airtable, design } = options;
   const deps = { events: eventsStore, auth: store, airtable };
   const bearer = keys
     ? {
@@ -506,6 +509,69 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
         );
       }
       return c.json(out.data, 200);
+    },
+  );
+
+  /**
+   * GET /:eventId/history — N6 audit browser (event-scoped).
+   */
+  events.get(
+    "/:eventId/history",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const all = await store.listAudits();
+      const eventsFor = all
+        .filter((a) => a.eventId === eventId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 200)
+        .map((a) => ({
+          id: a.id,
+          eventId: a.eventId,
+          actorType: a.actorType,
+          actorId: a.actorId,
+          action: a.action,
+          entityType: a.entityType,
+          entityId: a.entityId,
+          correlationId: a.correlationId,
+          createdAt: a.createdAt,
+        }));
+      return c.json({ events: eventsFor }, 200);
+    },
+  );
+
+  /**
+   * GET /:eventId/files — N6 centralized file library (admin).
+   * Lists file_assets metadata for the event (no bytes).
+   */
+  events.get(
+    "/:eventId/files",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const event = await eventsStore.findEventById(eventId);
+      if (!event) {
+        return c.json(errorEnvelope("Event not found", NOT_FOUND), 404);
+      }
+      if (!design?.listFilesForEvent) {
+        return c.json({ files: [] }, 200);
+      }
+      const rows = await design.listFilesForEvent(eventId);
+      return c.json(
+        {
+          files: rows.slice(0, 500).map((f) => ({
+            id: f.id,
+            purpose: f.purpose,
+            filename: f.filename,
+            contentType: f.mime,
+            sizeBytes: f.size,
+            uploaded: f.uploaded,
+            ownerParticipationId: f.ownerParticipationId,
+            createdAt: f.createdAt,
+          })),
+        },
+        200,
+      );
     },
   );
 

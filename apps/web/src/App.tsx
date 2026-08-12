@@ -33,6 +33,9 @@ import { EventSettingsPage } from "./pages/EventSettings.js";
 import { DesignKitPage } from "./pages/DesignKit.js";
 import { PublicCfpPage } from "./pages/PublicCfp.js";
 import { PublicProgrammePage } from "./pages/public/PublicProgramme.js";
+import { HistoryPage } from "./pages/operator/HistoryPage.js";
+import { TeamPage } from "./pages/operator/TeamPage.js";
+import { FilesPage } from "./pages/operator/FilesPage.js";
 import { FormBuilderPage } from "./pages/FormBuilder.js";
 import { EvaluatorQueuePage } from "./pages/EvaluatorQueue.js";
 import { RubricSettingsPage } from "./pages/RubricSettings.js";
@@ -164,6 +167,9 @@ export function AppRoutes() {
         <Route path="/admin/speakers" element={<SpeakersPage />} />
         <Route path="/admin/schedule" element={<ScheduleStudioPage />} />
         <Route path="/admin/comms" element={<CommsPage />} />
+        <Route path="/admin/files" element={<FilesPage />} />
+        <Route path="/admin/history" element={<HistoryPage />} />
+        <Route path="/admin/team" element={<TeamPage />} />
         <Route path="/admin/settings" element={<SettingsLayout />}>
           <Route index element={<EventSettingsPage />} />
           <Route path="/admin/settings/design" element={<DesignKitPage />} />
