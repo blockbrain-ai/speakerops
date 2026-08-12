@@ -30,6 +30,7 @@ import {
   type EvalProposalResponse,
   type EvalReviewItem,
 } from "@speakerops/shared";
+import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import {
   Alert,
   Badge,
@@ -878,39 +879,36 @@ export function EvaluatorQueuePage() {
                   </Alert>
                 ) : null}
 
-                {active.criteria.map((c: EvalCriterionDto) => (
-                  <div key={c.id} className="eval-queue__criterion">
-                    <label
-                      className="event-settings__label"
-                      htmlFor={`score-${c.id}`}
-                    >
-                      {c.name}{" "}
-                      <span className="eval-queue__muted">
-                        (max {c.maxScore}, weight {c.weight})
-                      </span>
-                    </label>
-                    <input
-                      id={`score-${c.id}`}
-                      type="number"
-                      min={0}
-                      max={c.maxScore}
-                      step="any"
-                      className="event-settings__input lumen-focusable"
-                      data-testid={`eval-score-input-${c.id}`}
-                      data-criterion-id={c.id}
-                      data-max-score={c.maxScore}
-                      value={values[c.id] ?? ""}
-                      onChange={(ev) =>
-                        setValues((prev) => ({
-                          ...prev,
-                          [c.id]: ev.target.value,
-                        }))
-                      }
-                      required
-                      disabled={scoringLocked}
-                    />
-                  </div>
-                ))}
+                {active.criteria.map((c: EvalCriterionDto) => {
+                  const max = Math.max(1, Math.floor(c.maxScore));
+                  const opts = Array.from({ length: max }, (_, i) => ({
+                    value: String(i + 1),
+                    label: String(i + 1),
+                  }));
+                  return (
+                    <div key={c.id} className="eval-queue__criterion">
+                      <div className="event-settings__label">
+                        {c.name}{" "}
+                        <span className="eval-queue__muted">
+                          (max {c.maxScore}, weight {c.weight})
+                        </span>
+                      </div>
+                      <SegmentedControl
+                        name={`score-${c.id}`}
+                        options={opts}
+                        value={values[c.id] ?? ""}
+                        onChange={(v) =>
+                          setValues((prev) => ({
+                            ...prev,
+                            [c.id]: v,
+                          }))
+                        }
+                        data-testid={`eval-score-input-${c.id}`}
+                        disabled={scoringLocked}
+                      />
+                    </div>
+                  );
+                })}
 
                 <label className="event-settings__label" htmlFor="eval-comment">
                   Comment
@@ -919,7 +917,7 @@ export function EvaluatorQueuePage() {
                   id="eval-comment"
                   className="event-settings__input lumen-focusable"
                   data-testid="eval-score-comment"
-                  rows={3}
+                  rows={5}
                   value={comment}
                   onChange={(ev) => setComment(ev.target.value)}
                   maxLength={4000}

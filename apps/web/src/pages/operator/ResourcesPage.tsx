@@ -7,6 +7,7 @@ import { useEventContext } from "../../events/EventContext.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Button } from "../../components/ui/Button.js";
 import { Badge } from "../../components/ui/Badge.js";
+import { useToast } from "../../components/ui/Toast.js";
 
 type Resource = {
   id: string;
@@ -18,6 +19,7 @@ type Resource = {
 
 export function ResourcesPage() {
   const { activeEventId } = useEventContext();
+  const toast = useToast();
   const [rows, setRows] = useState<Resource[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -81,6 +83,7 @@ export function ResourcesPage() {
       }
       setTitle("");
       setBody("");
+      toast.push({ tone: "success", title: "Resource draft created" });
       await load();
     } finally {
       setBusy(false);
@@ -91,6 +94,7 @@ export function ResourcesPage() {
     if (!activeEventId) return;
     setBusy(true);
     try {
+      const next = r.status === "published" ? "draft" : "published";
       await fetch(
         `/api/events/${encodeURIComponent(activeEventId)}/resources/${encodeURIComponent(r.id)}`,
         {
@@ -101,11 +105,16 @@ export function ResourcesPage() {
             accept: "application/json",
           },
           body: JSON.stringify({
-            status: r.status === "published" ? "draft" : "published",
+            status: next,
             expectedVersion: r.version,
           }),
         },
       );
+      toast.push({
+        tone: "success",
+        title: next === "published" ? "Resource published" : "Resource unpublished",
+        description: "Speakers see published pages in the portal Library tab.",
+      });
       await load();
     } finally {
       setBusy(false);
@@ -156,7 +165,7 @@ export function ResourcesPage() {
       <PageHeader
         eyebrow="Portals · speaker library"
         title="Resources"
-        description="A short speaker wiki: code of conduct, venue map, AV guide, schedule PDF. Draft → Publish. Published pages are the speaker-facing library (not a public microsite)."
+        description="Speaker-facing library pages (code of conduct, venue map, AV guide). Create a draft, edit markdown, then Publish — it appears in the speaker portal Library tab. Not a public microsite."
         data-testid="resources-page-header"
         actions={
           <Button

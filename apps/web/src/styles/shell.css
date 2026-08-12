@@ -7201,3 +7201,39 @@ input.speakers-page__profile-input,
     min-width: 9rem;
   }
 }
+
+/* F1 SegmentedControl — compact radiogroup */
+.l2-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--lumen-surface-muted, #f0eee9);
+  border: 1px solid var(--lumen-hairline, #e7e2da);
+}
+.l2-segmented__opt {
+  line-height: 1;
+  min-height: 28px;
+  min-width: 28px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lumen-ink, #1e2621);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.l2-segmented__opt--active {
+  background: var(--lumen-sage-deep, #3e6b50);
+  color: #fff;
+}
+.l2-segmented__opt:focus-visible {
+  outline: 2px solid var(--lumen-sage, #7ba88b);
+  outline-offset: 1px;
+}
+.l2-segmented__opt:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

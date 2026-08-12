@@ -7,6 +7,7 @@ import { useEventContext } from "../../events/EventContext.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Button } from "../../components/ui/Button.js";
 import { Badge } from "../../components/ui/Badge.js";
+import { useToast } from "../../components/ui/Toast.js";
 
 type FileRequest = {
   id: string;
@@ -19,6 +20,7 @@ type FileRequest = {
 
 export function FileRequestsPage() {
   const { activeEventId } = useEventContext();
+  const toast = useToast();
   const [rows, setRows] = useState<FileRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -84,6 +86,11 @@ export function FileRequestsPage() {
       }
       setTitle("");
       setInstructions("");
+      toast.push({
+        tone: "success",
+        title: "File request created",
+        description: "Publish it so speakers can upload from the portal.",
+      });
       await load();
     } finally {
       setBusy(false);
@@ -94,6 +101,7 @@ export function FileRequestsPage() {
     if (!activeEventId) return;
     setBusy(true);
     try {
+      const next = r.status === "published" ? "draft" : "published";
       await fetch(
         `/api/events/${encodeURIComponent(activeEventId)}/file-requests/${encodeURIComponent(r.id)}`,
         {
@@ -104,15 +112,30 @@ export function FileRequestsPage() {
             accept: "application/json",
           },
           body: JSON.stringify({
-            status: r.status === "published" ? "draft" : "published",
+            status: next,
             expectedVersion: r.version,
           }),
         },
       );
+      toast.push({
+        tone: "success",
+        title:
+          next === "published"
+            ? "File request published"
+            : "File request unpublished",
+        description:
+          "Speakers upload under portal File requests; fulfillment links their file.",
+      });
       await load();
     } finally {
       setBusy(false);
     }
+  }
+
+  function seedExample() {
+    setTitle("Session PDF");
+    setInstructions("Upload your final deck as PDF (max 10 MB).");
+    setPurpose("other");
   }
 
   return (
@@ -120,7 +143,7 @@ export function FileRequestsPage() {
       <PageHeader
         eyebrow="Portals · assets"
         title="File requests"
-        description="Named asks for files beyond the default headshot/slides tasks — e.g. session PDF, promo image. Templates are participation-scoped; speakers fulfill via portal upload paths."
+        description="Ask speakers for extra files (session PDF, promo image) beyond headshot/slides. Create → Publish → speakers upload in portal File requests → you see fulfillment. Participation-scoped only."
         data-testid="file-requests-page-header"
         actions={
           <Button
@@ -176,14 +199,25 @@ export function FileRequestsPage() {
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
             />
-            <Button
-              type="button"
-              data-testid="file-request-create"
-              disabled={busy || !title.trim()}
-              onClick={() => void create()}
-            >
-              Create request
-            </Button>
+            <div className="eval-queue__row" style={{ gap: 8, display: "flex" }}>
+              <Button
+                type="button"
+                data-testid="file-request-create"
+                disabled={busy || !title.trim()}
+                onClick={() => void create()}
+              >
+                Create request
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="file-request-seed-example"
+                disabled={busy}
+                onClick={() => seedExample()}
+              >
+                Prefill example
+              </Button>
+            </div>
           </div>
           {error ? (
             <p className="eval-queue__muted" data-testid="file-requests-error">
@@ -191,9 +225,13 @@ export function FileRequestsPage() {
             </p>
           ) : null}
           {rows.length === 0 ? (
-            <p className="eval-queue__muted" data-testid="file-requests-empty">
-              No file requests yet.
-            </p>
+            <div className="portal-forms-empty" data-testid="file-requests-empty">
+              <h3>No file requests yet</h3>
+              <p className="eval-queue__muted">
+                Example: “Session PDF” — publish it, then speakers upload from
+                the portal File requests tab. Use Prefill example to start.
+              </p>
+            </div>
           ) : (
             <ul className="portal-forms-list" data-testid="file-requests-list">
               {rows.map((r) => (
