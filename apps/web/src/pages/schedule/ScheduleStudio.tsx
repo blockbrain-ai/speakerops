@@ -394,15 +394,36 @@ export function ScheduleStudioPage() {
     [],
   );
 
+  /**
+   * Live view for optional schedule?view= hint only. API returns the full set
+   * regardless of view — do NOT put `view` in loadAll deps (that reloaded the
+   * board on every view-tab switch and remounted drag sources mid-session).
+   */
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  /** Count of non-silent loads so silent superseding a visible load cannot stick loading. */
+  const nonSilentLoadDepthRef = useRef(0);
+
+  /**
+   * Load schedule + rooms + tracks.
+   * @param opts.silent — background refetch after place/move (no "Loading…" flash,
+   *   does not disable Refresh). Use for post-mutation resync so drag chrome stays free.
+   */
   const loadAll = useCallback(
-    async (eventId: string) => {
+    async (eventId: string, opts?: { silent?: boolean }) => {
       const gen = ++loadGenRef.current;
-      setLoading(true);
-      setLoadError(null);
+      const showLoading = !opts?.silent;
+      if (showLoading) {
+        nonSilentLoadDepthRef.current += 1;
+        setLoading(true);
+        setLoadError(null);
+      }
+      // Echo-only view hint; data is view-independent (ScheduleListResponse).
+      const viewHint = viewRef.current;
       try {
         const [schedRes, roomsRes, tracksRes] = await Promise.all([
           fetch(
-            `/api/events/${encodeURIComponent(eventId)}/schedule?view=${view}`,
+            `/api/events/${encodeURIComponent(eventId)}/schedule?view=${encodeURIComponent(viewHint)}`,
             {
               credentials: "include",
               headers: { accept: "application/json" },
@@ -419,16 +440,18 @@ export function ScheduleStudioPage() {
         ]);
         if (!isCurrent(eventId, gen)) return;
         if (!schedRes.ok) {
-          setLoadError(`Schedule load failed (${schedRes.status})`);
-          setPlacements([]);
-          setUnscheduled([]);
+          if (showLoading || placementsRef.current.length === 0) {
+            setLoadError(`Schedule load failed (${schedRes.status})`);
+            setPlacements([]);
+            setUnscheduled([]);
+          }
           return;
         }
         const schedRaw: unknown = await schedRes.json();
         if (!isCurrent(eventId, gen)) return;
         const sched = ScheduleListResponseSchema.safeParse(schedRaw);
         if (!sched.success) {
-          setLoadError("Invalid schedule response");
+          if (showLoading) setLoadError("Invalid schedule response");
           return;
         }
         setPlacements(sched.data.placements);
@@ -446,12 +469,18 @@ export function ScheduleStudioPage() {
         }
       } catch {
         if (!isCurrent(eventId, gen)) return;
-        setLoadError("Network error loading schedule");
+        if (showLoading) setLoadError("Network error loading schedule");
       } finally {
-        if (isCurrent(eventId, gen)) setLoading(false);
+        if (showLoading) {
+          nonSilentLoadDepthRef.current = Math.max(
+            0,
+            nonSilentLoadDepthRef.current - 1,
+          );
+          if (nonSilentLoadDepthRef.current === 0) setLoading(false);
+        }
       }
     },
-    [isCurrent, view],
+    [isCurrent],
   );
 
   useEffect(() => {
@@ -462,6 +491,7 @@ export function ScheduleStudioPage() {
       setTracks([]);
       return;
     }
+    // Initial / event-switch load: show Loading… (not a silent background resync).
     void loadAll(activeEventId);
   }, [activeEventId, loadAll]);
 
@@ -659,14 +689,14 @@ export function ScheduleStudioPage() {
           await handleApiError(res, {
             rejectedSlotKey: slotKey(input.roomId, input.startsAt),
           });
-          await loadAll(activeEventId);
+          await loadAll(activeEventId, { silent: true });
           return false;
         }
         const raw: unknown = await res.json();
         const parsed = SchedulePlaceResponseSchema.safeParse(raw);
         if (!parsed.success) {
           setToast({ kind: "error", text: "Invalid place response" });
-          await loadAll(activeEventId);
+          await loadAll(activeEventId, { silent: true });
           return false;
         }
         // Apply response optimistically; background-refetch (no dead window).
@@ -682,11 +712,11 @@ export function ScheduleStudioPage() {
         setStaleRecovery(null);
         setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session placed" });
-        void loadAll(activeEventId);
+        void loadAll(activeEventId, { silent: true });
         return true;
       } catch {
         setToast({ kind: "error", text: "Network error on place" });
-        await loadAll(activeEventId);
+        await loadAll(activeEventId, { silent: true });
         return false;
       } finally {
         mutationInFlightRef.current = false;
@@ -722,7 +752,7 @@ export function ScheduleStudioPage() {
         live?.version ?? input.expectedVersion;
       if (expectedVersion == null) {
         setToast({ kind: "error", text: "Placement missing — refreshing" });
-        await loadAll(activeEventId);
+        await loadAll(activeEventId, { silent: true });
         return false;
       }
       const previous = input.previous ?? (live
@@ -779,7 +809,7 @@ export function ScheduleStudioPage() {
             rejectedSlotKey: slotKey(input.roomId, input.startsAt),
           });
           try {
-            await loadAll(activeEventId);
+            await loadAll(activeEventId, { silent: true });
           } catch {
             /* snapshot already restored */
           }
@@ -791,7 +821,7 @@ export function ScheduleStudioPage() {
           setPlacements(preMoveSnapshot);
           setToast({ kind: "error", text: "Invalid move response" });
           try {
-            await loadAll(activeEventId);
+            await loadAll(activeEventId, { silent: true });
           } catch {
             /* snapshot already restored */
           }
@@ -809,13 +839,13 @@ export function ScheduleStudioPage() {
         setStaleRecovery(null);
         setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session moved" });
-        void loadAll(activeEventId);
+        void loadAll(activeEventId, { silent: true });
         return true;
       } catch {
         setPlacements(preMoveSnapshot);
         setToast({ kind: "error", text: "Network error on move" });
         try {
-          await loadAll(activeEventId);
+          await loadAll(activeEventId, { silent: true });
         } catch {
           /* snapshot already restored */
         }
@@ -854,7 +884,7 @@ export function ScheduleStudioPage() {
       const expectedVersion = live?.version ?? input.expectedVersion;
       if (expectedVersion == null) {
         setToast({ kind: "error", text: "Placement missing — refreshing" });
-        await loadAll(activeEventId);
+        await loadAll(activeEventId, { silent: true });
         return false;
       }
       mutationInFlightRef.current = true;
@@ -879,14 +909,14 @@ export function ScheduleStudioPage() {
         );
         if (!res.ok) {
           await handleApiError(res);
-          await loadAll(activeEventId);
+          await loadAll(activeEventId, { silent: true });
           return false;
         }
         const raw: unknown = await res.json();
         const parsed = ScheduleUnscheduleResponseSchema.safeParse(raw);
         if (!parsed.success) {
           setToast({ kind: "error", text: "Invalid unschedule response" });
-          await loadAll(activeEventId);
+          await loadAll(activeEventId, { silent: true });
           return false;
         }
         if (!input.skipUndo && input.previous) {
@@ -897,11 +927,11 @@ export function ScheduleStudioPage() {
         setStaleRecovery(null);
         setApiConflictRows([]);
         setToast({ kind: "ok", text: "Session unscheduled" });
-        void loadAll(activeEventId);
+        void loadAll(activeEventId, { silent: true });
         return true;
       } catch {
         setToast({ kind: "error", text: "Network error on unschedule" });
-        await loadAll(activeEventId);
+        await loadAll(activeEventId, { silent: true });
         return false;
       } finally {
         mutationInFlightRef.current = false;

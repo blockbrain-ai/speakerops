@@ -30,7 +30,7 @@ test.describe("Embed preview CSP", () => {
       true,
     );
 
-    // Browser: same-origin iframe can load embed path under admin shell
+    // H4: drive the real EmbedConfigurator (not a synthetic iframe inject).
     const adminEmail = `embed-q07-${Date.now()}@example.com`;
     const { session } = await loginAs(
       request,
@@ -39,28 +39,53 @@ test.describe("Embed preview CSP", () => {
       adminEmail,
       "admin",
     );
-    await ensureEvent(
+    const event = await ensureEvent(
       request,
       session,
       `Embed Event ${Date.now()}`,
       `embed-${Date.now()}`,
     );
-    await page.goto("/admin");
+    await page.addInitScript((id) => {
+      localStorage.setItem("speakerops.activeEventId", id);
+    }, event.id);
+    await page.goto("/admin/embeds");
     await expect(page.getByTestId("admin-shell")).toBeVisible({
       timeout: 15_000,
     });
-    // Inject a same-origin preview iframe and assert it loads (CSP frame-src self)
-    const ok = await page.evaluate(async () => {
-      return new Promise<boolean>((resolve) => {
-        const iframe = document.createElement("iframe");
-        iframe.src = "/embed/demo/sessions";
-        iframe.setAttribute("data-testid", "embed-preview-frame");
-        iframe.onload = () => resolve(true);
-        iframe.onerror = () => resolve(false);
-        document.body.appendChild(iframe);
-        setTimeout(() => resolve(false), 5000);
-      });
+    await expect(page.getByTestId("page-embeds")).toBeVisible({
+      timeout: 15_000,
     });
-    expect(ok).toBe(true);
+    await expect(page.getByTestId("embeds-config")).toBeVisible();
+    await page.getByTestId("embed-type-select").selectOption("speakers");
+    await expect(page.getByTestId("embed-url-preview")).toContainText(
+      `/embed/${event.slug}/speakers`,
+    );
+    await page.getByTestId("embed-height-input").fill("480");
+    const code = page.getByTestId("embed-code");
+    await expect(code).toHaveValue(/iframe[\s\S]*speakers/);
+    await expect(code).toHaveValue(/height="480"/);
+
+    const preview = page.getByTestId("embed-live-preview");
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveAttribute(
+      "src",
+      new RegExp(`/embed/${event.slug}/speakers`),
+    );
+    // Live preview iframe must load under admin frame-src 'self' + embed frame-ancestors *
+    await expect
+      .poll(async () => {
+        return preview.evaluate((el) => {
+          const iframe = el as HTMLIFrameElement;
+          try {
+            return Boolean(
+              iframe.contentDocument?.body ||
+                iframe.contentWindow?.document?.body,
+            );
+          } catch {
+            return false;
+          }
+        });
+      }, { timeout: 10_000 })
+      .toBe(true);
   });
 });
