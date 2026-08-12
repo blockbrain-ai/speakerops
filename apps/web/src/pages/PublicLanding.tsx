@@ -2,11 +2,17 @@
  * Public product landing (/) — wave-1 front door (owner-approved mock).
  *
  * Replaces the anonymous redirect to /admin (which surfaced as session-expired).
- * Routes each audience: judge → /judge, organiser → /login, docs → /learn.
+ * Routes each audience: judge → /judge, organiser → /login,
+ * docs → https://learn.speakerops.org (external Learn host, not /learn on this Worker).
  * Sage & Honey · BrandLockup · Lumen control tokens.
  */
 import { Link } from "react-router-dom";
 import { BrandLockup } from "../components/ui/BrandMark.js";
+
+/** External Learn host — never use same-origin /learn (Worker returns plain 404). */
+const LEARN_DOCS_URL = "https://learn.speakerops.org";
+/** Machine-readable API surface served by this app. */
+const OPENAPI_URL = "/openapi.json";
 
 const LIFECYCLE = [
   { label: "Call for speakers", tone: "sage" as const },
@@ -44,7 +50,13 @@ export function PublicLandingPage() {
       <header className="public-landing__bar" data-testid="landing-topbar">
         <BrandLockup size={26} />
         <nav className="public-landing__nav" aria-label="Product">
-          <a className="public-landing__nav-link lumen-focusable" href="/learn/">
+          <a
+            className="public-landing__nav-link lumen-focusable"
+            href={LEARN_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="landing-nav-docs"
+          >
             Docs
           </a>
           <a
@@ -92,7 +104,9 @@ export function PublicLandingPage() {
           </Link>
           <a
             className="public-landing__btn public-landing__btn--ghost public-landing__btn--lg lumen-focusable"
-            href="/learn/"
+            href={LEARN_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             data-testid="landing-cta-docs"
           >
             Explore the docs
@@ -189,8 +203,22 @@ export function PublicLandingPage() {
         <span className="public-landing__fine">
           Open source · MIT · Cloudflare-native (Workers + D1)
         </span>
-        <a href="/learn/">Documentation</a>
-        <a href="/learn/">API</a>
+        <a
+          href={LEARN_DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="landing-footer-docs"
+        >
+          Documentation
+        </a>
+        <a
+          href={OPENAPI_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="landing-footer-api"
+        >
+          API
+        </a>
         <a
           href="https://github.com/blockbrain-ai/speakerops"
           rel="noopener noreferrer"
