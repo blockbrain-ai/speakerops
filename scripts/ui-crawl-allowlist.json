@@ -1214,6 +1214,24 @@
       "journey": "N2 publish resource"
     },
     {
+      "testid": "resource-save",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N2 save selected resource"
+    },
+    {
+      "testid": "resource-clear-selection",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N2 clear resource editor selection"
+    },
+    {
+      "testid": "resource-select-*",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N2 select resource row for edit"
+    },
+    {
       "testid": "file-requests-refresh",
       "inv": "L2-01",
       "surface": "admin",
