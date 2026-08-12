@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
-<meta name="description" content="Full handbook: mint scoped API keys, install the speakerops CLI, authenticate, run every inventory command, read exit codes, and automate safely.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'">
+<meta name="description" content="CLI and API keys Full handbook: mint scoped API keys, install the speakerops CLI, authenticate, run every inventory command, read exit codes, and automate safel">
 <title>CLI and API keys · SpeakerOps Learn</title>
 <link rel="stylesheet" href="/assets/learn.css">
 
@@ -44,11 +44,11 @@
 <li><a href="/program/settings-event">Event settings</a></li>
 <li><a href="/program/settings-design">Design kit</a></li>
 <li><a href="/program/task-templates">Task templates</a></li>
-          <li><a href="/program/team">Team</a></li>
-          <li><a href="/program/file-requests">File requests</a></li>
-          <li><a href="/program/resources">Resources</a></li>
-          <li><a href="/program/embeds">Embeds</a></li>
-          <li><a href="/program/find">Find</a></li>
+<li><a href="/program/team">Team</a></li>
+<li><a href="/program/file-requests">File requests</a></li>
+<li><a href="/program/resources">Resources</a></li>
+<li><a href="/program/embeds">Embeds</a></li>
+<li><a href="/program/find">Find</a></li>
 </ul></div>
 <div class="nav-group"><p class="nav-group-label">Agents</p><ul>
 <li><a href="/agents/cli-and-keys" aria-current="page">CLI and keys</a></li>
@@ -174,7 +174,6 @@ speakerops events list --json</code></pre>
 speakerops events list --json
 
 # events get
-speakerops events get --event &lt;eventId&gt; --json
 
 # CLI02 — readiness (scope: reports:read)
 speakerops reports readiness --event &lt;eventId&gt; --json
@@ -219,14 +218,9 @@ speakerops submissions list --event &lt;eventId&gt; --status submitted --json
 speakerops submissions get --id &lt;submissionId&gt; --json
 
 # Decisions (decisions:write — default-deny)
-speakerops decisions record --submission &lt;id&gt; --decision accept --reason &#39;PC&#39; --json
 # decisions: accept | reject | waitlist
 
-# Speakers / rooms / tracks (read scopes)
-speakerops speakers list --event &lt;eventId&gt; --json
-speakerops speakers list --event &lt;eventId&gt; --q &#39;Ada&#39; --json
-speakerops rooms list --event &lt;eventId&gt; --json
-speakerops tracks list --event &lt;eventId&gt; --json</code></pre>
+# Speakers / rooms / tracks (read scopes)</code></pre>
 </section>
 <section class="learn-section">
 <h2 id="files-upload">Files upload</h2>
@@ -250,10 +244,7 @@ speakerops comms send --preview-id &lt;previewId&gt; --json
 <h2 id="key-administration-from-the-cli">Key administration from the CLI</h2>
 <p>Creating and revoking keys requires keys:admin (default-deny). The create response returns the secret once; list never includes it.</p>
 <pre class="learn-code" data-testid="learn-code-block"><code># CLI11 — create (keys:admin)
-speakerops keys create --name &#39;agent-read&#39; --scopes events:read,reports:read --json
-
-speakerops keys list --json
-speakerops keys revoke --id &lt;keyId&gt; --json</code></pre>
+speakerops keys create --name &#39;agent-read&#39; --scopes events:read,reports:read --json</code></pre>
 </section>
 <section class="learn-section">
 <h2 id="openapi-discovery">OpenAPI discovery</h2>
@@ -265,7 +256,7 @@ speakerops openapi --json
 <section class="learn-section">
 <h2 id="optional-airtable-status">Optional Airtable status</h2>
 <p>When one-way Airtable projection is configured, agents can read status with airtable:read. Product core works when Airtable is unset (paused). Airtable is never a second system of record for writes from SpeakerOps program commands.</p>
-<pre class="learn-code" data-testid="learn-code-block"><code>speakerops airtable status --event &lt;eventId&gt; --json</code></pre>
+<pre class="learn-code" data-testid="learn-code-block"><code></code></pre>
 </section>
 <section class="learn-section">
 <h2 id="agent-rules-of-the-road">Agent rules of the road</h2>
@@ -318,37 +309,18 @@ speakerops openapi --json &gt;/dev/null &amp;&amp; echo openapi_ok</code></pre>
 <aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
 <li><code>/admin/settings/api-keys</code></li>
 </ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
-
+<section class="learn-section">
+<h2 id="members-cli">Team membership (CLI)</h2>
+<pre class="learn-code" data-testid="learn-code-block"><code>speakerops members list --event &lt;eventId&gt; --json
+speakerops members invite --event &lt;eventId&gt; --email eval@example.com --role evaluator
+speakerops members set-role --event &lt;eventId&gt; --user &lt;userId&gt; --role speaker</code></pre>
+<p>Requires an API key with <code>members:write</code> (invite / set-role) or session admin. Last-admin demotion and assignment-orphan demotion still fail closed on the Worker.</p>
+</section>
 </article>
       </main>
-      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
-<li><a href="#what-you-will-learn-on-this-page">What you will learn on this page</a></li>
-<li><a href="#mint-an-api-key-in-the-admin-ui">Mint an API key in the admin UI</a></li>
-<li><a href="#install-the-cli">Install the CLI</a></li>
-<li><a href="#authenticate-every-invocation">Authenticate every invocation</a></li>
-<li><a href="#exit-codes">Exit codes</a></li>
-<li><a href="#events-and-readiness-commands">Events and readiness commands</a></li>
-<li><a href="#design-kit-commands">Design kit commands</a></li>
-<li><a href="#schedule-commands">Schedule commands</a></li>
-<li><a href="#submissions-decisions-speakers-rooms-tracks">Submissions, decisions, speakers, rooms, tracks</a></li>
-<li><a href="#files-upload">Files upload</a></li>
-<li><a href="#comms-draft-and-send">Comms draft and send</a></li>
-<li><a href="#key-administration-from-the-cli">Key administration from the CLI</a></li>
-<li><a href="#openapi-discovery">OpenAPI discovery</a></li>
-<li><a href="#optional-airtable-status">Optional Airtable status</a></li>
-<li><a href="#agent-rules-of-the-road">Agent rules of the road</a></li>
-<li><a href="#end-to-end-agent-smoke-sequence">End-to-end agent smoke sequence</a></li>
-<li><a href="#http-mapping-reference">HTTP mapping reference</a></li>
-<li><a href="#security-model-for-keys">Security model for keys</a></li>
-</ul></nav>
-
     </div>
-    <footer class="learn-footer">
-      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
-    </footer>
   </div>
 </div>
-<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
 <script src="/assets/learn.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,6 @@
+{
+  "id": "L28",
+  "path": "/program/resources",
+  "title": "Resources library",
+  "bodyHtml": "<h1>Resources library</h1>\n<figure class=\"learn-figure\">\n  <img src=\"/assets/images/hero-resources.webp\" alt=\"Portal resources wiki for accepted speakers\" width=\"1200\" loading=\"lazy\" decoding=\"async\" />\n  <figcaption>Portal resources wiki for accepted speakers</figcaption>\n</figure>\n<p class=\"learn-lead\">Publish wiki-style resources for speakers (draft → publish → portal Library).</p>\n<section class=\"learn-section\">\n<h2 id=\"where-resources-live\">Where resources live</h2>\n<p>Open Admin → Resources. Create a page, edit content, publish when ready. Speakers see published pages under the portal Library tab.</p>\n</section><section class=\"learn-section\">\n<h2 id=\"seed-demo\">Demo seed</h2>\n<p>Dogfood may include starter seed resources for judges. Prefer publishing at least one resource before a walkthrough so the portal Library is not empty.</p>\n</section>\n<aside class=\"learn-product-routes\"><h2>Where this lives in the app</h2><ul>\n<li><code>/admin/resources</code></li><li><code>/portal</code></li>\n</ul><p class=\"learn-muted\">Open these routes on your demo or local host while you follow the steps above.</p></aside>"
+}

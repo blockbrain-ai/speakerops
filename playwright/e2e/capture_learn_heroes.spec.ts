@@ -10,7 +10,6 @@ import {
   loginAs,
   sessionHeaders,
   ensureEvent,
-  selectAdminEvent,
 } from "./helpers/cfp-eval-seed.js";
 
 test.describe.configure({ retries: 0 });
@@ -161,8 +160,6 @@ test("capture learn heroes: eval embeds team files history", async ({
   // Eval: assign self and open scoring if possible
   await page.goto("/admin/evaluations");
   await expect(page.getByTestId("admin-shell")).toBeVisible({ timeout: 15_000 });
-  // Try open queue / assign
-  const assign = page.getByTestId(/assign|eval-queue|evaluations/).first();
   await page.waitForTimeout(500);
   await page.screenshot({
     path: join(OUT, "hero-evaluation.png"),

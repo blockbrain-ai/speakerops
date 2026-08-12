@@ -7,7 +7,7 @@
   "scripts": {
     "typecheck": "tsc -b --pretty false",
     "test": "node --test tests/ && vitest run",
-    "test:ci": "node --test tests/governance/*.test.mjs tests/search-fts-harness.test.mjs && vitest run",
+    "test:ci": "node --test tests/governance/*.test.mjs tests/search-fts-harness.test.mjs && node scripts/check-learn-cli-parity.mjs && vitest run",
     "test:e2e": "node scripts/e2e-run.mjs",
     "test:e2e:inventory": "tsx scripts/inventory-lint.ts",
     "test:e2e:visual": "node scripts/e2e-run.mjs playwright/e2e/visual_lumen2.spec.ts",
@@ -24,6 +24,8 @@
     "audit:deps": "node scripts/dependency-audit.mjs",
     "lint": "eslint . --max-warnings 0",
     "docs:links": "node scripts/check-docs-links.mjs",
+    "build:learn": "node scripts/build-learn.mjs",
+    "check:learn-cli": "node scripts/check-learn-cli-parity.mjs",
     "deploy:learn": "wrangler deploy -c wrangler.learn.toml"
   },
   "devDependencies": {

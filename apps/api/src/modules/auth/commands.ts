@@ -288,7 +288,9 @@ export async function requestMagicLink(
   }
 
   // A4: Do NOT upsert membership for controlled+allowlist existing users.
-  // Role mutation via magic-link purpose is closed; use Auth.CreateInvite / setMemberRole.
+  // A4: Role mutation via magic-link purpose is closed (controlled policy).
+  // Membership is not upserted for existing users except open-policy tests or
+  // first-admin bootstrap. Use Auth.CreateInvite / setMemberRole for roles.
 
   const plaintext = generateToken(32);
   const tokenHash = await hashToken(plaintext);

@@ -72,7 +72,11 @@ test.describe("F5 Find palette", () => {
       }
       await page.waitForTimeout(200);
     }
-    expect(Array.isArray(searchBody.hits)).toBeTruthy();
+    // Q01 honesty: typed hits required — empty array is not a PASS.
+    expect(
+      (searchBody.hits ?? []).length,
+      "API search must return ≥1 hit for Findable after invalidate/reindex",
+    ).toBeGreaterThan(0);
 
     await page.goto("/admin");
     await expect(page.getByTestId("admin-shell")).toBeVisible({
@@ -102,14 +106,11 @@ test.describe("F5 Find palette", () => {
     await expect(page.getByTestId("find-reindex-footer")).toBeVisible();
 
     await page.getByTestId("find-input").fill("Findable");
-    await page.waitForTimeout(500);
-
-    // Must not show hard failure when event context is valid
-    const err = page.getByTestId("find-error");
-    if ((await err.count()) > 0 && (await err.isVisible())) {
-      const text = (await err.textContent()) ?? "";
-      expect(text).not.toMatch(/Search failed|Network error|Unexpected/i);
-    }
+    // UI must surface a real typed hit (find-hit-*), not merely "no hard error".
+    await expect(page.locator('[data-testid^="find-hit-"]').first()).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId("find-error")).toHaveCount(0);
 
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("find-palette")).toHaveCount(0);

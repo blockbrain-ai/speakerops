@@ -1,0 +1,6 @@
+{
+  "id": "L29",
+  "path": "/program/embeds",
+  "title": "Embeds",
+  "bodyHtml": "<h1>Embeds</h1>\n<figure class=\"learn-figure\">\n  <img src=\"/assets/images/hero-embeds.webp\" alt=\"Embeds configurator with live preview and copy-code\" width=\"1200\" loading=\"lazy\" decoding=\"async\" />\n  <figcaption>Embeds configurator with live preview and copy-code</figcaption>\n</figure>\n<p class=\"learn-lead\">Configure public programme embeds (sessions, speakers, agenda) for your own website.</p>\n<section class=\"learn-section\">\n<h2 id=\"where-embeds-live\">Where embeds live</h2>\n<p>Open Admin → Embeds. Choose surface options, copy generated embed code, and preview under the embed CSP. Public embed routes are frameable; the admin app itself uses frame-ancestors none.</p>\n</section>\n<aside class=\"learn-product-routes\"><h2>Where this lives in the app</h2><ul>\n<li><code>/admin/embeds</code></li>\n</ul><p class=\"learn-muted\">Open these routes on your demo or local host while you follow the steps above.</p></aside>"
+}

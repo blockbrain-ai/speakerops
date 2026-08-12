@@ -1,0 +1,6 @@
+{
+  "id": "L27",
+  "path": "/program/file-requests",
+  "title": "File requests",
+  "bodyHtml": "<h1>File requests</h1>\n<figure class=\"learn-figure\">\n  <img src=\"/assets/images/hero-file-requests.webp\" alt=\"File requests library for speaker uploads\" width=\"1200\" loading=\"lazy\" decoding=\"async\" />\n  <figcaption>File requests library for speaker uploads</figcaption>\n</figure>\n<p class=\"learn-lead\">Publish asks for speaker uploads (slides, PDFs) and track fulfillments from admin.</p>\n<section class=\"learn-section\">\n<h2 id=\"where-file-requests-live\">Where file requests live</h2>\n<p>Open Admin → File requests (operator). Create a request, publish it, and speakers see it under the portal File requests tab. Fulfillments show on the admin request once a speaker uploads.</p>\n</section><section class=\"learn-section\">\n<h2 id=\"speaker-flow\">Speaker flow</h2>\n<p>Accepted speakers open the portal, open File requests, and upload against each published ask. Incomplete asks surface on readiness when configured.</p>\n</section>\n<aside class=\"learn-product-routes\"><h2>Where this lives in the app</h2><ul>\n<li><code>/admin/file-requests</code></li><li><code>/portal</code></li>\n</ul><p class=\"learn-muted\">Open these routes on your demo or local host while you follow the steps above.</p></aside>"
+}

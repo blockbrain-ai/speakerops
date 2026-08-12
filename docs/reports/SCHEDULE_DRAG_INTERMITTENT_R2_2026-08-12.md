@@ -229,6 +229,6 @@ Until then, treat **M1 + M4** as co-primary residual hypotheses.
 | Quiet loadAll | Shipped `ff9370f2c` |
 | R2 residual investigation | Done |
 | Dual auditor | **REVISE_PLAN** both; diagnosis accepted; contract above |
-| Product code R2 | **Not started** — await owner GO on revised contract |
+| Product code R2 | **Shipped** `e0c024baf` (miss/cancel toasts + board-gap lastSlot + e2e) |
 
-**No product code changed in this investigation pass.**
+R2 product implementation closed 2026-08-12 after dual-auditor REVISE_PLAN contract.

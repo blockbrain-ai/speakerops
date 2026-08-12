@@ -760,6 +760,89 @@ describe("7.2 CLI01–CLI12 inventory", () => {
     );
     expect(code).toBe(EXIT_AUTHZ);
   });
+
+  it("members invite with members:write; deny without scope", async () => {
+    const { app, cookie, eventId } = await adminSession(
+      "cli-members@example.com",
+    );
+    const denyKey = await mintKey(
+      app,
+      cookie,
+      "no-members",
+      ["events:read", "events:write"],
+      eventId,
+    );
+    const capDeny = captureIo();
+    setClientFactoryForTests(() => clientFor(app, denyKey.secret));
+    const denyCode = await main(
+      [
+        "members",
+        "invite",
+        "--event",
+        eventId,
+        "--email",
+        "new-eval@example.com",
+        "--role",
+        "evaluator",
+        "--json",
+      ],
+      { io: capDeny.io },
+    );
+    expect(denyCode).toBe(EXIT_AUTHZ);
+
+    const okKey = await mintKey(
+      app,
+      cookie,
+      "members-write",
+      ["members:write", "events:read"],
+      eventId,
+    );
+    const cap = captureIo();
+    setClientFactoryForTests(() => clientFor(app, okKey.secret));
+    const code = await main(
+      [
+        "members",
+        "invite",
+        "--event",
+        eventId,
+        "--email",
+        `cli-invite-${Date.now()}@example.com`,
+        "--role",
+        "evaluator",
+        "--json",
+      ],
+      { io: cap.io },
+    );
+    expect(code).toBe(EXIT_OK);
+    const body = JSON.parse(cap.out) as { inviteId?: string };
+    expect(body.inviteId).toBeTruthy();
+  });
+
+  it("schedule list with schedule:read", async () => {
+    const { app, cookie, eventId } = await adminSession(
+      "cli-sched-list@example.com",
+    );
+    const key = await mintKey(
+      app,
+      cookie,
+      "sched-read",
+      ["schedule:read", "events:read"],
+      eventId,
+    );
+    const cap = captureIo();
+    setClientFactoryForTests(() => clientFor(app, key.secret));
+    const code = await main(
+      ["schedule", "list", "--event", eventId, "--json"],
+      { io: cap.io },
+    );
+    expect(code).toBe(EXIT_OK);
+    const body = JSON.parse(cap.out) as {
+      placements?: unknown[];
+      unscheduled?: unknown[];
+    };
+    expect(Array.isArray(body.placements)).toBe(true);
+    expect(Array.isArray(body.unscheduled)).toBe(true);
+  });
 });
 
 describe("7.2 OpenAPI HTTP GET /openapi.json", () => {

@@ -10,6 +10,7 @@
 import {
   cmdCommsDraft,
   cmdCommsSend,
+  cmdCommsTemplates,
   cmdDesignGet,
   cmdDesignPublish,
   cmdDesignSet,
@@ -23,9 +24,14 @@ import {
   cmdFormsList,
   cmdFormsPublish,
   cmdKeysCreate,
+  cmdMembersInvite,
+  cmdMembersList,
+  cmdMembersSetRole,
   cmdOpenApi,
   cmdReportsReadiness,
+  cmdScheduleList,
   cmdSchedulePlace,
+  cmdScheduleUnschedule,
   cmdSpeakersUpdateProfile,
   cmdSubmissionsAssign,
   cmdSubmissionsBulkDecision,
@@ -85,13 +91,20 @@ Commands (CLI_INVENTORY.md):
   design publish --event E                                CLI05  design:write
   schedule place --event E --session S --room R \\
                  --start ISO --end ISO                    CLI06  schedule:write
+  schedule list --event E [--view day] [--json]           schedule:read
+  schedule unschedule --event E --placement P \\
+                 [--expected-version N]                   schedule:write
   files upload --event E --file PATH [--purpose logo]     CLI08  files:write
                  [--participation ID] [--bind-profile]    headshot + Speakers.UpdateProfile
   speakers update-profile --event E --participation ID \\
                  [--bio T] [--company C] [--title T] \\
                  [--headshot-file-id F] [--expected-version N]  speakers:write
+  comms templates --event E [--json]                      comms:draft
   comms draft --template T [--preview] [--json]           CLI09  comms:draft
   comms send --preview-id P [--idempotency-key K]         CLI10  comms:send
+  members list --event E [--role evaluator] [--json]      members:write|events:read
+  members invite --event E --email A [--role evaluator]   members:write
+  members set-role --event E --user U --role R            members:write
   keys create --name N --scopes s1,s2                     CLI11  keys:admin
   openapi [--json]                                        CLI12  GET /openapi.json
 
@@ -219,6 +232,8 @@ async function dispatch(
       break;
     case "schedule":
       if (verb === "place") return cmdSchedulePlace(ctx);
+      if (verb === "list") return cmdScheduleList(ctx);
+      if (verb === "unschedule") return cmdScheduleUnschedule(ctx);
       break;
     case "files":
       if (verb === "upload") return cmdFilesUpload(ctx);
@@ -233,8 +248,20 @@ async function dispatch(
       }
       break;
     case "comms":
+      if (verb === "templates" || verb === "template-list") {
+        return cmdCommsTemplates(ctx);
+      }
       if (verb === "draft" || verb === "preview") return cmdCommsDraft(ctx);
       if (verb === "send") return cmdCommsSend(ctx);
+      break;
+    case "members":
+      if (verb === "list") return cmdMembersList(ctx);
+      if (verb === "invite" || verb === "create-invite") {
+        return cmdMembersInvite(ctx);
+      }
+      if (verb === "set-role" || verb === "role") {
+        return cmdMembersSetRole(ctx);
+      }
       break;
     case "keys":
       if (verb === "create") return cmdKeysCreate(ctx);

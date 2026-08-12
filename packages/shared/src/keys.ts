@@ -27,6 +27,8 @@ export const API_SCOPES = [
   "design:write",
   "reports:read",
   "airtable:read",
+  /** Auth.CreateInvite + setMemberRole (Team admin automation / CLI). */
+  "members:write",
   "keys:admin",
 ] as const;
 

@@ -1221,5 +1221,278 @@ export async function cmdEvalExport(ctx: CommandContext): Promise<CliExitCode> {
   return EXIT_OK;
 }
 
+// ─── Schedule.List / Unschedule (Learn + agent parity) ───────────────────────
+
+export async function cmdScheduleList(ctx: CommandContext): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  if (!eventId) {
+    return emitError(
+      ctx.io,
+      "schedule list requires --event <eventId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const view = requireOption(ctx.args, "view") ?? undefined;
+  const result = await client.get(
+    `/api/events/${encodeURIComponent(eventId)}/schedule`,
+    view ? { view } : undefined,
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as {
+      placements?: Array<{
+        id: string;
+        sessionId: string;
+        roomId: string;
+        startsAt: string;
+        endsAt: string;
+        title?: string;
+      }>;
+      unscheduled?: Array<{ id: string; title?: string }>;
+    };
+    const placed = b.placements ?? [];
+    const tray = b.unscheduled ?? [];
+    const lines = [
+      `placements=${placed.length} unscheduled=${tray.length}`,
+      ...placed.map(
+        (p) =>
+          `${p.id}\t${p.sessionId}\t${p.roomId}\t${p.startsAt}\t${p.endsAt}\t${p.title ?? ""}`,
+      ),
+      ...tray.map((s) => `tray\t${s.id}\t${s.title ?? ""}`),
+    ];
+    return lines.join("\n") + "\n";
+  });
+}
+
+export async function cmdScheduleUnschedule(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  const placementId = requireOption(ctx.args, "placement", [
+    "placementId",
+    "id",
+  ]);
+  const expectedVersionRaw = requireOption(ctx.args, "expected-version", [
+    "expectedVersion",
+    "version",
+  ]);
+  if (!eventId || !placementId) {
+    return emitError(
+      ctx.io,
+      "schedule unschedule requires --event and --placement",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  let expectedVersion = expectedVersionRaw
+    ? Number(expectedVersionRaw)
+    : undefined;
+  if (expectedVersion == null || !Number.isFinite(expectedVersion)) {
+    // Resolve version from list if not provided
+    const list = await client.get(
+      `/api/events/${encodeURIComponent(eventId)}/schedule`,
+    );
+    if (!list.ok) return emitResult(ctx.io, list, ctx.json);
+    const body = list.body as {
+      placements?: Array<{ id: string; version?: number }>;
+    };
+    const row = (body.placements ?? []).find((p) => p.id === placementId);
+    if (!row?.version) {
+      return emitError(
+        ctx.io,
+        "placement not found (pass --expected-version if known)",
+        "VALIDATION_ERROR",
+        EXIT_VALIDATION,
+        ctx.json,
+      );
+    }
+    expectedVersion = row.version;
+  }
+  const result = await client.post(
+    `/api/events/${encodeURIComponent(eventId)}/schedule/unschedule`,
+    { placementId, expectedVersion },
+  );
+  return emitResult(
+    ctx.io,
+    result,
+    ctx.json,
+    () => `unscheduled ${placementId}\n`,
+  );
+}
+
+// ─── Comms.ListTemplates ─────────────────────────────────────────────────────
+
+export async function cmdCommsTemplates(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  if (!eventId) {
+    return emitError(
+      ctx.io,
+      "comms templates requires --event <eventId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.get(
+    `/api/events/${encodeURIComponent(eventId)}/templates`,
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const templates =
+      body &&
+      typeof body === "object" &&
+      "templates" in body &&
+      Array.isArray((body as { templates: unknown }).templates)
+        ? (
+            body as {
+              templates: Array<{ id: string; key?: string; name?: string }>;
+            }
+          ).templates
+        : Array.isArray(body)
+          ? (body as Array<{ id: string; key?: string; name?: string }>)
+          : [];
+    if (templates.length === 0) return "No templates.\n";
+    return (
+      templates
+        .map((t) => `${t.id}\t${t.key ?? ""}\t${t.name ?? ""}`)
+        .join("\n") + "\n"
+    );
+  });
+}
+
+// ─── Auth.CreateInvite / setMemberRole / members list (members:write) ────────
+
+export async function cmdMembersList(ctx: CommandContext): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  if (!eventId) {
+    return emitError(
+      ctx.io,
+      "members list requires --event <eventId>",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const role = requireOption(ctx.args, "role") ?? undefined;
+  const result = await client.get(
+    `/api/events/${encodeURIComponent(eventId)}/members`,
+    role ? { role } : undefined,
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const members =
+      body &&
+      typeof body === "object" &&
+      "members" in body &&
+      Array.isArray((body as { members: unknown }).members)
+        ? (
+            body as {
+              members: Array<{
+                userId: string;
+                email?: string;
+                role?: string;
+              }>;
+            }
+          ).members
+        : [];
+    if (members.length === 0) return "No members.\n";
+    return (
+      members
+        .map((m) => `${m.userId}\t${m.email ?? ""}\t${m.role ?? ""}`)
+        .join("\n") + "\n"
+    );
+  });
+}
+
+export async function cmdMembersInvite(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  const email = requireOption(ctx.args, "email");
+  const role = requireOption(ctx.args, "role") ?? "evaluator";
+  if (!eventId || !email) {
+    return emitError(
+      ctx.io,
+      "members invite requires --event and --email [--role admin|evaluator|speaker]",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  if (!["admin", "evaluator", "speaker"].includes(role)) {
+    return emitError(
+      ctx.io,
+      "role must be admin, evaluator, or speaker",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.post(
+    `/api/events/${encodeURIComponent(eventId)}/invites`,
+    { email, role },
+  );
+  return emitResult(ctx.io, result, ctx.json, (body) => {
+    const b = body as { inviteId?: string; mailEnqueued?: boolean };
+    return `inviteId=${b.inviteId ?? "?"}\tmailEnqueued=${String(b.mailEnqueued ?? false)}\n`;
+  });
+}
+
+export async function cmdMembersSetRole(
+  ctx: CommandContext,
+): Promise<CliExitCode> {
+  const client = needClient(ctx);
+  if (typeof client === "number") return client;
+
+  const eventId = requireOption(ctx.args, "event", ["eventId", "e"]);
+  const userId = requireOption(ctx.args, "user", ["userId", "uid"]);
+  const role = requireOption(ctx.args, "role");
+  if (!eventId || !userId || !role) {
+    return emitError(
+      ctx.io,
+      "members set-role requires --event --user --role",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  if (!["admin", "evaluator", "speaker"].includes(role)) {
+    return emitError(
+      ctx.io,
+      "role must be admin, evaluator, or speaker",
+      "VALIDATION_ERROR",
+      EXIT_VALIDATION,
+      ctx.json,
+    );
+  }
+  const result = await client.patch(
+    `/api/events/${encodeURIComponent(eventId)}/members/${encodeURIComponent(userId)}`,
+    { role },
+  );
+  return emitResult(
+    ctx.io,
+    result,
+    ctx.json,
+    () => `userId=${userId}\trole=${role}\n`,
+  );
+}
+
 /** Re-export parseArgs for main. */
 export { parseArgs };

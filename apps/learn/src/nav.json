@@ -1,0 +1,157 @@
+[
+  {
+    "label": "Home",
+    "items": [
+      {
+        "href": "/",
+        "title": "Home"
+      }
+    ]
+  },
+  {
+    "label": "Get started",
+    "items": [
+      {
+        "href": "/get-started/overview",
+        "title": "Onboarding"
+      },
+      {
+        "href": "/get-started/demo-host",
+        "title": "Demo host"
+      },
+      {
+        "href": "/get-started/roles",
+        "title": "Roles"
+      }
+    ]
+  },
+  {
+    "label": "Program",
+    "items": [
+      {
+        "href": "/program/cfp-forms",
+        "title": "CFP forms"
+      },
+      {
+        "href": "/program/public-cfp",
+        "title": "Public CFP"
+      },
+      {
+        "href": "/program/evaluation",
+        "title": "Evaluation"
+      },
+      {
+        "href": "/program/decisions",
+        "title": "Decisions"
+      },
+      {
+        "href": "/program/speakers-admin",
+        "title": "Speakers admin"
+      },
+      {
+        "href": "/program/speaker-portal",
+        "title": "Speaker portal"
+      },
+      {
+        "href": "/program/schedule",
+        "title": "Schedule"
+      },
+      {
+        "href": "/program/readiness",
+        "title": "Readiness"
+      },
+      {
+        "href": "/program/comms",
+        "title": "Comms"
+      },
+      {
+        "href": "/program/settings-event",
+        "title": "Event settings"
+      },
+      {
+        "href": "/program/settings-design",
+        "title": "Design kit"
+      },
+      {
+        "href": "/program/task-templates",
+        "title": "Task templates"
+      },
+      {
+        "href": "/program/team",
+        "title": "Team"
+      },
+      {
+        "href": "/program/file-requests",
+        "title": "File requests"
+      },
+      {
+        "href": "/program/resources",
+        "title": "Resources"
+      },
+      {
+        "href": "/program/embeds",
+        "title": "Embeds"
+      },
+      {
+        "href": "/program/find",
+        "title": "Find"
+      }
+    ]
+  },
+  {
+    "label": "Agents",
+    "items": [
+      {
+        "href": "/agents/cli-and-keys",
+        "title": "CLI and keys"
+      }
+    ]
+  },
+  {
+    "label": "Ops",
+    "items": [
+      {
+        "href": "/ops/security",
+        "title": "Security"
+      },
+      {
+        "href": "/ops/operations",
+        "title": "Operations"
+      }
+    ]
+  },
+  {
+    "label": "About",
+    "items": [
+      {
+        "href": "/about/scope-and-non-goals",
+        "title": "Scope"
+      }
+    ]
+  },
+  {
+    "label": "FAQ",
+    "items": [
+      {
+        "href": "/faq/index",
+        "title": "FAQ index"
+      },
+      {
+        "href": "/faq/magic-link-rate-limits",
+        "title": "Magic-link limits"
+      },
+      {
+        "href": "/faq/allowlist",
+        "title": "Demo access"
+      },
+      {
+        "href": "/faq/email-cloudflare",
+        "title": "Email delivery"
+      },
+      {
+        "href": "/faq/speakers-list-performance",
+        "title": "Speakers performance"
+      }
+    ]
+  }
+]

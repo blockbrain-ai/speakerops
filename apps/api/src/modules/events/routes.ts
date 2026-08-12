@@ -123,6 +123,14 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
         eventsStore,
       }
     : {};
+  /** Team invite / setMemberRole — CLI members:write (WS-C). */
+  const bearerMembersWrite = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["members:write"] as const,
+        eventsStore,
+      }
+    : {};
 
   /**
    * GET /api/events — Event.List
@@ -606,14 +614,18 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
   /**
    * POST /:eventId/invites — Auth.CreateInvite (WS-C1)
    * Body: { email, role } — eventId from path only.
+   * Bearer: members:write (CLI members invite).
    */
   events.post(
     "/:eventId/invites",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...bearerMembersWrite,
+    }),
     async (c) => {
       const eventId = c.req.param("eventId");
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
       }
       let raw: unknown;
@@ -633,7 +645,7 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
         eventId,
         email: String(body.email ?? ""),
         role: (body.role ?? "evaluator") as "admin" | "evaluator" | "speaker",
-        actorUserId: user.id,
+        actorUserId: actor.userId,
         correlationId: c.get("correlationId") ?? "unknown",
       });
       if (!result.ok) {
@@ -657,14 +669,18 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
 
   /**
    * PATCH /:eventId/members/:userId — setMemberRole (WS-C2)
+   * Bearer: members:write (CLI members set-role).
    */
   events.patch(
     "/:eventId/members/:userId",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...bearerMembersWrite,
+    }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const userId = c.req.param("userId");
-      const actor = c.get("user");
+      const actor = actorFromContext(c);
       if (!actor) {
         return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
       }
@@ -674,15 +690,22 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
       } catch {
         return c.json(errorEnvelope("Invalid JSON body", VALIDATION_ERROR), 400);
       }
-      const role = (raw as { role?: string }).role;
-      if (!role) {
-        return c.json(errorEnvelope("role required", VALIDATION_ERROR), 400);
+      const roleRaw = (raw as { role?: string }).role;
+      if (
+        roleRaw !== "admin" &&
+        roleRaw !== "evaluator" &&
+        roleRaw !== "speaker"
+      ) {
+        return c.json(
+          errorEnvelope("role must be admin, evaluator, or speaker", VALIDATION_ERROR),
+          400,
+        );
       }
       const result = await setMemberRole(authDeps, {
         eventId,
         userId,
-        role: role as "admin" | "evaluator" | "speaker",
-        actorUserId: actor.id,
+        role: roleRaw,
+        actorUserId: actor.userId,
         correlationId: c.get("correlationId") ?? "unknown",
       });
       if (!result.ok) {

@@ -1390,6 +1390,18 @@
       "inv": "J15"
     },
     {
+      "testid": "comms-surface-campaign",
+      "inv": "J15",
+      "surface": "admin",
+      "journey": "Comms Campaign surface (wizard-only mode)"
+    },
+    {
+      "testid": "comms-surface-history",
+      "inv": "J15",
+      "surface": "admin",
+      "journey": "Comms History surface (log + ICS)"
+    },
+    {
       "testid": "schedule-tray-search",
       "inv": "I18"
     },

@@ -1,0 +1,6 @@
+{
+  "id": "L30",
+  "path": "/program/find",
+  "title": "Find (⌘K)",
+  "bodyHtml": "<h1>Find (⌘K)</h1>\n<p class=\"learn-lead\">Search submissions, sessions, speakers, forms, and tasks for the active event.</p>\n<section class=\"learn-section\">\n<h2 id=\"open-find\">Open Find</h2>\n<p>Use ⌘K / Ctrl+K or the top-bar Find control. Search is event-scoped and role-aware (evaluators only see assigned submissions).</p>\n</section><section class=\"learn-section\">\n<h2 id=\"index-freshness\">Index freshness</h2>\n<p>The search index rebuilds after mutations via background drain. If results look empty after a big change, wait a moment or use the maintenance rebuild control. Stale index state is normal briefly after edits.</p>\n</section>\n<aside class=\"learn-product-routes\"><h2>Where this lives in the app</h2><ul>\n<li><code>/admin (⌘K)</code></li>\n</ul><p class=\"learn-muted\">Open these routes on your demo or local host while you follow the steps above.</p></aside>"
+}

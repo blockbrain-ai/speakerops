@@ -236,6 +236,31 @@ speakerops eval export --event <eventId> [--sort score_desc]   # CSV on stdout
 
 ## Related docs
 
+### Members (Team / Auth.CreateInvite + setMemberRole)
+
+Requires API key scope **`members:write`** (invite / set-role) or session admin.
+
+```bash
+speakerops members list --event <eventId> --json
+speakerops members invite --event <eventId> --email eval@example.com --role evaluator
+speakerops members set-role --event <eventId> --user <userId> --role speaker
+```
+
+### Schedule list / unschedule
+
+```bash
+speakerops schedule list --event <eventId> --json
+speakerops schedule unschedule --event <eventId> --placement <placementId>
+```
+
+### Comms templates list
+
+```bash
+speakerops comms templates --event <eventId> --json
+```
+
+---
+
 - [`docs/SECRETS.md`](./SECRETS.md) — env **names** only
 - [`docs/governance/0.4-domain-map.md`](./governance/0.4-domain-map.md) — domain map + CLI parity
 - [`docs/sections/7.1-api-keys.md`](./sections/7.1-api-keys.md) — key mint/revoke

@@ -12,8 +12,6 @@ test.describe.configure({ retries: 0 });
 const EVENT_START = "2026-09-01T09:00:00.000Z";
 const EVENT_END = "2026-09-02T17:00:00.000Z";
 const SLOT_A = "2026-09-01T10:00:00.000Z";
-const SLOT_A_END = "2026-09-01T11:00:00.000Z";
-const SLOT_B = "2026-09-01T11:00:00.000Z";
 const ROOM = "room_ghost_hall";
 
 function slotTestId(roomId: string, startsAt: string): string {

@@ -84,7 +84,12 @@ export function LoginPage() {
       eventId?: string | null;
       memberships: AuthMembershipOption[];
     }) => {
-      if (returnFrom && returnFrom.startsWith("/")) {
+      if (
+        returnFrom &&
+        returnFrom.startsWith("/") &&
+        !returnFrom.startsWith("//") &&
+        !returnFrom.includes("\\")
+      ) {
         return returnFrom;
       }
       const memberships = opts.memberships ?? [];

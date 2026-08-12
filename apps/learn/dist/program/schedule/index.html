@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
-<meta name="description" content="Place sessions into rooms and times with conflict detection from Admin → Schedule.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'">
+<meta name="description" content="Schedule studio Schedule Studio day board with tray and conflict chrome Place sessions into rooms and times with conflict detection from Admin → Schedule. Where">
 <title>Schedule studio · SpeakerOps Learn</title>
 <link rel="stylesheet" href="/assets/learn.css">
 
@@ -44,11 +44,11 @@
 <li><a href="/program/settings-event">Event settings</a></li>
 <li><a href="/program/settings-design">Design kit</a></li>
 <li><a href="/program/task-templates">Task templates</a></li>
-          <li><a href="/program/team">Team</a></li>
-          <li><a href="/program/file-requests">File requests</a></li>
-          <li><a href="/program/resources">Resources</a></li>
-          <li><a href="/program/embeds">Embeds</a></li>
-          <li><a href="/program/find">Find</a></li>
+<li><a href="/program/team">Team</a></li>
+<li><a href="/program/file-requests">File requests</a></li>
+<li><a href="/program/resources">Resources</a></li>
+<li><a href="/program/embeds">Embeds</a></li>
+<li><a href="/program/find">Find</a></li>
 </ul></div>
 <div class="nav-group"><p class="nav-group-label">Agents</p><ul>
 <li><a href="/agents/cli-and-keys">CLI and keys</a></li>
@@ -89,6 +89,11 @@
 <p>Open Admin → Schedule (schedule studio). Sessions are program slots; placements assign room and time range. Hard conflicts such as double-booking a room or speaker surface as conflicts the operator must resolve. Soft preferences may appear as warnings depending on product rules.</p>
 </section>
 <section class="learn-section">
+<h2 id="drag-and-drop">Drag and drop (primary)</h2>
+<p>On the <strong>Day</strong> (and track/room) board, drag a tray session or a placed tile onto a time slot. The ghost follows the cursor; release on a cell to place or move. Release on the tray, toolbar, or outside the board cancels — you will see a short status toast if the drop missed a slot or the gesture was cancelled. Keyboard place (select then Enter on a slot) and the reschedule inspector remain available.</p>
+</section>
+
+<section class="learn-section">
 <h2 id="place-a-session">Place a session</h2>
 <p>Ensure rooms and tracks exist for the event. Create or select a session, choose room, start, and end in ISO-8601-compatible inputs the UI provides, and save. If the Worker returns a conflict, read the conflict list and adjust room or time.</p>
 <ol class="learn-steps">
@@ -103,13 +108,8 @@
 <h2 id="cli-parity">CLI parity</h2>
 <p>Agents with schedule:write can place sessions via the CLI. Success exits 0. Hard conflicts exit 3 with conflicts in the JSON body. Missing scope exits 2. Always pass --json for automation.</p>
 <pre class="learn-code" data-testid="learn-code-block"><code>speakerops schedule place \
-  --event &lt;eventId&gt; \
-  --session &lt;sessionId&gt; \
-  --room &lt;roomId&gt; \
-  --start &lt;ISO-8601&gt; \
-  --end &lt;ISO-8601&gt; \
-  --json
-
+  --event &lt;eventId&gt; --session &lt;sessionId&gt; --room &lt;roomId&gt; \
+  --start 2026-09-01T10:00:00.000Z --end 2026-09-01T11:00:00.000Z
 speakerops schedule list --event &lt;eventId&gt; --json
 speakerops schedule unschedule --event &lt;eventId&gt; --placement &lt;placementId&gt;</code></pre>
 </section>
@@ -121,23 +121,11 @@ speakerops schedule unschedule --event &lt;eventId&gt; --placement &lt;placement
 <aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
 <li><code>/admin/schedule</code></li>
 </ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
-
 </article>
       </main>
-      <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
-<li><a href="#where-scheduling-happens">Where scheduling happens</a></li>
-<li><a href="#place-a-session">Place a session</a></li>
-<li><a href="#cli-parity">CLI parity</a></li>
-<li><a href="#operator-tips">Operator tips</a></li>
-</ul></nav>
-
     </div>
-    <footer class="learn-footer">
-      <p>SpeakerOps Learn · Self-contained Program OS documentation · Original clean-room content</p>
-    </footer>
   </div>
 </div>
-<div id="search-results" class="search-results" data-testid="learn-search-results" hidden></div>
 <script src="/assets/learn.js" defer></script>
 </body>
 </html>
