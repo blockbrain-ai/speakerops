@@ -83,13 +83,18 @@ function ProgrammeShell({
   view,
   children,
   eventName,
+  embed = false,
 }: {
   slug: string;
   view: ProgrammeView;
   children: React.ReactNode;
   eventName?: string;
+  /** N4: chrome-less embed host (iframe-friendly). */
+  embed?: boolean;
 }) {
-  const base = `/e/${encodeURIComponent(slug)}`;
+  const base = embed
+    ? `/embed/${encodeURIComponent(slug)}`
+    : `/e/${encodeURIComponent(slug)}`;
   const nav: Array<{ view: ProgrammeView; path: string; label: string }> = [
     { view: "hub", path: base, label: "Overview" },
     { view: "sessions", path: `${base}/sessions`, label: "Sessions" },
@@ -99,42 +104,72 @@ function ProgrammeShell({
     { view: "gallery", path: `${base}/gallery`, label: "Gallery" },
   ];
   return (
-    <div className="public-programme" data-testid="public-programme" data-view={view}>
-      <header className="public-programme__header">
-        <div className="public-programme__brand">
-          <Link to="/" className="public-programme__home lumen-focusable">
-            speakerops
-          </Link>
+    <div
+      className={
+        embed
+          ? "public-programme public-programme--embed"
+          : "public-programme"
+      }
+      data-testid={embed ? "public-programme-embed" : "public-programme"}
+      data-view={view}
+      data-embed={embed ? "1" : "0"}
+    >
+      {embed ? (
+        <header className="public-programme__embed-bar" data-testid="embed-header">
           {eventName ? (
             <h1 className="public-programme__title" data-testid="public-programme-title">
               {eventName}
             </h1>
-          ) : null}
-        </div>
-        <nav className="public-programme__nav" aria-label="Programme">
-          {nav.map((n) => (
-            <NavLink
-              key={n.view}
-              to={n.path}
-              end={n.view === "hub"}
-              className={({ isActive }) =>
-                isActive
-                  ? "public-programme__nav-link is-active lumen-focusable"
-                  : "public-programme__nav-link lumen-focusable"
-              }
-              data-testid={`public-nav-${n.view}`}
-            >
-              {n.label}
-            </NavLink>
-          ))}
-        </nav>
-      </header>
+          ) : (
+            <span className="public-programme__muted">Programme embed</span>
+          )}
+        </header>
+      ) : (
+        <header className="public-programme__header">
+          <div className="public-programme__brand">
+            <Link to="/" className="public-programme__home lumen-focusable">
+              speakerops
+            </Link>
+            {eventName ? (
+              <h1
+                className="public-programme__title"
+                data-testid="public-programme-title"
+              >
+                {eventName}
+              </h1>
+            ) : null}
+          </div>
+          <nav className="public-programme__nav" aria-label="Programme">
+            {nav.map((n) => (
+              <NavLink
+                key={n.view}
+                to={n.path}
+                end={n.view === "hub"}
+                className={({ isActive }) =>
+                  isActive
+                    ? "public-programme__nav-link is-active lumen-focusable"
+                    : "public-programme__nav-link lumen-focusable"
+                }
+                data-testid={`public-nav-${n.view}`}
+              >
+                {n.label}
+              </NavLink>
+            ))}
+          </nav>
+        </header>
+      )}
       <main className="public-programme__main">{children}</main>
     </div>
   );
 }
 
-export function PublicProgrammePage({ view }: { view: ProgrammeView }) {
+export function PublicProgrammePage({
+  view,
+  embed = false,
+}: {
+  view: ProgrammeView;
+  embed?: boolean;
+}) {
   const { slug } = useParams<{ slug: string }>();
   const { data, error, loading } = useProgramme(slug);
 
@@ -148,7 +183,7 @@ export function PublicProgrammePage({ view }: { view: ProgrammeView }) {
 
   if (loading) {
     return (
-      <ProgrammeShell slug={slug} view={view}>
+      <ProgrammeShell slug={slug} view={view} embed={embed}>
         <p className="public-programme__muted" data-testid="public-programme-loading">
           Loading programme…
         </p>
@@ -158,7 +193,7 @@ export function PublicProgrammePage({ view }: { view: ProgrammeView }) {
 
   if (error || !data) {
     return (
-      <ProgrammeShell slug={slug} view={view}>
+      <ProgrammeShell slug={slug} view={view} embed={embed}>
         <div
           className="public-programme__empty"
           data-testid="public-programme-unpublished"
@@ -166,17 +201,26 @@ export function PublicProgrammePage({ view }: { view: ProgrammeView }) {
         >
           <h2>Programme not available</h2>
           <p>{error ?? "This programme has not been published yet."}</p>
-          <Link to="/" className="l2-btn l2-btn--secondary lumen-focusable">
-            Back home
-          </Link>
+          {!embed ? (
+            <Link to="/" className="l2-btn l2-btn--secondary lumen-focusable">
+              Back home
+            </Link>
+          ) : null}
         </div>
       </ProgrammeShell>
     );
   }
 
   return (
-    <ProgrammeShell slug={slug} view={view} eventName={data.event.name}>
-      {view === "hub" ? <HubView data={data} slug={slug} /> : null}
+    <ProgrammeShell
+      slug={slug}
+      view={view}
+      eventName={data.event.name}
+      embed={embed}
+    >
+      {view === "hub" ? (
+        <HubView data={data} slug={slug} embed={embed} />
+      ) : null}
       {view === "sessions" ? <SessionsView data={data} /> : null}
       {view === "speakers" ? <SpeakersView data={data} /> : null}
       {view === "agenda" || view === "itinerary" ? (
@@ -193,11 +237,15 @@ export function PublicProgrammePage({ view }: { view: ProgrammeView }) {
 function HubView({
   data,
   slug,
+  embed = false,
 }: {
   data: PublicProgrammeResponse;
   slug: string;
+  embed?: boolean;
 }) {
-  const base = `/e/${encodeURIComponent(slug)}`;
+  const base = embed
+    ? `/embed/${encodeURIComponent(slug)}`
+    : `/e/${encodeURIComponent(slug)}`;
   return (
     <div data-testid="public-hub">
       <p className="public-programme__lede">

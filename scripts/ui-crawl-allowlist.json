@@ -1104,6 +1104,42 @@
       "inv": "C07",
       "surface": "admin",
       "journey": "P7 settings hub category tiles"
+    },
+    {
+      "testid": "nav-embeds",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N4 Embeds nav"
+    },
+    {
+      "testid": "nav-preview",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N6 Preview hub nav"
+    },
+    {
+      "testid": "nav-analytics",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N7 Analytics nav"
+    },
+    {
+      "testid": "embed-copy-code",
+      "inv": "H01",
+      "surface": "admin",
+      "journey": "N4 copy embed iframe code"
+    },
+    {
+      "testid": "analytics-refresh",
+      "inv": "H01",
+      "surface": "admin",
+      "journey": "N7 analytics refresh"
+    },
+    {
+      "testid": "analytics-template-*",
+      "inv": "H01",
+      "surface": "admin",
+      "journey": "N7 analytics widget gallery toggle"
     }
   ]
 }

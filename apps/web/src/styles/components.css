@@ -2255,3 +2255,113 @@ textarea.l2-field__control {
   font-size: 11px;
   word-break: break-all;
 }
+
+/* N4 embeds configurator + N6 preview + N7 analytics */
+.public-programme--embed {
+  min-height: 100vh;
+  background: var(--lumen-surface);
+}
+.public-programme__embed-bar {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--lumen-border);
+}
+.embeds-config {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 24px;
+  margin-top: 16px;
+}
+@media (max-width: 800px) {
+  .embeds-config {
+    grid-template-columns: 1fr;
+  }
+}
+.embeds-config__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.embeds-config__frame {
+  width: 100%;
+  border: 1px solid var(--lumen-border);
+  border-radius: 12px;
+  background: var(--lumen-surface);
+  margin-bottom: 12px;
+}
+.preview-hub {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.preview-hub__card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--lumen-border);
+  background: var(--lumen-surface);
+  text-decoration: none;
+  color: inherit;
+  min-height: 96px;
+}
+.preview-hub__card:hover {
+  border-color: var(--lumen-brand);
+}
+.preview-hub__card strong {
+  font-size: 15px;
+}
+.preview-hub__card span {
+  font-size: 13px;
+  color: var(--lumen-text-secondary);
+}
+.analytics-templates__list {
+  list-style: none;
+  margin: 8px 0 20px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.analytics-templates__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--lumen-border);
+  background: var(--lumen-surface);
+  cursor: pointer;
+  text-align: left;
+  min-width: 180px;
+}
+.analytics-templates__card.is-active {
+  border-color: var(--lumen-brand);
+  box-shadow: 0 0 0 1px var(--lumen-brand);
+}
+.analytics-templates__card strong {
+  font-size: 14px;
+}
+.analytics-templates__card span {
+  font-size: 12px;
+  color: var(--lumen-text-secondary);
+}
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.analytics-widget {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--lumen-border);
+  background: var(--lumen-surface);
+}
+.analytics-widget h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}

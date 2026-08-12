@@ -58,6 +58,24 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     icon: "users",
   },
   {
+    path: "/admin/embeds",
+    label: "Embeds",
+    testId: "nav-embeds",
+    icon: "file",
+  },
+  {
+    path: "/admin/preview",
+    label: "Preview",
+    testId: "nav-preview",
+    icon: "home",
+  },
+  {
+    path: "/admin/analytics",
+    label: "Analytics",
+    testId: "nav-analytics",
+    icon: "check",
+  },
+  {
     path: "/admin/evaluations",
     label: "Evaluations",
     testId: "nav-evaluations",

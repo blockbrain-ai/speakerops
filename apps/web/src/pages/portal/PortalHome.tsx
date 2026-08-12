@@ -1873,7 +1873,7 @@ export function PortalHomePage() {
         </div>
       ) : null}
 
-      {/* Sessions tab */}
+      {/* Sessions tab — accepted programme work (P6 depth: owned sessions + status) */}
       {loadState === "ready" && home && portalMode === "review" && activeSection === "portal-sessions" ? (
         <div className="portal-home-stack">
           <section

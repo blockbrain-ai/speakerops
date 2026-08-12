@@ -36,6 +36,9 @@ import { PublicProgrammePage } from "./pages/public/PublicProgramme.js";
 import { HistoryPage } from "./pages/operator/HistoryPage.js";
 import { TeamPage } from "./pages/operator/TeamPage.js";
 import { FilesPage } from "./pages/operator/FilesPage.js";
+import { EmbedConfiguratorPage } from "./pages/operator/EmbedConfigurator.js";
+import { PreviewHubPage } from "./pages/operator/PreviewHub.js";
+import { AnalyticsDashboardPage } from "./pages/operator/AnalyticsDashboard.js";
 import { FormBuilderPage } from "./pages/FormBuilder.js";
 import { EvaluatorQueuePage } from "./pages/EvaluatorQueue.js";
 import { RubricSettingsPage } from "./pages/RubricSettings.js";
@@ -170,6 +173,9 @@ export function AppRoutes() {
         <Route path="/admin/files" element={<FilesPage />} />
         <Route path="/admin/history" element={<HistoryPage />} />
         <Route path="/admin/team" element={<TeamPage />} />
+        <Route path="/admin/embeds" element={<EmbedConfiguratorPage />} />
+        <Route path="/admin/preview" element={<PreviewHubPage />} />
+        <Route path="/admin/analytics" element={<AnalyticsDashboardPage />} />
         <Route path="/admin/settings" element={<SettingsLayout />}>
           <Route index element={<EventSettingsPage />} />
           <Route path="/admin/settings/design" element={<DesignKitPage />} />
@@ -243,6 +249,55 @@ export function AppRoutes() {
         element={
           <BareLayout>
             <PublicProgrammePage view="gallery" />
+          </BareLayout>
+        }
+      />
+      {/* N4 public embeds — same programme read model, chrome-less host */}
+      <Route
+        path="/embed/:slug"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="hub" embed />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/embed/:slug/sessions"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="sessions" embed />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/embed/:slug/speakers"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="speakers" embed />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/embed/:slug/agenda"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="agenda" embed />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/embed/:slug/itinerary"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="itinerary" embed />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/embed/:slug/gallery"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="gallery" embed />
           </BareLayout>
         }
       />
