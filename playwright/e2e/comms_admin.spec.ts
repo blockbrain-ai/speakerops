@@ -569,13 +569,16 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
       timeout: 15_000,
     });
 
-    // Change audience → preview invalid → Send step gated again
+    // Change audience → preview fingerprint invalid → Send step gated again.
+    // waitlisted with only accepted speakers yields count 0, so Review is also
+    // unreachable until the audience is fixed — both prove the gate.
     await goCommsStep(page, "audience");
     await page.getByTestId("comms-segment-status").selectOption("waitlisted");
     await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
-    await goCommsStep(page, "review");
-    await expect(page.getByTestId("comms-preview-results")).toHaveCount(0);
-    await expect(page.getByTestId("comms-wizard-next")).toBeDisabled();
+    await expect(page.getByTestId("comms-step-nav-review")).toBeDisabled();
+    await expect(page.getByTestId("comms-summary-preview-badge")).toContainText(
+      /No preview|stale/i,
+    );
   });
 
   test("@inv:J10 e2e/comms/ics-update reschedule keeps UID bumps SEQUENCE", async ({
