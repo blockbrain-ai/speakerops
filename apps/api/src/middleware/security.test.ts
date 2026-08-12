@@ -236,6 +236,21 @@ describe("8.3 security headers middleware", () => {
     expect(res.headers.get("Cache-Control")).toBe("no-store");
   });
 
+  it("embed routes are framable (frame-ancestors *; no X-Frame-Options DENY)", async () => {
+    const app = createApp();
+    const res = await app.request(
+      "http://localhost/embed/demo/sessions",
+      {},
+      env,
+    );
+    // SPA or 200/404 still must carry embed CSP when path is /embed/*
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toMatch(/frame-ancestors\s+\*/);
+    expect(csp).toMatch(/frame-src[^;]*'self'/);
+    const xfo = res.headers.get("X-Frame-Options");
+    expect(xfo == null || xfo === "").toBe(true);
+  });
+
   it("CSP present on 404 envelope", async () => {
     const app = createApp();
     const res = await app.request(
