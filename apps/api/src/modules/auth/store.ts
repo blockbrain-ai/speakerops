@@ -86,6 +86,14 @@ export type AuthStore = {
     email: string;
     name?: string | null;
   }): Promise<UserRow>;
+  /**
+   * Race-safe create-or-get by email (WS-C1).
+   * INSERT ON CONFLICT DO NOTHING then SELECT — never racy find-then-insert alone.
+   */
+  findOrCreateUserByEmail(input: {
+    email: string;
+    name?: string | null;
+  }): Promise<UserRow>;
   insertMagicLink(row: Omit<MagicLinkRow, "usedAt"> & { usedAt?: null }): Promise<MagicLinkRow>;
   findMagicLinkByTokenHash(tokenHash: string): Promise<MagicLinkRow | null>;
   /**
@@ -116,6 +124,25 @@ export type AuthStore = {
     userId: string;
     role: EventRole;
   }): Promise<MembershipRow>;
+  /**
+   * Create-only membership (WS-C1). INSERT ON CONFLICT DO NOTHING; never mutates role.
+   * Returns the row after insert-or-no-op (caller compares role for 409).
+   */
+  insertMembershipIfAbsent(input: {
+    eventId: string;
+    userId: string;
+    role: EventRole;
+  }): Promise<MembershipRow>;
+  /**
+   * Atomic role change with event-scoped last-admin guard (WS-C2).
+   * Returns false when the update was blocked (last admin demotion or missing row).
+   */
+  tryUpdateMemberRole(input: {
+    eventId: string;
+    userId: string;
+    fromRole: EventRole;
+    toRole: EventRole;
+  }): Promise<boolean>;
   findMembership(
     eventId: string,
     userId: string,
@@ -183,6 +210,14 @@ export class MemoryAuthStore implements AuthStore {
     this.users.set(row.id, row);
     this.usersByEmail.set(email, row.id);
     return row;
+  }
+
+  async findOrCreateUserByEmail(input: {
+    email: string;
+    name?: string | null;
+  }): Promise<UserRow> {
+    // Memory is single-process; createUser already create-or-get.
+    return this.createUser(input);
   }
 
   async insertMagicLink(
@@ -289,6 +324,45 @@ export class MemoryAuthStore implements AuthStore {
     };
     this.memberships.set(key, row);
     return row;
+  }
+
+  async insertMembershipIfAbsent(input: {
+    eventId: string;
+    userId: string;
+    role: EventRole;
+  }): Promise<MembershipRow> {
+    const key = this.membershipKey(input.eventId, input.userId);
+    const existing = this.memberships.get(key);
+    if (existing) return existing;
+    const row: MembershipRow = {
+      id: uuidv7(),
+      eventId: input.eventId,
+      userId: input.userId,
+      role: input.role,
+      createdAt: new Date().toISOString(),
+    };
+    this.memberships.set(key, row);
+    return row;
+  }
+
+  async tryUpdateMemberRole(input: {
+    eventId: string;
+    userId: string;
+    fromRole: EventRole;
+    toRole: EventRole;
+  }): Promise<boolean> {
+    const key = this.membershipKey(input.eventId, input.userId);
+    const existing = this.memberships.get(key);
+    if (!existing || existing.role !== input.fromRole) return false;
+    if (input.fromRole === "admin" && input.toRole !== "admin") {
+      let adminCount = 0;
+      for (const m of this.memberships.values()) {
+        if (m.eventId === input.eventId && m.role === "admin") adminCount += 1;
+      }
+      if (adminCount <= 1) return false;
+    }
+    this.memberships.set(key, { ...existing, role: input.toRole });
+    return true;
   }
 
   async findMembership(
@@ -415,6 +489,31 @@ export class D1AuthStore implements AuthStore {
       updatedAt: row.updatedAt,
     });
     return row;
+  }
+
+  async findOrCreateUserByEmail(input: {
+    email: string;
+    name?: string | null;
+  }): Promise<UserRow> {
+    const email = normalizeEmail(input.email);
+    const now = new Date().toISOString();
+    const id = uuidv7();
+    // Race-safe: unique idx_users_email; loser of insert does nothing then SELECT.
+    try {
+      await this.db.run(sql`
+        INSERT INTO users (id, email, name, created_at, updated_at)
+        VALUES (${id}, ${email}, ${input.name ?? null}, ${now}, ${now})
+        ON CONFLICT(email) DO NOTHING
+      `);
+    } catch {
+      // Some drivers surface unique races differently; fall through to SELECT.
+    }
+    const found = await this.findUserByEmail(email);
+    if (!found) {
+      // Extremely rare: insert failed for non-conflict reason.
+      return this.createUser(input);
+    }
+    return found;
   }
 
   async insertMagicLink(
@@ -628,6 +727,67 @@ export class D1AuthStore implements AuthStore {
       createdAt: row.createdAt,
     });
     return row;
+  }
+
+  async insertMembershipIfAbsent(input: {
+    eventId: string;
+    userId: string;
+    role: EventRole;
+  }): Promise<MembershipRow> {
+    const id = uuidv7();
+    const createdAt = new Date().toISOString();
+    await this.db.run(sql`
+      INSERT INTO event_memberships (id, event_id, user_id, role, created_at)
+      VALUES (${id}, ${input.eventId}, ${input.userId}, ${input.role}, ${createdAt})
+      ON CONFLICT(event_id, user_id) DO NOTHING
+    `);
+    const row = await this.findMembership(input.eventId, input.userId);
+    if (!row) {
+      // Should not happen after insert-or-noop; fall back to upsert for safety.
+      return this.upsertMembership(input);
+    }
+    return row;
+  }
+
+  async tryUpdateMemberRole(input: {
+    eventId: string;
+    userId: string;
+    fromRole: EventRole;
+    toRole: EventRole;
+  }): Promise<boolean> {
+    // Atomic last-admin guard: demoting admin requires another admin on this event.
+    if (input.fromRole === "admin" && input.toRole !== "admin") {
+      const result = await this.db.run(sql`
+        UPDATE event_memberships
+        SET role = ${input.toRole}
+        WHERE event_id = ${input.eventId}
+          AND user_id = ${input.userId}
+          AND role = ${input.fromRole}
+          AND (
+            SELECT COUNT(*) FROM event_memberships m2
+            WHERE m2.event_id = ${input.eventId} AND m2.role = 'admin'
+          ) > 1
+      `);
+      const changes =
+        (result as { meta?: { changes?: number }; changes?: number })?.meta
+          ?.changes ??
+        (result as { changes?: number })?.changes ??
+        0;
+      return Number(changes) > 0;
+    }
+    const result = await this.db.run(sql`
+      UPDATE event_memberships
+      SET role = ${input.toRole}
+      WHERE event_id = ${input.eventId}
+        AND user_id = ${input.userId}
+        AND role = ${input.fromRole}
+    `);
+    const changes =
+      (result as { meta?: { changes?: number }; changes?: number })?.meta
+        ?.changes ??
+      (result as { changes?: number })?.changes ??
+      0;
+    return Number(changes) > 0;
   }
 
   async findMembership(

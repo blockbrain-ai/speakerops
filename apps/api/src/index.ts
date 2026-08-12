@@ -417,6 +417,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       design: designStore,
       magicLinkMail: options.magicLinkMail ?? null,
       magicLinkOutbox: magicLinkOutbox,
+      eval: evalStore,
     }),
   );
 
@@ -1154,6 +1155,26 @@ export async function drainSearchIndexFromEnv(
   const limit = options.limit ?? 10;
   let processed = 0;
   try {
+    // B3 deploy/cold backfill: ensure every event has a state row so the
+    // drain sweep can discover never-indexed events (empty Find → self-heal).
+    await (
+      d1 as unknown as {
+        prepare: (s: string) => {
+          run: () => Promise<unknown>;
+        };
+      }
+    )
+      .prepare(
+        `INSERT INTO search_index_state (event_id, requested_generation, built_generation)
+         SELECT id, 1, -1 FROM events
+         WHERE id NOT IN (SELECT event_id FROM search_index_state)
+         ON CONFLICT(event_id) DO NOTHING`,
+      )
+      .run();
+  } catch {
+    // Table may not exist pre-migration 0044 or events empty
+  }
+  try {
     // D1DatabaseLike may not type prepare; cast for admin SQL.
     const raw = await (
       d1 as unknown as {
@@ -1238,7 +1259,8 @@ function withAssetSecurityHeaders(
   // Hashed Vite assets under /assets/ — safe to cache long-term.
   if (
     pathname.startsWith("/assets/") &&
-    /\.[a-fA-F0-9]{8,}\.(js|css|map|woff2?|png|svg|jpg|webp)$/.test(
+    // Vite emits content hashes as `-` or `.` prefixes (e.g. index-C9gNzjZS.js).
+    /(?:[.-][a-zA-Z0-9_-]{6,})\.(js|css|map|woff2?|png|svg|jpg|webp)$/.test(
       pathname,
     )
   ) {

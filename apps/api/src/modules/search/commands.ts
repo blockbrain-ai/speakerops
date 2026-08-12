@@ -52,6 +52,57 @@ export async function reindexEvent(
     return { ok: false, status: 404, error: "Event not found", code: "NOT_FOUND" };
   }
 
+  // B3: projection runs AFTER lease acquire inside processIndexEvent so a
+  // mutation mid-rebuild cannot freeze a pre-lease snapshot under generation G.
+  // Drain calls this when already stale; admin reindex should invalidate first.
+  if (deps.search.processIndexEvent) {
+    let indexed = 0;
+    const outcome = await deps.search.processIndexEvent(
+      eventId,
+      async () => {
+        const docs = await projectEventDocuments(deps, eventId);
+        indexed = docs.length;
+        return docs;
+      },
+    );
+    const freshness = new Date().toISOString();
+    if (outcome === "built" || outcome === "noop") {
+      lastRebuildAt.set(eventId, freshness);
+    }
+    // If not stale (noop) and admin needs a forced rebuild, bump + process once.
+    if (outcome === "noop" && deps.search.invalidateIndex) {
+      await deps.search.invalidateIndex(eventId);
+      indexed = 0;
+      const forced = await deps.search.processIndexEvent(
+        eventId,
+        async () => {
+          const docs = await projectEventDocuments(deps, eventId);
+          indexed = docs.length;
+          return docs;
+        },
+      );
+      if (forced === "built" || forced === "noop") {
+        lastRebuildAt.set(eventId, freshness);
+      }
+    }
+    return { ok: true, value: { indexed, freshness } };
+  }
+
+  const docs = await projectEventDocuments(deps, eventId);
+  if (deps.search.invalidateIndex) {
+    await deps.search.invalidateIndex(eventId);
+  }
+  await deps.search.replaceEventDocuments(eventId, docs);
+  const freshness = new Date().toISOString();
+  lastRebuildAt.set(eventId, freshness);
+  return { ok: true, value: { indexed: docs.length, freshness } };
+}
+
+/** Project domain SoR into search document rows (read-only). */
+export async function projectEventDocuments(
+  deps: SearchCommandDeps,
+  eventId: string,
+): Promise<SearchDocumentRow[]> {
   const docs: SearchDocumentRow[] = [];
   const now = new Date().toISOString();
 
@@ -235,29 +286,7 @@ export async function reindexEvent(
     }
   }
 
-  // B3: lease-fenced rebuild when available; else full replace (Memory/tests).
-  if (deps.search.processIndexEvent) {
-    // Ensure a generation lag so processIndexEvent does work for admin reindex.
-    if (deps.search.invalidateIndex) {
-      await deps.search.invalidateIndex(eventId);
-    }
-    const outcome = await deps.search.processIndexEvent(eventId, async () => docs);
-    const freshness = new Date().toISOString();
-    if (outcome === "built" || outcome === "noop") {
-      lastRebuildAt.set(eventId, freshness);
-    }
-    return {
-      ok: true,
-      value: { indexed: docs.length, freshness },
-    };
-  }
-  if (deps.search.invalidateIndex) {
-    await deps.search.invalidateIndex(eventId);
-  }
-  await deps.search.replaceEventDocuments(eventId, docs);
-  const freshness = new Date().toISOString();
-  lastRebuildAt.set(eventId, freshness);
-  return { ok: true, value: { indexed: docs.length, freshness } };
+  return docs;
 }
 
 /** Minimal deps for post-mutation invalidation (optional search on domain commands). */

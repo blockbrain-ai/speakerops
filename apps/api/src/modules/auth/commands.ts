@@ -117,6 +117,16 @@ export type AuthCommandDeps = {
   bootstrapPolicy?: BootstrapPolicy;
   /** When set, enqueue encrypted auth.magic_link outbox for email delivery. */
   magicLinkMail?: MagicLinkMailDeps | null;
+  /**
+   * Optional eval store for C2 assignment-orphan guard (demote to speaker).
+   * When absent, demotion still works but pending-assignment check is skipped
+   * only in pure unit tests that do not wire eval.
+   */
+  eval?: {
+    listAssignmentsForEvaluator(
+      evaluatorUserId: string,
+    ): Promise<Array<{ status: string; submissionId?: string | null }>>;
+  };
 };
 
 /** Normalize allowlist entries (lowercase). */
@@ -840,30 +850,23 @@ export async function createInvite(
     };
   }
 
-  let user = await deps.store.findUserByEmail(email);
-  if (!user) {
-    user = await deps.store.createUser({ email });
-  }
+  // WS-C1: race-safe create-or-get user (never racy find-then-insert alone).
+  const user = await deps.store.findOrCreateUserByEmail({ email });
 
-  const existing = await deps.store.findMembership(input.eventId, user.id);
-  if (existing) {
-    if (existing.role === input.role) {
-      // Idempotent re-invite same role
-    } else {
-      return {
-        ok: false,
-        status: 409,
-        error:
-          "Member already has a different role — use role change (PATCH members) instead of invite",
-        code: "CONFLICT",
-      };
-    }
-  } else {
-    await deps.store.upsertMembership({
-      eventId: input.eventId,
-      userId: user.id,
-      role: input.role,
-    });
+  // Create-only membership — never mutates role via invite (last-admin safe).
+  const membership = await deps.store.insertMembershipIfAbsent({
+    eventId: input.eventId,
+    userId: user.id,
+    role: input.role,
+  });
+  if (membership.role !== input.role) {
+    return {
+      ok: false,
+      status: 409,
+      error:
+        "Member already has a different role — use role change (PATCH members) instead of invite",
+      code: "CONFLICT",
+    };
   }
 
   const purpose: MagicLinkPurpose =
@@ -932,13 +935,35 @@ export async function setMemberRole(
   if (existing.role === input.role) {
     return { ok: true, role: input.role };
   }
-  // Last admin on this event cannot be demoted
-  if (existing.role === "admin" && input.role !== "admin") {
-    const members = await deps.store.listMemberships();
-    const adminCount = members.filter(
-      (m) => m.eventId === input.eventId && m.role === "admin",
-    ).length;
-    if (adminCount <= 1) {
+
+  // C2 assignment-orphan guard: demotion to speaker while pending assignments exist.
+  if (
+    input.role === "speaker" &&
+    (existing.role === "evaluator" || existing.role === "admin") &&
+    deps.eval
+  ) {
+    const assigns = await deps.eval.listAssignmentsForEvaluator(input.userId);
+    const pending = assigns.filter((a) => a.status === "pending");
+    if (pending.length > 0) {
+      return {
+        ok: false,
+        status: 409,
+        error:
+          "Cannot demote to speaker while pending evaluator assignments exist — reassign or clear them first",
+        code: "CONFLICT",
+      };
+    }
+  }
+
+  // Atomic last-admin + role update (event-scoped).
+  const updated = await deps.store.tryUpdateMemberRole({
+    eventId: input.eventId,
+    userId: input.userId,
+    fromRole: existing.role,
+    toRole: input.role,
+  });
+  if (!updated) {
+    if (existing.role === "admin" && input.role !== "admin") {
       return {
         ok: false,
         status: 409,
@@ -946,12 +971,13 @@ export async function setMemberRole(
         code: "CONFLICT",
       };
     }
+    return {
+      ok: false,
+      status: 409,
+      error: "Role change conflict — reload and try again",
+      code: "CONFLICT",
+    };
   }
-  await deps.store.upsertMembership({
-    eventId: input.eventId,
-    userId: input.userId,
-    role: input.role,
-  });
   await deps.store.insertAudit({
     id: uuidv7(),
     eventId: input.eventId,

@@ -70,6 +70,8 @@ export type EventsRouteOptions = {
   /** WS-C invite email outbox */
   magicLinkMail?: MagicLinkMailDeps | null;
   magicLinkOutbox?: import("../auth/store.js").MagicLinkTestOutbox;
+  /** C2 assignment-orphan guard on demotion to speaker */
+  eval?: import("../eval/store.js").EvalStore;
 };
 
 import { MagicLinkTestOutbox } from "../auth/store.js";
@@ -97,6 +99,7 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
     design,
     magicLinkMail,
     magicLinkOutbox,
+    eval: evalStore,
   } = options;
   const deps = { events: eventsStore, auth: store, airtable };
   const authDeps = {
@@ -104,6 +107,7 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
     outbox: magicLinkOutbox ?? new MagicLinkTestOutbox(),
     magicLinkMail: magicLinkMail ?? null,
     bootstrapPolicy: "controlled" as const,
+    eval: evalStore,
   };
   const bearer = keys
     ? {

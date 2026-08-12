@@ -867,6 +867,8 @@ export async function adminCompleteSpeakerTask(
     createdAt: now,
   });
 
+  await invalidateSearchIndex(deps, part.eventId);
+
   return { ok: true, value: { task: toTaskDto(updated) } };
 }
 

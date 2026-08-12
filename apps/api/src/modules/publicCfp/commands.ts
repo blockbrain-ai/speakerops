@@ -1509,6 +1509,8 @@ export async function saveDraft(
       category: updated.category,
     };
 
+    await invalidateSearchIndex(deps, event.id);
+
     return {
       ok: true,
       value: {
