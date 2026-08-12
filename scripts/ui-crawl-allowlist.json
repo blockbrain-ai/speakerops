@@ -1041,9 +1041,45 @@
     },
     {
       "testid": "nav-team",
-      "inv": "L2-01",
+      "inv": "Q08",
       "surface": "admin",
       "journey": "N6 Team nav"
+    },
+    {
+      "testid": "team-add-member",
+      "inv": "Q08",
+      "surface": "admin",
+      "journey": "Team add member form"
+    },
+    {
+      "testid": "team-add-member-email",
+      "inv": "Q08",
+      "surface": "admin",
+      "journey": "Team invite email"
+    },
+    {
+      "testid": "team-add-member-role",
+      "inv": "Q08",
+      "surface": "admin",
+      "journey": "Team invite role"
+    },
+    {
+      "testid": "team-add-member-submit",
+      "inv": "Q08",
+      "surface": "admin",
+      "journey": "Team invite submit"
+    },
+    {
+      "testid": "team-member-role-*",
+      "inv": "Q08",
+      "surface": "admin",
+      "journey": "Team member role select"
+    },
+    {
+      "testid": "team-refresh",
+      "inv": "Q08",
+      "surface": "admin",
+      "journey": "Team roster refresh"
     },
     {
       "testid": "cfp-wizard-back",

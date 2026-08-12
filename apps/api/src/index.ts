@@ -415,6 +415,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       keys: keysStore,
       airtable: airtableStore,
       design: designStore,
+      magicLinkMail: options.magicLinkMail ?? null,
+      magicLinkOutbox: magicLinkOutbox,
     }),
   );
 

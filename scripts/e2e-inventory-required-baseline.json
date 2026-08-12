@@ -163,7 +163,8 @@
   "Q04",
   "Q05",
   "Q06",
-  "Q07"
+  "Q07",
+  "Q08"
  ],
  "fingerprints": {
   "A01": {
@@ -809,6 +810,10 @@
   "Q07": {
    "test_id": "e2e/embeds/preview-frame",
    "journey": "Admin embed preview iframe allowed by frame-src self"
+  },
+  "Q08": {
+   "test_id": "e2e/team/invite",
+   "journey": "Add member invite by email + role; roster updates"
   }
  }
 }

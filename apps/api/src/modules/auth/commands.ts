@@ -806,6 +806,169 @@ export async function devRoleSwitch(
 }
 
 /**
+ * Auth.CreateInvite — admin invites email to event with role (WS-C1).
+ * Path-authoritative eventId; create-only membership (no role mutation via invite).
+ */
+export async function createInvite(
+  deps: AuthCommandDeps,
+  input: {
+    eventId: string;
+    email: string;
+    role: EventRole;
+    actorUserId: string;
+    correlationId: string;
+  },
+): Promise<
+  | { ok: true; inviteId: string; mailEnqueued: boolean }
+  | { ok: false; status: 400 | 403 | 404 | 409; error: string; code: string }
+> {
+  const email = normalizeEmail(input.email);
+  if (!email || !email.includes("@")) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Valid email required",
+      code: "VALIDATION_ERROR",
+    };
+  }
+  if (!["admin", "evaluator", "speaker"].includes(input.role)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Role must be admin, evaluator, or speaker",
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  let user = await deps.store.findUserByEmail(email);
+  if (!user) {
+    user = await deps.store.createUser({ email });
+  }
+
+  const existing = await deps.store.findMembership(input.eventId, user.id);
+  if (existing) {
+    if (existing.role === input.role) {
+      // Idempotent re-invite same role
+    } else {
+      return {
+        ok: false,
+        status: 409,
+        error:
+          "Member already has a different role — use role change (PATCH members) instead of invite",
+        code: "CONFLICT",
+      };
+    }
+  } else {
+    await deps.store.upsertMembership({
+      eventId: input.eventId,
+      userId: user.id,
+      role: input.role,
+    });
+  }
+
+  const purpose: MagicLinkPurpose =
+    input.role === "admin"
+      ? "admin"
+      : input.role === "evaluator"
+        ? "evaluator"
+        : "speaker";
+
+  const issued = await issueProgramInviteMagicLink(deps, {
+    email,
+    userId: user.id,
+    eventId: input.eventId,
+    purpose,
+    correlationId: input.correlationId,
+  });
+
+  await deps.store.insertAudit({
+    id: uuidv7(),
+    eventId: input.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "Auth.CreateInvite",
+    entityType: "magic_link",
+    entityId: issued.magicLinkId,
+    afterJson: JSON.stringify({
+      email,
+      role: input.role,
+      userId: user.id,
+      mailEnqueued: issued.mailEnqueued,
+    }),
+    correlationId: input.correlationId,
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    ok: true,
+    inviteId: issued.magicLinkId,
+    mailEnqueued: issued.mailEnqueued,
+  };
+}
+
+/**
+ * setMemberRole — guarded role change (WS-C2). Event-scoped last-admin protection.
+ */
+export async function setMemberRole(
+  deps: AuthCommandDeps,
+  input: {
+    eventId: string;
+    userId: string;
+    role: EventRole;
+    actorUserId: string;
+    correlationId: string;
+  },
+): Promise<
+  | { ok: true; role: EventRole }
+  | { ok: false; status: 400 | 403 | 404 | 409; error: string; code: string }
+> {
+  const existing = await deps.store.findMembership(
+    input.eventId,
+    input.userId,
+  );
+  if (!existing) {
+    return { ok: false, status: 404, error: "Member not found", code: "NOT_FOUND" };
+  }
+  if (existing.role === input.role) {
+    return { ok: true, role: input.role };
+  }
+  // Last admin on this event cannot be demoted
+  if (existing.role === "admin" && input.role !== "admin") {
+    const members = await deps.store.listMemberships();
+    const adminCount = members.filter(
+      (m) => m.eventId === input.eventId && m.role === "admin",
+    ).length;
+    if (adminCount <= 1) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Cannot demote the last admin on this event",
+        code: "CONFLICT",
+      };
+    }
+  }
+  await deps.store.upsertMembership({
+    eventId: input.eventId,
+    userId: input.userId,
+    role: input.role,
+  });
+  await deps.store.insertAudit({
+    id: uuidv7(),
+    eventId: input.eventId,
+    actorType: "user",
+    actorId: input.actorUserId,
+    action: "Auth.SetMemberRole",
+    entityType: "event_membership",
+    entityId: existing.id,
+    beforeJson: JSON.stringify({ role: existing.role }),
+    afterJson: JSON.stringify({ role: input.role, userId: input.userId }),
+    correlationId: input.correlationId,
+    createdAt: new Date().toISOString(),
+  });
+  return { ok: true, role: input.role };
+}
+
+/**
  * Assert no magic-link or session row contains a known plaintext token.
  * Used by tests — production store only ever receives hashes from commands.
  */

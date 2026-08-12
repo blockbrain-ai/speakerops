@@ -281,6 +281,7 @@
 | Q05 | speaker | Portal library | Published forms + resources listed for speaker | e2e/portal-lib/speaker-list | Cross-event isolation | REQUIRED | PASS |
 | Q06 | speaker | File requests | Upload fulfils published file request (fileId linked) | e2e/portal-lib/file-request-fulfill | Other speaker cannot fulfil | REQUIRED | PASS |
 | Q07 | admin | Embeds | Admin embed preview iframe allowed by frame-src self | e2e/embeds/preview-frame | Non-embed routes remain frame-ancestors none | REQUIRED | PASS |
+| Q08 | admin | Team | Add member invite by email + role; roster updates | e2e/team/invite | Last-admin demotion blocked | REQUIRED | PASS |
 
 ---
 

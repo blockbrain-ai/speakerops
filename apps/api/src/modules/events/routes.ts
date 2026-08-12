@@ -40,6 +40,11 @@ import type { AirtableStore } from "../airtable/store.js";
 import type { DesignStore } from "../design/store.js";
 import { requireRole, actorFromContext } from "../../middleware/authz.js";
 import {
+  createInvite,
+  setMemberRole,
+} from "../auth/commands.js";
+import type { MagicLinkMailDeps } from "../auth/commands.js";
+import {
   createEvent,
   updateEvent,
   listEventsForAdmin,
@@ -62,7 +67,12 @@ export type EventsRouteOptions = {
   airtable?: AirtableStore;
   /** When set, N6 GET /:eventId/files lists file_assets for the event. */
   design?: DesignStore;
+  /** WS-C invite email outbox */
+  magicLinkMail?: MagicLinkMailDeps | null;
+  magicLinkOutbox?: import("../auth/store.js").MagicLinkTestOutbox;
 };
+
+import { MagicLinkTestOutbox } from "../auth/store.js";
 
 function commandError(
   c: Context<ApiEnv>,
@@ -79,8 +89,22 @@ function commandError(
 
 export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
   const events = new Hono<ApiEnv>();
-  const { store, events: eventsStore, keys, airtable, design } = options;
+  const {
+    store,
+    events: eventsStore,
+    keys,
+    airtable,
+    design,
+    magicLinkMail,
+    magicLinkOutbox,
+  } = options;
   const deps = { events: eventsStore, auth: store, airtable };
+  const authDeps = {
+    store,
+    outbox: magicLinkOutbox ?? new MagicLinkTestOutbox(),
+    magicLinkMail: magicLinkMail ?? null,
+    bootstrapPolicy: "controlled" as const,
+  };
   const bearer = keys
     ? {
         keysStore: keys,
@@ -572,6 +596,98 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
         },
         200,
       );
+    },
+  );
+
+  /**
+   * POST /:eventId/invites — Auth.CreateInvite (WS-C1)
+   * Body: { email, role } — eventId from path only.
+   */
+  events.post(
+    "/:eventId/invites",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const user = c.get("user");
+      if (!user) {
+        return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
+      }
+      let raw: unknown;
+      try {
+        raw = await c.req.json();
+      } catch {
+        return c.json(errorEnvelope("Invalid JSON body", VALIDATION_ERROR), 400);
+      }
+      const body = raw as { email?: string; role?: string; eventId?: string };
+      if (body.eventId && body.eventId !== eventId) {
+        return c.json(
+          errorEnvelope("eventId must match path", VALIDATION_ERROR),
+          400,
+        );
+      }
+      const result = await createInvite(authDeps, {
+        eventId,
+        email: String(body.email ?? ""),
+        role: (body.role ?? "evaluator") as "admin" | "evaluator" | "speaker",
+        actorUserId: user.id,
+        correlationId: c.get("correlationId") ?? "unknown",
+      });
+      if (!result.ok) {
+        return c.json(
+          errorEnvelope(result.error, result.code as never),
+          result.status,
+        );
+      }
+      return c.json(
+        {
+          inviteId: result.inviteId,
+          mailEnqueued: result.mailEnqueued,
+          message: result.mailEnqueued
+            ? "Invite sent"
+            : "Invite created but delivery failed — check email config",
+        },
+        201,
+      );
+    },
+  );
+
+  /**
+   * PATCH /:eventId/members/:userId — setMemberRole (WS-C2)
+   */
+  events.patch(
+    "/:eventId/members/:userId",
+    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    async (c) => {
+      const eventId = c.req.param("eventId");
+      const userId = c.req.param("userId");
+      const actor = c.get("user");
+      if (!actor) {
+        return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
+      }
+      let raw: unknown;
+      try {
+        raw = await c.req.json();
+      } catch {
+        return c.json(errorEnvelope("Invalid JSON body", VALIDATION_ERROR), 400);
+      }
+      const role = (raw as { role?: string }).role;
+      if (!role) {
+        return c.json(errorEnvelope("role required", VALIDATION_ERROR), 400);
+      }
+      const result = await setMemberRole(authDeps, {
+        eventId,
+        userId,
+        role: role as "admin" | "evaluator" | "speaker",
+        actorUserId: actor.id,
+        correlationId: c.get("correlationId") ?? "unknown",
+      });
+      if (!result.ok) {
+        return c.json(
+          errorEnvelope(result.error, result.code as never),
+          result.status,
+        );
+      }
+      return c.json({ userId, role: result.role }, 200);
     },
   );
 
