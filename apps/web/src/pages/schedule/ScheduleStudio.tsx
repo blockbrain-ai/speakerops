@@ -5,13 +5,25 @@
  * Lumen 2: full-height working surface, sticky time/room headers, richer
  * session tiles (track encoding, conflict/pending), navigable conflict summary.
  *
- * Dragging is pointer-event based (no DnD package, no native HTML5 DnD —
- * Chromium's native drag intermittently resolved as a click). pointerdown on a
- * tray item / tile arms a potential drag; it becomes a real drag only after
- * movement exceeds DRAG_ACTIVATION_PX, so click-to-select/inspector stays
- * deterministic. During drag a fixed-position ghost follows the cursor and the
- * slot under the pointer is resolved via elementFromPoint (works in day/week/
- * track/room views incl. compact tiles). Escape cancels.
+ * ## Pointer drag state machine (do not regress)
+ *
+ * Symptom we prevent: ghost "Dragging: …" stays glued to the mouse and the
+ * user cannot put the session down anywhere (intermittent). Root cause was
+ * move/up/cancel bound only on the source tile/tray with setPointerCapture —
+ * when capture failed or was lost (source unmount, view switch, UA revoke),
+ * pointerup never hit our handler and dragPayload/ghostPos stuck forever.
+ *
+ * Contract (auditors 2026-08-12, docs/reports/SCHEDULE_STUCK_DRAG_INVESTIGATION_*.md):
+ * - Window-level pointermove/up/cancel (capture phase) are the SOLE authority
+ *   while a gesture is armed. Do NOT re-bind move/up only to the source element.
+ * - lostpointercapture → cancel only if that pointerId is still armed (own
+ *   releasePointerCapture also fires lostcapture — must no-op after end).
+ * - Terminals are idempotent (endPointerGesture latch). Never double-performDrop.
+ * - Ghost + dragPayload clear at gesture end — never lease them for the network
+ *   RTT (pendingSessionId / pendingPlacementId own save chrome).
+ * - Do NOT gate pointerdown on busy/pending (post-drop dead-window regression).
+ * - setPointerCapture is best-effort; the window net makes it non-optional for UX.
+ * - Escape still cancels. No native HTML5 DnD.
  *
  * Inventory I01–I16. APIs (COMMANDS.md):
  *   GET  /api/events/:eventId/schedule
@@ -188,6 +200,8 @@ export function ScheduleStudioPage() {
   /**
    * Armed-but-not-yet-started drag (pointerdown recorded, threshold not
    * crossed). `active` flips once movement exceeds DRAG_ACTIVATION_PX.
+   * Cleared first inside endPointerGesture so lostpointercapture after our
+   * own releasePointerCapture is a no-op.
    */
   const pointerDragRef = useRef<{
     payload: DragPayload;
@@ -199,6 +213,25 @@ export function ScheduleStudioPage() {
   } | null>(null);
   /** Set when a real drag (or Escape-cancel) ended — swallows the trailing click. */
   const suppressClickRef = useRef(false);
+  /** True while window capture-phase drag listeners are attached. */
+  const windowDragBoundRef = useRef(false);
+  /** Stable wrappers so removeEventListener matches addEventListener. */
+  const windowListenerWrappersRef = useRef<{
+    move: (e: PointerEvent) => void;
+    up: (e: PointerEvent) => void;
+    cancel: (e: PointerEvent) => void;
+    lost: (e: PointerEvent) => void;
+  } | null>(null);
+  /**
+   * Mutable handler table — window listeners call through this so we never
+   * re-bind listeners mid-gesture when React callbacks change identity.
+   */
+  const dragMachineRef = useRef({
+    onMove: (_e: PointerEvent) => {},
+    onUp: (_e: PointerEvent) => {},
+    onCancel: (_e: PointerEvent) => {},
+    onLost: (_e: PointerEvent) => {},
+  });
 
   /** Click-to-reschedule inspector (non-drag path). */
   const [inspectorRoomId, setInspectorRoomId] = useState("");
@@ -209,6 +242,41 @@ export function ScheduleStudioPage() {
     dragPayloadRef.current = payload;
     setDragPayload(payload);
   }, []);
+
+  const detachWindowDragListeners = useCallback(() => {
+    const w = windowListenerWrappersRef.current;
+    if (!w) {
+      windowDragBoundRef.current = false;
+      return;
+    }
+    window.removeEventListener("pointermove", w.move, true);
+    window.removeEventListener("pointerup", w.up, true);
+    window.removeEventListener("pointercancel", w.cancel, true);
+    window.removeEventListener("lostpointercapture", w.lost, true);
+    windowListenerWrappersRef.current = null;
+    windowDragBoundRef.current = false;
+  }, []);
+
+  const attachWindowDragListeners = useCallback(() => {
+    if (windowDragBoundRef.current) return;
+    const move = (e: PointerEvent) => dragMachineRef.current.onMove(e);
+    const up = (e: PointerEvent) => dragMachineRef.current.onUp(e);
+    const cancel = (e: PointerEvent) => dragMachineRef.current.onCancel(e);
+    const lost = (e: PointerEvent) => dragMachineRef.current.onLost(e);
+    windowListenerWrappersRef.current = { move, up, cancel, lost };
+    // Capture phase: sole authority while armed (see file header).
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", cancel, true);
+    window.addEventListener("lostpointercapture", lost, true);
+    windowDragBoundRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      detachWindowDragListeners();
+    };
+  }, [detachWindowDragListeners]);
 
   const timezone = activeEvent?.timezone ?? "UTC";
   const eventStartsAt = activeEvent?.startsAt ?? null;
@@ -1011,10 +1079,12 @@ export function ScheduleStudioPage() {
   /**
    * Drop payload onto a slot — same apply logic the old HTML5 onSlotDrop used
    * (place from tray; move preserving duration; no-op on same slot).
+   *
+   * Caller must already have cleared drag chrome (ghost/payload). We never
+   * re-set dragPayload for the network RTT — pending* ids own save chrome.
    */
   const performDrop = useCallback(
     (payload: DragPayload, roomId: string, startsAt: string) => {
-      setDragOverSlot(null);
       // A completed drag never leaves click-to-place armed (teleport guard).
       clickPlaceArmedRef.current = false;
       setSelectedPlacementId(null);
@@ -1025,10 +1095,8 @@ export function ScheduleStudioPage() {
         payload.roomId === roomId &&
         payload.startsAt === startsAt
       ) {
-        setDrag(null);
         return;
       }
-      setDrag(payload);
       if (payload.source === "tray") {
         const endsAt = addMinutesIso(startsAt, slotMinutes);
         if (
@@ -1038,7 +1106,6 @@ export function ScheduleStudioPage() {
             endsAt,
           })
         ) {
-          setDrag(null);
           return;
         }
         void placeSession({
@@ -1046,7 +1113,7 @@ export function ScheduleStudioPage() {
           roomId,
           startsAt,
           endsAt,
-        }).finally(() => setDrag(null));
+        });
       } else {
         // Preserve duration from the dragged placement.
         const endsAt = addMinutesIso(
@@ -1061,7 +1128,6 @@ export function ScheduleStudioPage() {
             excludePlacementId: payload.placementId,
           })
         ) {
-          setDrag(null);
           return;
         }
         // Version re-read at commit inside movePlacement.
@@ -1075,37 +1141,168 @@ export function ScheduleStudioPage() {
             startsAt: payload.startsAt,
             endsAt: payload.endsAt,
           },
-        }).finally(() => setDrag(null));
+        });
       }
     },
-    [movePlacement, placeSession, setDrag, slotMinutes, blockLocalRoomOverlap],
+    [movePlacement, placeSession, slotMinutes, blockLocalRoomOverlap],
   );
+  const performDropRef = useRef(performDrop);
+  performDropRef.current = performDrop;
+
+  type EndGestureResult = {
+    payload: DragPayload;
+    active: boolean;
+    clientX: number;
+    clientY: number;
+  };
+
+  /**
+   * Idempotent gesture end. Clears ref first so a subsequent lostpointercapture
+   * from our own releasePointerCapture is a no-op. Returns a snapshot for the
+   * up-handler to decide drop vs click; cancel paths discard the snapshot.
+   */
+  const endPointerGesture = useCallback(
+    (opts: {
+      pointerId: number;
+      reason: "up" | "cancel" | "lost" | "escape";
+      clientX?: number;
+      clientY?: number;
+    }): EndGestureResult | null => {
+      const st = pointerDragRef.current;
+      if (!st || st.pointerId !== opts.pointerId) return null;
+
+      const snapshot: EndGestureResult = {
+        payload: st.payload,
+        active: st.active,
+        clientX: opts.clientX ?? st.startX,
+        clientY: opts.clientY ?? st.startY,
+      };
+
+      // Latch: clear before release so lostpointercapture cannot re-enter.
+      pointerDragRef.current = null;
+      detachWindowDragListeners();
+      try {
+        st.el.releasePointerCapture(st.pointerId);
+      } catch {
+        /* already released or never captured */
+      }
+
+      setDrag(null);
+      setDragOverSlot(null);
+      setGhostPos(null);
+
+      if (snapshot.active) {
+        suppressClickRef.current = true;
+        if (opts.reason !== "up") {
+          // Cancel paths may not produce a trailing click; do not leave the
+          // one-shot flag set forever (must not swallow a later slot click).
+          window.setTimeout(() => {
+            suppressClickRef.current = false;
+          }, 0);
+        }
+      }
+
+      return snapshot;
+    },
+    [detachWindowDragListeners, setDrag],
+  );
+  const endPointerGestureRef = useRef(endPointerGesture);
+  endPointerGestureRef.current = endPointerGesture;
 
   /** Cancel any in-flight pointer drag and clear all drag chrome. */
   const cancelPointerDrag = useCallback(() => {
     const st = pointerDragRef.current;
-    pointerDragRef.current = null;
     if (st) {
-      try {
-        st.el.releasePointerCapture(st.pointerId);
-      } catch {
-        /* already released */
-      }
+      endPointerGestureRef.current({
+        pointerId: st.pointerId,
+        reason: "escape",
+      });
+      return;
     }
+    // Orphan chrome (should not happen) — still clear.
+    detachWindowDragListeners();
     setDrag(null);
     setDragOverSlot(null);
     setGhostPos(null);
-  }, [setDrag]);
+  }, [detachWindowDragListeners, setDrag]);
+
+  // Keep window handler table current every render (listeners call through).
+  dragMachineRef.current.onMove = (e: PointerEvent) => {
+    const st = pointerDragRef.current;
+    if (!st || st.pointerId !== e.pointerId) return;
+    if (!st.active) {
+      if (!exceedsDragThreshold(st.startX, st.startY, e.clientX, e.clientY)) {
+        return;
+      }
+      st.active = true;
+      // Drag disarms click-to-place for this gesture (teleport guard).
+      clickPlaceArmedRef.current = false;
+      setDrag(st.payload);
+    }
+    e.preventDefault();
+    setGhostPos({ x: e.clientX, y: e.clientY });
+    // Ghost is pointer-events:none, so elementFromPoint sees the slot below.
+    const slot = slotTargetFromElement(
+      document.elementFromPoint(e.clientX, e.clientY),
+    );
+    setDragOverSlot(slot ? slot.key : null);
+  };
+
+  dragMachineRef.current.onUp = (e: PointerEvent) => {
+    const snap = endPointerGestureRef.current({
+      pointerId: e.pointerId,
+      reason: "up",
+      clientX: e.clientX,
+      clientY: e.clientY,
+    });
+    if (!snap) return;
+    if (!snap.active) {
+      // Below threshold — a click; let the click handler select/open.
+      return;
+    }
+    e.preventDefault();
+    const slot = slotTargetFromElement(
+      document.elementFromPoint(snap.clientX, snap.clientY),
+    );
+    if (slot) {
+      // Chrome already cleared; commit from local snapshot only.
+      performDropRef.current(snap.payload, slot.roomId, slot.startsAt);
+    }
+  };
+
+  dragMachineRef.current.onCancel = (e: PointerEvent) => {
+    endPointerGestureRef.current({
+      pointerId: e.pointerId,
+      reason: "cancel",
+      clientX: e.clientX,
+      clientY: e.clientY,
+    });
+  };
+
+  dragMachineRef.current.onLost = (e: PointerEvent) => {
+    // Only unexpected loss: after normal up we already cleared the ref.
+    endPointerGestureRef.current({
+      pointerId: e.pointerId,
+      reason: "lost",
+    });
+  };
 
   /**
    * Arm a potential drag. Not a drag yet — pointer must travel beyond
    * DRAG_ACTIVATION_PX first, so plain clicks still select / open inspector.
+   * Window listeners attach immediately so end never depends on source capture.
    */
   const onDragPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLElement>, payload: DragPayload) => {
       if (e.button !== 0) return;
       // Do NOT gate on busy/pending — that is the post-drop dead window.
       // Concurrent mutations are serialized by mutationInFlightRef at commit.
+      if (pointerDragRef.current) {
+        endPointerGestureRef.current({
+          pointerId: pointerDragRef.current.pointerId,
+          reason: "cancel",
+        });
+      }
       suppressClickRef.current = false;
       const el = e.currentTarget;
       pointerDragRef.current = {
@@ -1116,104 +1313,28 @@ export function ScheduleStudioPage() {
         active: false,
         el,
       };
+      // Best-effort capture (improves hit-testing under the cursor). The window
+      // net is the safety net — capture is NOT optional for ending the gesture.
       try {
         el.setPointerCapture(e.pointerId);
       } catch {
-        /* capture unsupported — hit-testing still works via elementFromPoint */
+        /* window listeners still own move/up/cancel */
       }
+      attachWindowDragListeners();
     },
-    [],
+    [attachWindowDragListeners],
   );
 
-  const onDragPointerMove = useCallback(
-    (e: ReactPointerEvent<HTMLElement>) => {
-      const st = pointerDragRef.current;
-      if (!st || st.pointerId !== e.pointerId) return;
-      if (!st.active) {
-        if (
-          !exceedsDragThreshold(st.startX, st.startY, e.clientX, e.clientY)
-        ) {
-          return;
-        }
-        st.active = true;
-        // Drag disarms click-to-place for this gesture (teleport guard).
-        clickPlaceArmedRef.current = false;
-        setDrag(st.payload);
-      }
-      e.preventDefault();
-      setGhostPos({ x: e.clientX, y: e.clientY });
-      // Ghost is pointer-events:none, so elementFromPoint sees the slot below.
-      const slot = slotTargetFromElement(
-        document.elementFromPoint(e.clientX, e.clientY),
-      );
-      setDragOverSlot(slot ? slot.key : null);
-    },
-    [setDrag],
-  );
-
-  const onDragPointerUp = useCallback(
-    (e: ReactPointerEvent<HTMLElement>) => {
-      const st = pointerDragRef.current;
-      if (!st || st.pointerId !== e.pointerId) return;
-      pointerDragRef.current = null;
-      try {
-        st.el.releasePointerCapture(st.pointerId);
-      } catch {
-        /* already released */
-      }
-      if (!st.active) {
-        // Below threshold — a click; let the click handler select/open.
-        return;
-      }
-      suppressClickRef.current = true;
-      e.preventDefault();
-      setGhostPos(null);
-      const slot = slotTargetFromElement(
-        document.elementFromPoint(e.clientX, e.clientY),
-      );
-      if (slot) {
-        performDrop(st.payload, slot.roomId, slot.startsAt);
-      } else {
-        // Released over nothing droppable — cancel cleanly.
-        setDrag(null);
-        setDragOverSlot(null);
-      }
-    },
-    [performDrop, setDrag],
-  );
-
-  const onDragPointerCancel = useCallback(
-    (e: ReactPointerEvent<HTMLElement>) => {
-      const st = pointerDragRef.current;
-      if (!st || st.pointerId !== e.pointerId) return;
-      suppressClickRef.current = st.active;
-      // A cancelled gesture may end with no trailing click; clear the one-shot
-      // flag after this input turn so it cannot swallow a later slot click.
-      window.setTimeout(() => {
-        suppressClickRef.current = false;
-      }, 0);
-      cancelPointerDrag();
-    },
-    [cancelPointerDrag],
-  );
-
-  /** Escape cancels an active drag. */
+  /** Escape cancels an active or armed drag. */
   useEffect(() => {
-    if (!dragPayload) return;
     const onKey = (ev: globalThis.KeyboardEvent) => {
-      if (ev.key === "Escape") {
-        suppressClickRef.current = true;
-        // Same scoping as pointercancel: never let a cancel swallow a later
-        // unrelated click (the eventual release may land on empty space).
-        window.setTimeout(() => {
-          suppressClickRef.current = false;
-        }, 0);
-        cancelPointerDrag();
-      }
+      if (ev.key !== "Escape") return;
+      if (!pointerDragRef.current && !dragPayloadRef.current) return;
+      cancelPointerDrag();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dragPayload, cancelPointerDrag]);
+  }, [cancelPointerDrag]);
 
   /** True (and consumed) when the click is the tail of a completed drag. */
   const consumeClickSuppression = useCallback(() => {
@@ -1285,6 +1406,7 @@ export function ScheduleStudioPage() {
         // without per-tile dragover/drop wiring.
         onPointerDown={(e) => {
           // Never gate pointerdown on isPending — post-drop dead window fix.
+          // Move/up/cancel live on window while armed (stuck-ghost fix).
           onDragPointerDown(e, {
             source: "placement",
             placementId: occupant.id,
@@ -1296,9 +1418,6 @@ export function ScheduleStudioPage() {
             endsAt: occupant.endsAt,
           });
         }}
-        onPointerMove={onDragPointerMove}
-        onPointerUp={onDragPointerUp}
-        onPointerCancel={onDragPointerCancel}
         onClick={(e) => {
           e.stopPropagation();
           if (consumeClickSuppression()) return;
@@ -2380,15 +2499,13 @@ export function ScheduleStudioPage() {
                         }
                         onPointerDown={(e) => {
                           // Never gate on pending — dead-window fix (same as tiles).
+                          // Move/up/cancel live on window while armed (stuck-ghost fix).
                           onDragPointerDown(e, {
                             source: "tray",
                             sessionId: s.id,
                             title: s.title,
                           });
                         }}
-                        onPointerMove={onDragPointerMove}
-                        onPointerUp={onDragPointerUp}
-                        onPointerCancel={onDragPointerCancel}
                         onClick={() => {
                           if (consumeClickSuppression()) return;
                           clickPlaceArmedRef.current = true;

@@ -1121,7 +1121,10 @@ export function SpeakersPage() {
                       {taskStatus.text}
                     </Alert>
                   ) : null}
-                  <ul data-testid="speakers-detail-tasks">
+                  <ul
+                    className="speakers-page__task-list"
+                    data-testid="speakers-detail-tasks"
+                  >
                     {detail.tasks.length === 0 ? (
                       <li className="eval-queue__muted">No tasks assigned yet</li>
                     ) : (
@@ -1131,50 +1134,49 @@ export function SpeakersPage() {
                         return (
                           <li
                             key={t.id}
+                            className="speakers-page__task-item"
                             data-testid={`speakers-task-${t.id}`}
                             data-task-status={t.status}
                           >
-                            <span className="speakers-page__file-name">
+                            <span className="speakers-page__task-title">
                               {t.title}
-                            </span>{" "}
-                            <Badge
-                              tone={
-                                t.status === "completed"
-                                  ? "success"
+                            </span>
+                            <div className="speakers-page__task-meta">
+                              <Badge
+                                tone={
+                                  t.status === "completed"
+                                    ? "success"
+                                    : t.status === "overdue"
+                                      ? "warn"
+                                      : t.status === "cancelled"
+                                        ? "neutral"
+                                        : "progress"
+                                }
+                                showDot
+                                data-testid={`speakers-task-status-${t.id}`}
+                              >
+                                {t.status === "completed"
+                                  ? "Completed"
                                   : t.status === "overdue"
-                                    ? "warn"
+                                    ? "Overdue"
                                     : t.status === "cancelled"
-                                      ? "neutral"
-                                      : "progress"
-                              }
-                              showDot
-                              data-testid={`speakers-task-status-${t.id}`}
-                            >
-                              {t.status === "completed"
-                                ? "Completed"
-                                : t.status === "overdue"
-                                  ? "Overdue"
-                                  : t.status === "cancelled"
-                                    ? "Cancelled"
-                                    : "Pending"}
-                            </Badge>
-                            {t.required ? (
-                              <>
-                                {" "}
+                                      ? "Cancelled"
+                                      : "Pending"}
+                              </Badge>
+                              {t.required ? (
                                 <Badge
                                   tone="warn"
                                   data-testid={`speakers-task-required-${t.id}`}
                                 >
                                   Required
                                 </Badge>
-                              </>
-                            ) : null}
-                            {t.dueAt ? (
-                              <span className="eval-queue__muted">
-                                {" "}
-                                · Due {new Date(t.dueAt).toLocaleDateString()}
-                              </span>
-                            ) : null}
+                              ) : null}
+                              {t.dueAt ? (
+                                <span className="speakers-page__task-due">
+                                  Due {new Date(t.dueAt).toLocaleDateString()}
+                                </span>
+                              ) : null}
+                            </div>
                             {open ? (
                               <div className="speakers-page__task-action">
                                 <Button

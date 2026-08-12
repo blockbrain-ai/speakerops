@@ -3924,6 +3924,7 @@ button.submissions-page__evaluator-option {
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-user-drag: none;
   /* Pointer-event drag: stop touch scroll from hijacking the gesture. */
   touch-action: none;
   box-shadow: var(--lumen-shadow-sm);
@@ -3997,6 +3998,7 @@ button.submissions-page__evaluator-option {
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-user-drag: none;
   /* Pointer-event drag: stop touch scroll from hijacking the gesture. */
   touch-action: none;
   box-shadow: var(--lumen-shadow-sm);
@@ -4994,6 +4996,65 @@ button.submissions-page__evaluator-option {
   display: flex;
   flex-direction: column;
   gap: var(--lumen-space-2);
+}
+
+/* Speakers detail — Tasks section: stacked title / badge row / action so
+ * Pending·Required pills and Mark complete are not inline-squished. */
+.speakers-page__task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+}
+
+.speakers-page__task-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lumen-space-2);
+  padding: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-bg, var(--lumen-surface-muted));
+}
+
+.speakers-page__task-title {
+  display: block;
+  font-weight: 600;
+  font-size: var(--lumen-text-ui, 14px);
+  line-height: var(--lumen-text-ui-lh, 1.4);
+  color: var(--lumen-text);
+}
+
+.speakers-page__task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lumen-space-2);
+}
+
+/* Badge breathing room in this row (global .l2-badge stays compact elsewhere). */
+.speakers-page__task-meta .l2-badge {
+  min-height: 24px;
+  padding: 4px 10px;
+  line-height: 1.25;
+}
+
+.speakers-page__task-due {
+  font-size: var(--lumen-text-meta, 12px);
+  line-height: var(--lumen-text-meta-lh, 1.35);
+  color: var(--lumen-text-secondary);
+}
+
+.speakers-page__task-action {
+  margin-top: var(--lumen-space-1);
+}
+
+.speakers-page__task-action .l2-btn--sm {
+  min-height: var(--lumen-control-h-sm, 28px);
+  padding: 0 var(--lumen-control-px-sm, 12px);
 }
 
 .speakers-page__file-name {
