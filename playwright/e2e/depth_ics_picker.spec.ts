@@ -81,6 +81,7 @@ test.describe("Wave 2 — schedule-derived ICS picker", () => {
 
     // —— Real browser: the picker lists the actual scheduled session ——
     await selectAdminEvent(page, baseURL, event.id, "/admin/comms");
+    await page.getByTestId("comms-surface-history").click();
     const picker = page.getByTestId("comms-ics-placement-select");
     await expect(picker).toBeVisible();
     const optionLabel = await picker
@@ -91,6 +92,7 @@ test.describe("Wave 2 — schedule-derived ICS picker", () => {
     expect(optionLabel).toContain("10:00");
 
     await picker.selectOption(placement.id);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText(
       "SEQUENCE 0",
@@ -145,12 +147,14 @@ test.describe("Wave 2 — schedule-derived ICS picker", () => {
     );
     expect(moveRes.status()).toBe(200);
 
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-refresh").click();
     // Wait until the picker option reflects the new time before regenerating.
     await expect(
       picker.locator(`option[value="${placement.id}"]`),
     ).toContainText("12:00");
     await picker.selectOption(placement.id);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText(
       "SEQUENCE 1",

@@ -203,6 +203,7 @@ test.describe("Wave 2 — decision → notify hand-off", () => {
     );
 
     // —— Delivery log shows the job with 3 recipients ——
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-log-refresh").click();
     const logRow = page.getByTestId(`comms-log-row-${sendJson.job.id}`);
     await expect(logRow).toBeVisible();

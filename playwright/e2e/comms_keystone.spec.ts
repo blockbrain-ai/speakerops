@@ -262,10 +262,12 @@ test.describe("5.4 comms keystone (I12)", () => {
     expect(jobId2).toBe(jobId1);
 
     // ========== J05: delivery log visible ==========
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-log-refresh").click();
     await expect(page.getByTestId("comms-log-table")).toBeVisible({
       timeout: 15_000,
     });
+    await page.getByTestId("comms-surface-history").click();
     await expect(page.getByTestId("comms-delivery-log")).toContainText(
       /queued|sent|preview/i,
     );
@@ -316,6 +318,7 @@ test.describe("5.4 comms keystone (I12)", () => {
       placement: { id: string; version: number };
     }).placement;
 
+    await page.getByTestId("comms-surface-history").click();
     await expect(page.getByTestId("comms-ics-panel")).toBeVisible();
     await page.getByTestId("comms-ics-refresh").click();
     const icsPicker = page.getByTestId("comms-ics-placement-select");
@@ -323,6 +326,7 @@ test.describe("5.4 comms keystone (I12)", () => {
       icsPicker.locator(`option[value="${icsPlacement.id}"]`),
     ).toContainText("Keystone Slot");
     await icsPicker.selectOption(icsPlacement.id);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText("UID", {
       timeout: 15_000,
@@ -351,11 +355,13 @@ test.describe("5.4 comms keystone (I12)", () => {
       },
     );
     expect(icsMoveRes.status(), await icsMoveRes.text()).toBe(200);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-refresh").click();
     await expect(
       icsPicker.locator(`option[value="${icsPlacement.id}"]`),
     ).toContainText("15:00");
     await icsPicker.selectOption(icsPlacement.id);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText(
       "SEQUENCE 1",

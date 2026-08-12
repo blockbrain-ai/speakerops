@@ -3699,6 +3699,48 @@ button.submissions-page__evaluator-option {
   margin-bottom: 0;
 }
 
+/* Campaign | History page modes */
+.comms-campaign__surfaces {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-1);
+  padding: var(--lumen-space-1);
+  margin-bottom: var(--lumen-space-3);
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-bg, var(--lumen-surface));
+}
+
+.comms-campaign__surface {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--lumen-control-h-sm, 28px);
+  padding: 0 var(--lumen-control-px-sm, 12px);
+  border: 1px solid transparent;
+  border-radius: var(--lumen-radius-pill);
+  background: transparent;
+  color: var(--lumen-text-secondary);
+  font-family: var(--lumen-font);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.comms-campaign__surface.is-active {
+  border-color: var(--lumen-brand, var(--lumen-action));
+  background: var(--lumen-brand-soft);
+  color: var(--lumen-action);
+}
+
+.comms-campaign__template-form-actions,
+.comms-campaign__template-editor .event-settings__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  align-items: center;
+}
+
 .schedule-studio--l2 .schedule-studio__main {
   min-height: 0;
   display: flex;
@@ -3750,9 +3792,15 @@ button.submissions-page__evaluator-option {
 }
 
 .schedule-studio__view-tab {
-  /* G1: compact sm-tier height (≈28–32px visual), h:v ≈2–2.5:1 */
-  padding: 6px 14px;
-  min-height: 28px;
+  /* G1: sm-tier only — must not be re-listed under md G-PROPORTION (36px). */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--lumen-control-h-sm, 28px);
+  min-height: var(--lumen-control-h-sm, 28px);
+  max-height: var(--lumen-control-h-sm, 28px);
+  padding: 0 var(--lumen-control-px-sm, 12px);
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-pill);
   background: var(--lumen-surface);
@@ -6189,7 +6237,6 @@ a.event-settings__btn {
 .form-builder__view-tab,
 .form-builder__disclosure-toggle,
 .form-builder__field-select,
-.schedule-studio__view-tab,
 .public-cfp__btn,
 .public-cfp__about-toggle,
 .public-cfp__progress-btn,
@@ -6218,7 +6265,6 @@ a.event-settings__btn {
 .form-builder__btn,
 .form-builder__view-tab,
 .form-builder__disclosure-toggle,
-.schedule-studio__view-tab,
 .public-cfp__btn,
 .public-cfp__about-toggle,
 .public-cfp__progress-btn,
@@ -6236,6 +6282,20 @@ a.event-settings__btn {
   min-height: var(--lumen-control-h);
   padding-top: 0;
   padding-bottom: 0;
+}
+
+/* Schedule view tabs stay sm (G1) — explicit exception from md enforcement */
+.schedule-studio__view-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--lumen-control-h-sm, 28px) !important;
+  height: var(--lumen-control-h-sm, 28px) !important;
+  max-height: var(--lumen-control-h-sm, 28px) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: var(--lumen-control-px-sm, 12px);
+  padding-right: var(--lumen-control-px-sm, 12px);
+  line-height: 1;
 }
 
 /* Tabs + pills take the pill radius (G-PROPORTION curvature) */

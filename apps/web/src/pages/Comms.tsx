@@ -94,6 +94,9 @@ export function CommsPage() {
 
   // —— Campaign step chrome (AC-11.2-UI) ——
   const [activeStep, setActiveStep] = useState<CampaignStepId>("audience");
+  /** Page mode: Campaign = wizard only; History = delivery log + ICS. */
+  type CommsSurface = "campaign" | "history";
+  const [commsSurface, setCommsSurface] = useState<CommsSurface>("campaign");
 
   // —— Template editor (J01) ——
   const [key, setKey] = useState("accept-reminder");
@@ -114,6 +117,8 @@ export function CommsPage() {
   const [expectedVersion, setExpectedVersion] = useState<number | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<EmailTemplateDto | null>(null);
+  /** Stable draft fingerprint after Save / pick — Message Next requires match. */
+  const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
   const [templateStatus, setTemplateStatus] = useState<
     { kind: "ok" | "error"; text: string } | null
   >(null);
@@ -175,6 +180,16 @@ export function CommsPage() {
 
   // —— Decision → notify hand-off (Wave 2, E13) ——
   const [searchParams, setSearchParams] = useSearchParams();
+  // Deep-link surface=history for e2e / post-send log hop
+  useEffect(() => {
+    const s = searchParams.get("surface");
+    if (s === "history" || s === "log" || s === "invites") {
+      setCommsSurface("history");
+    } else if (s === "campaign") {
+      setCommsSurface("campaign");
+    }
+  }, [searchParams]);
+
   const notifyParam = searchParams.get("notify");
   const notifyIdsParam = searchParams.get("submissionIds") ?? "";
   const decisionNotify = useMemo(() => {
@@ -608,6 +623,14 @@ export function CommsPage() {
           return;
         }
         setLastSaved(parsed.data.template);
+        {
+          const t = parsed.data.template;
+          const plain =
+            t.bodyRich != null
+              ? richTextToPlainText(t.bodyRich)
+              : (t.body ?? "");
+          setSavedFingerprint(`${t.key}\n${t.subject}\n${plain}`);
+        }
         setExpectedVersion(parsed.data.template.version);
         setTemplateId(parsed.data.template.id);
         setSubject(parsed.data.template.subject);
@@ -648,6 +671,11 @@ export function CommsPage() {
       setExpectedVersion(tpl.version);
       setTemplateId(tpl.id);
       setLastSaved(tpl);
+      const plain =
+        tpl.bodyRich != null
+          ? richTextToPlainText(tpl.bodyRich)
+          : (tpl.body ?? "");
+      setSavedFingerprint(`${tpl.key}\n${tpl.subject}\n${plain}`);
       invalidatePreview();
     },
     [invalidatePreview],
@@ -1010,8 +1038,25 @@ export function CommsPage() {
     invalidatePreview();
   }
 
-  const messageValid =
+  const messageContentValid =
     subject.trim().length > 0 && !richTextIsEmpty(bodyRich);
+
+  const draftFingerprint = `${key}\n${subject}\n${body}`;
+  /** Dirty vs last successful save / pick. */
+  const messageDirty =
+    !templateId ||
+    !savedFingerprint ||
+    savedFingerprint !== draftFingerprint;
+
+  /** Leave Message only when content is persisted for preview. */
+  const messageValid =
+    messageContentValid && Boolean(templateId) && !messageDirty;
+
+  const messageBlockedReason = !messageContentValid
+    ? "Add a subject and body"
+    : !templateId || messageDirty
+      ? "Save template before review"
+      : null;
 
   const wizardSteps: WizardStep[] = [
     {
@@ -1041,6 +1086,20 @@ export function CommsPage() {
     if (!canActivateWizardStep(wizardSteps, step)) return;
     setActiveStep(step);
   }
+
+  function goCommsSurface(next: CommsSurface) {
+    setCommsSurface(next);
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (next === "history") p.set("surface", "history");
+        else p.delete("surface");
+        return p;
+      },
+      { replace: true },
+    );
+  }
+
 
   const previewStateLabel = !preview
     ? "No preview"
@@ -1378,6 +1437,7 @@ export function CommsPage() {
                   setExpectedVersion(null);
                   setTemplateId(null);
                   setLastSaved(null);
+                  setSavedFingerprint(null);
                   invalidatePreview();
                 }}
                 pattern="[a-z][a-z0-9_-]*"
@@ -1436,14 +1496,29 @@ export function CommsPage() {
 
               <Button
                 type="submit"
-                variant="secondary"
+                variant="primary"
                 data-testid="comms-template-save"
                 pending={saving}
-                disabled={saving}
+                disabled={saving || !messageContentValid}
               >
                 {saving ? "Saving…" : "Save template"}
               </Button>
+              <Badge
+                tone={messageValid ? "success" : "warn"}
+                data-testid="comms-template-save-badge"
+              >
+                {messageValid ? "Saved" : messageContentValid ? "Unsaved" : "Incomplete"}
+              </Badge>
             </form>
+            {messageBlockedReason ? (
+              <p
+                className="event-settings__meta"
+                data-testid="comms-message-blocked-reason"
+                role="status"
+              >
+                {messageBlockedReason}
+              </p>
+            ) : null}
 
             {templateStatus ? (
               <p
@@ -1682,7 +1757,7 @@ export function CommsPage() {
       <PageHeader
         eyebrow="Comms"
         title="Campaign"
-        description="Audience → Message → Review → Send. Trust-before-send: preview every recipient, then send once (idempotent). Audience lists stay at most 25 rows visible."
+        description="Campaign: Audience → Message → Review → Send (save template before review). History: delivery log and calendar invites. Trust-before-send stays on Campaign."
         data-testid="comms-page-header"
       />
 
@@ -1694,6 +1769,41 @@ export function CommsPage() {
 
       {activeEventId ? (
         <>
+          <nav
+            className="comms-campaign__surfaces"
+            aria-label="Comms surfaces"
+            data-testid="comms-surface-tabs"
+          >
+            <button
+              type="button"
+              className={
+                commsSurface === "campaign"
+                  ? "comms-campaign__surface is-active lumen-focusable"
+                  : "comms-campaign__surface lumen-focusable"
+              }
+              data-testid="comms-surface-campaign"
+              aria-current={commsSurface === "campaign" ? "page" : undefined}
+              onClick={() => goCommsSurface("campaign")}
+            >
+              Campaign
+            </button>
+            <button
+              type="button"
+              className={
+                commsSurface === "history"
+                  ? "comms-campaign__surface is-active lumen-focusable"
+                  : "comms-campaign__surface lumen-focusable"
+              }
+              data-testid="comms-surface-history"
+              aria-current={commsSurface === "history" ? "page" : undefined}
+              onClick={() => goCommsSurface("history")}
+            >
+              History
+            </button>
+          </nav>
+
+          {commsSurface === "campaign" ? (
+            <>
           <div
             className="comms-campaign__summary"
             data-testid="comms-campaign-summary"
@@ -1742,7 +1852,11 @@ export function CommsPage() {
           >
             {renderWizardStep()}
           </Wizard>
+            </>
+          ) : null}
 
+          {commsSurface === "history" ? (
+            <>
           {/* —— J05 Delivery log —— */}
           <section
             className="event-settings__card"
@@ -2017,6 +2131,8 @@ export function CommsPage() {
               </ul>
             )}
           </section>
+            </>
+          ) : null}
         </>
       ) : null}
     </div>

@@ -365,10 +365,12 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
       timeout: 15_000,
     });
 
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-log-refresh").click();
     await expect(page.getByTestId("comms-log-table")).toBeVisible({
       timeout: 15_000,
     });
+    await page.getByTestId("comms-surface-history").click();
     await expect(page.getByTestId("comms-delivery-log")).toContainText(
       /queued|sent|preview/i,
     );
@@ -394,12 +396,15 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
     );
 
     await openComms(page, event.id);
+    await page.getByTestId("comms-surface-history").click();
     await expect(page.getByTestId("comms-ics-panel")).toBeVisible();
+    await page.getByTestId("comms-surface-history").click();
     const picker = page.getByTestId("comms-ics-placement-select");
     await expect(
       picker.locator(`option[value="${scheduled.placementId}"]`),
     ).toContainText("Keynote Slot");
     await picker.selectOption(scheduled.placementId);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-generate").click();
 
     await expect(page.getByTestId("comms-ics-status")).toContainText("UID", {
@@ -609,6 +614,7 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
     ).placements.find((p) => p.id === scheduled.placementId)!.roomId;
 
     await openComms(page, event.id);
+    await page.getByTestId("comms-surface-history").click();
     const picker = page.getByTestId("comms-ics-placement-select");
     await picker.selectOption(scheduled.placementId);
     await page.getByTestId("comms-ics-generate").click();
@@ -635,11 +641,13 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
       },
     );
     expect(moveRes.status(), await moveRes.text()).toBe(200);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-refresh").click();
     await expect(
       picker.locator(`option[value="${scheduled.placementId}"]`),
     ).toContainText("15:00");
     await picker.selectOption(scheduled.placementId);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText(
       "SEQUENCE 1",

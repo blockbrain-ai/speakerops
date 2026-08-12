@@ -96,6 +96,7 @@ test.describe("Wave 1B — submission confirmation email", () => {
 
     // Comms delivery log shows exactly one queued lifecycle job.
     await selectAdminEvent(page, baseURL, event.id, "/admin/comms");
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-log-refresh").click();
     const logRows = page.locator('[data-testid^="comms-log-row-"]');
     await expect(logRows).toHaveCount(1, { timeout: 15_000 });
@@ -168,6 +169,7 @@ test.describe("Wave 1B — submission confirmation email", () => {
       },
     );
     expect(second.status()).toBe(201);
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-log-refresh").click();
     await expect(logRows).toHaveCount(2, { timeout: 15_000 });
     // Open the newest job (rows are newest-first) and check the re-render.
@@ -206,6 +208,7 @@ test.describe("Wave 1B — submission confirmation email", () => {
     );
     expect(third.status(), "submission must succeed with emails off").toBe(201);
     await selectAdminEvent(page, baseURL, event.id, "/admin/comms");
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-log-refresh").click();
     // Still exactly two jobs — the disabled lifecycle enqueued nothing.
     await expect(logRows).toHaveCount(2, { timeout: 15_000 });

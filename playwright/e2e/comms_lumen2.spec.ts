@@ -172,6 +172,18 @@ test.describe("11.2 comms campaign lumen2", () => {
     );
     await page.getByTestId("comms-wizard-next").click();
     await expect(page.getByTestId("comms-template-editor")).toBeVisible();
+    // Message valid requires Save (templateId + not dirty)
+    await expect(page.getByTestId("comms-wizard-next")).toBeDisabled();
+    await expect(page.getByTestId("comms-message-blocked-reason")).toContainText(
+      /Save template/i,
+    );
+    await page.getByTestId("comms-template-key-input").fill(`j15-${RUN}`);
+    await page.getByTestId("comms-template-subject-input").fill("J15 {{name}}");
+    await page.getByTestId("comms-template-body-input").fill("Body {{name}}");
+    await page.getByTestId("comms-template-save").click();
+    await expect(page.getByTestId("comms-template-id")).toBeVisible({
+      timeout: 15_000,
+    });
     await page.getByTestId("comms-wizard-next").click();
     await expect(page.getByTestId("comms-preview-panel")).toBeVisible();
     await expect(page.getByTestId("comms-wizard-next")).toBeDisabled();

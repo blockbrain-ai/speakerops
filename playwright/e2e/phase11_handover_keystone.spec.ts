@@ -711,6 +711,7 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     await expect(page.getByTestId("comms-template-editor")).toBeVisible();
     await expect(page.getByTestId("comms-preview-panel")).toBeVisible();
     await expect(page.getByTestId("comms-send-panel")).toBeVisible();
+    await page.getByTestId("comms-surface-history").click();
     await expect(page.getByTestId("comms-delivery-log")).toBeVisible();
     await expect(page.getByTestId("comms-ics-panel")).toBeVisible();
 
@@ -910,6 +911,7 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     expect(send2Body.enqueued).toBe(false);
 
     // —— J05: delivery log must list the sent job (not vacuous empty/absent checks) ——
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-log-refresh").click();
     await expect(page.getByTestId("comms-delivery-log")).toBeVisible();
     await expect(page.getByTestId("comms-log-empty")).toHaveCount(0);
@@ -985,6 +987,7 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     }
     expect(realPlacementId, "a scheduled session for the ICS picker").toBeTruthy();
 
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-refresh").click();
     const icsPicker = page.getByTestId("comms-ics-placement-select");
     await icsPicker.selectOption(realPlacementId!);
@@ -997,6 +1000,7 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     const uid1 = await icsInvite.getAttribute("data-uid");
     expect(uid1).toBeTruthy();
     // Regenerate for the same placement: same UID (stable invite identity).
+    await page.getByTestId("comms-surface-history").click();
     await page.getByTestId("comms-ics-generate").click();
     await expect(page.getByTestId("comms-ics-status")).toContainText("UID", {
       timeout: 20_000,
