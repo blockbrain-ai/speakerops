@@ -3665,7 +3665,9 @@
 }
 
 .schedule-studio__view-tab {
-  padding: var(--lumen-space-2) var(--lumen-space-3);
+  /* G1: compact sm-tier height (≈28–32px visual), h:v ≈2–2.5:1 */
+  padding: 6px 14px;
+  min-height: 28px;
   border: 1px solid var(--lumen-border);
   border-radius: var(--lumen-radius-pill);
   background: var(--lumen-surface);
@@ -3673,6 +3675,7 @@
   font-family: var(--lumen-font);
   font-size: 13px;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 }
 
