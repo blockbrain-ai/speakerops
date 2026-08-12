@@ -43,9 +43,6 @@ function docId(type: SearchEntityType, entityId: string, suffix = ""): string {
 /** Per-event rebuild watermark (truthful "Index as of"). */
 const lastRebuildAt = new Map<string, string>();
 
-/** Throttle full reindex per event (ms). */
-const REINDEX_MIN_INTERVAL_MS = 15_000;
-
 export async function reindexEvent(
   deps: SearchCommandDeps,
   eventId: string,
@@ -280,17 +277,8 @@ export async function searchEvent(
     };
   }
 
-  // Rebuild when empty or stale (truthful index maintenance).
-  const count = await deps.search.countForEvent(input.eventId);
-  const last = lastRebuildAt.get(input.eventId);
-  const lastMs = last ? Date.parse(last) : 0;
-  const stale =
-    !last ||
-    !Number.isFinite(lastMs) ||
-    Date.now() - lastMs > REINDEX_MIN_INTERVAL_MS;
-  if (count === 0 || stale) {
-    await reindexEvent(deps, input.eventId);
-  }
+  // B2: pure-read GET — never reindex or DDL on the search path.
+  // Index maintenance is queue/cron/admin reindex only (B3).
 
   let allowedSubmissionIds: Set<string> | undefined;
   let allowedParticipationIds: Set<string> | undefined;
@@ -345,9 +333,16 @@ export async function searchEvent(
     if (hits.length >= input.limit) break;
   }
 
+  const count = await deps.search.countForEvent(input.eventId);
   const freshness =
     lastRebuildAt.get(input.eventId) ??
     (await deps.search.maxUpdatedAt(input.eventId));
+  // B2/B3: stale when never indexed or generation lag (generation wired in store).
+  const stale =
+    count === 0 ||
+    (typeof deps.search.isStale === "function"
+      ? await deps.search.isStale(input.eventId)
+      : false);
 
   return {
     ok: true,
@@ -356,7 +351,8 @@ export async function searchEvent(
       total: hits.length,
       limit: input.limit,
       q: plainQ,
-      freshness,
+      freshness: freshness ?? null,
+      stale,
     },
   };
 }

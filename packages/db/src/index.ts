@@ -51,6 +51,7 @@ export {
   projectionRecords,
   savedViews,
   searchDocuments,
+  searchIndexState,
   programmePublications,
   portalForms,
   portalFormResponses,

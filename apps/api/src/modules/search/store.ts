@@ -8,8 +8,13 @@ import {
   type D1DatabaseLike,
   type SpeakerOpsDb,
   searchDocuments,
+  searchIndexState,
 } from "@speakerops/db";
-import { escapeLikePattern, type SearchEntityType } from "@speakerops/shared";
+import {
+  escapeLikePattern,
+  uuidv7,
+  type SearchEntityType,
+} from "@speakerops/shared";
 
 export type SearchDocumentRow = {
   id: string;
@@ -48,6 +53,15 @@ export type SearchStore = {
   }): Promise<SearchDocumentRow[]>;
   countForEvent(eventId: string): Promise<number>;
   maxUpdatedAt(eventId: string): Promise<string | null>;
+  /** B3: bump requested_generation (creates row if missing). */
+  invalidateIndex?(eventId: string): Promise<void>;
+  /** B3: built_generation < requested_generation (or never built). */
+  isStale?(eventId: string): Promise<boolean>;
+  /** B3: process one event rebuild if stale (lease-fenced). */
+  processIndexEvent?(
+    eventId: string,
+    rebuild: (eventId: string) => Promise<SearchDocumentRow[]>,
+  ): Promise<"built" | "skipped" | "noop">;
 };
 
 function matchesPlain(doc: SearchDocumentRow, plainQ: string): boolean {
@@ -94,6 +108,10 @@ function authzOk(doc: SearchDocumentRow, authz: SearchAuthz): boolean {
 
 export class MemorySearchStore implements SearchStore {
   private docs = new Map<string, SearchDocumentRow>();
+  private generations = new Map<
+    string,
+    { requested: number; built: number; builtAt: string | null }
+  >();
 
   async replaceEventDocuments(
     eventId: string,
@@ -103,6 +121,14 @@ export class MemorySearchStore implements SearchStore {
       if (d.eventId === eventId) this.docs.delete(id);
     }
     for (const d of docs) this.docs.set(d.id, { ...d });
+    const g = this.generations.get(eventId) ?? {
+      requested: 0,
+      built: -1,
+      builtAt: null,
+    };
+    g.built = g.requested;
+    g.builtAt = new Date().toISOString();
+    this.generations.set(eventId, g);
   }
 
   async search(input: {
@@ -146,6 +172,32 @@ export class MemorySearchStore implements SearchStore {
       if (!max || d.updatedAt > max) max = d.updatedAt;
     }
     return max;
+  }
+
+  async invalidateIndex(eventId: string): Promise<void> {
+    const g = this.generations.get(eventId) ?? {
+      requested: 0,
+      built: -1,
+      builtAt: null,
+    };
+    g.requested += 1;
+    this.generations.set(eventId, g);
+  }
+
+  async isStale(eventId: string): Promise<boolean> {
+    const g = this.generations.get(eventId);
+    if (!g) return true;
+    return g.built < g.requested;
+  }
+
+  async processIndexEvent(
+    eventId: string,
+    rebuild: (eventId: string) => Promise<SearchDocumentRow[]>,
+  ): Promise<"built" | "skipped" | "noop"> {
+    if (!(await this.isStale(eventId))) return "noop";
+    const docs = await rebuild(eventId);
+    await this.replaceEventDocuments(eventId, docs);
+    return "built";
   }
 }
 
@@ -255,8 +307,9 @@ export class D1SearchStore implements SearchStore {
     limit: number;
     authz: SearchAuthz;
   }): Promise<SearchDocumentRow[]> {
-    const ftsOk = await this.ensureFts();
-    const useFts = ftsOk && input.ftsQuery.length > 0;
+    // B2: pure-read — do NOT call ensureFts() (DDL) on the search path.
+    // FTS is installed by consumer/rebuild; missing FTS → LIKE fallback.
+    const useFts = input.ftsQuery.length > 0;
     let rows: SearchDocumentRow[] = [];
 
     if (useFts) {
@@ -267,7 +320,15 @@ export class D1SearchStore implements SearchStore {
           const n = await this.countForEvent(input.eventId);
           if (n > 0) rows = await this.searchLike(input);
         }
-      } catch {
+      } catch (err) {
+        // Structured log path: avoid silent swallow of ranking bugs.
+        console.error(
+          JSON.stringify({
+            msg: "search_fts_error",
+            eventId: input.eventId,
+            err: err instanceof Error ? err.message : String(err),
+          }),
+        );
         rows = await this.searchLike(input);
       }
     } else {
@@ -297,18 +358,20 @@ export class D1SearchStore implements SearchStore {
     // Qualify columns for FTS join (d.*).
     const authzSql = this.authzSql(input.authz, "d");
 
+    // B1: bm25() must use the FTS table name, not an alias (alias form is invalid
+    // in FTS5 and was swallowed → permanent LIKE fallback on D1).
     // D1: use .all() for SELECT — .run() returns write meta without results.
     const result = await this.db.all(sql`
       SELECT
         d.id, d.entity_type, d.entity_id, d.event_id, d.title, d.body,
         d.owner_user_id, d.participation_id, d.status, d.route, d.updated_at
-      FROM search_documents_fts f
-      JOIN search_documents d ON d.rowid = f.rowid
-      WHERE f.search_documents_fts MATCH ${input.ftsQuery}
+      FROM search_documents_fts
+      JOIN search_documents d ON d.rowid = search_documents_fts.rowid
+      WHERE search_documents_fts MATCH ${input.ftsQuery}
         AND d.event_id = ${input.eventId}
         ${typeFilter}
         ${authzSql}
-      ORDER BY bm25(f) ASC, d.updated_at DESC
+      ORDER BY bm25(search_documents_fts) ASC, d.updated_at DESC
       LIMIT ${input.limit}
     `);
 
@@ -407,6 +470,102 @@ export class D1SearchStore implements SearchStore {
       .where(eq(searchDocuments.eventId, eventId))
       .all();
     return rows[0]?.m ?? null;
+  }
+
+  async invalidateIndex(eventId: string): Promise<void> {
+    await this.db.run(sql`
+      INSERT INTO search_index_state (event_id, requested_generation, built_generation)
+      VALUES (${eventId}, 1, -1)
+      ON CONFLICT(event_id) DO UPDATE SET
+        requested_generation = search_index_state.requested_generation + 1
+    `);
+  }
+
+  async isStale(eventId: string): Promise<boolean> {
+    try {
+      const rows = await this.db
+        .select()
+        .from(searchIndexState)
+        .where(eq(searchIndexState.eventId, eventId))
+        .all();
+      const row = rows[0];
+      if (!row) return true;
+      return row.builtGeneration < row.requestedGeneration;
+    } catch {
+      return true;
+    }
+  }
+
+  async processIndexEvent(
+    eventId: string,
+    rebuild: (eventId: string) => Promise<SearchDocumentRow[]>,
+  ): Promise<"built" | "skipped" | "noop"> {
+    if (!(await this.isStale(eventId))) return "noop";
+    await this.ensureFts();
+    const token = uuidv7();
+    const leaseUntil = new Date(Date.now() + 120_000).toISOString();
+    const now = new Date().toISOString();
+    // Acquire lease
+    await this.db.run(sql`
+      UPDATE search_index_state
+      SET lease_token = ${token}, lease_until = ${leaseUntil}
+      WHERE event_id = ${eventId}
+        AND (lease_until IS NULL OR lease_until < ${now})
+    `);
+    const leaseRows = await this.db
+      .select()
+      .from(searchIndexState)
+      .where(eq(searchIndexState.eventId, eventId))
+      .all();
+    const state = leaseRows[0];
+    if (!state || state.leaseToken !== token) return "skipped";
+    const G = state.requestedGeneration;
+    const docs = await rebuild(eventId);
+    // Fenced full replacement in one batch
+    const del = this.db.run(sql`
+      DELETE FROM search_documents
+      WHERE event_id = ${eventId}
+        AND EXISTS (
+          SELECT 1 FROM search_index_state s
+          WHERE s.event_id = ${eventId} AND s.lease_token = ${token}
+        )
+    `);
+    const inserts = docs.map((d) =>
+      this.db.run(sql`
+        INSERT INTO search_documents (
+          id, entity_type, entity_id, event_id, title, body,
+          owner_user_id, participation_id, status, route, updated_at
+        )
+        SELECT
+          ${d.id}, ${d.entityType}, ${d.entityId}, ${d.eventId},
+          ${d.title}, ${d.body}, ${d.ownerUserId}, ${d.participationId},
+          ${d.status}, ${d.route}, ${d.updatedAt}
+        WHERE EXISTS (
+          SELECT 1 FROM search_index_state s
+          WHERE s.event_id = ${eventId} AND s.lease_token = ${token}
+        )
+      `),
+    );
+    const complete = this.db.run(sql`
+      UPDATE search_index_state
+      SET built_generation = ${G},
+          built_at = ${new Date().toISOString()},
+          doc_count = ${docs.length},
+          lease_token = NULL,
+          lease_until = NULL
+      WHERE event_id = ${eventId}
+        AND lease_token = ${token}
+        AND built_generation < ${G}
+    `);
+    await this.db.batch([del, ...inserts, complete]);
+    try {
+      await this.db.run(sql`
+        INSERT INTO search_documents_fts(search_documents_fts) VALUES('rebuild')
+      `);
+    } catch {
+      /* optional */
+    }
+    return "built";
   }
 }
 

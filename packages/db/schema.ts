@@ -1353,8 +1353,25 @@ export const searchDocuments = sqliteTable(
   ],
 );
 
+/**
+ * search_index_state — F5 generation + fenced rebuild lease (migration 0044).
+ */
+export const searchIndexState = sqliteTable("search_index_state", {
+  eventId: text("event_id")
+    .primaryKey()
+    .notNull()
+    .references(() => events.id),
+  requestedGeneration: integer("requested_generation").notNull().default(0),
+  builtGeneration: integer("built_generation").notNull().default(-1),
+  builtAt: text("built_at"),
+  docCount: integer("doc_count").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseUntil: text("lease_until"),
+});
+
 export const searchTables = {
   searchDocuments,
+  searchIndexState,
 } as const;
 
 export type Organization = typeof organizations.$inferSelect;
@@ -1490,6 +1507,7 @@ export const schema = {
   projectionRecords,
   savedViews,
   searchDocuments,
+  searchIndexState,
   programmePublications,
   portalForms,
   portalFormResponses,

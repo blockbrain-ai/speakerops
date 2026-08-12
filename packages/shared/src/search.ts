@@ -74,6 +74,11 @@ export const SearchResponseSchema = z.object({
   q: z.string(),
   /** ISO timestamp of index freshness for this event (last rebuild/upsert). */
   freshness: z.string().nullable(),
+  /**
+   * True when index generation lags mutations (built_generation < requested).
+   * UI shows "Indexing…" — not an error. Never-built ⇒ stale=true, freshness=null.
+   */
+  stale: z.boolean().optional().default(false),
   nextCursor: z.string().nullable().optional(),
 });
 export type SearchResponse = z.infer<typeof SearchResponseSchema>;
