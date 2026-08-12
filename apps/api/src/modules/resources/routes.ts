@@ -525,32 +525,35 @@ export function createPortalLibraryRoutes(
       const now = new Date().toISOString();
       const correlationId =
         c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown";
-      const row = await resources.upsertFulfillment({
-        id: uuidv7(),
-        eventId,
-        requestId,
-        participationId,
-        fileId,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await store.insertAudit({
-        id: uuidv7(),
-        eventId,
-        actorType: "user",
-        actorId: user.id,
-        action: "FileRequest.Fulfill",
-        entityType: "file_request",
-        entityId: requestId,
-        beforeJson: null,
-        afterJson: JSON.stringify({
+      const fulfillId = uuidv7();
+      const row = await resources.upsertFulfillmentWithAudit(
+        {
+          id: fulfillId,
+          eventId,
+          requestId,
           participationId,
           fileId,
-          fulfillmentId: row.id,
-        }),
-        correlationId,
-        createdAt: now,
-      });
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: uuidv7(),
+          eventId,
+          actorType: "user",
+          actorId: user.id,
+          action: "FileRequest.Fulfill",
+          entityType: "file_request",
+          entityId: requestId,
+          beforeJson: null,
+          afterJson: JSON.stringify({
+            participationId,
+            fileId,
+            fulfillmentId: fulfillId,
+          }),
+          correlationId,
+          createdAt: now,
+        },
+      );
       return c.json(
         {
           fulfillment: {

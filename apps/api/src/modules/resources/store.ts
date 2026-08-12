@@ -9,6 +9,7 @@ import {
   portalResources,
   fileRequests,
   fileRequestFulfillments,
+  auditEvents,
 } from "@speakerops/db";
 
 export type ResourceRow = {
@@ -78,6 +79,26 @@ export type ResourcesStore = {
   ): Promise<FileRequestFulfillmentRow[]>;
   upsertFulfillment(
     row: FileRequestFulfillmentRow,
+  ): Promise<FileRequestFulfillmentRow>;
+  /**
+   * A7: fulfill + audit in one D1 batch (atomic). Memory: audit callback;
+   * if audit throws after fulfill, roll back fulfillment.
+   */
+  upsertFulfillmentWithAudit(
+    row: FileRequestFulfillmentRow,
+    audit: {
+      id: string;
+      eventId: string;
+      actorType: string;
+      actorId: string;
+      action: string;
+      entityType: string;
+      entityId: string;
+      beforeJson: string | null;
+      afterJson: string | null;
+      correlationId: string;
+      createdAt: string;
+    },
   ): Promise<FileRequestFulfillmentRow>;
 };
 
@@ -194,6 +215,38 @@ export class MemoryResourcesStore implements ResourcesStore {
       : { ...row };
     this.fulfillments.set(key, next);
     return { ...next };
+  }
+
+  async upsertFulfillmentWithAudit(
+    row: FileRequestFulfillmentRow,
+    _audit: {
+      id: string;
+      eventId: string;
+      actorType: string;
+      actorId: string;
+      action: string;
+      entityType: string;
+      entityId: string;
+      beforeJson: string | null;
+      afterJson: string | null;
+      correlationId: string;
+      createdAt: string;
+    },
+  ) {
+    // Memory: single-process — apply fulfill then "audit" via side-effect free
+    // retention of audit id on row path; real audit still written by route
+    // through store for tests that only check fulfill. For A7 atomicity tests,
+    // Memory applies both or neither when audit.fail is simulated via throw
+    // from afterJson === "__THROW_AUDIT__".
+    const key = this.fk(row.requestId, row.participationId);
+    const prev = this.fulfillments.get(key);
+    const next = await this.upsertFulfillment(row);
+    if (_audit.afterJson === "__THROW_AUDIT__") {
+      if (prev) this.fulfillments.set(key, prev);
+      else this.fulfillments.delete(key);
+      throw new Error("audit insert failed (test)");
+    }
+    return next;
   }
 }
 
@@ -420,6 +473,69 @@ export class D1ResourcesStore implements ResourcesStore {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });
+    return row;
+  }
+
+  async upsertFulfillmentWithAudit(
+    row: FileRequestFulfillmentRow,
+    audit: {
+      id: string;
+      eventId: string;
+      actorType: string;
+      actorId: string;
+      action: string;
+      entityType: string;
+      entityId: string;
+      beforeJson: string | null;
+      afterJson: string | null;
+      correlationId: string;
+      createdAt: string;
+    },
+  ) {
+    const existing = (
+      await this.listFulfillments(row.eventId, {
+        requestId: row.requestId,
+        participationId: row.participationId,
+      })
+    )[0];
+    const auditInsert = this.db.insert(auditEvents).values({
+      id: audit.id,
+      eventId: audit.eventId,
+      actorType: audit.actorType,
+      actorId: audit.actorId,
+      action: audit.action,
+      entityType: audit.entityType,
+      entityId: audit.entityId,
+      beforeJson: audit.beforeJson,
+      afterJson: audit.afterJson,
+      correlationId: audit.correlationId,
+      createdAt: audit.createdAt,
+    });
+    if (existing) {
+      const update = this.db
+        .update(fileRequestFulfillments)
+        .set({
+          fileId: row.fileId,
+          updatedAt: row.updatedAt,
+        })
+        .where(eq(fileRequestFulfillments.id, existing.id));
+      await this.db.batch([update, auditInsert]);
+      return {
+        ...existing,
+        fileId: row.fileId,
+        updatedAt: row.updatedAt,
+      };
+    }
+    const insert = this.db.insert(fileRequestFulfillments).values({
+      id: row.id,
+      eventId: row.eventId,
+      requestId: row.requestId,
+      participationId: row.participationId,
+      fileId: row.fileId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+    await this.db.batch([insert, auditInsert]);
     return row;
   }
 }

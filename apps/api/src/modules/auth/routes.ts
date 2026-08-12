@@ -28,6 +28,7 @@ import {
   FORBIDDEN,
   NOT_FOUND,
   INTERNAL_ERROR,
+  RATE_LIMITED,
   SESSION_COOKIE_NAME,
   JUDGE_SESSION_COOKIE_NAME,
   DEFAULT_BOOTSTRAP_EVENT_ID,
@@ -46,6 +47,11 @@ import {
 } from "./commands.js";
 import type { AuthStore, MagicLinkTestOutbox } from "./store.js";
 import type { EventsStore } from "../events/store.js";
+import {
+  CfpRateLimiter,
+  clientKeyFromRequest,
+  rateLimitHeaders,
+} from "../publicCfp/rateLimit.js";
 import {
   buildSessionSetCookie,
   buildClearSessionCookie,
@@ -149,7 +155,12 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
   /**
    * POST /api/auth/magic-link
    * Always 200 { sent: true } for valid body (no email enumeration).
+   * A5: dual-bucket rate limit — per IP (~10/15min) AND per email (~5/15min).
    */
+  // Process-local dual buckets (matches CFP limiter; multi-isolate later).
+  const magicLinkIpLimiter = new CfpRateLimiter(10, 15 * 60_000);
+  const magicLinkEmailLimiter = new CfpRateLimiter(5, 15 * 60_000);
+
   auth.post("/magic-link", async (c) => {
     let raw: unknown;
     try {
@@ -168,6 +179,23 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
           issues: parsed.error.flatten(),
         }),
         400,
+      );
+    }
+
+    const ipKey = `ml-ip:${clientKeyFromRequest(c)}`;
+    const emailKey = `ml-email:${parsed.data.email.trim().toLowerCase()}`;
+    const ipRl = magicLinkIpLimiter.check(ipKey);
+    const emailRl = magicLinkEmailLimiter.check(emailKey);
+    if (!ipRl.allowed || !emailRl.allowed) {
+      const blocked = !ipRl.allowed ? ipRl : emailRl;
+      const headers = rateLimitHeaders(blocked);
+      return c.json(
+        errorEnvelope("Too many magic-link requests", RATE_LIMITED, {
+          limit: blocked.limit,
+          remaining: blocked.remaining,
+        }),
+        429,
+        headers,
       );
     }
 
@@ -198,7 +226,11 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         500,
       );
     }
-    return c.json(out.data, 200);
+    return c.json(out.data, 200, {
+      ...rateLimitHeaders(
+        emailRl.remaining <= ipRl.remaining ? emailRl : ipRl,
+      ),
+    });
   });
 
   /**

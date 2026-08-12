@@ -277,22 +277,8 @@ export async function requestMagicLink(
     }
   }
 
-  // Allowlisted existing users: ensure membership only when purpose was explicit.
-  if (
-    purposeSupplied &&
-    user &&
-    onAllowlist &&
-    policy === "controlled"
-  ) {
-    const role = purposeToRole(purpose);
-    const membership = await deps.store.upsertMembership({
-      eventId: input.eventId ?? DEFAULT_BOOTSTRAP_EVENT_ID,
-      userId: user.id,
-      role,
-    });
-    grantedMembershipId = membership.id;
-    grantedRole = role;
-  }
+  // A4: Do NOT upsert membership for controlled+allowlist existing users.
+  // Role mutation via magic-link purpose is closed; use Auth.CreateInvite / setMemberRole.
 
   const plaintext = generateToken(32);
   const tokenHash = await hashToken(plaintext);
@@ -319,20 +305,12 @@ export async function requestMagicLink(
   });
 
   // Membership grants only when purpose was explicitly supplied (or first-admin bootstrap).
-  // - open + purpose: purpose → role upsert (e2e dogfood)
-  // - controlled + allowlist create + purpose: grant purpose role
-  // - controlled first-admin bootstrap create with purpose=admin
+  // - open + purpose: purpose → role upsert (e2e dogfood / test-only open policy)
+  // - controlled: NO allowlist role upsert (A4). First-admin bootstrap only via
+  //   isAllowedBootstrap (adminCount===0 + bootstrapAdminEmail) — fires even when
+  //   the bootstrap email is also on MAGIC_LINK_ALLOWLIST (Codex r2).
   // Omitted purpose: never upsert (membership-aware re-entry).
   if (purposeSupplied && policy === "open") {
-    const role = purposeToRole(purpose);
-    const membership = await deps.store.upsertMembership({
-      eventId: grantEventId,
-      userId: user.id,
-      role,
-    });
-    grantedMembershipId = membership.id;
-    grantedRole = role;
-  } else if (purposeSupplied && isBootstrapCreate && onAllowlist) {
     const role = purposeToRole(purpose);
     const membership = await deps.store.upsertMembership({
       eventId: grantEventId,
@@ -345,7 +323,15 @@ export async function requestMagicLink(
     purposeSupplied &&
     isBootstrapCreate &&
     purpose === "admin" &&
-    !onAllowlist
+    (await isAllowedBootstrap(
+      deps.store,
+      {
+        email,
+        purpose: "admin",
+        bootstrapAdminEmail: input.bootstrapAdminEmail,
+      },
+      policy,
+    ))
   ) {
     const membership = await deps.store.upsertMembership({
       eventId: grantEventId,

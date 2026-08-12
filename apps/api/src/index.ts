@@ -953,22 +953,26 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     typeof env.ROLE_SWITCHER_ENABLED === "string" &&
     env.ROLE_SWITCHER_ENABLED.trim() === "1";
 
-  // Durable magic-link email when encryption key is present (dogfood secrets).
+  // A6: Fail-closed — dogfood + production judges must receive magic links.
+  // Preflight before deploy: AUTH_LINK_ENCRYPTION_KEY must be non-empty (names only).
   const authLinkKey =
     typeof env.AUTH_LINK_ENCRYPTION_KEY === "string"
       ? env.AUTH_LINK_ENCRYPTION_KEY.trim()
       : "";
-  const magicLinkMail: MagicLinkMailDeps | null =
-    authLinkKey.length > 0
-      ? {
-          comms: new D1CommsStore(d1),
-          authLinkEncryptionKey: authLinkKey,
-          queueKick:
-            env.JOBS_QUEUE && typeof env.JOBS_QUEUE.send === "function"
-              ? env.JOBS_QUEUE
-              : null,
-        }
-      : null;
+  if (!authLinkKey) {
+    throw new Error(
+      "Worker binding AUTH_LINK_ENCRYPTION_KEY is required for production/dogfood magic-link mail (A6). " +
+        "Without it login email cannot be encrypted into the outbox. Set via wrangler secret put.",
+    );
+  }
+  const magicLinkMail: MagicLinkMailDeps = {
+    comms: new D1CommsStore(d1),
+    authLinkEncryptionKey: authLinkKey,
+    queueKick:
+      env.JOBS_QUEUE && typeof env.JOBS_QUEUE.send === "function"
+        ? env.JOBS_QUEUE
+        : null,
+  };
 
   return createApp({
     authStore: new D1AuthStore(d1),
@@ -1154,6 +1158,7 @@ function isEmbedPath(pathname: string): boolean {
  * Apply production security headers to Workers Assets responses.
  * ASSETS.fetch bypasses Hono middleware, so CSP must be layered here or
  * live HTML has no frame-ancestors / frame-src policy (Codex MUST_FIX).
+ * A8: fingerprinted /assets/* get immutable long cache; HTML stays no-store.
  */
 function withAssetSecurityHeaders(
   pathname: string,
@@ -1172,11 +1177,31 @@ function withAssetSecurityHeaders(
       headers.set(name, value);
     }
   }
+  // Hashed Vite assets under /assets/ — safe to cache long-term.
+  if (
+    pathname.startsWith("/assets/") &&
+    /\.[a-fA-F0-9]{8,}\.(js|css|map|woff2?|png|svg|jpg|webp)$/.test(
+      pathname,
+    )
+  ) {
+    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  }
   return new Response(assetResponse.body, {
     status: assetResponse.status,
     statusText: assetResponse.statusText,
     headers,
   });
+}
+
+function securedAssetError(pathname: string, message: string): Response {
+  const headers = new Headers({ "content-type": "text/plain; charset=utf-8" });
+  const embed = isEmbedPath(pathname);
+  const src = embed ? SECURITY_HEADERS_EMBED : SECURITY_HEADERS;
+  for (const [name, value] of Object.entries(src)) {
+    headers.set(name, value);
+  }
+  if (embed) headers.delete("X-Frame-Options");
+  return new Response(message, { status: 502, headers });
 }
 
 /**
@@ -1202,11 +1227,31 @@ export default {
       }
       return app.fetch(request, env, ctx as never);
     }
+    // A8: Learn is external; do not SPA-200 arbitrary /learn/* paths.
+    if (url.pathname === "/learn" || url.pathname.startsWith("/learn/")) {
+      return withAssetSecurityHeaders(
+        url.pathname,
+        new Response(
+          "Learn docs are hosted separately (learn.speakerops.org). This path is not served by the app Worker.",
+          {
+            status: 404,
+            headers: { "content-type": "text/plain; charset=utf-8" },
+          },
+        ),
+      );
+    }
     // Dogfood SPA: Workers Assets binding (wrangler [assets]).
     // Layer CSP on the asset response — ASSETS.fetch does not run Hono middleware.
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
-      const assetRes = await env.ASSETS.fetch(request);
-      return withAssetSecurityHeaders(url.pathname, assetRes);
+      try {
+        const assetRes = await env.ASSETS.fetch(request);
+        return withAssetSecurityHeaders(url.pathname, assetRes);
+      } catch {
+        return securedAssetError(
+          url.pathname,
+          "Static asset backend unavailable",
+        );
+      }
     }
     // No assets binding (workers.dev API-only): still serve API app for unknown paths
     // so Hono can return E4 404 envelopes.
