@@ -56,6 +56,7 @@ describe("11.1 buildAttentionQueue", () => {
     speakers: 2,
     schedulePlaced: 1,
     scheduleUnscheduled: 2,
+    statusCounts: { submitted: 2, in_review: 1 },
   };
 
   const overdueRow: ReadinessOutstandingItem = {
@@ -109,6 +110,7 @@ describe("11.1 buildAttentionQueue", () => {
       speakers: 0,
       schedulePlaced: 0,
       scheduleUnscheduled: 0,
+      statusCounts: {},
     };
     const queue = buildAttentionQueue([], empty);
     expect(queue.some((i) => i.id === "gap-setup")).toBe(true);
@@ -123,7 +125,52 @@ describe("11.1 buildAttentionQueue", () => {
       speakers: 4,
       schedulePlaced: 4,
       scheduleUnscheduled: 0,
+      statusCounts: { accepted: 5 },
     };
     expect(buildAttentionQueue([], clear)).toEqual([]);
+  });
+});
+
+describe("F4 buildProgrammeStages honesty", () => {
+  it("does not mark decide done while submitted remain", async () => {
+    const { buildProgrammeStages } = await import("./Readiness.js");
+    const stages = buildProgrammeStages(
+      {
+        submissions: 4,
+        evaluationsTotal: 2,
+        evaluationsScored: 2,
+        speakers: 1,
+        schedulePlaced: 0,
+        scheduleUnscheduled: 1,
+        statusCounts: { submitted: 2, accepted: 1, rejected: 1 },
+      },
+      0,
+      0,
+    );
+    const decide = stages.find((s) => s.id === "decide")!;
+    expect(decide.state).not.toBe("done");
+    expect(decide.detail).toMatch(/awaiting decision/);
+    const publish = stages.find((s) => s.id === "publish")!;
+    expect(publish.href).toBe("/admin/design");
+    expect(publish.state).not.toBe("done");
+  });
+
+  it("marks schedule done only when placed and none unscheduled", async () => {
+    const { buildProgrammeStages } = await import("./Readiness.js");
+    const stages = buildProgrammeStages(
+      {
+        submissions: 2,
+        evaluationsTotal: 0,
+        evaluationsScored: 0,
+        speakers: 2,
+        schedulePlaced: 2,
+        scheduleUnscheduled: 0,
+        statusCounts: { accepted: 2 },
+      },
+      0,
+      0,
+    );
+    expect(stages.find((s) => s.id === "schedule")!.state).toBe("done");
+    expect(stages.find((s) => s.id === "decide")!.state).toBe("done");
   });
 });

@@ -39,6 +39,7 @@ import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
 import { Icon } from "../components/ui/Icon.js";
 import { EmptyState } from "../components/ui/EmptyState.js";
+import { DonutChart, BarChart, type ChartSlice } from "../components/ui/Chart.js";
 
 /** Program-level outcome metrics for the 5-second overview. */
 export type OverviewProgramMetrics = {
@@ -48,7 +49,198 @@ export type OverviewProgramMetrics = {
   speakers: number;
   schedulePlaced: number;
   scheduleUnscheduled: number;
+  /** F4: submission status histogram for donut. */
+  statusCounts: Record<string, number>;
 };
+
+const STATUS_CHART_COLORS: Record<string, string> = {
+  submitted: "var(--lumen-info)",
+  in_review: "var(--lumen-honey)",
+  accepted: "var(--lumen-success)",
+  rejected: "var(--lumen-danger)",
+  waitlist: "var(--lumen-clay)",
+  withdrawn: "var(--lumen-text-tertiary)",
+  draft: "var(--lumen-border)",
+};
+
+const STATUS_CHART_LABELS: Record<string, string> = {
+  submitted: "Submitted",
+  in_review: "In review",
+  accepted: "Accepted",
+  rejected: "Rejected",
+  waitlist: "Waitlist",
+  withdrawn: "Withdrawn",
+  draft: "Draft",
+};
+
+type StageState = "done" | "now" | "todo" | "warn";
+
+export type ProgrammeStage = {
+  id: string;
+  label: string;
+  state: StageState;
+  detail: string;
+  href: string;
+};
+
+/**
+ * Derive six-stage programme rail from live metrics (F4 / P2).
+ * Honest states only — never claim "done" without real completion criteria.
+ */
+export function buildProgrammeStages(
+  metrics: OverviewProgramMetrics | null,
+  outstandingCount: number,
+  overdueCount: number,
+): ProgrammeStage[] {
+  const m = metrics;
+  const subTotal = m?.submissions ?? 0;
+  const submittedLike =
+    (m?.statusCounts?.submitted ?? 0) +
+    (m?.statusCounts?.in_review ?? 0) +
+    (m?.statusCounts?.accepted ?? 0) +
+    (m?.statusCounts?.rejected ?? 0) +
+    (m?.statusCounts?.waitlist ?? 0);
+  const accepted = m?.statusCounts?.accepted ?? 0;
+  const pendingDecide =
+    (m?.statusCounts?.submitted ?? 0) + (m?.statusCounts?.in_review ?? 0);
+  const evalTotal = m?.evaluationsTotal ?? 0;
+  const evalScored = m?.evaluationsScored ?? 0;
+  const evalComplete = evalTotal > 0 && evalScored >= evalTotal;
+  const placed = m?.schedulePlaced ?? 0;
+  const unscheduled = m?.scheduleUnscheduled ?? 0;
+
+  // CFP: receiving traffic is "active", not done — done only once decisions exist.
+  const cfpState: StageState =
+    subTotal === 0 ? "now" : accepted + pendingDecide > 0 ? "done" : "now";
+  // Review: done when all assigned evals scored (or none required yet with zero queue).
+  const reviewState: StageState =
+    evalTotal === 0
+      ? subTotal > 0
+        ? "todo"
+        : "todo"
+      : evalComplete
+        ? "done"
+        : "now";
+  // Decide: done when no open submitted/in_review remain and at least one decision.
+  const decideState: StageState =
+    accepted > 0 && pendingDecide === 0
+      ? "done"
+      : pendingDecide > 0
+        ? "now"
+        : subTotal > 0
+          ? "todo"
+          : "todo";
+  // Onboard: warn on overdue; done only when there were accepted speakers and zero outstanding.
+  const onboardState: StageState =
+    overdueCount > 0
+      ? "warn"
+      : outstandingCount > 0
+        ? "now"
+        : accepted > 0
+          ? "done"
+          : "todo";
+  // Schedule: done when every accepted-side session is placed (no unscheduled, some placed).
+  const scheduleState: StageState =
+    unscheduled > 0
+      ? "warn"
+      : placed > 0
+        ? "done"
+        : accepted > 0
+          ? "now"
+          : "todo";
+  // Publish: not yet a first-class publish API — stay honest "todo", deep-link design kit / public.
+  const publishState: StageState =
+    scheduleState === "done" && onboardState === "done" ? "todo" : "todo";
+
+  const stages: ProgrammeStage[] = [
+    {
+      id: "cfp",
+      label: "CFP",
+      state: cfpState,
+      detail:
+        subTotal === 0
+          ? "Publish form"
+          : `${subTotal} submission${subTotal === 1 ? "" : "s"}`,
+      href: "/admin/cfp",
+    },
+    {
+      id: "review",
+      label: "Review",
+      state: reviewState,
+      detail:
+        evalTotal === 0
+          ? submittedLike > 0
+            ? "Assign evaluators"
+            : "Waiting on CFP"
+          : `${evalScored}/${evalTotal} scored`,
+      href: "/admin/evaluations",
+    },
+    {
+      id: "decide",
+      label: "Decide",
+      state: decideState,
+      detail:
+        pendingDecide > 0
+          ? `${pendingDecide} awaiting decision`
+          : accepted > 0
+            ? `${accepted} accepted`
+            : "Accept / waitlist",
+      href: "/admin/submissions",
+    },
+    {
+      id: "onboard",
+      label: "Onboard",
+      state: onboardState,
+      detail:
+        overdueCount > 0
+          ? `${overdueCount} overdue`
+          : outstandingCount > 0
+            ? `${outstandingCount} open tasks`
+            : accepted > 0
+              ? "Tasks clear"
+              : "Speaker tasks",
+      href: "/admin/speakers",
+    },
+    {
+      id: "schedule",
+      label: "Schedule",
+      state: scheduleState,
+      detail:
+        unscheduled > 0
+          ? `${unscheduled} unscheduled`
+          : placed > 0
+            ? `${placed} placed`
+            : "Place sessions",
+      href: "/admin/schedule",
+    },
+    {
+      id: "publish",
+      label: "Publish",
+      state: publishState,
+      detail: "Public programme soon",
+      // Design kit is the current public-facing brand surface until publish API lands.
+      href: "/admin/design",
+    },
+  ];
+
+  // Promote first incomplete stage to "now" if none already is (except warn keeps warn).
+  const hasNow = stages.some((s) => s.state === "now" || s.state === "warn");
+  if (!hasNow) {
+    const idx = stages.findIndex((s) => s.state === "todo");
+    if (idx >= 0) stages[idx] = { ...stages[idx]!, state: "now" };
+  }
+  // Only one "now" (warn may coexist).
+  let sawNow = false;
+  return stages.map((s) => {
+    if (s.state === "warn" || s.state === "done") return s;
+    if (s.state === "now") {
+      if (sawNow) return { ...s, state: "todo" as const };
+      sawNow = true;
+      return s;
+    }
+    return s;
+  });
+}
 
 export type AttentionItem = {
   id: string;
@@ -229,11 +421,21 @@ export function ReadinessPage() {
         }
 
         let submissions = 0;
+        let statusCounts: Record<string, number> = {};
         if (subRes.ok) {
           const raw: unknown = await subRes.json().catch(() => null);
           if (raw && typeof raw === "object" && "total" in raw) {
             const t = (raw as { total: unknown }).total;
             if (typeof t === "number" && Number.isFinite(t)) submissions = t;
+          }
+          if (
+            raw &&
+            typeof raw === "object" &&
+            "statusCounts" in raw &&
+            raw.statusCounts &&
+            typeof raw.statusCounts === "object"
+          ) {
+            statusCounts = raw.statusCounts as Record<string, number>;
           }
         }
 
@@ -274,6 +476,7 @@ export function ReadinessPage() {
           speakers: 0, // filled from readiness stats after load
           schedulePlaced,
           scheduleUnscheduled,
+          statusCounts,
         };
       } catch {
         return null;
@@ -349,6 +552,7 @@ export function ReadinessPage() {
             speakers: parsed.data.stats.totalSpeakers,
             schedulePlaced: 0,
             scheduleUnscheduled: 0,
+            statusCounts: {},
           });
         }
         setLastFetchedAt(new Date().toISOString());
@@ -422,6 +626,49 @@ export function ReadinessPage() {
   );
 
   const primaryRisk = attentionVisible[0] ?? null;
+  const topRisks = attentionVisible.slice(0, 8);
+  const overdueCount = outstanding.filter((r) => r.isOverdue).length;
+  const stages = buildProgrammeStages(
+    metrics,
+    outstanding.length,
+    overdueCount,
+  );
+  const statusSlices: ChartSlice[] = Object.entries(
+    metrics?.statusCounts ?? {},
+  )
+    .filter(([, n]) => n > 0)
+    .map(([id, value]) => ({
+      id,
+      label: STATUS_CHART_LABELS[id] ?? id,
+      value,
+      color: STATUS_CHART_COLORS[id] ?? "var(--lumen-brand)",
+    }));
+  const scheduleBars: ChartSlice[] = [
+    {
+      id: "placed",
+      label: "Scheduled",
+      value: metrics?.schedulePlaced ?? 0,
+      color: "var(--lumen-success)",
+    },
+    {
+      id: "unscheduled",
+      label: "Unscheduled",
+      value: metrics?.scheduleUnscheduled ?? 0,
+      color: "var(--lumen-honey)",
+    },
+  ];
+  const hour = new Date().getHours();
+  const greet =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const daysToEvent = (() => {
+    if (!activeEvent?.startsAt) return null;
+    try {
+      const ms = Date.parse(activeEvent.startsAt) - Date.now();
+      return Math.ceil(ms / (24 * 60 * 60 * 1000));
+    } catch {
+      return null;
+    }
+  })();
   const programStatus = !activeEventId
     ? "Select an event to begin."
     : loading && !data
@@ -441,17 +688,24 @@ export function ReadinessPage() {
       data-section="11.1"
       data-poll-ms={READINESS_POLL_MS}
     >
-      {/* Program context (shell already owns the page H1 title) */}
+      {/* Program context — greeting + countdown (mock) */}
       <header className="overview-dashboard__header" data-testid="overview-header">
         <div className="overview-dashboard__header-text">
-          <p className="page-stub__overline">Overview</p>
+          <p className="page-stub__overline overview-dashboard__eyebrow" data-testid="overview-eyebrow">
+            {daysToEvent != null && daysToEvent >= 0
+              ? `${daysToEvent} day${daysToEvent === 1 ? "" : "s"} to event`
+              : "Overview"}
+            {eventWindow ? ` · ${eventWindow}` : ""}
+          </p>
           <h2 className="page-stub__title">
-            {activeEvent?.name ?? "Program readiness"}
+            {greet}
+            {activeEvent?.name ? ` · ${activeEvent.name}` : ""}
           </h2>
           <p className="page-stub__body" data-testid="overview-status">
-            {eventWindow
-              ? `${eventWindow}. ${programStatus}`
-              : `Outstanding speaker tasks and program risks. Updates within ${Math.round(READINESS_POLL_MS / 1000)}s after portal complete.`}
+            {programStatus}
+            {lastFetchedAt
+              ? ` · Fresh as of ${new Date(lastFetchedAt).toLocaleTimeString()}`
+              : ""}
           </p>
         </div>
         {activeEventId ? (
@@ -466,6 +720,32 @@ export function ReadinessPage() {
           </Button>
         ) : null}
       </header>
+
+      {/* Six-stage programme rail (F4 / P2) */}
+      {activeEventId ? (
+        <section
+          className="overview-dashboard__rail"
+          data-testid="overview-stage-rail"
+          aria-label="Programme stages"
+        >
+          {stages.map((s) => (
+            <Link
+              key={s.id}
+              to={s.href}
+              className={[
+                "overview-dashboard__stage",
+                `overview-dashboard__stage--${s.state}`,
+                "lumen-focusable",
+              ].join(" ")}
+              data-testid={`overview-stage-${s.id}`}
+              data-state={s.state}
+            >
+              <span className="overview-dashboard__stage-name">{s.label}</span>
+              <span className="overview-dashboard__stage-detail">{s.detail}</span>
+            </Link>
+          ))}
+        </section>
+      ) : null}
 
       {/* Primary risk callout — 5-second test: risk + next action */}
       {primaryRisk ? (
@@ -512,6 +792,27 @@ export function ReadinessPage() {
 
       {activeEventId ? (
         <>
+          {/* Also check — action rail from top risks */}
+          {topRisks.length > 0 ? (
+            <section
+              className="overview-dashboard__also"
+              data-testid="overview-also-check"
+              aria-label="Also check"
+            >
+              <span className="overview-dashboard__also-title">Also check</span>
+              {topRisks.slice(1, 5).map((a) => (
+                <Link
+                  key={a.id}
+                  to={a.href}
+                  className="overview-dashboard__also-link lumen-focusable"
+                  data-testid={`overview-also-${a.id}`}
+                >
+                  {a.title}
+                </Link>
+              ))}
+            </section>
+          ) : null}
+
           {/* Four program outcome metrics */}
           <section
             className="overview-dashboard__metrics"
@@ -586,6 +887,46 @@ export function ReadinessPage() {
                   : "Placed sessions"}
               </span>
             </Link>
+          </section>
+
+          {/* F4 charts: status mix + schedule bar */}
+          <section
+            className="overview-dashboard__charts"
+            data-testid="overview-charts"
+            aria-label="Programme charts"
+          >
+            <div className="overview-dashboard__chart-card" data-testid="overview-chart-status">
+              <h3 className="overview-dashboard__chart-title">Submission status</h3>
+              <p className="overview-dashboard__chart-sub">
+                Mix across the whole programme
+              </p>
+              <DonutChart
+                data-testid="overview-donut-status"
+                slices={statusSlices}
+                centerLabel="total"
+                centerValue={metrics?.submissions ?? 0}
+                empty={
+                  <p className="l2-chart__empty-msg">
+                    No submissions yet — publish a CFP to start.
+                  </p>
+                }
+              />
+            </div>
+            <div className="overview-dashboard__chart-card" data-testid="overview-chart-schedule">
+              <h3 className="overview-dashboard__chart-title">Schedule health</h3>
+              <p className="overview-dashboard__chart-sub">
+                Placed vs still in the tray
+              </p>
+              <BarChart
+                data-testid="overview-bar-schedule"
+                bars={scheduleBars}
+                empty={
+                  <p className="l2-chart__empty-msg">
+                    No sessions to schedule yet.
+                  </p>
+                }
+              />
+            </div>
           </section>
 
           {/* Quick actions */}

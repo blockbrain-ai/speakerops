@@ -25,6 +25,13 @@ export {
   type ColumnManagerProps,
   type ColumnManagerItem,
 } from "./ColumnManager.js";
+export {
+  DonutChart,
+  BarChart,
+  type ChartSlice,
+  type DonutChartProps,
+  type BarChartProps,
+} from "./Chart.js";
 export { EmptyState, type EmptyStateProps } from "./EmptyState.js";
 export { PageHeader, type PageHeaderProps } from "./PageHeader.js";
 export { Skeleton, type SkeletonProps, type SkeletonVariant } from "./Skeleton.js";

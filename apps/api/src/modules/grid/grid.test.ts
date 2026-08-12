@@ -420,5 +420,7 @@ describe("saved views HTTP + submission sort", () => {
     const body = SubmissionListResponseSchema.parse(await res.json());
     expect(body.submissions).toEqual([]);
     expect(body.total).toBe(0);
+    // F4: statusCounts present even when empty
+    expect(body.statusCounts ?? {}).toEqual({});
   });
 });

@@ -1076,6 +1076,7 @@ export async function listSubmissions(
     limit: number;
     offset: number;
     categories: string[];
+    statusCounts: Record<string, number>;
   }> | CommandErr
 > {
   // Prefer real event; bootstrap-only memberships have no row — still list by id.
@@ -1088,6 +1089,14 @@ export async function listSubmissions(
   const offset = Math.max(0, input.offset ?? 0);
 
   let rows = await deps.submissions.listSubmissionsForEvent(input.eventId);
+
+  // F4: status histogram over the full event (pre-filter) for Overview donut.
+  const statusCounts: Record<string, number> = {};
+  for (const r of rows) {
+    const st = r.status ?? "unknown";
+    statusCounts[st] = (statusCounts[st] ?? 0) + 1;
+  }
+
   if (input.status) {
     rows = rows.filter((r) => r.status === input.status);
   }
@@ -1197,7 +1206,14 @@ export async function listSubmissions(
 
   return {
     ok: true,
-    value: { submissions: items, total, limit, offset, categories },
+    value: {
+      submissions: items,
+      total,
+      limit,
+      offset,
+      categories,
+      statusCounts,
+    },
   };
 }
 

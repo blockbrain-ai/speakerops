@@ -207,6 +207,11 @@ export const SubmissionListResponseSchema = z.object({
    * Lets SPA keep the category dropdown complete without fetching every page.
    */
   categories: z.array(z.string()).default([]),
+  /**
+   * F4: status histogram for the event (before status/category/q filters).
+   * Enables Overview donut without fetching every row.
+   */
+  statusCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
 });
 export type SubmissionListResponse = z.infer<
   typeof SubmissionListResponseSchema
