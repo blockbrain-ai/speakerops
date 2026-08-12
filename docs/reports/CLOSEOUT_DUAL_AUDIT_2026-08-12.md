@@ -9,7 +9,7 @@
 |------|---------|----------|
 | **Security** | **PASS_WITH_NITS** | *(empty)* |
 | **Product** (initial) | **MUST_FIX** | Learn CLI lies; Q01 empty-hits false green |
-| **Product** (after fold) | **PASS_WITH_NITS** (builder re-verify) | *(empty — folded below)* |
+| **Product** (after fold) | **PASS_WITH_NITS** | *(empty after residual Bearer templates + members list scopes)* |
 
 Cloudflare email quota: **ignored** (owner).  
 SmolForge: **deferred** (owner).
