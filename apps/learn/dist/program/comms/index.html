@@ -74,20 +74,33 @@
       <main id="main" class="learn-main" data-testid="learn-main">
 <article data-article-id="L13">
 <h1>Comms and calendar</h1>
-<p class="learn-lead">Draft templated email, preview recipients, send via outbox, and manage calendar invites.</p>
+<p class="learn-lead">Draft templated email, preview recipients, send via outbox, and manage calendar invites — with Campaign vs History surfaces so ops never crowd the wizard.</p>
 <section class="learn-section">
 <h2 id="where-comms-live">Where comms live</h2>
-<p>Open Admin → Comms. Templates define subject and body with program fields. Sending is a staged flow — Audience → Message → Review → Send — so the recipient set and rendered bodies are always reviewed before anything queues. Send enqueues outbox work for asynchronous drain — the request path does not call the email provider directly. The delivery log shows the template, recipients, and local send times (row ids live in tooltips), and the ICS panel uses human-readable copy with the raw invites collapsed.</p>
+<p>Open Admin → Comms. The page has two surfaces:</p>
+<ul>
+<li><strong>Campaign</strong> (default) — the send wizard only: Audience → Message → Review → Send. Delivery log and calendar-invite tools are <em>not</em> on this surface.</li>
+<li><strong>History</strong> — delivery log (jobs, recipients, status) and calendar invite generate/update for scheduled sessions.</li>
+</ul>
+<p>Deep-link with <code>?surface=history</code> when you need the log or ICS panels. Send still enqueues outbox work for asynchronous drain — the request path does not call the email provider directly.</p>
+</section>
+<section class="learn-section">
+<h2 id="campaign-wizard">Campaign wizard</h2>
+<ol class="learn-steps">
+<li>On <strong>Campaign</strong>, set audience (status, search, or explicit selection). Next needs at least one recipient.</li>
+<li><strong>Message</strong> — edit subject and body (merge fields like <code>{{name}}</code>). Click <strong>Save template</strong> before Next; the step stays blocked with “Save template before review” while unsaved.</li>
+<li><strong>Review</strong> — run preview; inspect recipients, bodies, and missing fields. Editing audience or message invalidates a prior preview.</li>
+<li><strong>Send</strong> (last step) — optional attach of an existing calendar invite, then Send. Trust-before-send: Send stays disabled without a valid matching preview.</li>
+</ol>
 </section>
 <section class="learn-section">
 <h2 id="draft-and-preview">Draft and preview</h2>
-<p>Choose a template, set audience filters, and run preview. Inspect missing fields before any send. Fix person or session data when required tokens are blank. Calendar invites (ICS with stable UID/SEQUENCE) are generated when the template and event data support them; on the hosted demo, email carries no attachments and speakers download the .ics from the portal instead.</p>
+<p>Preview requires a saved <code>templateId</code> on the server. Inspect missing fields before any send. Fix person or session data when required tokens are blank. Calendar invites (ICS with stable UID/SEQUENCE) are <strong>generated on History</strong>; on the hosted demo, email carries no attachments and speakers download the .ics from the portal instead. On Send you may <strong>attach</strong> an already-generated invite to this campaign.</p>
 <ol class="learn-steps">
-<li>Open Admin → Comms and select a template.</li>
-<li>Configure audience and event context.</li>
-<li>Run preview and read recipients, bodies, and missingFields.</li>
+<li>Open Admin → Comms (Campaign).</li>
+<li>Audience → Message → Save template → Review → Run preview.</li>
 <li>Repair data or template tokens until missing fields are acceptable.</li>
-<li>Only then send with the appropriate role and confirmation.</li>
+<li>Send, then open History for the delivery log if you need job detail.</li>
 </ol>
 </section>
 <section class="learn-section">
@@ -110,6 +123,7 @@ speakerops comms send --preview-id &lt;previewId&gt; --json</code></pre>
       </main>
       <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
 <li><a href="#where-comms-live">Where comms live</a></li>
+<li><a href="#campaign-wizard">Campaign wizard</a></li>
 <li><a href="#draft-and-preview">Draft and preview</a></li>
 <li><a href="#scopes-and-cli">Scopes and CLI</a></li>
 <li><a href="#delivery-backends">Delivery backends</a></li>

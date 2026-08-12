@@ -2,7 +2,7 @@
   "name": "speakerops",
   "private": true,
   "version": "0.1.0",
-  "description": "SpeakerOps Program OS — section-runner workspace",
+  "description": "SpeakerOps Program OS \u2014 section-runner workspace",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -b --pretty false",
@@ -22,7 +22,9 @@
     "docs:e2e-report": "tsx scripts/build-e2e-report.ts",
     "check:onboarding-proof": "tsx scripts/check-onboarding-proof.ts",
     "audit:deps": "node scripts/dependency-audit.mjs",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "docs:links": "node scripts/check-docs-links.mjs",
+    "deploy:learn": "wrangler deploy -c wrangler.learn.toml"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
