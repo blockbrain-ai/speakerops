@@ -118,9 +118,9 @@ export function FileRequestsPage() {
   return (
     <div data-testid="page-file-requests" data-section="n3-file-requests">
       <PageHeader
-        eyebrow="Portals"
+        eyebrow="Portals · assets"
         title="File requests"
-        description="Reusable file request templates (participation-scoped). Speakers already upload headshot/slides via portal tasks; this library documents additional asks."
+        description="Named asks for files beyond the default headshot/slides tasks — e.g. session PDF, promo image. Templates are participation-scoped; speakers fulfill via portal upload paths."
         data-testid="file-requests-page-header"
         actions={
           <Button

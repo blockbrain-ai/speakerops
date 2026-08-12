@@ -1230,6 +1230,30 @@
       "inv": "D08",
       "surface": "admin",
       "journey": "N3 publish file request"
+    },
+    {
+      "testid": "find-reindex",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "F5 rebuild search index from empty state"
+    },
+    {
+      "testid": "find-reindex-footer",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "F5 rebuild search index from palette footer"
+    },
+    {
+      "testid": "portal-forms-seed-starter",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N1 seed starter portal form"
+    },
+    {
+      "testid": "resources-seed-starter",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N2 prefill starter resource"
     }
   ]
 }

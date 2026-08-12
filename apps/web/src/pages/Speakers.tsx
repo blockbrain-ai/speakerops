@@ -62,6 +62,10 @@ function dimTone(ok: boolean): BadgeTone {
   return ok ? "success" : "warn";
 }
 
+/**
+ * Compact readiness cell — score + 5 single-letter dots.
+ * Full labels stay on title + aria only (table crowding fix).
+ */
 function ReadinessDots({
   readiness,
   participationId,
@@ -69,34 +73,53 @@ function ReadinessDots({
   readiness: SpeakerReadiness;
   participationId: string;
 }) {
+  const score = readinessScore(readiness);
+  const compact: Record<SpeakerReadinessDimension, string> = {
+    accepted: "A",
+    confirmed: "C",
+    profile: "P",
+    tasks: "T",
+    session: "S",
+  };
+  const ariaDetail = READINESS_DIMENSION_ORDER.map((d) => {
+    const label = READINESS_DIMENSION_LABELS[d];
+    const state = readiness[d] ? "done" : "open";
+    return label + " " + state;
+  }).join(", ");
   return (
     <div
       className="speakers-page__readiness"
       data-testid={`speakers-readiness-${participationId}`}
-      data-score={readinessScore(readiness)}
-      aria-label={`Readiness ${readinessScore(readiness)} of 5`}
+      data-score={score}
+      aria-label={"Readiness " + score + " of 5: " + ariaDetail}
     >
-      {READINESS_DIMENSION_ORDER.map((dim: SpeakerReadinessDimension) => {
-        const ok = readiness[dim];
-        return (
-          <span
-            key={dim}
-            className={
-              ok
-                ? "speakers-page__ready-dot speakers-page__ready-dot--ok"
-                : "speakers-page__ready-dot speakers-page__ready-dot--gap"
-            }
-            data-testid={`speakers-ready-${dim}-${participationId}`}
-            data-dim={dim}
-            data-ready={ok ? "true" : "false"}
-            title={READINESS_DIMENSION_LABELS[dim]}
-          >
-            <span className="speakers-page__ready-dot-label">
-              {READINESS_DIMENSION_LABELS[dim]}
+      <span
+        className="speakers-page__ready-score"
+        data-testid={`speakers-ready-score-${participationId}`}
+      >
+        {score}/5
+      </span>
+      <span className="speakers-page__ready-dots" aria-hidden="true">
+        {READINESS_DIMENSION_ORDER.map((dim: SpeakerReadinessDimension) => {
+          const ok = readiness[dim];
+          return (
+            <span
+              key={dim}
+              className={
+                ok
+                  ? "speakers-page__ready-dot speakers-page__ready-dot--ok"
+                  : "speakers-page__ready-dot speakers-page__ready-dot--gap"
+              }
+              data-testid={`speakers-ready-${dim}-${participationId}`}
+              data-dim={dim}
+              data-ready={ok ? "true" : "false"}
+              title={READINESS_DIMENSION_LABELS[dim]}
+            >
+              {compact[dim]}
             </span>
-          </span>
-        );
-      })}
+          );
+        })}
+      </span>
     </div>
   );
 }

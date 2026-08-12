@@ -62,6 +62,7 @@ export function FindPalette({ open, onOpenChange }: FindPaletteProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [freshness, setFreshness] = useState<string | null>(null);
+  const [reindexing, setReindexing] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -161,6 +162,34 @@ export function FindPalette({ open, onOpenChange }: FindPaletteProps) {
     navigate(hit.route);
   }
 
+  async function rebuildIndex() {
+    if (!activeEventId || reindexing) return;
+    setReindexing(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}/search/reindex`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { accept: "application/json" },
+        },
+      );
+      if (!res.ok) {
+        setError(`Index rebuild failed (${res.status})`);
+        return;
+      }
+      const body = (await res.json()) as { freshness?: string; indexed?: number };
+      if (body.freshness) setFreshness(body.freshness);
+      if (q.trim()) await runSearch(q);
+      else setError(null);
+    } catch {
+      setError("Could not rebuild search index");
+    } finally {
+      setReindexing(false);
+    }
+  }
+
   if (!open) return null;
 
   const grouped = new Map<SearchEntityType, SearchHit[]>();
@@ -228,8 +257,29 @@ export function FindPalette({ open, onOpenChange }: FindPaletteProps) {
               className="find-palette__state"
               data-testid="find-empty"
             >
-              No matches for “{q.trim()}”
+              <p>No matches for “{q.trim()}”</p>
+              <p className="find-palette__hint">
+                Try another title, speaker name, or rebuild the index if data
+                just changed.
+              </p>
+              <button
+                type="button"
+                className="find-palette__reindex lumen-focusable"
+                data-testid="find-reindex"
+                disabled={reindexing || !activeEventId}
+                onClick={() => void rebuildIndex()}
+              >
+                {reindexing ? "Rebuilding…" : "Rebuild search index"}
+              </button>
             </Command.Empty>
+          ) : null}
+          {!activeEventId && open ? (
+            <div
+              className="find-palette__state find-palette__state--error"
+              data-testid="find-no-event"
+            >
+              Select an event in the top bar to search its programme.
+            </div>
           ) : null}
           {showRecents ? (
             <Command.Group heading="Recent" data-testid="find-recents">
@@ -275,11 +325,28 @@ export function FindPalette({ open, onOpenChange }: FindPaletteProps) {
             </Command.Group>
           ))}
         </Command.List>
-        {freshness ? (
-          <div className="find-palette__footer" data-testid="find-freshness">
-            Index as of {new Date(freshness).toLocaleString()}
-          </div>
-        ) : null}
+        <div className="find-palette__footer" data-testid="find-footer">
+          {freshness ? (
+            <span data-testid="find-freshness">
+              Index as of {new Date(freshness).toLocaleString()}
+            </span>
+          ) : (
+            <span className="find-palette__hint">
+              Search this event’s submissions, sessions, speakers, forms, tasks
+            </span>
+          )}
+          {activeEventId ? (
+            <button
+              type="button"
+              className="find-palette__reindex find-palette__reindex--footer lumen-focusable"
+              data-testid="find-reindex-footer"
+              disabled={reindexing}
+              onClick={() => void rebuildIndex()}
+            >
+              {reindexing ? "Rebuilding…" : "Rebuild index"}
+            </button>
+          ) : null}
+        </div>
       </Command>
     </div>
   );

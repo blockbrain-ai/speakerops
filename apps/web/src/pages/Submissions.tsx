@@ -2218,6 +2218,129 @@ export function SubmissionsPage() {
                 </div>
               </header>
 
+              {/* Assignment early in the hierarchy — primary ops job, not buried under answers */}
+              <section
+                className="submissions-page__detail-section submissions-page__detail-section--assign"
+                data-testid="submission-detail-section-assign"
+                aria-labelledby="detail-assign-heading"
+              >
+                <h4
+                  id="detail-assign-heading"
+                  className="submissions-page__subhead"
+                >
+                  Assignment
+                </h4>
+                {detailReviews && detailReviews.reviews.length > 0 ? (
+                  <p
+                    className="eval-queue__muted"
+                    data-testid="submission-assign-current"
+                  >
+                    {detailReviews.reviews.length} review
+                    {detailReviews.reviews.length === 1 ? "" : "s"} on record
+                    {detailReviews.reviews.some((r) => r.evaluatorEmail)
+                      ? ` · ${detailReviews.reviews
+                          .map((r) => r.evaluatorEmail)
+                          .filter(Boolean)
+                          .slice(0, 4)
+                          .join(", ")}`
+                      : ""}
+                  </p>
+                ) : (
+                  <p
+                    className="eval-queue__muted"
+                    data-testid="submission-assign-none-yet"
+                  >
+                    No evaluators assigned yet for this submission.
+                  </p>
+                )}
+                <form
+                  className="submissions-page__assign"
+                  data-testid="submission-assign-form"
+                  onSubmit={(e) => void assignEvaluator(e)}
+                >
+                  <fieldset
+                    className="submissions-page__evaluator-picker"
+                    data-testid="submission-assign-evaluator-picker"
+                  >
+                    <legend className="event-settings__label">
+                      Assign evaluator(s)
+                    </legend>
+                    {evaluators.length === 0 ? (
+                      <p
+                        className="eval-queue__muted"
+                        data-testid="submission-assign-no-evaluators"
+                      >
+                        No evaluators on this event. Invite evaluators from Team
+                        first.
+                      </p>
+                    ) : (
+                      <ul className="submissions-page__evaluator-list">
+                        {evaluators.map((m) => {
+                          const checked = assignUserIds.has(m.userId);
+                          return (
+                            <li key={m.userId}>
+                              <label
+                                className="submissions-page__evaluator-option lumen-focusable"
+                                data-testid={`submission-assign-evaluator-${m.userId}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleAssignUser(m.userId)}
+                                  data-testid={`submission-assign-check-${m.userId}`}
+                                />
+                                <span>
+                                  {m.email}
+                                  <span className="eval-queue__muted">
+                                    {" "}
+                                    · {m.assignmentCount} assigned
+                                  </span>
+                                </span>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </fieldset>
+                  {assignBlocked ? (
+                    <p
+                      className="eval-queue__muted"
+                      data-testid="submission-assign-ineligible"
+                    >
+                      {assignBlocked}
+                    </p>
+                  ) : null}
+                  <div className="eval-queue__row">
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      data-testid="submission-assign-submit"
+                      disabled={
+                        busy || assignUserIds.size === 0 || assignBlocked != null
+                      }
+                      pending={busy}
+                    >
+                      Assign to this submission
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      data-testid="submission-assign-batch"
+                      disabled={
+                        busy ||
+                        assignUserIds.size === 0 ||
+                        selected.size === 0
+                      }
+                      pending={busy}
+                      onClick={() => void batchAssignSelected()}
+                    >
+                      Assign to selected ({selected.size})
+                    </Button>
+                  </div>
+                </form>
+              </section>
+
               <section
                 className="submissions-page__detail-section"
                 data-testid="submission-detail-section-reviews"
@@ -2369,104 +2492,6 @@ export function SubmissionsPage() {
                   </p>
                 </section>
               ) : null}
-
-              <section
-                className="submissions-page__detail-section submissions-page__detail-section--assign"
-                data-testid="submission-detail-section-assign"
-                aria-labelledby="detail-assign-heading"
-              >
-                <h4
-                  id="detail-assign-heading"
-                  className="submissions-page__subhead"
-                >
-                  Assignment
-                </h4>
-                <form
-                  className="submissions-page__assign"
-                  data-testid="submission-assign-form"
-                  onSubmit={(e) => void assignEvaluator(e)}
-                >
-                  <fieldset
-                    className="submissions-page__evaluator-picker"
-                    data-testid="submission-assign-evaluator-picker"
-                  >
-                    <legend className="event-settings__label">
-                      Assign evaluator(s)
-                    </legend>
-                    {evaluators.length === 0 ? (
-                      <p
-                        className="eval-queue__muted"
-                        data-testid="submission-assign-no-evaluators"
-                      >
-                        No evaluators on this event. Invite evaluators first.
-                      </p>
-                    ) : (
-                      <ul className="submissions-page__evaluator-list">
-                        {evaluators.map((m) => {
-                          const checked = assignUserIds.has(m.userId);
-                          return (
-                            <li key={m.userId}>
-                              <label
-                                className="submissions-page__evaluator-option lumen-focusable"
-                                data-testid={`submission-assign-evaluator-${m.userId}`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() => toggleAssignUser(m.userId)}
-                                  data-testid={`submission-assign-check-${m.userId}`}
-                                />
-                                <span>
-                                  {m.email}
-                                  <span className="eval-queue__muted">
-                                    {" "}
-                                    · {m.assignmentCount} assigned
-                                  </span>
-                                </span>
-                              </label>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </fieldset>
-                  {assignBlocked ? (
-                    <p
-                      className="eval-queue__muted"
-                      data-testid="submission-assign-ineligible"
-                    >
-                      {assignBlocked}
-                    </p>
-                  ) : null}
-                  <div className="eval-queue__row">
-                    <Button
-                      type="submit"
-                      variant="secondary"
-                      data-testid="submission-assign-submit"
-                      disabled={
-                        busy || assignUserIds.size === 0 || assignBlocked != null
-                      }
-                      pending={busy}
-                    >
-                      Assign to this submission
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      data-testid="submission-assign-batch"
-                      disabled={
-                        busy ||
-                        assignUserIds.size === 0 ||
-                        selected.size === 0
-                      }
-                      pending={busy}
-                      onClick={() => void batchAssignSelected()}
-                    >
-                      Assign to selected ({selected.size})
-                    </Button>
-                  </div>
-                </form>
-              </section>
 
               <section
                 className="submissions-page__detail-section submissions-page__detail-section--decision"

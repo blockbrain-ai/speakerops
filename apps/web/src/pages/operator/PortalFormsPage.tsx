@@ -181,9 +181,9 @@ export function PortalFormsPage() {
   return (
     <div data-testid="page-portal-forms" data-section="n1-portal-forms">
       <PageHeader
-        eyebrow="Portals"
+        eyebrow="Portals · post-acceptance"
         title="Portal forms"
-        description="Post-acceptance questionnaires scoped to each speaker participation. Publish to collect answers in the speaker portal."
+        description="Collect extra info after acceptance — travel, AV, dietary, sponsorship — without rebuilding the CFP. Create fields → Publish → speakers fill in the portal. Scoped to each speaker participation (no group aggregate)."
         data-testid="portal-forms-header"
         actions={
           <Button
@@ -234,11 +234,76 @@ export function PortalFormsPage() {
             ) : null}
 
             {forms.length === 0 ? (
-              <p className="eval-queue__muted" data-testid="portal-forms-empty">
-                {loading
-                  ? "Loading…"
-                  : "No portal forms yet. Create one to collect post-acceptance answers."}
-              </p>
+              <div
+                className="portal-forms-empty"
+                data-testid="portal-forms-empty"
+              >
+                {loading ? (
+                  <p className="eval-queue__muted">Loading…</p>
+                ) : (
+                  <>
+                    <h3>No portal forms yet</h3>
+                    <p className="eval-queue__muted">
+                      Typical uses: travel preferences, AV needs, headshot
+                      recapture, sponsor questionnaire. Seed a starter form to
+                      see the full flow.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      data-testid="portal-forms-seed-starter"
+                      disabled={creating}
+                      onClick={() => {
+                        setTitle("Travel & logistics");
+                        void (async () => {
+                          if (!activeEventId) return;
+                          setCreating(true);
+                          try {
+                            const res = await fetch(
+                              `/api/events/${encodeURIComponent(activeEventId)}/portal-forms`,
+                              {
+                                method: "POST",
+                                credentials: "include",
+                                headers: {
+                                  "content-type": "application/json",
+                                  accept: "application/json",
+                                },
+                                body: JSON.stringify({
+                                  title: "Travel & logistics",
+                                  description:
+                                    "Help us book flights and ground transport.",
+                                  fields: [
+                                    {
+                                      key: "arrival_city",
+                                      label: "Arrival city",
+                                      type: "text",
+                                      required: true,
+                                    },
+                                    {
+                                      key: "dietary",
+                                      label: "Dietary notes",
+                                      type: "textarea",
+                                      required: false,
+                                    },
+                                  ],
+                                }),
+                              },
+                            );
+                            if (res.ok) {
+                              setTitle("");
+                              await load();
+                            }
+                          } finally {
+                            setCreating(false);
+                          }
+                        })();
+                      }}
+                    >
+                      Seed starter form
+                    </Button>
+                  </>
+                )}
+              </div>
             ) : (
               <ul className="portal-forms-list" data-testid="portal-forms-list">
                 {forms.map((f) => (

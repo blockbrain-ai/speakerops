@@ -113,9 +113,9 @@ export function ResourcesPage() {
   return (
     <div data-testid="page-resources" data-section="n2-resources">
       <PageHeader
-        eyebrow="Portals"
+        eyebrow="Portals · speaker library"
         title="Resources"
-        description="Event wiki pages for speakers. Publish when ready; speakers see published content in portal depth waves."
+        description="A short speaker wiki: code of conduct, venue map, AV guide, schedule PDF. Draft → Publish. Published pages are the speaker-facing library (not a public microsite)."
         data-testid="resources-page-header"
         actions={
           <Button
@@ -170,9 +170,27 @@ export function ResourcesPage() {
             </p>
           ) : null}
           {rows.length === 0 ? (
-            <p className="eval-queue__muted" data-testid="resources-empty">
-              No resources yet.
-            </p>
+            <div className="portal-forms-empty" data-testid="resources-empty">
+              <h3>No resources yet</h3>
+              <p className="eval-queue__muted">
+                Start with a Code of conduct or Speaker FAQ. Keep each page
+                short — this is a library, not a full CMS.
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="resources-seed-starter"
+                disabled={busy}
+                onClick={() => {
+                  setTitle("Speaker code of conduct");
+                  setBody(
+                    "Be kind. Be on time. No harassment. Contact the organiser desk for help.",
+                  );
+                }}
+              >
+                Prefill starter page
+              </Button>
+            </div>
           ) : (
             <ul className="portal-forms-list" data-testid="resources-list">
               {rows.map((r) => (

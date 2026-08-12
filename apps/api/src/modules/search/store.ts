@@ -234,6 +234,17 @@ export class D1SearchStore implements SearchStore {
         })
         .run();
     }
+    // External-content FTS: full rebuild so MATCH works even if triggers missed
+    // inserts (or FTS was created after content existed).
+    if (await this.ensureFts()) {
+      try {
+        await this.db.run(sql`
+          INSERT INTO search_documents_fts(search_documents_fts) VALUES('rebuild')
+        `);
+      } catch {
+        /* rebuild optional if FTS content= sync already complete */
+      }
+    }
   }
 
   async search(input: {
@@ -251,6 +262,11 @@ export class D1SearchStore implements SearchStore {
     if (useFts) {
       try {
         rows = await this.searchFts(input);
+        // Empty FTS with content present → LIKE fallback (triggers/rebuild lag).
+        if (rows.length === 0) {
+          const n = await this.countForEvent(input.eventId);
+          if (n > 0) rows = await this.searchLike(input);
+        }
       } catch {
         rows = await this.searchLike(input);
       }
@@ -278,9 +294,11 @@ export class D1SearchStore implements SearchStore {
           )})`
         : sql``;
 
-    const authzSql = this.authzSql(input.authz);
+    // Qualify columns for FTS join (d.*).
+    const authzSql = this.authzSql(input.authz, "d");
 
-    const result = await this.db.run(sql`
+    // D1: use .all() for SELECT — .run() returns write meta without results.
+    const result = await this.db.all(sql`
       SELECT
         d.id, d.entity_type, d.entity_id, d.event_id, d.title, d.body,
         d.owner_user_id, d.participation_id, d.status, d.route, d.updated_at
@@ -316,7 +334,8 @@ export class D1SearchStore implements SearchStore {
         : sql``;
     const authzSql = this.authzSql(input.authz);
 
-    const result = await this.db.run(sql`
+    // D1: use .all() for SELECT — .run() returns write meta without results.
+    const result = await this.db.all(sql`
       SELECT
         id, entity_type, entity_id, event_id, title, body,
         owner_user_id, participation_id, status, route, updated_at
@@ -331,7 +350,9 @@ export class D1SearchStore implements SearchStore {
     return mapRunRows(result);
   }
 
-  private authzSql(authz: SearchAuthz) {
+  private authzSql(authz: SearchAuthz, tableAlias?: string) {
+    const col = (name: string) =>
+      tableAlias ? sql.raw(`${tableAlias}.${name}`) : sql.raw(name);
     if (authz.role === "admin") return sql``;
     if (authz.role === "evaluator") {
       const ids = [...(authz.allowedSubmissionIds ?? [])];
@@ -341,27 +362,27 @@ export class D1SearchStore implements SearchStore {
       for (let i = 0; i < ids.length; i += CHUNK) {
         const slice = ids.slice(i, i + CHUNK);
         orParts.push(
-          sql`entity_id IN (${sql.join(
+          sql`${col("entity_id")} IN (${sql.join(
             slice.map((id) => sql`${id}`),
             sql`, `,
           )})`,
         );
       }
-      return sql`AND entity_type = 'submission' AND (${sql.join(orParts, sql` OR `)})`;
+      return sql`AND ${col("entity_type")} = 'submission' AND (${sql.join(orParts, sql` OR `)})`;
     }
     // speaker: own user rows OR participation-scoped ACL (incl. shadow docs)
     const parts = [...(authz.allowedParticipationIds ?? [])];
     if (parts.length === 0) {
-      return sql`AND owner_user_id = ${authz.userId}`;
+      return sql`AND ${col("owner_user_id")} = ${authz.userId}`;
     }
     const CHUNK = 80;
     const orParts: ReturnType<typeof sql>[] = [
-      sql`owner_user_id = ${authz.userId}`,
+      sql`${col("owner_user_id")} = ${authz.userId}`,
     ];
     for (let i = 0; i < parts.length; i += CHUNK) {
       const slice = parts.slice(i, i + CHUNK);
       orParts.push(
-        sql`participation_id IN (${sql.join(
+        sql`${col("participation_id")} IN (${sql.join(
           slice.map((id) => sql`${id}`),
           sql`, `,
         )})`,
@@ -390,34 +411,32 @@ export class D1SearchStore implements SearchStore {
 }
 
 function mapRunRows(result: unknown): SearchDocumentRow[] {
-  // drizzle d1 run returns { results?: rows } or array depending on driver
-  const raw = result as {
-    results?: Record<string, unknown>[];
-    rows?: unknown[][];
-  };
-  const list = raw.results ?? [];
-  if (list.length > 0 && typeof list[0] === "object" && list[0] !== null) {
-    return list.map((r) => ({
-      id: String(r.id ?? ""),
-      entityType: String(r.entity_type ?? r.entityType) as SearchEntityType,
-      entityId: String(r.entity_id ?? r.entityId ?? ""),
-      eventId: String(r.event_id ?? r.eventId ?? ""),
-      title: String(r.title ?? ""),
-      body: String(r.body ?? ""),
-      ownerUserId:
-        r.owner_user_id != null || r.ownerUserId != null
-          ? String(r.owner_user_id ?? r.ownerUserId)
-          : null,
-      participationId:
-        r.participation_id != null || r.participationId != null
-          ? String(r.participation_id ?? r.participationId)
-          : null,
-      status: r.status != null ? String(r.status) : null,
-      route: String(r.route ?? ""),
-      updatedAt: String(r.updated_at ?? r.updatedAt ?? ""),
-    }));
-  }
-  return [];
+  // drizzle d1 .all() returns an array of row objects; .run() returns meta only.
+  // Also accept { results: [...] } for defensive compatibility.
+  const list: Record<string, unknown>[] = Array.isArray(result)
+    ? (result as Record<string, unknown>[])
+    : ((result as { results?: Record<string, unknown>[] })?.results ?? []);
+  if (list.length === 0) return [];
+  if (typeof list[0] !== "object" || list[0] === null) return [];
+  return list.map((r) => ({
+    id: String(r.id ?? ""),
+    entityType: String(r.entity_type ?? r.entityType) as SearchEntityType,
+    entityId: String(r.entity_id ?? r.entityId ?? ""),
+    eventId: String(r.event_id ?? r.eventId ?? ""),
+    title: String(r.title ?? ""),
+    body: String(r.body ?? ""),
+    ownerUserId:
+      r.owner_user_id != null || r.ownerUserId != null
+        ? String(r.owner_user_id ?? r.ownerUserId)
+        : null,
+    participationId:
+      r.participation_id != null || r.participationId != null
+        ? String(r.participation_id ?? r.participationId)
+        : null,
+    status: r.status != null ? String(r.status) : null,
+    route: String(r.route ?? ""),
+    updatedAt: String(r.updated_at ?? r.updatedAt ?? ""),
+  }));
 }
 
 // silence unused import if tree-shaken
