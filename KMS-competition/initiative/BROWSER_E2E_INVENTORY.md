@@ -195,7 +195,7 @@
 | I12 | admin | Schedule | Timezone displayed | e2e/sched/tz | — | REQUIRED | PASS |
 | I13 | admin | Schedule | Move already-placed session to new slot | e2e/sched/move | — | REQUIRED | PASS |
 | I14 | admin | Schedule | Unschedule back to tray | e2e/sched/unschedule | — | REQUIRED | PASS |
-| I18 | admin | Schedule | Unscheduled tray search + sort (title/track/status) via `schedule-tray-search` / `schedule-tray-sort` | e2e/sched/tray-filter · schedule_lumen2 | Empty filter state | REQUIRED | PASS |
+| I18 | admin | Schedule | Unscheduled tray search + sort (title/track/status) via `schedule-tray-search` / `schedule-tray-sort` | e2e/sched/tray-filter | Empty filter state | REQUIRED | PASS |
 | I15 | admin | Schedule | Stale version conflict shows recovery UI | e2e/sched/stale | No silent overwrite | REQUIRED | PASS |
 | I16 | admin | Schedule | After place, all five views + reload consistent | e2e/sched/persist | — | REQUIRED | PASS |
 | I17 | admin | Event Settings + Schedule | Agenda settings: set day window 10:00–16:00 + 30-min interval in settings card; Studio day grid shows 12 slots (10:00–15:30); non-drag place snaps to 30-min duration | e2e/schedule/agenda-settings | API place at 09:00 (outside window) → 409 conflicts[] type "hours" | REQUIRED | PASS |
@@ -220,7 +220,7 @@
 | J12 | admin | Comms | Submission confirmation lifecycle: public submit → queued delivery-log job with rendered merge fields; template editable | e2e/comms/submission-confirmation | Disabled toggle → no new lifecycle job | REQUIRED | PASS |
 | J13 | admin | Comms | ICS picker lists actual scheduled sessions (title + time + room); invite carries the placement's real times; reschedule + regenerate bumps SEQUENCE | e2e/comms/ics-picker | Empty picker when nothing scheduled; generate disabled | REQUIRED | PASS |
 | J14 | admin | Comms | Rich template body (bold + merge token) edited in rich editor; preview shows rendered body; markup-shaped merge value stays escaped text | e2e/comms/template-rich | No <b> element from recipient data in rendered preview | REQUIRED | PASS |
-| J15 | admin | Comms | Gated wizard: only active step mounts; Next disabled when step invalid; Send step unreachable without preview (`comms-wizard-next`/`comms-wizard-back`) | e2e/comms/wizard-gate · lumen2 AC-11.2-UI | Forward jump to Send blocked without preview | REQUIRED | PASS |
+| J15 | admin | Comms | Gated wizard: only active step mounts; Next disabled when step invalid; Send step unreachable without preview (`comms-wizard-next`/`comms-wizard-back`) | e2e/comms/wizard-gate | Forward jump to Send blocked without preview | REQUIRED | PASS |
 
 ---
 

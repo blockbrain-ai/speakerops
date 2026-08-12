@@ -144,6 +144,40 @@ test.describe("11.2 comms campaign lumen2", () => {
     await expect(page.getByTestId("comms-wizard-back")).toBeEnabled();
   });
 
+  test("@inv:J15 e2e/comms/wizard-gate exclusive steps + send blocked without preview", async ({
+    page,
+    request,
+    context,
+    baseURL,
+  }) => {
+    const email = `e2e-l2comms-j15-${RUN}@example.com`;
+    const admin = await loginAsAdmin(request, context, baseURL, email);
+    const event = await ensureEvent(
+      request,
+      admin.session,
+      `L2 Comms J15 ${RUN}`,
+      `l2-comms-j15-${RUN}`,
+    );
+    await seedSpeakerCount(request, admin.session, event.id, 2, "j15");
+    await openComms(page, event.id, baseURL);
+
+    await expect(page.getByTestId("comms-segment-builder")).toBeVisible();
+    await expect(page.getByTestId("comms-send-panel")).toHaveCount(0);
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
+
+    await expect(page.getByTestId("comms-summary-count")).toHaveAttribute(
+      "data-count",
+      /[1-9]/,
+      { timeout: 15_000 },
+    );
+    await page.getByTestId("comms-wizard-next").click();
+    await expect(page.getByTestId("comms-template-editor")).toBeVisible();
+    await page.getByTestId("comms-wizard-next").click();
+    await expect(page.getByTestId("comms-preview-panel")).toBeVisible();
+    await expect(page.getByTestId("comms-wizard-next")).toBeDisabled();
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
+  });
+
   test("AC-11.2-SCALE 150 audience without 150-checkbox wall", async ({
     page,
     request,

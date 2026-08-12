@@ -561,6 +561,44 @@ test.describe("6.2 Schedule Studio I01–I16", () => {
     );
   });
 
+  test("@inv:I18 e2e/sched/tray-filter search and sort controls", async ({
+    page,
+    request,
+    context,
+    baseURL,
+  }) => {
+    const { auth, event } = await seedBase(request, context, baseURL, "i18");
+    await createSession(
+      request,
+      auth.session,
+      event.id,
+      "Alpha Filter Talk",
+      [{ name: "Alpha Spk", email: `alpha-i18-${Date.now()}@example.com` }],
+    );
+    await createSession(
+      request,
+      auth.session,
+      event.id,
+      "Zulu Filter Talk",
+      [{ name: "Zulu Spk", email: `zulu-i18-${Date.now()}@example.com` }],
+    );
+    await openSchedule(page, event.id);
+    await expect(page.getByTestId("schedule-tray-search")).toBeVisible();
+    await expect(page.getByTestId("schedule-tray-sort")).toBeVisible();
+    await page.getByTestId("schedule-tray-search").fill("Zulu");
+    await expect(page.getByTestId("schedule-tray-list")).toContainText(
+      "Zulu Filter Talk",
+    );
+    await expect(page.getByTestId("schedule-tray-list")).not.toContainText(
+      "Alpha Filter Talk",
+    );
+    await page.getByTestId("schedule-tray-sort").selectOption("title");
+    await page.getByTestId("schedule-tray-search").fill("");
+    await expect(page.getByTestId("schedule-tray-list")).toContainText(
+      "Alpha Filter Talk",
+    );
+  });
+
   test("@inv:I12 e2e/sched/tz Timezone displayed", async ({
     page,
     request,

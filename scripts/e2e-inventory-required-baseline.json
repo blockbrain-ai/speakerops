@@ -818,12 +818,12 @@
       "journey": "Add member invite by email + role; roster updates"
     },
     "I18": {
-      "test_id": "e2e/sched/tray-filter \u00b7 schedule_lumen2",
-      "journey": "Unscheduled tray search + sort (title/track/status) via schedule-tray-search / schedule-tray-sort"
+      "test_id": "e2e/sched/tray-filter",
+      "journey": "Unscheduled tray search + sort (title/track/status) via `schedule-tray-search` / `schedule-tray-sort`"
     },
     "J15": {
-      "test_id": "e2e/comms/wizard-gate \u00b7 lumen2 AC-11.2-UI",
-      "journey": "Gated wizard: only active step mounts; Next disabled when step invalid; Send step unreachable without preview"
+      "test_id": "e2e/comms/wizard-gate",
+      "journey": "Gated wizard: only active step mounts; Next disabled when step invalid; Send step unreachable without preview (`comms-wizard-next`/`comms-wizard-back`)"
     }
   }
 }

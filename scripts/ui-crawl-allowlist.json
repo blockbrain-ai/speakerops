@@ -1396,6 +1396,18 @@
     {
       "testid": "schedule-tray-sort",
       "inv": "I18"
+    },
+    {
+      "testid": "submission-assign-evaluator-*",
+      "inv": "E03",
+      "surface": "admin",
+      "journey": "Toggle evaluator in assign picker"
+    },
+    {
+      "testid": "submission-assign-check-*",
+      "inv": "E03",
+      "surface": "admin",
+      "journey": "Evaluator assign checkbox state"
     }
   ]
 }
