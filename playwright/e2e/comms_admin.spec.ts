@@ -183,12 +183,25 @@ async function openComms(
   await expect(page.getByTestId("page-comms")).toBeVisible();
 }
 
+
+/** WS-D: exclusive wizard — navigate when prior steps are valid. */
+async function goCommsStep(
+  page: import("@playwright/test").Page,
+  step: "audience" | "message" | "review" | "send",
+) {
+  const nav = page.getByTestId(`comms-step-nav-${step}`);
+  await expect(nav).toBeEnabled({ timeout: 15_000 });
+  await nav.click();
+  await expect(nav).toHaveAttribute("aria-current", "step");
+}
+
 async function saveTemplate(
   page: import("@playwright/test").Page,
   key: string,
   subject: string,
   body: string,
 ) {
+  await goCommsStep(page, "message");
   await page.getByTestId("comms-template-key-input").fill(key);
   await page.getByTestId("comms-template-subject-input").fill(subject);
   await page.getByTestId("comms-template-body-input").fill(body);
@@ -250,8 +263,10 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
       "Body for {{name}} at {{eventName}}.",
     );
 
-    // assert send button disabled until preview
-    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
+    // Wizard: Send step unreachable until a valid preview (prior-step gate)
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
+
+    await goCommsStep(page, "review");
 
     await page.getByTestId("comms-preview-run").click();
     await expect(page.getByTestId("comms-preview-results")).toBeVisible({
@@ -263,6 +278,7 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
     await expect(page.getByTestId("comms-preview-bodies")).toContainText(
       "Preview Speaker",
     );
+    await goCommsStep(page, "send");
     await expect(page.getByTestId("comms-send-button")).toBeEnabled();
   });
 
@@ -289,11 +305,15 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
       "Idem {{name}}",
       "Send once {{name}}",
     );
+    await goCommsStep(page, "review");
     await page.getByTestId("comms-preview-run").click();
+    await expect(page.getByTestId("comms-preview-results")).toBeVisible({
+      timeout: 15_000,
+    });
+    await goCommsStep(page, "send");
     await expect(page.getByTestId("comms-send-button")).toBeEnabled({
       timeout: 15_000,
     });
-
     await page.getByTestId("comms-send-button").click();
     await expect(page.getByTestId("comms-send-status")).toContainText(
       /Enqueued|job/i,
@@ -331,7 +351,12 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
 
     await openComms(page, event.id);
     await saveTemplate(page, "j05-log", "Log {{name}}", "Log body {{name}}");
+    await goCommsStep(page, "review");
     await page.getByTestId("comms-preview-run").click();
+    await expect(page.getByTestId("comms-preview-results")).toBeVisible({
+      timeout: 15_000,
+    });
+    await goCommsStep(page, "send");
     await expect(page.getByTestId("comms-send-button")).toBeEnabled({
       timeout: 15_000,
     });
@@ -497,11 +522,11 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
       "No send {{name}}",
     );
 
-    // assert send button disabled until preview
-    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
-    await expect(page.getByTestId("comms-send-blocked-reason")).toContainText(
-      /preview/i,
-    );
+    // Wizard: cannot open Send without a valid preview
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
+    await goCommsStep(page, "review");
+    await expect(page.getByTestId("comms-wizard-next")).toBeDisabled();
+    await expect(page.getByTestId("comms-preview-run")).toBeVisible();
 
     // API proof: send without previewId → 400
     const bad = await request.post("/api/comms/send", {
@@ -534,19 +559,23 @@ test.describe("5.3 Comms admin UI J02–J10", () => {
       "Inv {{name}}",
       "Invalidate {{name}}",
     );
+    await goCommsStep(page, "review");
     await page.getByTestId("comms-preview-run").click();
+    await expect(page.getByTestId("comms-preview-results")).toBeVisible({
+      timeout: 15_000,
+    });
+    await goCommsStep(page, "send");
     await expect(page.getByTestId("comms-send-button")).toBeEnabled({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("comms-preview-results")).toBeVisible();
 
-    // Change audience → preview invalid → send disabled
+    // Change audience → preview invalid → Send step gated again
+    await goCommsStep(page, "audience");
     await page.getByTestId("comms-segment-status").selectOption("waitlisted");
-    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
+    await goCommsStep(page, "review");
     await expect(page.getByTestId("comms-preview-results")).toHaveCount(0);
-    await expect(page.getByTestId("comms-send-blocked-reason")).toContainText(
-      /preview/i,
-    );
+    await expect(page.getByTestId("comms-wizard-next")).toBeDisabled();
   });
 
   test("@inv:J10 e2e/comms/ics-update reschedule keeps UID bumps SEQUENCE", async ({

@@ -79,6 +79,8 @@ export type PortalRouteOptions = {
   keys?: import("../keys/store.js").KeysStore;
   /** Calendar-invite UID/SEQUENCE continuity for Portal.SessionIcs (optional). */
   comms?: import("../comms/store.js").CommsStore;
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
 };
 
 function commandError(
@@ -120,6 +122,8 @@ export function createPortalRoutes(
     design,
     schedule,
     comms,
+    search: options.search,
+    searchQueueKick: options.searchQueueKick,
   };
 
   /**
@@ -392,7 +396,15 @@ export function createEventPortalRoutes(
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
   const { store, events, submissions, decisions, design, keys } = options;
-  const deps = { decisions, events, auth: store, submissions, design };
+  const deps = {
+    decisions,
+    events,
+    auth: store,
+    submissions,
+    design,
+    search: options.search,
+    searchQueueKick: options.searchQueueKick,
+  };
 
   /**
    * GET /:eventId/speakers — admin speakers list (N01/N02)

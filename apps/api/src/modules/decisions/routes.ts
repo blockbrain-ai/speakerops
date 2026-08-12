@@ -67,6 +67,8 @@ export type DecisionRouteOptions = {
       correlationId: string;
     }) => Promise<unknown>;
   } | null;
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
 };
 
 function commandError(
@@ -106,6 +108,8 @@ export function createEventDecisionRoutes(
     submissions,
     forms,
     programInvite: programInvite ?? null,
+    search: options.search,
+    searchQueueKick: options.searchQueueKick,
   };
   const bearerRead = keys
     ? {
@@ -445,6 +449,8 @@ export function createSubmissionDecisionRoutes(
     submissions,
     forms,
     programInvite: programInvite ?? null,
+    search: options.search,
+    searchQueueKick: options.searchQueueKick,
   };
   const bearerWrite = keys
     ? {

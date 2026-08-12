@@ -62,6 +62,8 @@ export type PublicCfpRouteOptions = {
   turnstileSecret?: string;
   /** DEMO_MODE + allowlist for Turnstile (section 10.3). */
   demoTurnstile?: DemoTurnstileContext;
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
 };
 
 function commandError(
@@ -109,6 +111,8 @@ export function createPublicCfpRoutes(
     comms: options.comms,
     turnstileSecret: options.turnstileSecret,
     demoTurnstile: options.demoTurnstile,
+    search: options.search,
+    searchQueueKick: options.searchQueueKick,
   };
 
   /**

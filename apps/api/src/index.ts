@@ -478,6 +478,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       events: eventsStore,
       forms: formsStore,
       keys: keysStore,
+      search: searchStore,
     }),
   );
 
@@ -534,6 +535,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       events: eventsStore,
       forms: formsStore,
       keys: keysStore,
+      search: searchStore,
     }),
   );
 
@@ -544,6 +546,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       store: authStore,
       events: eventsStore,
       forms: formsStore,
+      search: searchStore,
     }),
   );
 
@@ -563,6 +566,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       turnstileSecret,
       demoTurnstile,
       rateLimiter: options.rateLimiter,
+      search: searchStore,
     }),
   );
 
@@ -595,6 +599,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     decisions: decisionsStore,
     forms: formsStore,
     keys: keysStore,
+    search: searchStore,
     programInvite: magicLinkMail
       ? {
           issue: async (input: {
@@ -702,6 +707,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     keys: keysStore,
     // Portal.SessionIcs — UID/SEQUENCE continuity with admin comms invites.
     comms: commsStore,
+    search: searchStore,
   };
 
   // Section 4.1 — Portal.GetHome / Task.Complete / Participation.UpdateProfile

@@ -49,6 +49,8 @@ export type FormsRouteOptions = {
   forms: FormsStore;
   /** Bearer cfp:read / cfp:write for CLI (7.2). */
   keys?: KeysStore;
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
 };
 
 function commandError(
@@ -73,7 +75,13 @@ export function createEventFormsRoutes(
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
   const { store, events, forms, keys } = options;
-  const deps = { forms, events, auth: store };
+  const deps = {
+    forms,
+    events,
+    auth: store,
+    search: options.search,
+    searchQueueKick: options.searchQueueKick,
+  };
   const bearerRead = keys
     ? {
         keysStore: keys,
@@ -180,7 +188,13 @@ export function createEventFormsRoutes(
 export function createFormsRoutes(options: FormsRouteOptions): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
   const { store, events, forms, keys } = options;
-  const deps = { forms, events, auth: store };
+  const deps = {
+    forms,
+    events,
+    auth: store,
+    search: options.search,
+    searchQueueKick: options.searchQueueKick,
+  };
   const bearerRead = keys
     ? {
         keysStore: keys,

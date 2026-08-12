@@ -132,6 +132,8 @@ export function ScheduleStudioPage() {
   const [view, setView] = useState<ScheduleViewMode>("day");
   const [placements, setPlacements] = useState<SchedulePlacementDto[]>([]);
   const [unscheduled, setUnscheduled] = useState<UnscheduledSessionDto[]>([]);
+  const [traySearch, setTraySearch] = useState("");
+  const [traySort, setTraySort] = useState<"title" | "track" | "status">("title");
   const [rooms, setRooms] = useState<RoomDto[]>([]);
   const [tracks, setTracks] = useState<TrackDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1865,6 +1867,33 @@ export function ScheduleStudioPage() {
     </div>
   );
 
+
+  const filteredUnscheduled = useMemo(() => {
+    const q = traySearch.trim().toLowerCase();
+    let list = unscheduled;
+    if (q) {
+      list = list.filter((s) => {
+        const title = (s.title ?? "").toLowerCase();
+        const track = (trackName(s.trackId) ?? "").toLowerCase();
+        const status = (s.status ?? "").toLowerCase();
+        return title.includes(q) || track.includes(q) || status.includes(q);
+      });
+    }
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      if (traySort === "track") {
+        return trackName(a.trackId).localeCompare(trackName(b.trackId)) ||
+          (a.title ?? "").localeCompare(b.title ?? "");
+      }
+      if (traySort === "status") {
+        return (a.status ?? "").localeCompare(b.status ?? "") ||
+          (a.title ?? "").localeCompare(b.title ?? "");
+      }
+      return (a.title ?? "").localeCompare(b.title ?? "");
+    });
+    return sorted;
+  }, [unscheduled, traySearch, traySort, trackName]);
+
   const viewBody = (() => {
     switch (view) {
       case "list":
@@ -2269,6 +2298,36 @@ export function ScheduleStudioPage() {
                 Drag a session onto a slot, or select then press Enter on a
                 focused slot.
               </p>
+              <div className="schedule-studio__tray-controls">
+                <label className="event-settings__label" htmlFor="schedule-tray-search">
+                  Search tray
+                </label>
+                <input
+                  id="schedule-tray-search"
+                  className="event-settings__input lumen-focusable"
+                  data-testid="schedule-tray-search"
+                  type="search"
+                  placeholder="Filter by title, track, status…"
+                  value={traySearch}
+                  onChange={(e) => setTraySearch(e.target.value)}
+                />
+                <label className="event-settings__label" htmlFor="schedule-tray-sort">
+                  Sort by
+                </label>
+                <select
+                  id="schedule-tray-sort"
+                  className="event-settings__input lumen-focusable"
+                  data-testid="schedule-tray-sort"
+                  value={traySort}
+                  onChange={(e) =>
+                    setTraySort(e.target.value as "title" | "track" | "status")
+                  }
+                >
+                  <option value="title">Title</option>
+                  <option value="track">Track</option>
+                  <option value="status">Status</option>
+                </select>
+              </div>
               <ul className="eval-queue__list" data-testid="schedule-tray-list">
                 {unscheduled.length === 0 ? (
                   <li
@@ -2277,8 +2336,15 @@ export function ScheduleStudioPage() {
                   >
                     Tray empty — all sessions placed or none created.
                   </li>
+                ) : filteredUnscheduled.length === 0 ? (
+                  <li
+                    className="eval-queue__muted"
+                    data-testid="schedule-tray-filter-empty"
+                  >
+                    No tray sessions match this search.
+                  </li>
                 ) : (
-                  unscheduled.map((s) => (
+                  filteredUnscheduled.map((s) => (
                     <li key={s.id}>
                       {/*
                         Div with role=button (kept from the HTML5-DnD era for

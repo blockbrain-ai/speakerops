@@ -701,7 +701,7 @@ test.describe("11.9 Phase 11 dogfood handover keystone (S-DOGFOOD D)", () => {
     await expect(page.getByTestId("page-comms")).toBeVisible({
       timeout: 20_000,
     });
-    await expect(page.getByTestId("comms-campaign-steps")).toBeVisible();
+    await expect(page.getByTestId("comms-wizard-steps")).toBeVisible();
     await expect(page.getByTestId("comms-step-nav-audience")).toBeVisible();
     await expect(page.getByTestId("comms-step-nav-message")).toBeVisible();
     await expect(page.getByTestId("comms-step-nav-review")).toBeVisible();

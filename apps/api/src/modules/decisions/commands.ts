@@ -31,6 +31,7 @@ import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore, SubmissionRow } from "../publicCfp/store.js";
 import type { FormsStore } from "../forms/store.js";
+import { invalidateSearchIndex } from "../search/commands.js";
 import {
   type DecisionsStore,
   type DecisionRow,
@@ -65,6 +66,8 @@ export type DecisionCommandDeps = {
     }) => Promise<unknown>;
     correlationId?: string;
   } | null;
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -845,6 +848,8 @@ export async function recordDecision(
     createdAt: now,
   });
 
+    await invalidateSearchIndex(deps, submission.eventId);
+
   return {
     ok: true,
     value: {
@@ -1031,6 +1036,8 @@ export async function createDirectSession(
     correlationId: input.correlationId,
     createdAt: now,
   });
+
+    await invalidateSearchIndex(deps, input.eventId);
 
   return {
     ok: true,
@@ -1433,6 +1440,8 @@ export async function commitBulkDecision(
       failed += 1;
     }
   }
+
+    await invalidateSearchIndex(deps, input.eventId);
 
   return {
     ok: true,

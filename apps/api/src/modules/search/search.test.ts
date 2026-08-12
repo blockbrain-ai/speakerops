@@ -216,3 +216,20 @@ describe("F5 search HTTP", () => {
     expect([401, 403]).toContain(res.status);
   });
 });
+
+describe("B3 invalidateSearchIndex matrix helper", () => {
+  it("bumps generation via optional search store", async () => {
+    const { MemorySearchStore } = await import("./store.js");
+    const { invalidateSearchIndex } = await import("./commands.js");
+    const search = new MemorySearchStore();
+    await invalidateSearchIndex({ search }, "evt_b3");
+    expect(await search.isStale!("evt_b3")).toBe(true);
+    await invalidateSearchIndex({ search }, "evt_b3");
+    expect(await search.isStale!("evt_b3")).toBe(true);
+  });
+
+  it("no-ops without search store", async () => {
+    const { invalidateSearchIndex } = await import("./commands.js");
+    await expect(invalidateSearchIndex({}, "evt_x")).resolves.toBeUndefined();
+  });
+});

@@ -59,12 +59,16 @@ import { Badge } from "../components/ui/Badge.js";
 import { EmptyState } from "../components/ui/EmptyState.js";
 import { PageHeader } from "../components/ui/PageHeader.js";
 import {
+  Wizard,
+  canActivateWizardStep,
+  type WizardStep,
+} from "../components/ui/Wizard.js";
+import {
   isSendEnabled,
   segmentFingerprint,
   sendDisabledReason,
   newIdempotencyKey,
   AUDIENCE_PAGE_SIZE,
-  CAMPAIGN_STEPS,
   filterAudienceSpeakers,
   paginateAudience,
   audienceCount,
@@ -1006,12 +1010,36 @@ export function CommsPage() {
     invalidatePreview();
   }
 
+  const messageValid =
+    subject.trim().length > 0 && !richTextIsEmpty(bodyRich);
+
+  const wizardSteps: WizardStep[] = [
+    {
+      id: "audience",
+      label: "Audience",
+      valid: effectiveCount > 0,
+    },
+    {
+      id: "message",
+      label: "Message",
+      valid: messageValid,
+    },
+    {
+      id: "review",
+      label: "Review",
+      valid: previewValid,
+    },
+    {
+      id: "send",
+      label: "Send",
+      valid: sendEnabled,
+    },
+  ];
+
   function goToStep(step: CampaignStepId) {
+    if (step === activeStep) return;
+    if (!canActivateWizardStep(wizardSteps, step)) return;
     setActiveStep(step);
-    const el = document.getElementById(`comms-step-${step}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
   }
 
   const previewStateLabel = !preview
@@ -1020,107 +1048,27 @@ export function CommsPage() {
       ? "Preview ready"
       : "Preview stale";
 
-  return (
-    <div
-      className="comms-campaign"
-      data-testid="page-comms"
-      data-section="11.2"
-    >
-      <PageHeader
-        eyebrow="Comms"
-        title="Campaign"
-        description="Audience → Message → Review → Send. Trust-before-send: preview every recipient, then send once (idempotent). Audience lists stay at most 25 rows visible."
-        data-testid="comms-page-header"
-      />
-
-      {!activeEventId ? (
-        <p className="eval-queue__muted" data-testid="comms-no-event">
-          Select an event to manage comms.
-        </p>
-      ) : null}
-
-      {activeEventId ? (
-        <>
-          {/* Sticky campaign summary — count always visible (AC-11.2-SCALE) */}
-          <div
-            className="comms-campaign__summary"
-            data-testid="comms-campaign-summary"
-            role="status"
-          >
-            <div className="comms-campaign__summary-main">
-              <span
-                className="comms-campaign__summary-count"
-                data-testid="comms-summary-count"
-                data-count={String(effectiveCount)}
-              >
-                <strong>{effectiveCount}</strong> recipient
-                {effectiveCount === 1 ? "" : "s"}
-              </span>
-              <Badge
-                tone={
-                  previewValid ? "success" : preview ? "warn" : "neutral"
-                }
-                data-testid="comms-summary-preview-badge"
-              >
-                {previewStateLabel}
-              </Badge>
-              {decisionNotify ? (
-                <Badge tone="brand" data-testid="comms-summary-notify-mode">
-                  Decision hand-off
-                </Badge>
-              ) : selectedParticipationIds.length > 0 ? (
-                <Badge tone="brand" data-testid="comms-summary-selection-mode">
-                  Explicit selection
-                </Badge>
-              ) : (
-                <Badge tone="info" data-testid="comms-summary-status-mode">
-                  Status = {segmentStatus}
-                </Badge>
-              )}
-            </div>
-            <nav
-              className="comms-campaign__steps"
-              aria-label="Campaign steps"
-              data-testid="comms-campaign-steps"
-            >
-              {CAMPAIGN_STEPS.map((step) => (
-                <button
-                  key={step.id}
-                  type="button"
-                  className={
-                    activeStep === step.id
-                      ? "comms-campaign__step is-active lumen-focusable"
-                      : "comms-campaign__step lumen-focusable"
-                  }
-                  data-testid={`comms-step-nav-${step.id}`}
-                  data-step={step.id}
-                  aria-current={activeStep === step.id ? "step" : undefined}
-                  onClick={() => goToStep(step.id)}
-                >
-                  <span className="comms-campaign__step-index" aria-hidden="true">
-                    {step.index}
-                  </span>
-                  <span className="comms-campaign__step-label">{step.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-
-          {/* —— Step 1: Audience (J02 + scale) —— */}
-          <section
+  function renderWizardStep() {
+    switch (activeStep) {
+      case "audience":
+        return (
+<section
             id="comms-step-audience"
             className="event-settings__card comms-campaign__panel"
             data-testid="comms-segment-builder"
             data-step="audience"
             aria-labelledby="comms-segment-heading"
-            onFocusCapture={() => setActiveStep("audience")}
           >
             <div className="comms-campaign__panel-header">
               <Badge tone="brand">1 · Audience</Badge>
-              <h3 id="comms-segment-heading" className="event-settings__heading">
+              <h3 id="comms-segment-heading" className="event-settings__heading" data-wizard-heading>
                 Segment audience
               </h3>
             </div>
+            <p className="page-stub__body">
+              Choose who receives this campaign. At least one recipient is
+              required before continuing.
+            </p>
             {decisionNotify ? (
               <div
                 className="comms-campaign__notify-banner"
@@ -1374,31 +1322,20 @@ export function CommsPage() {
             ) : null}
               </>
             )}
-
-            <div className="comms-campaign__step-footer">
-              <Button
-                type="button"
-                variant="primary"
-                data-testid="comms-step-next-message"
-                onClick={() => goToStep("message")}
-              >
-                Continue to message
-              </Button>
-            </div>
-          </section>
-
-          {/* —— Step 2: Message / template (J01) —— */}
-          <section
+</section>
+        );
+      case "message":
+        return (
+<section
             id="comms-step-message"
             className="event-settings__card comms-campaign__panel"
             data-testid="comms-template-editor"
             data-step="message"
             aria-labelledby="comms-template-heading"
-            onFocusCapture={() => setActiveStep("message")}
           >
             <div className="comms-campaign__panel-header">
               <Badge tone="brand">2 · Message</Badge>
-              <h3 id="comms-template-heading" className="event-settings__heading">
+              <h3 id="comms-template-heading" className="event-settings__heading" data-wizard-heading>
                 Template editor
               </h3>
             </div>
@@ -1539,39 +1476,20 @@ export function CommsPage() {
                 Template id: {templateId}
               </p>
             ) : null}
-
-            <div className="comms-campaign__step-footer">
-              <Button
-                type="button"
-                variant="secondary"
-                data-testid="comms-step-back-audience"
-                onClick={() => goToStep("audience")}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                data-testid="comms-step-next-review"
-                onClick={() => goToStep("review")}
-              >
-                Continue to review
-              </Button>
-            </div>
-          </section>
-
-          {/* —— Step 3: Review (J03 / J08 preview gate) —— */}
-          <section
+</section>
+        );
+      case "review":
+        return (
+<section
             id="comms-step-review"
             className="event-settings__card comms-campaign__panel"
             data-testid="comms-preview-panel"
             data-step="review"
             aria-labelledby="comms-preview-heading"
-            onFocusCapture={() => setActiveStep("review")}
           >
             <div className="comms-campaign__panel-header">
               <Badge tone="brand">3 · Review</Badge>
-              <h3 id="comms-preview-heading" className="event-settings__heading">
+              <h3 id="comms-preview-heading" className="event-settings__heading" data-wizard-heading>
                 Preview recipients
               </h3>
             </div>
@@ -1665,39 +1583,21 @@ export function CommsPage() {
                 </div>
               </div>
             ) : null}
-
-            <div className="comms-campaign__step-footer">
-              <Button
-                type="button"
-                variant="secondary"
-                data-testid="comms-step-back-message"
-                onClick={() => goToStep("message")}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                data-testid="comms-step-next-send"
-                onClick={() => goToStep("send")}
-              >
-                Continue to send
-              </Button>
-            </div>
-          </section>
-
-          {/* —— Step 4: Send (J04 / J08 gated) —— */}
-          <section
+</section>
+        );
+      case "send":
+      default:
+        return (
+<section
             id="comms-step-send"
             className="event-settings__card comms-campaign__panel"
             data-testid="comms-send-panel"
             data-step="send"
             aria-labelledby="comms-send-heading"
-            onFocusCapture={() => setActiveStep("send")}
           >
             <div className="comms-campaign__panel-header">
               <Badge tone="brand">4 · Send</Badge>
-              <h3 id="comms-send-heading" className="event-settings__heading">
+              <h3 id="comms-send-heading" className="event-settings__heading" data-wizard-heading>
                 Confirm &amp; send
               </h3>
             </div>
@@ -1768,18 +1668,80 @@ export function CommsPage() {
                 {sendStatus.text}
               </p>
             ) : null}
+</section>
+        );
+    }
+  }
 
-            <div className="comms-campaign__step-footer">
-              <Button
-                type="button"
-                variant="secondary"
-                data-testid="comms-step-back-review"
-                onClick={() => goToStep("review")}
+  return (
+    <div
+      className="comms-campaign"
+      data-testid="page-comms"
+      data-section="11.2"
+    >
+      <PageHeader
+        eyebrow="Comms"
+        title="Campaign"
+        description="Audience → Message → Review → Send. Trust-before-send: preview every recipient, then send once (idempotent). Audience lists stay at most 25 rows visible."
+        data-testid="comms-page-header"
+      />
+
+      {!activeEventId ? (
+        <p className="eval-queue__muted" data-testid="comms-no-event">
+          Select an event to manage comms.
+        </p>
+      ) : null}
+
+      {activeEventId ? (
+        <>
+          <div
+            className="comms-campaign__summary"
+            data-testid="comms-campaign-summary"
+            role="status"
+          >
+            <div className="comms-campaign__summary-main">
+              <span
+                className="comms-campaign__summary-count"
+                data-testid="comms-summary-count"
+                data-count={String(effectiveCount)}
               >
-                Back to review
-              </Button>
+                <strong>{effectiveCount}</strong> recipient
+                {effectiveCount === 1 ? "" : "s"}
+              </span>
+              <Badge
+                tone={
+                  previewValid ? "success" : preview ? "warn" : "neutral"
+                }
+                data-testid="comms-summary-preview-badge"
+              >
+                {previewStateLabel}
+              </Badge>
+              {decisionNotify ? (
+                <Badge tone="brand" data-testid="comms-summary-notify-mode">
+                  Decision hand-off
+                </Badge>
+              ) : selectedParticipationIds.length > 0 ? (
+                <Badge tone="brand" data-testid="comms-summary-selection-mode">
+                  Explicit selection
+                </Badge>
+              ) : (
+                <Badge tone="info" data-testid="comms-summary-status-mode">
+                  Status = {segmentStatus}
+                </Badge>
+              )}
             </div>
-          </section>
+          </div>
+
+          <Wizard
+            steps={wizardSteps}
+            activeId={activeStep}
+            onStepChange={(id) => goToStep(id as CampaignStepId)}
+            stepNavTestId={(id) => `comms-step-nav-${id}`}
+            data-testid="comms-wizard"
+            className="comms-campaign__wizard"
+          >
+            {renderWizardStep()}
+          </Wizard>
 
           {/* —— J05 Delivery log —— */}
           <section

@@ -468,6 +468,13 @@ test.describe("F2 rich-text primitive", () => {
     );
 
     await openAdminPage(page, baseURL, event.id, "/admin/comms", "page-comms");
+    // Wait for audience (seeded speaker) so Message step is reachable
+    await expect(page.getByTestId("comms-summary-count")).toHaveAttribute(
+      "data-count",
+      /[1-9]/,
+      { timeout: 15_000 },
+    );
+    await page.getByTestId("comms-step-nav-message").click();
     await expect(page.getByTestId("comms-template-editor")).toBeVisible({
       timeout: 15_000,
     });
@@ -492,6 +499,7 @@ test.describe("F2 rich-text primitive", () => {
     );
 
     // Preview: rendered rich body (not raw text/pre), merge value escaped.
+    await page.getByTestId("comms-step-nav-review").click();
     await page.getByTestId("comms-preview-run").click();
     const results = page.getByTestId("comms-preview-results");
     await expect(results).toBeVisible({ timeout: 15_000 });

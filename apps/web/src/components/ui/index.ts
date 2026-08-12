@@ -59,3 +59,14 @@ export {
   type ToastTone,
   type ToastProviderProps,
 } from "./Toast.js";
+export {
+  SegmentedControl,
+  type SegmentedControlProps,
+  type SegmentedOption,
+} from "./SegmentedControl.js";
+export {
+  Wizard,
+  canActivateWizardStep,
+  type WizardProps,
+  type WizardStep,
+} from "./Wizard.js";

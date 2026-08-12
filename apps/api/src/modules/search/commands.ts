@@ -235,7 +235,22 @@ export async function reindexEvent(
     }
   }
 
-  // B3: ensure state row, write docs, mark built == requested (Memory via replace).
+  // B3: lease-fenced rebuild when available; else full replace (Memory/tests).
+  if (deps.search.processIndexEvent) {
+    // Ensure a generation lag so processIndexEvent does work for admin reindex.
+    if (deps.search.invalidateIndex) {
+      await deps.search.invalidateIndex(eventId);
+    }
+    const outcome = await deps.search.processIndexEvent(eventId, async () => docs);
+    const freshness = new Date().toISOString();
+    if (outcome === "built" || outcome === "noop") {
+      lastRebuildAt.set(eventId, freshness);
+    }
+    return {
+      ok: true,
+      value: { indexed: docs.length, freshness },
+    };
+  }
   if (deps.search.invalidateIndex) {
     await deps.search.invalidateIndex(eventId);
   }
@@ -245,13 +260,32 @@ export async function reindexEvent(
   return { ok: true, value: { indexed: docs.length, freshness } };
 }
 
-/** B3: bump generation after domain mutations (best-effort queue kick separate). */
+/** Minimal deps for post-mutation invalidation (optional search on domain commands). */
+export type SearchInvalidateDeps = {
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  /** Best-effort JOBS_QUEUE kick so the consumer runs promptly. */
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
+};
+
+/** B3: bump generation after domain mutations (queue kick best-effort). */
 export async function invalidateSearchIndex(
-  deps: SearchCommandDeps,
+  deps: SearchInvalidateDeps,
   eventId: string,
 ): Promise<void> {
-  if (deps.search.invalidateIndex) {
-    await deps.search.invalidateIndex(eventId);
+  if (deps.search?.invalidateIndex) {
+    try {
+      await deps.search.invalidateIndex(eventId);
+    } catch {
+      /* never fail the domain write */
+    }
+  }
+  const kick = deps.searchQueueKick;
+  if (kick && typeof kick.send === "function") {
+    try {
+      await kick.send({ type: "search.index", eventId });
+    } catch {
+      /* durable signal is the generation bump; cron heals lost kicks */
+    }
   }
 }
 

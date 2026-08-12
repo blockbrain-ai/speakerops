@@ -34,6 +34,7 @@ import {
 } from "@speakerops/shared";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
+import { invalidateSearchIndex } from "../search/commands.js";
 import {
   type FormsStore,
   type FormRow,
@@ -51,6 +52,8 @@ export type FormCommandDeps = {
   forms: FormsStore;
   events: EventsStore;
   auth: AuthStore;
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -297,6 +300,8 @@ export async function createForm(
     correlationId: input.correlationId,
     createdAt: now,
   });
+
+    await invalidateSearchIndex(deps, input.eventId);
 
   return {
     ok: true,
@@ -584,6 +589,8 @@ export async function updateDraftFields(
     createdAt: now,
   });
 
+    await invalidateSearchIndex(deps, form.eventId);
+
   return {
     ok: true,
     value: { formVersion: await toVersionDto(deps, updated) },
@@ -766,6 +773,8 @@ export async function publishForm(
     correlationId: input.correlationId,
     createdAt: now,
   });
+
+    await invalidateSearchIndex(deps, form.eventId);
 
   return {
     ok: true,

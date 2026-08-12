@@ -157,6 +157,9 @@ async function openSchedule(page: Page, eventId: string) {
   await expect(page.getByTestId("schedule-tray")).toBeVisible({
     timeout: 15_000,
   });
+  await expect(page.getByTestId("schedule-tray-search")).toBeVisible();
+  await expect(page.getByTestId("schedule-tray-sort")).toBeVisible();
+  // @inv:I18 tray filter chrome present
 }
 
 test.describe("11.5 schedule studio lumen2", () => {

@@ -49,6 +49,7 @@ import {
   newAnswerId,
   perSubmitterGuardPrefix,
 } from "./store.js";
+import { invalidateSearchIndex } from "../search/commands.js";
 import {
   verifyTurnstile,
   type DemoTurnstileContext,
@@ -60,6 +61,9 @@ export type PublicCfpCommandDeps = {
   events: EventsStore;
   auth: AuthStore;
   design: DesignStore;
+  /** B3: optional search invalidation after mutations. */
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
   /**
    * Optional comms store — enables the submission confirmation lifecycle
    * email (Wave 1B). A missing store or any comms failure never fails the
@@ -825,6 +829,8 @@ export async function createSubmission(
       );
     }
   }
+
+    await invalidateSearchIndex(deps, event.id);
 
   return {
     ok: true,
@@ -1608,6 +1614,8 @@ export async function saveDraft(
     speakers: speakerSnapshot,
     category: submission.category,
   };
+
+    await invalidateSearchIndex(deps, event.id);
 
   return {
     ok: true,

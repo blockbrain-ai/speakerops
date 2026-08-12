@@ -109,29 +109,20 @@ test.describe("11.2 comms campaign lumen2", () => {
       "data-section",
       "11.2",
     );
-    await expect(page.getByTestId("comms-campaign-steps")).toBeVisible();
+    await expect(page.getByTestId("comms-wizard-steps")).toBeVisible();
     await expect(page.getByTestId("comms-step-nav-audience")).toBeVisible();
     await expect(page.getByTestId("comms-step-nav-message")).toBeVisible();
     await expect(page.getByTestId("comms-step-nav-review")).toBeVisible();
     await expect(page.getByTestId("comms-step-nav-send")).toBeVisible();
 
-    // Step panels present (vertical campaign; all sections visible)
+    // Exclusive wizard: only the active step mounts
     await expect(page.getByTestId("comms-segment-builder")).toHaveAttribute(
       "data-step",
       "audience",
     );
-    await expect(page.getByTestId("comms-template-editor")).toHaveAttribute(
-      "data-step",
-      "message",
-    );
-    await expect(page.getByTestId("comms-preview-panel")).toHaveAttribute(
-      "data-step",
-      "review",
-    );
-    await expect(page.getByTestId("comms-send-panel")).toHaveAttribute(
-      "data-step",
-      "send",
-    );
+    await expect(page.getByTestId("comms-template-editor")).toHaveCount(0);
+    await expect(page.getByTestId("comms-preview-panel")).toHaveCount(0);
+    await expect(page.getByTestId("comms-send-panel")).toHaveCount(0);
 
     // Summary count always visible
     await expect(page.getByTestId("comms-campaign-summary")).toBeVisible();
@@ -142,12 +133,15 @@ test.describe("11.2 comms campaign lumen2", () => {
       { timeout: 15_000 },
     );
 
-    // Step nav focuses message
+    // Step nav focuses message when audience is valid
     await page.getByTestId("comms-step-nav-message").click();
     await expect(page.getByTestId("comms-step-nav-message")).toHaveAttribute(
       "aria-current",
       "step",
     );
+    await expect(page.getByTestId("comms-template-editor")).toBeVisible();
+    await expect(page.getByTestId("comms-wizard-next")).toBeVisible();
+    await expect(page.getByTestId("comms-wizard-back")).toBeEnabled();
   });
 
   test("AC-11.2-SCALE 150 audience without 150-checkbox wall", async ({
@@ -240,7 +234,8 @@ test.describe("11.2 comms campaign lumen2", () => {
       { timeout: 20_000 },
     );
 
-    // Save template so we can preview
+    // Save template so we can preview (wizard: message step)
+    await page.getByTestId("comms-step-nav-message").click();
     await page.getByTestId("comms-template-key-input").fill(TEMPLATE_KEY);
     await page
       .getByTestId("comms-template-subject-input")
@@ -252,6 +247,9 @@ test.describe("11.2 comms campaign lumen2", () => {
     await expect(page.getByTestId("comms-template-id")).toBeVisible({
       timeout: 15_000,
     });
+
+    // Selection lives on Audience step
+    await page.getByTestId("comms-step-nav-audience").click();
 
     // Select first visible row
     const firstPick = page
@@ -309,7 +307,13 @@ test.describe("11.2 comms campaign lumen2", () => {
     await seedSpeakerCount(request, admin.session, event.id, 2, "send");
 
     await openComms(page, event.id, baseURL);
+    await expect(page.getByTestId("comms-summary-count")).toHaveAttribute(
+      "data-count",
+      /[1-9]/,
+      { timeout: 15_000 },
+    );
 
+    await page.getByTestId("comms-step-nav-message").click();
     await page
       .getByTestId("comms-template-key-input")
       .fill(`send-${TEMPLATE_KEY}`);
@@ -324,13 +328,15 @@ test.describe("11.2 comms campaign lumen2", () => {
       timeout: 15_000,
     });
 
-    // Preview required (J08 / AC-11.2-SEND)
-    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
-    await expect(page.getByTestId("comms-send-blocked-reason")).toContainText(
-      /preview/i,
-    );
+    // Preview required (J08 / AC-11.2-SEND) — Send step gated until preview
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
 
+    await page.getByTestId("comms-step-nav-review").click();
     await page.getByTestId("comms-preview-run").click();
+    await expect(page.getByTestId("comms-preview-results")).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByTestId("comms-step-nav-send").click();
     await expect(page.getByTestId("comms-send-button")).toBeEnabled({
       timeout: 15_000,
     });

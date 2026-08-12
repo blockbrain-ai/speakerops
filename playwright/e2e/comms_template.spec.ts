@@ -108,6 +108,23 @@ test.describe("5.1 Comms templates", () => {
     const email = `comms-j01-${Date.now()}@example.com`;
     const session = await loginAsAdmin(request, context, baseURL, email);
     const event = await ensureEvent(request, session, "J01 Comms Event");
+    // Wizard: Audience must be valid (count > 0) before Message is reachable
+    const seedRes = await request.post(
+      `/api/events/${encodeURIComponent(event.id)}/sessions/direct`,
+      {
+        headers: sessionHeaders(session),
+        data: {
+          title: `J01 seed ${Date.now()}`,
+          speakers: [
+            {
+              name: "J01 Speaker",
+              email: `j01-sp-${Date.now()}@example.com`,
+            },
+          ],
+        },
+      },
+    );
+    expect(seedRes.status(), await seedRes.text()).toBe(201);
 
     // Seed active event in localStorage for EventContext
     await page.addInitScript((eventId) => {
@@ -116,6 +133,12 @@ test.describe("5.1 Comms templates", () => {
 
     await page.goto("/admin/comms");
     await expect(page.getByTestId("page-comms")).toBeVisible();
+    await expect(page.getByTestId("comms-summary-count")).toHaveAttribute(
+      "data-count",
+      /[1-9]/,
+      { timeout: 15_000 },
+    );
+    await page.getByTestId("comms-step-nav-message").click();
     await expect(page.getByTestId("comms-template-editor")).toBeVisible();
 
     await page.getByTestId("comms-template-key-input").fill("j01-reminder");

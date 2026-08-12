@@ -2279,24 +2279,42 @@ export function SubmissionsPage() {
                           const checked = assignUserIds.has(m.userId);
                           return (
                             <li key={m.userId}>
-                              <label
-                                className="submissions-page__evaluator-option lumen-focusable"
+                              <button
+                                type="button"
+                                role="checkbox"
+                                aria-checked={checked}
+                                className={[
+                                  "submissions-page__evaluator-option",
+                                  "lumen-focusable",
+                                  checked
+                                    ? "submissions-page__evaluator-option--selected"
+                                    : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
                                 data-testid={`submission-assign-evaluator-${m.userId}`}
+                                onClick={() => toggleAssignUser(m.userId)}
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() => toggleAssignUser(m.userId)}
+                                <span
+                                  className={[
+                                    "l2-checkbox",
+                                    checked ? "l2-checkbox--checked" : "",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" ")}
+                                  aria-hidden
                                   data-testid={`submission-assign-check-${m.userId}`}
+                                  data-checked={checked ? "true" : "false"}
                                 />
-                                <span>
-                                  {m.email}
+                                <span className="submissions-page__evaluator-meta">
+                                  <span className="submissions-page__evaluator-email">
+                                    {m.email}
+                                  </span>
                                   <span className="eval-queue__muted">
-                                    {" "}
-                                    · {m.assignmentCount} assigned
+                                    {m.assignmentCount} assigned
                                   </span>
                                 </span>
-                              </label>
+                              </button>
                             </li>
                           );
                         })}

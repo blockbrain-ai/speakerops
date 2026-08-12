@@ -37,6 +37,7 @@ import type { EventsStore } from "../events/store.js";
 import { renderIcs, stableIcsUid } from "../comms/ics.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DesignStore } from "../design/store.js";
+import { invalidateSearchIndex } from "../search/commands.js";
 import {
   type DecisionsStore,
   type ParticipationRow,
@@ -54,6 +55,8 @@ export type PortalCommandDeps = {
   design?: DesignStore;
   /** Optional schedule for session when/where on portal home. */
   schedule?: import("../schedule/store.js").ScheduleStore;
+  search?: { invalidateIndex?: (eventId: string) => Promise<void> };
+  searchQueueKick?: { send: (message: unknown) => Promise<unknown> } | null;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -753,6 +756,8 @@ export async function completeTask(
     createdAt: now,
   });
 
+    await invalidateSearchIndex(deps, part.eventId);
+
   return { ok: true, value: { task: toTaskDto(updated) } };
 }
 
@@ -1027,6 +1032,8 @@ export async function updateParticipationProfile(
     createdAt: now,
   });
 
+    await invalidateSearchIndex(deps, part.eventId);
+
   return {
     ok: true,
     value: { participation: await enrichProfile(deps, updated) },
@@ -1163,6 +1170,8 @@ export async function adminUpdateSpeakerProfile(
     correlationId: input.correlationId,
     createdAt: now,
   });
+
+    await invalidateSearchIndex(deps, part.eventId);
 
   return {
     ok: true,
@@ -1456,6 +1465,8 @@ export async function createTaskTemplate(
     createdAt: now,
   });
 
+    await invalidateSearchIndex(deps, input.eventId);
+
   return { ok: true, value: { template: toTemplateDto(row) } };
 }
 
@@ -1543,6 +1554,8 @@ export async function updateTaskTemplate(
     createdAt: now,
   });
 
+    await invalidateSearchIndex(deps, existing.eventId);
+
   return { ok: true, value: { template: toTemplateDto(updated) } };
 }
 
@@ -1611,6 +1624,8 @@ export async function deleteTaskTemplate(
     correlationId: input.correlationId,
     createdAt: now,
   });
+
+    await invalidateSearchIndex(deps, existing.eventId);
 
   return {
     ok: true,

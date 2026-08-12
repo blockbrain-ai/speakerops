@@ -1167,6 +1167,56 @@
   flex: 0 0 auto;
 }
 
+/* G3: Lumen selectable evaluator rows (button + custom checkbox) */
+button.submissions-page__evaluator-option {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  appearance: none;
+  margin: 0;
+}
+
+.submissions-page__evaluator-option--selected {
+  border-color: var(--lumen-brand);
+  background: var(--lumen-brand-soft);
+}
+
+.submissions-page__evaluator-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.submissions-page__evaluator-email {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.l2-checkbox {
+  display: inline-flex;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  border-radius: var(--lumen-radius-sm);
+  border: 1.5px solid var(--lumen-border-strong, var(--lumen-border));
+  background: var(--lumen-surface);
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.l2-checkbox--checked {
+  border-color: var(--lumen-brand);
+  background: var(--lumen-brand);
+  box-shadow: inset 0 0 0 2px var(--lumen-surface);
+}
+
 .submissions-page__assign .eval-queue__row {
   display: flex;
   flex-wrap: wrap;
@@ -3612,6 +3662,41 @@
   position: sticky;
   top: var(--lumen-space-2);
   align-self: start;
+}
+
+/* G2: tray search + sort */
+.schedule-studio__tray-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+  margin: var(--lumen-space-2) 0 var(--lumen-space-3);
+}
+
+.schedule-studio__tray-controls .event-settings__input {
+  width: 100%;
+}
+
+/* D1 Wizard chrome (shares campaign step pills) */
+.l2-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-3);
+}
+
+.l2-wizard__panel {
+  min-width: 0;
+  outline: none;
+}
+
+.l2-wizard__chrome {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lumen-space-2);
+  justify-content: flex-end;
+}
+
+.comms-campaign__wizard .comms-campaign__steps {
+  margin-bottom: 0;
 }
 
 .schedule-studio--l2 .schedule-studio__main {
