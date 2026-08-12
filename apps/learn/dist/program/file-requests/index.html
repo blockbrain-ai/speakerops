@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; img-src &#39;self&#39; data:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;; frame-ancestors &#39;none&#39;">
-<meta name="description" content="Keep Admin → Speakers responsive for large events.">
-<title>Speakers list performance · SpeakerOps Learn</title>
+<meta name="description" content="Publish asks for speaker uploads (slides, PDFs) and track fulfillments from admin.">
+<title>File requests · SpeakerOps Learn</title>
 <link rel="stylesheet" href="/assets/learn.css">
 
 </head>
@@ -43,12 +43,7 @@
 <li><a href="/program/comms">Comms</a></li>
 <li><a href="/program/settings-event">Event settings</a></li>
 <li><a href="/program/settings-design">Design kit</a></li>
-<li><a href="/program/task-templates">Task templates</a></li>
-          <li><a href="/program/team">Team</a></li>
-          <li><a href="/program/file-requests">File requests</a></li>
-          <li><a href="/program/resources">Resources</a></li>
-          <li><a href="/program/embeds">Embeds</a></li>
-          <li><a href="/program/find">Find</a></li>
+<li><a href="/program/task-templates" aria-current="page">Task templates</a></li>
 </ul></div>
 <div class="nav-group"><p class="nav-group-label">Agents</p><ul>
 <li><a href="/agents/cli-and-keys">CLI and keys</a></li>
@@ -65,7 +60,7 @@
 <li><a href="/faq/magic-link-rate-limits">Magic-link limits</a></li>
 <li><a href="/faq/allowlist">Demo access</a></li>
 <li><a href="/faq/email-cloudflare">Email delivery</a></li>
-<li><a href="/faq/speakers-list-performance" aria-current="page">Speakers performance</a></li>
+<li><a href="/faq/speakers-list-performance">Speakers performance</a></li>
 </ul></div>
 </nav>
 
@@ -73,41 +68,27 @@
   <div class="learn-primary">
     <header class="learn-topbar" role="banner">
       <button type="button" class="nav-toggle" id="nav-toggle" data-testid="learn-nav-toggle" aria-controls="learn-nav" aria-expanded="false">Menu</button>
-      <p class="topbar-crumb" data-testid="learn-crumb">Speakers list performance</p>
+      <p class="topbar-crumb" data-testid="learn-crumb">File requests</p>
     </header>
     <div class="learn-body-row">
       <main id="main" class="learn-main" data-testid="learn-main">
-<article data-article-id="L25">
-<h1>Speakers list performance</h1>
-<p class="learn-lead">Keep Admin → Speakers responsive for large events.</p>
+<article data-article-id="L27">
+<h1>File requests</h1>
+<p class="learn-lead">Publish asks for speaker uploads (slides, PDFs) and track fulfillments from admin.</p>
 <section class="learn-section">
-<h2 id="what-good-looks-like">What good looks like</h2>
-<p>Admin → Speakers should remain interactive for large speaker graphs by using server-side search and pagination or bounded queries. Pulling the entire participation graph into the browser on every keystroke is not the intended pattern.</p>
-</section>
-<section class="learn-section">
-<h2 id="operator-practices">Operator practices</h2>
-<p>Search with specific tokens instead of empty broad loads when the UI offers query params. Avoid opening dozens of detail panels at once on low-memory devices. Prefer readiness outstanding lists when you only need people with incomplete tasks.</p>
-<ol class="learn-steps">
-<li>Use the search box with a name or email fragment.</li>
-<li>Prefer readiness for overdue task hunts.</li>
-<li>Use CLI speakers list --event &lt;id&gt; --q &lt;query&gt; --json for agent reporting instead of scraping the DOM.</li>
-</ol>
-<pre class="learn-code" data-testid="learn-code-block"><code>speakerops speakers list --event &lt;eventId&gt; --q &#39;Ada&#39; --json</code></pre>
-</section>
-<section class="learn-section">
-<h2 id="when-something-feels-wrong">When something feels wrong</h2>
-<p>Check network panel for repeated full-list fetches. Confirm the event context is correct (wrong event may look empty or oddly large). Report regressions with HAR-free descriptions and correlation ids rather than production secrets.</p>
+<h2 id="where-file-requests-live">Where file requests live</h2>
+<p>Open Admin → File requests (operator). Create a request, publish it, and speakers see it under the portal File requests tab. Fulfillments show on the admin request once a speaker uploads.</p>
+</section><section class="learn-section">
+<h2 id="speaker-flow">Speaker flow</h2>
+<p>Accepted speakers open the portal, open File requests, and upload against each published ask. Incomplete asks surface on readiness when configured.</p>
 </section>
 <aside class="learn-product-routes"><h2>Where this lives in the app</h2><ul>
-<li><code>/admin/speakers</code></li>
+<li><code>/admin/file-requests</code></li><li><code>/portal</code></li>
 </ul><p class="learn-muted">Open these routes on your demo or local host while you follow the steps above.</p></aside>
-
 </article>
       </main>
       <nav class="learn-toc" aria-label="On this page" data-testid="learn-toc"><p class="toc-label">On this page</p><ul>
-<li><a href="#what-good-looks-like">What good looks like</a></li>
-<li><a href="#operator-practices">Operator practices</a></li>
-<li><a href="#when-something-feels-wrong">When something feels wrong</a></li>
+<li><a href="#where-file-requests-live">Where file requests live</a></li><li><a href="#speaker-flow">Speaker flow</a></li>
 </ul></nav>
 
     </div>
