@@ -151,7 +151,7 @@ describe("F4 buildProgrammeStages honesty", () => {
     expect(decide.state).not.toBe("done");
     expect(decide.detail).toMatch(/awaiting decision/);
     const publish = stages.find((s) => s.id === "publish")!;
-    expect(publish.href).toBe("/admin/design");
+    expect(publish.href).toMatch(/publish/);
     expect(publish.state).not.toBe("done");
   });
 

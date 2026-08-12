@@ -148,9 +148,9 @@ export function buildProgrammeStages(
         : accepted > 0
           ? "now"
           : "todo";
-  // Publish: not yet a first-class publish API — stay honest "todo", deep-link design kit / public.
+  // Publish: first-class F7 programme publish (admin).
   const publishState: StageState =
-    scheduleState === "done" && onboardState === "done" ? "todo" : "todo";
+    scheduleState === "done" || accepted > 0 ? "todo" : "todo";
 
   const stages: ProgrammeStage[] = [
     {
@@ -217,9 +217,8 @@ export function buildProgrammeStages(
       id: "publish",
       label: "Publish",
       state: publishState,
-      detail: "Public programme soon",
-      // Design kit is the current public-facing brand surface until publish API lands.
-      href: "/admin/design",
+      detail: "Public programme",
+      href: "/admin#publish-programme",
     },
   ];
 
@@ -371,6 +370,12 @@ export function ReadinessPage() {
   const [loading, setLoading] = useState(false);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
+  const [busyPublish, setBusyPublish] = useState(false);
+  const [publishOk, setPublishOk] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPublishOk(null);
+  }, [activeEventId]);
   const loadGenRef = useRef(0);
   /**
    * True while a load batch is in flight. The live poll must never preempt
@@ -709,17 +714,78 @@ export function ReadinessPage() {
           </p>
         </div>
         {activeEventId ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            data-testid="readiness-refresh"
-            onClick={() => void load(activeEventId, overdueOnly)}
-          >
-            Refresh
-          </Button>
+          <div className="overview-dashboard__header-actions">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              data-testid="overview-publish-programme"
+              disabled={busyPublish}
+              onClick={() => {
+                void (async () => {
+                  setBusyPublish(true);
+                  try {
+                    const res = await fetch(
+                      `/api/events/${encodeURIComponent(activeEventId)}/programme/publish`,
+                      {
+                        method: "POST",
+                        credentials: "include",
+                        headers: { accept: "application/json" },
+                      },
+                    );
+                    if (!res.ok) {
+                      setLoadError("Could not publish programme");
+                      return;
+                    }
+                    const slug = activeEvent?.slug;
+                    setPublishOk(
+                      slug
+                        ? `Programme published — public at /e/${slug}`
+                        : "Programme published",
+                    );
+                  } catch {
+                    setLoadError("Network error publishing programme");
+                  } finally {
+                    setBusyPublish(false);
+                  }
+                })();
+              }}
+            >
+              {busyPublish ? "Publishing…" : "Publish programme"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="readiness-refresh"
+              onClick={() => void load(activeEventId, overdueOnly)}
+            >
+              Refresh
+            </Button>
+          </div>
         ) : null}
       </header>
+      {publishOk ? (
+        <div
+          className="overview-dashboard__publish-ok"
+          data-testid="overview-publish-ok"
+          role="status"
+        >
+          {publishOk}
+          {activeEvent?.slug ? (
+            <>
+              {" "}
+              <a
+                href={`/e/${encodeURIComponent(activeEvent.slug)}`}
+                className="eval-queue__link lumen-focusable"
+                data-testid="overview-public-programme-link"
+              >
+                Open public programme
+              </a>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Six-stage programme rail (F4 / P2) */}
       {activeEventId ? (

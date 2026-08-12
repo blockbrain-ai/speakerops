@@ -32,6 +32,7 @@ import { PortalHomePage } from "./pages/PortalHome.js";
 import { EventSettingsPage } from "./pages/EventSettings.js";
 import { DesignKitPage } from "./pages/DesignKit.js";
 import { PublicCfpPage } from "./pages/PublicCfp.js";
+import { PublicProgrammePage } from "./pages/public/PublicProgramme.js";
 import { FormBuilderPage } from "./pages/FormBuilder.js";
 import { EvaluatorQueuePage } from "./pages/EvaluatorQueue.js";
 import { RubricSettingsPage } from "./pages/RubricSettings.js";
@@ -187,6 +188,55 @@ export function AppRoutes() {
         element={
           <BareLayout>
             <PublicCfpPage />
+          </BareLayout>
+        }
+      />
+      {/* P11 public programme pages (F7 publish gate) */}
+      <Route
+        path="/e/:slug"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="hub" />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/e/:slug/sessions"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="sessions" />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/e/:slug/speakers"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="speakers" />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/e/:slug/agenda"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="agenda" />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/e/:slug/itinerary"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="itinerary" />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/e/:slug/gallery"
+        element={
+          <BareLayout>
+            <PublicProgrammePage view="gallery" />
           </BareLayout>
         }
       />

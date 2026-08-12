@@ -57,6 +57,25 @@ export const events = sqliteTable(
 );
 
 /**
+ * programme_publications — F7 public programme publish gate (migration 0039).
+ */
+export const programmePublications = sqliteTable(
+  "programme_publications",
+  {
+    eventId: text("event_id")
+      .primaryKey()
+      .notNull()
+      .references(() => events.id),
+    publishedAt: text("published_at").notNull(),
+    publishedBy: text("published_by"),
+    version: integer("version").notNull().default(1),
+    snapshotJson: text("snapshot_json"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [index("idx_programme_publications_published_at").on(t.publishedAt)],
+);
+
+/**
  * audit_events — consequential writes (E3).
  * correlation_id is required so request/CLI entry can be traced.
  */
@@ -1346,9 +1365,12 @@ export const schema = {
   projectionRecords,
   savedViews,
   searchDocuments,
+  programmePublications,
 } as const;
 
 export type SavedView = typeof savedViews.$inferSelect;
 export type NewSavedView = typeof savedViews.$inferInsert;
 export type SearchDocument = typeof searchDocuments.$inferSelect;
 export type NewSearchDocument = typeof searchDocuments.$inferInsert;
+export type ProgrammePublication = typeof programmePublications.$inferSelect;
+export type NewProgrammePublication = typeof programmePublications.$inferInsert;

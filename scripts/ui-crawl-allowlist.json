@@ -1020,6 +1020,12 @@
       "inv": "L2-01",
       "surface": "admin",
       "journey": "F5 dismiss Find palette"
+    },
+    {
+      "testid": "overview-publish-programme",
+      "inv": "H01",
+      "surface": "admin",
+      "journey": "F7 publish public programme from Overview"
     }
   ]
 }

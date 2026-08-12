@@ -335,3 +335,6 @@ export const GRID_TABLES = ["saved_views"] as const;
 
 /** F5 global Find projection (migration 0038). FTS virtual table not listed. */
 export const SEARCH_TABLES = ["search_documents"] as const;
+
+/** F7 public programme publication gate (migration 0039). */
+export const PROGRAMME_TABLES = ["programme_publications"] as const;

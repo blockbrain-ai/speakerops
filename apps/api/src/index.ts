@@ -155,6 +155,15 @@ import {
 } from "./modules/search/store.js";
 import { createEventSearchRoutes } from "./modules/search/routes.js";
 import {
+  MemoryProgrammeStore,
+  D1ProgrammeStore,
+  type ProgrammeStore,
+} from "./modules/programme/store.js";
+import {
+  createEventProgrammeRoutes,
+  createPublicProgrammeRoutes,
+} from "./modules/programme/routes.js";
+import {
   processCommsOutbox,
   type ProcessOutboxResult,
 } from "./workers/emailConsumer.js";
@@ -201,6 +210,8 @@ export type CreateAppOptions = {
   savedViewsStore?: SavedViewsStore;
   /** Inject search store (F5; defaults to in-memory for local/test). */
   searchStore?: SearchStore;
+  /** Inject programme publication store (F7; defaults to in-memory). */
+  programmeStore?: ProgrammeStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /**
@@ -294,6 +305,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const savedViewsStore =
     options.savedViewsStore ?? new MemorySavedViewsStore();
   const searchStore = options.searchStore ?? new MemorySearchStore();
+  const programmeStore = options.programmeStore ?? new MemoryProgrammeStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -578,6 +590,28 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       auth: authStore,
     }),
   );
+
+  const programmeDeps = {
+    programme: programmeStore,
+    events: eventsStore,
+    decisions: decisionsStore,
+    submissions: submissionsStore,
+    schedule: scheduleStore,
+    listRooms: (eventId: string) => eventsStore.listRooms(eventId),
+    listTracks: (eventId: string) => eventsStore.listTracks(eventId),
+  };
+
+  // F7 — programme publish (admin)
+  app.route(
+    "/api/events",
+    createEventProgrammeRoutes({
+      store: authStore,
+      ...programmeDeps,
+    }),
+  );
+
+  // P11 — public programme pages
+  app.route("/api/public", createPublicProgrammeRoutes(programmeDeps));
 
   const portalRouteOpts = {
     store: authStore,
@@ -874,6 +908,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     airtableStore: new D1AirtableStore(d1),
     savedViewsStore: new D1SavedViewsStore(d1),
     searchStore: new D1SearchStore(d1),
+    programmeStore: new D1ProgrammeStore(d1),
     turnstileSecret,
     demoMode,
     demoAllowlistEnabled,

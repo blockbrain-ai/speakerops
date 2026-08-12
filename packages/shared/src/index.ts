@@ -584,6 +584,21 @@ export {
 } from "./search.js";
 
 export {
+  PublicSpeakerSchema,
+  type PublicSpeaker,
+  PublicSessionSchema,
+  type PublicSession,
+  PublicAgendaItemSchema,
+  type PublicAgendaItem,
+  PublicProgrammeResponseSchema,
+  type PublicProgrammeResponse,
+  ProgrammePublishResponseSchema,
+  type ProgrammePublishResponse,
+  ProgrammeStatusResponseSchema,
+  type ProgrammeStatusResponse,
+} from "./programme.js";
+
+export {
   isHttpsUrl,
   TASK_LINK_URL_MAX_LENGTH,
   ParticipationProfileSchema,

@@ -51,6 +51,7 @@ export {
   projectionRecords,
   savedViews,
   searchDocuments,
+  programmePublications,
   baselineTables,
   authTables,
   membershipTables,
@@ -192,6 +193,7 @@ export {
   PROJECTION_TABLES,
   GRID_TABLES,
   SEARCH_TABLES,
+  PROGRAMME_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";
