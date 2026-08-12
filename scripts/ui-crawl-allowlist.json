@@ -1244,6 +1244,12 @@
       "journey": "N3 create file request"
     },
     {
+      "testid": "file-request-seed-example",
+      "inv": "Q04",
+      "surface": "admin",
+      "journey": "N3 prefill example file request"
+    },
+    {
       "testid": "file-request-publish-*",
       "inv": "Q04",
       "surface": "admin",
