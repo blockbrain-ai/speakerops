@@ -1,819 +1,829 @@
 {
- "ratified_section": "0.3",
- "ratified_date": "2026-08-11",
- "description": "Exact REQUIRED inventory ID set ratified at section 0.3. Anti-shrinkage: every ID must remain present; omission only via owner DEFER status on that row. IDs must not be deleted or reused for different behavior. fingerprints lock stable test_id + journey per ID (anti-reuse).",
- "required_ids": [
-  "A01",
-  "A02",
-  "A03",
-  "A04",
-  "A05",
-  "A06",
-  "A07",
-  "A08",
-  "A09",
-  "A10",
-  "A11",
-  "A17",
-  "A18",
-  "A19",
-  "A20",
-  "B01",
-  "B02",
-  "B03",
-  "B04",
-  "B05",
-  "B06",
-  "B07",
-  "B08",
-  "C01",
-  "C02",
-  "C03",
-  "C04",
-  "C05",
-  "C06",
-  "C07",
-  "C08",
-  "C09",
-  "C10",
-  "C11",
-  "D01",
-  "D02",
-  "D03",
-  "D04",
-  "D05",
-  "D06",
-  "D07",
-  "D08",
-  "D09",
-  "D10",
-  "D11",
-  "D12",
-  "D13",
-  "D14",
-  "D15",
-  "D16",
-  "D17",
-  "E01",
-  "E02",
-  "E03",
-  "E04",
-  "E05",
-  "E06",
-  "E07",
-  "E08",
-  "E09",
-  "E10",
-  "E11",
-  "E12",
-  "E13",
-  "E14",
-  "E15",
-  "F01",
-  "F02",
-  "F03",
-  "F04",
-  "F05",
-  "F06",
-  "F07",
-  "F08",
-  "F09",
-  "F10",
-  "F11",
-  "F12",
-  "F13",
-  "F14",
-  "G01",
-  "G02",
-  "G03",
-  "G04",
-  "G05",
-  "G06",
-  "G07",
-  "G08",
-  "G09",
-  "G11",
-  "G12",
-  "G13",
-  "H01",
-  "H02",
-  "H03",
-  "H04",
-  "H05",
-  "I01",
-  "I02",
-  "I03",
-  "I04",
-  "I05",
-  "I06",
-  "I07",
-  "I08",
-  "I09",
-  "I10",
-  "I11",
-  "I12",
-  "I13",
-  "I14",
-  "I15",
-  "I16",
-  "I17",
-  "J01",
-  "J02",
-  "J03",
-  "J04",
-  "J05",
-  "J06",
-  "J07",
-  "J08",
-  "J09",
-  "J10",
-  "J11",
-  "J12",
-  "J13",
-  "J14",
-  "K01",
-  "K02",
-  "K03",
-  "K04",
-  "K05",
-  "L01",
-  "L02",
-  "L03",
-  "L04",
-  "L05",
-  "L2-01",
-  "L2-02",
-  "L2-03",
-  "L2-04",
-  "L2-05",
-  "N01",
-  "N02",
-  "N03",
-  "N04",
-  "N05",
-  "O01",
-  "O02",
-  "O03",
-  "O04",
-  "O05",
-  "O06",
-  "Q01",
-  "Q02",
-  "Q03",
-  "Q04",
-  "Q05",
-  "Q06",
-  "Q07",
-  "Q08"
- ],
- "fingerprints": {
-  "A01": {
-   "test_id": "e2e/public/cfp-load",
-   "journey": "Load form; see welcome; brand tokens visible"
-  },
-  "A02": {
-   "test_id": "e2e/public/cfp-conditional",
-   "journey": "Fill required fields; conditional field appears when rule met"
-  },
-  "A03": {
-   "test_id": "e2e/public/cfp-category",
-   "journey": "Select category; observe routing metadata on submit payload"
-  },
-  "A04": {
-   "test_id": "e2e/public/cfp-multi-speaker",
-   "journey": "Add second speaker block; min/max speaker rules"
-  },
-  "A05": {
-   "test_id": "e2e/public/cfp-file",
-   "journey": "Upload supporting file within type/size"
-  },
-  "A06": {
-   "test_id": "e2e/public/cfp-submit",
-   "journey": "Pass Turnstile (test key); submit success + confirmation"
-  },
-  "A07": {
-   "test_id": "e2e/public/cfp-closed",
-   "journey": "Closed window shows closed state; no submit"
-  },
-  "A08": {
-   "test_id": "e2e/public/cfp-validation",
-   "journey": "Validation errors inline; focus management"
-  },
-  "A09": {
-   "test_id": "e2e/public/cfp-mobile",
-   "journey": "Mobile viewport complete submit"
-  },
-  "A10": {
-   "test_id": "e2e/public/cfp-xss",
-   "journey": "XSS string in abstract renders as text not script"
-  },
-  "A11": {
-   "test_id": "e2e/public/cfp-keyboard",
-   "journey": "Keyboard-only complete valid submit"
-  },
-  "B01": {
-   "test_id": "e2e/auth/admin-login",
-   "journey": "Magic/invite login → session cookie set HttpOnly path"
-  },
-  "B02": {
-   "test_id": "e2e/auth/speaker-magic",
-   "journey": "Single-use link → portal; second use fails"
-  },
-  "B03": {
-   "test_id": "e2e/auth/logout",
-   "journey": "Logout clears session"
-  },
-  "B04": {
-   "test_id": "e2e/auth/admin-guard",
-   "journey": "Unauthed redirect/401"
-  },
-  "B05": {
-   "test_id": "e2e/auth/role-guard-admin",
-   "journey": "Speaker cannot open admin"
-  },
-  "B06": {
-   "test_id": "e2e/auth/role-guard-eval",
-   "journey": "Evaluator cannot mutate schedule"
-  },
-  "C01": {
-   "test_id": "e2e/admin/event-create",
-   "journey": "Create event; timezone; dates"
-  },
-  "C02": {
-   "test_id": "e2e/admin/event-switch",
-   "journey": "Switch active event context"
-  },
-  "C03": {
-   "test_id": "e2e/admin/design-color",
-   "journey": "Set brand color; live preview updates"
-  },
-  "C04": {
-   "test_id": "e2e/admin/design-logo",
-   "journey": "Upload logo; preview"
-  },
-  "C05": {
-   "test_id": "e2e/admin/design-publish",
-   "journey": "Publish tokens; public CFP shows brand"
-  },
-  "C06": {
-   "test_id": "e2e/admin/design-no-css",
-   "journey": "Cannot inject freeform CSS field (control absent)"
-  },
-  "C07": {
-   "test_id": "e2e/admin/settings-cfp-window",
-   "journey": "Edit event name/close dates for CFP window"
-  },
-  "C08": {
-   "test_id": "e2e/admin/design-contrast",
-   "journey": "Near-white brand → contrast warn/block or derived text on public CFP"
-  },
-  "C09": {
-   "test_id": "e2e/admin/design-logo-xss",
-   "journey": "SVG/scripty logo rejected; never executes"
-  },
-  "C10": {
-   "test_id": "e2e/admin/design-draft-isolation",
-   "journey": "Draft tokens not visible on public CFP until publish"
-  },
-  "C11": {
-   "test_id": "e2e/admin/event-isolation",
-   "journey": "Switch event A→B; no A data in B lists"
-  },
-  "D01": {
-   "test_id": "e2e/admin/form-create",
-   "journey": "Create form; add text/select/file/speaker fields"
-  },
-  "D02": {
-   "test_id": "e2e/admin/form-reorder",
-   "journey": "Reorder fields drag"
-  },
-  "D03": {
-   "test_id": "e2e/admin/form-conditional",
-   "journey": "Conditional rule: show field if select=X"
-  },
-  "D04": {
-   "test_id": "e2e/admin/form-routing",
-   "journey": "Category field + routing target"
-  },
-  "D05": {
-   "test_id": "e2e/admin/form-required",
-   "journey": "Required flags + validation"
-  },
-  "D06": {
-   "test_id": "e2e/admin/form-copy",
-   "journey": "Welcome/thank-you copy"
-  },
-  "D07": {
-   "test_id": "e2e/admin/form-preview",
-   "journey": "Preview side-by-side"
-  },
-  "D08": {
-   "test_id": "e2e/admin/form-publish-version",
-   "journey": "Publish version; pin version on new submission"
-  },
-  "D09": {
-   "test_id": "e2e/admin/form-limits",
-   "journey": "Open/close + submission limit"
-  },
-  "D10": {
-   "test_id": "e2e/admin/form-link",
-   "journey": "Copy public link"
-  },
-  "E01": {
-   "test_id": "e2e/admin/sub-list",
-   "journey": "List filters by status/category"
-  },
-  "E02": {
-   "test_id": "e2e/admin/sub-detail",
-   "journey": "Open detail; answers; speakers"
-  },
-  "E03": {
-   "test_id": "e2e/admin/sub-assign",
-   "journey": "Assign to evaluator"
-  },
-  "E04": {
-   "test_id": "e2e/admin/sub-accept",
-   "journey": "Accept creates session + tasks"
-  },
-  "E05": {
-   "test_id": "e2e/admin/sub-reject",
-   "journey": "Reject with reason"
-  },
-  "E06": {
-   "test_id": "e2e/admin/sub-waitlist",
-   "journey": "Waitlist status"
-  },
-  "E07": {
-   "test_id": "e2e/admin/session-direct",
-   "journey": "Direct/sponsor session entry (no CFP)"
-  },
-  "E08": {
-   "test_id": "e2e/admin/sub-bulk",
-   "journey": "Bulk select + preview bulk status change"
-  },
-  "F01": {
-   "test_id": "e2e/eval/queue",
-   "journey": "See only assigned"
-  },
-  "F02": {
-   "test_id": "e2e/eval/score",
-   "journey": "Score criteria + comment; save"
-  },
-  "F03": {
-   "test_id": "e2e/eval/no-decide",
-   "journey": "Cannot accept/reject"
-  },
-  "F04": {
-   "test_id": "e2e/eval/a11y-keyboard",
-   "journey": "Keyboard-only complete score"
-  },
-  "F05": {
-   "test_id": "e2e/eval/export",
-   "journey": "Sort by aggregate score; export CSV of scores/status"
-  },
-  "G01": {
-   "test_id": "e2e/portal/home",
-   "journey": "Land on next incomplete task"
-  },
-  "G02": {
-   "test_id": "e2e/portal/bio",
-   "journey": "Edit bio; save"
-  },
-  "G03": {
-   "test_id": "e2e/portal/headshot",
-   "journey": "Upload headshot; preview"
-  },
-  "G04": {
-   "test_id": "e2e/portal/slides",
-   "journey": "Upload slides"
-  },
-  "G05": {
-   "test_id": "e2e/portal/task-complete",
-   "journey": "Complete task; status flips"
-  },
-  "G06": {
-   "test_id": "e2e/portal/task-overdue",
-   "journey": "Overdue visual state"
-  },
-  "G07": {
-   "test_id": "e2e/portal/session",
-   "journey": "View own session status"
-  },
-  "G08": {
-   "test_id": "e2e/portal/mobile",
-   "journey": "Mobile complete bio+task"
-  },
-  "H01": {
-   "test_id": "e2e/dash/overview",
-   "journey": "Stats + outstanding list"
-  },
-  "H02": {
-   "test_id": "e2e/dash/filter",
-   "journey": "Filter overdue"
-  },
-  "H03": {
-   "test_id": "e2e/dash/drill",
-   "journey": "Drill to speaker"
-  },
-  "H04": {
-   "test_id": "e2e/dash/live",
-   "journey": "Live update after portal complete (same session or poll ≤5s)"
-  },
-  "H05": {
-   "test_id": "e2e/dash/empty",
-   "journey": "Empty state when all clear"
-  },
-  "I01": {
-   "test_id": "e2e/sched/list",
-   "journey": "List view shows sessions"
-  },
-  "I02": {
-   "test_id": "e2e/sched/day",
-   "journey": "Day view"
-  },
-  "I03": {
-   "test_id": "e2e/sched/week",
-   "journey": "Week view"
-  },
-  "I04": {
-   "test_id": "e2e/sched/track",
-   "journey": "Track view"
-  },
-  "I05": {
-   "test_id": "e2e/sched/room",
-   "journey": "Room view"
-  },
-  "I06": {
-   "test_id": "e2e/sched/drag-place",
-   "journey": "Drag place into empty slot"
-  },
-  "I07": {
-   "test_id": "e2e/sched/conflict-speaker",
-   "journey": "Drag causes speaker conflict; blocked with reason"
-  },
-  "I08": {
-   "test_id": "e2e/sched/conflict-room",
-   "journey": "Room overlap conflict"
-  },
-  "I09": {
-   "test_id": "e2e/sched/keyboard",
-   "journey": "Keyboard move alternative"
-  },
-  "I10": {
-   "test_id": "e2e/sched/undo",
-   "journey": "Undo last move"
-  },
-  "I11": {
-   "test_id": "e2e/sched/tray",
-   "journey": "Unscheduled tray"
-  },
-  "I12": {
-   "test_id": "e2e/sched/tz",
-   "journey": "Timezone displayed"
-  },
-  "I13": {
-   "test_id": "e2e/sched/move",
-   "journey": "Move already-placed session to new slot"
-  },
-  "I14": {
-   "test_id": "e2e/sched/unschedule",
-   "journey": "Unschedule back to tray"
-  },
-  "I15": {
-   "test_id": "e2e/sched/stale",
-   "journey": "Stale version conflict shows recovery UI"
-  },
-  "I16": {
-   "test_id": "e2e/sched/persist",
-   "journey": "After place, all five views + reload consistent"
-  },
-  "J01": {
-   "test_id": "e2e/comms/template",
-   "journey": "Create/edit template merge fields"
-  },
-  "J02": {
-   "test_id": "e2e/comms/segment",
-   "journey": "Segment audience; count"
-  },
-  "J03": {
-   "test_id": "e2e/comms/preview",
-   "journey": "Preview all recipients + body"
-  },
-  "J04": {
-   "test_id": "e2e/comms/send-idempotent",
-   "journey": "Send once; second send idempotent"
-  },
-  "J05": {
-   "test_id": "e2e/comms/log",
-   "journey": "Delivery log visible"
-  },
-  "J06": {
-   "test_id": "e2e/comms/ics",
-   "journey": "ICS attach for scheduled session"
-  },
-  "J07": {
-   "test_id": "e2e/comms/authz",
-   "journey": "Role without comms:send cannot send"
-  },
-  "J08": {
-   "test_id": "e2e/comms/preview-required",
-   "journey": "Send without completed preview blocked"
-  },
-  "J09": {
-   "test_id": "e2e/comms/preview-invalidate",
-   "journey": "Edit audience invalidates preview"
-  },
-  "J10": {
-   "test_id": "e2e/comms/ics-update",
-   "journey": "ICS update after reschedule keeps UID bumps SEQUENCE"
-  },
-  "K01": {
-   "test_id": "e2e/keys/create",
-   "journey": "Create key with subset of scopes; secret shown once"
-  },
-  "K02": {
-   "test_id": "e2e/keys/revoke",
-   "journey": "Revoke key"
-  },
-  "K03": {
-   "test_id": "e2e/keys/secret-once",
-   "journey": "Copy prefix only after dismiss"
-  },
-  "K04": {
-   "test_id": "e2e/keys/authz",
-   "journey": "Non-admin cannot open keys"
-  },
-  "K05": {
-   "test_id": "e2e/keys/demo-clamp",
-   "journey": "Judge demo session mints 4h key, uses and revokes it; seeded key revoke blocked"
-  },
-  "L01": {
-   "test_id": "e2e/states/empty-sub",
-   "journey": "Empty list CTA"
-  },
-  "L02": {
-   "test_id": "e2e/states/error",
-   "journey": "Offline/API 500 shows error state not blank"
-  },
-  "L03": {
-   "test_id": "e2e/states/loading",
-   "journey": "Loading skeletons not infinite hang"
-  },
-  "L04": {
-   "test_id": "e2e/states/console-clean",
-   "journey": "No uncaught console errors"
-  },
-  "L05": {
-   "test_id": "e2e/states/large-list",
-   "journey": "150-row seed list paginates or virtualizes usable"
-  },
-  "N01": {
-   "test_id": "e2e/admin/speakers-list",
-   "journey": "List speakers for event"
-  },
-  "N02": {
-   "test_id": "e2e/admin/speakers-filter",
-   "journey": "Search/filter"
-  },
-  "N03": {
-   "test_id": "e2e/admin/speakers-detail",
-   "journey": "Detail: tasks + files"
-  },
-  "N04": {
-   "test_id": "e2e/admin/speakers-files",
-   "journey": "Open headshot/slides metadata"
-  },
-  "O01": {
-   "test_id": "e2e/settings/event",
-   "journey": "Event name/dates/tz"
-  },
-  "O02": {
-   "test_id": "e2e/settings/rooms",
-   "journey": "Rooms CRUD"
-  },
-  "O03": {
-   "test_id": "e2e/settings/tracks",
-   "journey": "Tracks CRUD"
-  },
-  "O04": {
-   "test_id": "e2e/settings/rubric",
-   "journey": "Eval rubric edit"
-  },
-  "O05": {
-   "test_id": "e2e/settings/task-templates",
-   "journey": "Task templates on accept"
-  },
-  "O06": {
-   "test_id": "e2e/settings/airtable-status",
-   "journey": "Airtable projection status read"
-  },
-  "A17": {
-   "test_id": "e2e/public/cfp-draft",
-   "journey": "Save as draft (title-only); resume restores fields; disabled when closed"
-  },
-  "L2-01": {
-   "test_id": "e2e/lumen2/state-sheet",
-   "journey": "Review primitives + state anatomy (`data-testid=l2-state-sheet`)"
-  },
-  "L2-02": {
-   "test_id": "e2e/lumen2/session-expired",
-   "journey": "Session expired → focused recovery panel (no auth alert in shell)"
-  },
-  "L2-03": {
-   "test_id": "e2e/lumen2/settings-two-pane",
-   "journey": "Two-pane category nav + content region"
-  },
-  "L2-04": {
-   "test_id": "e2e/lumen2/design-preview-public",
-   "journey": "Live public CFP preview depth (hero + form + CTA)"
-  },
-  "L2-05": {
-   "test_id": "e2e/lumen2/settings-a11y-keyboard",
-   "journey": "Keyboard focus journey + 390px usable settings"
-  },
-  "A18": {
-   "test_id": "e2e/public/cfp-multiselect-url",
-   "journey": "Multiselect multi-value + URL field is text (not file)"
-  },
-  "A19": {
-   "test_id": "e2e/public/cfp-copy-clean",
-   "journey": "No operator/debug brand copy (Lumen defaults / raw file ids)"
-  },
-  "D11": {
-   "test_id": "e2e/admin/form-reload",
-   "journey": "Reload builder restores draft after refresh"
-  },
-  "D12": {
-   "test_id": "e2e/admin/form-field-help",
-   "journey": "Field help text, placeholder & character cap render on public CFP with live counter"
-  },
-  "D13": {
-   "test_id": "e2e/admin/form-file-field",
-   "journey": "File field from palette; publish; public PDF upload; admin detail shows working file link"
-  },
-  "D14": {
-   "test_id": "e2e/admin/form-speaker-bounds",
-   "journey": "Form settings speaker min/max (1–15) enforced on public CFP"
-  },
-  "E09": {
-   "test_id": "e2e/admin/sub-bulk-commit",
-   "journey": "Bulk preview → Confirm apply (commit)"
-  },
-  "E10": {
-   "test_id": "e2e/admin/sub-search",
-   "journey": "Search list by title/speaker (`submissions-filter-q`)"
-  },
-  "E11": {
-   "test_id": "e2e/admin/sub-assign-picker",
-   "journey": "Assign via evaluator picker (not raw user id)"
-  },
-  "E12": {
-   "test_id": "e2e/admin/sub-detail-reviews",
-   "journey": "Detail Reviews panel (individual comments)"
-  },
-  "F06": {
-   "test_id": "e2e/eval/proposal-panel",
-   "journey": "Proposal panel shows speakers + answers beside rubric"
-  },
-  "F07": {
-   "test_id": "e2e/eval/queue-nav",
-   "journey": "Next unreviewed + search/filter"
-  },
-  "F08": {
-   "test_id": "e2e/eval/peer-reviews",
-   "journey": "Peer reviews reveal-after-submit"
-  },
-  "F09": {
-   "test_id": "e2e/eval/admin-reviews",
-   "journey": "Expand individual reviewer comments"
-  },
-  "F10": {
-   "test_id": "e2e/eval/abstain",
-   "journey": "Abstain with reason; leaves pending flow; admin rollup counts distinctly + shows reason; aggregate unchanged"
-  },
-  "F11": {
-   "test_id": "e2e/eval/round-close",
-   "journey": "Round deadline in banner; closed round locks scoring server-side + shows closed state"
-  },
-  "F12": {
-   "test_id": "e2e/eval/insights",
-   "journey": "Insights: completion bar, top 10 by aggregate (linked), divergence spread list"
-  },
-  "J11": {
-   "test_id": "e2e/comms/ics-attach-send",
-   "journey": "Send with calendar invite attached from picker"
-  },
-  "B08": {
-   "test_id": "e2e/auth/membership-chooser",
-   "journey": "Multi-membership chooser after exchange → pick named programme"
-  },
-  "G11": {
-   "test_id": "e2e/portal/section-nav",
-   "journey": "Section nav Home/Profile/Tasks/Sessions active + focus"
-  },
-  "B07": {
-   "test_id": "e2e/public/judge-access",
-   "journey": "Judge access code exchanges for demo role session (4h; body-posted code)"
-  },
-  "G09": {
-   "test_id": "e2e/portal/session-ics",
-   "journey": "Download own session calendar invite (.ics; placed sessions)"
-  },
-  "D15": {
-   "test_id": "e2e/admin/form-per-submitter-limit",
-   "journey": "Form settings per-person cap enforced on public CFP by normalized submitter email; total cap independent"
-  },
-  "D16": {
-   "test_id": "e2e/admin/form-layout-nodes",
-   "journey": "Section + divider layout nodes: builder compose/reorder, reload round-trip, public headings/dividers, no layout answers"
-  },
-  "F13": {
-   "test_id": "e2e/eval/hide-speakers",
-   "journey": "Hide speaker identities: proposal API + evaluator DOM carry no roster tokens; toggle off restores; admin detail complete"
-  },
-  "J12": {
-   "test_id": "e2e/comms/submission-confirmation",
-   "journey": "Submission confirmation lifecycle: public submit → queued delivery-log job with rendered merge fields; template editable"
-  },
-  "A20": {
-   "test_id": "e2e/public-cfp/speaker-about",
-   "journey": "Expand \"About this speaker\"; bio/company/title seed accepted speaker profile; never overwrites non-empty"
-  },
-  "E13": {
-   "test_id": "e2e/submissions/decision-notify",
-   "journey": "Decision → notify hand-off: bulk accept exact result set becomes the comms audience; typed template preselected; preview → idempotent send → delivery log"
-  },
-  "E14": {
-   "test_id": "e2e/submissions/export-csv",
-   "journey": "Filtered submissions CSV export: stable headers, flattened speakers, answer columns (layout nodes excluded); bytes inspected"
-  },
-  "E15": {
-   "test_id": "e2e/submissions/direct-session-parity",
-   "journey": "Direct/sponsor session dialog parity: repeatable speaker rows + track select; both speakers linked and track chip shown"
-  },
-  "F14": {
-   "test_id": "e2e/eval/bulk-assign",
-   "journey": "Bulk-assign wizard: preview deterministic plan (filters, modes, caps, preserve/replace) then apply; durable assignments match plan; stale re-commit blocked; preserve re-run adds nothing"
-  },
-  "I17": {
-   "test_id": "e2e/schedule/agenda-settings",
-   "journey": "Agenda settings: set day window 10:00–16:00 + 30-min interval in settings card; Studio day grid shows 12 slots (10:00–15:30); non-drag place snaps to 30-min duration"
-  },
-  "J13": {
-   "test_id": "e2e/comms/ics-picker",
-   "journey": "ICS picker lists actual scheduled sessions (title + time + room); invite carries the placement's real times; reschedule + regenerate bumps SEQUENCE"
-  },
-  "G12": {
-   "test_id": "e2e/portal/task-depth",
-   "journey": "Required task depth: required-first ordering, Required badge, https resource link on task cards (DTO + DOM)"
-  },
-  "N05": {
-   "test_id": "e2e/speakers/complete-on-behalf",
-   "journey": "Complete task on behalf of speaker; portal + readiness update instantly"
-  },
-  "D17": {
-   "test_id": "e2e/admin/form-rich-text",
-   "journey": "Rich welcome (H2/bold/list) + rich_text field authored in builder; publish; public CFP renders authored nodes; rich answer to admin detail + plain-text CSV"
-  },
-  "G13": {
-   "test_id": "e2e/portal/bio-rich",
-   "journey": "Rich bio (bold) edited in portal profile; admin speaker view renders formatting via safe renderer"
-  },
-  "J14": {
-   "test_id": "e2e/comms/template-rich",
-   "journey": "Rich template body (bold + merge token) edited in rich editor; preview shows rendered body; markup-shaped merge value stays escaped text"
-  },
-  "Q01": {
-   "test_id": "e2e/find/palette",
-   "journey": "Open palette, rebuild index, search returns typed hits without console errors"
-  },
-  "Q02": {
-   "test_id": "e2e/portal-lib/form-publish",
-   "journey": "Create portal form, publish, list persists title/fields"
-  },
-  "Q03": {
-   "test_id": "e2e/portal-lib/resource-edit",
-   "journey": "Create resource, select row, save, publish"
-  },
-  "Q04": {
-   "test_id": "e2e/portal-lib/file-request-publish",
-   "journey": "Create + publish file request"
-  },
-  "Q05": {
-   "test_id": "e2e/portal-lib/speaker-list",
-   "journey": "Published forms + resources listed for speaker"
-  },
-  "Q06": {
-   "test_id": "e2e/portal-lib/file-request-fulfill",
-   "journey": "Upload fulfils published file request (fileId linked)"
-  },
-  "Q07": {
-   "test_id": "e2e/embeds/preview-frame",
-   "journey": "Admin embed preview iframe allowed by frame-src self"
-  },
-  "Q08": {
-   "test_id": "e2e/team/invite",
-   "journey": "Add member invite by email + role; roster updates"
+  "ratified_section": "0.3",
+  "ratified_date": "2026-08-11",
+  "description": "Exact REQUIRED inventory ID set ratified at section 0.3. Anti-shrinkage: every ID must remain present; omission only via owner DEFER status on that row. IDs must not be deleted or reused for different behavior. fingerprints lock stable test_id + journey per ID (anti-reuse).",
+  "required_ids": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A05",
+    "A06",
+    "A07",
+    "A08",
+    "A09",
+    "A10",
+    "A11",
+    "A17",
+    "A18",
+    "A19",
+    "A20",
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "B06",
+    "B07",
+    "B08",
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "C06",
+    "C07",
+    "C08",
+    "C09",
+    "C10",
+    "C11",
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "D06",
+    "D07",
+    "D08",
+    "D09",
+    "D10",
+    "D11",
+    "D12",
+    "D13",
+    "D14",
+    "D15",
+    "D16",
+    "D17",
+    "E01",
+    "E02",
+    "E03",
+    "E04",
+    "E05",
+    "E06",
+    "E07",
+    "E08",
+    "E09",
+    "E10",
+    "E11",
+    "E12",
+    "E13",
+    "E14",
+    "E15",
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05",
+    "F06",
+    "F07",
+    "F08",
+    "F09",
+    "F10",
+    "F11",
+    "F12",
+    "F13",
+    "F14",
+    "G01",
+    "G02",
+    "G03",
+    "G04",
+    "G05",
+    "G06",
+    "G07",
+    "G08",
+    "G09",
+    "G11",
+    "G12",
+    "G13",
+    "H01",
+    "H02",
+    "H03",
+    "H04",
+    "H05",
+    "I01",
+    "I02",
+    "I03",
+    "I04",
+    "I05",
+    "I06",
+    "I07",
+    "I08",
+    "I09",
+    "I10",
+    "I11",
+    "I12",
+    "I13",
+    "I14",
+    "I15",
+    "I16",
+    "I17",
+    "J01",
+    "J02",
+    "J03",
+    "J04",
+    "J05",
+    "J06",
+    "J07",
+    "J08",
+    "J09",
+    "J10",
+    "J11",
+    "J12",
+    "J13",
+    "J14",
+    "K01",
+    "K02",
+    "K03",
+    "K04",
+    "K05",
+    "L01",
+    "L02",
+    "L03",
+    "L04",
+    "L05",
+    "L2-01",
+    "L2-02",
+    "L2-03",
+    "L2-04",
+    "L2-05",
+    "N01",
+    "N02",
+    "N03",
+    "N04",
+    "N05",
+    "O01",
+    "O02",
+    "O03",
+    "O04",
+    "O05",
+    "O06",
+    "Q01",
+    "Q02",
+    "Q03",
+    "Q04",
+    "Q05",
+    "Q06",
+    "Q07",
+    "Q08",
+    "I18",
+    "J15"
+  ],
+  "fingerprints": {
+    "A01": {
+      "test_id": "e2e/public/cfp-load",
+      "journey": "Load form; see welcome; brand tokens visible"
+    },
+    "A02": {
+      "test_id": "e2e/public/cfp-conditional",
+      "journey": "Fill required fields; conditional field appears when rule met"
+    },
+    "A03": {
+      "test_id": "e2e/public/cfp-category",
+      "journey": "Select category; observe routing metadata on submit payload"
+    },
+    "A04": {
+      "test_id": "e2e/public/cfp-multi-speaker",
+      "journey": "Add second speaker block; min/max speaker rules"
+    },
+    "A05": {
+      "test_id": "e2e/public/cfp-file",
+      "journey": "Upload supporting file within type/size"
+    },
+    "A06": {
+      "test_id": "e2e/public/cfp-submit",
+      "journey": "Pass Turnstile (test key); submit success + confirmation"
+    },
+    "A07": {
+      "test_id": "e2e/public/cfp-closed",
+      "journey": "Closed window shows closed state; no submit"
+    },
+    "A08": {
+      "test_id": "e2e/public/cfp-validation",
+      "journey": "Validation errors inline; focus management"
+    },
+    "A09": {
+      "test_id": "e2e/public/cfp-mobile",
+      "journey": "Mobile viewport complete submit"
+    },
+    "A10": {
+      "test_id": "e2e/public/cfp-xss",
+      "journey": "XSS string in abstract renders as text not script"
+    },
+    "A11": {
+      "test_id": "e2e/public/cfp-keyboard",
+      "journey": "Keyboard-only complete valid submit"
+    },
+    "B01": {
+      "test_id": "e2e/auth/admin-login",
+      "journey": "Magic/invite login \u2192 session cookie set HttpOnly path"
+    },
+    "B02": {
+      "test_id": "e2e/auth/speaker-magic",
+      "journey": "Single-use link \u2192 portal; second use fails"
+    },
+    "B03": {
+      "test_id": "e2e/auth/logout",
+      "journey": "Logout clears session"
+    },
+    "B04": {
+      "test_id": "e2e/auth/admin-guard",
+      "journey": "Unauthed redirect/401"
+    },
+    "B05": {
+      "test_id": "e2e/auth/role-guard-admin",
+      "journey": "Speaker cannot open admin"
+    },
+    "B06": {
+      "test_id": "e2e/auth/role-guard-eval",
+      "journey": "Evaluator cannot mutate schedule"
+    },
+    "C01": {
+      "test_id": "e2e/admin/event-create",
+      "journey": "Create event; timezone; dates"
+    },
+    "C02": {
+      "test_id": "e2e/admin/event-switch",
+      "journey": "Switch active event context"
+    },
+    "C03": {
+      "test_id": "e2e/admin/design-color",
+      "journey": "Set brand color; live preview updates"
+    },
+    "C04": {
+      "test_id": "e2e/admin/design-logo",
+      "journey": "Upload logo; preview"
+    },
+    "C05": {
+      "test_id": "e2e/admin/design-publish",
+      "journey": "Publish tokens; public CFP shows brand"
+    },
+    "C06": {
+      "test_id": "e2e/admin/design-no-css",
+      "journey": "Cannot inject freeform CSS field (control absent)"
+    },
+    "C07": {
+      "test_id": "e2e/admin/settings-cfp-window",
+      "journey": "Edit event name/close dates for CFP window"
+    },
+    "C08": {
+      "test_id": "e2e/admin/design-contrast",
+      "journey": "Near-white brand \u2192 contrast warn/block or derived text on public CFP"
+    },
+    "C09": {
+      "test_id": "e2e/admin/design-logo-xss",
+      "journey": "SVG/scripty logo rejected; never executes"
+    },
+    "C10": {
+      "test_id": "e2e/admin/design-draft-isolation",
+      "journey": "Draft tokens not visible on public CFP until publish"
+    },
+    "C11": {
+      "test_id": "e2e/admin/event-isolation",
+      "journey": "Switch event A\u2192B; no A data in B lists"
+    },
+    "D01": {
+      "test_id": "e2e/admin/form-create",
+      "journey": "Create form; add text/select/file/speaker fields"
+    },
+    "D02": {
+      "test_id": "e2e/admin/form-reorder",
+      "journey": "Reorder fields drag"
+    },
+    "D03": {
+      "test_id": "e2e/admin/form-conditional",
+      "journey": "Conditional rule: show field if select=X"
+    },
+    "D04": {
+      "test_id": "e2e/admin/form-routing",
+      "journey": "Category field + routing target"
+    },
+    "D05": {
+      "test_id": "e2e/admin/form-required",
+      "journey": "Required flags + validation"
+    },
+    "D06": {
+      "test_id": "e2e/admin/form-copy",
+      "journey": "Welcome/thank-you copy"
+    },
+    "D07": {
+      "test_id": "e2e/admin/form-preview",
+      "journey": "Preview side-by-side"
+    },
+    "D08": {
+      "test_id": "e2e/admin/form-publish-version",
+      "journey": "Publish version; pin version on new submission"
+    },
+    "D09": {
+      "test_id": "e2e/admin/form-limits",
+      "journey": "Open/close + submission limit"
+    },
+    "D10": {
+      "test_id": "e2e/admin/form-link",
+      "journey": "Copy public link"
+    },
+    "E01": {
+      "test_id": "e2e/admin/sub-list",
+      "journey": "List filters by status/category"
+    },
+    "E02": {
+      "test_id": "e2e/admin/sub-detail",
+      "journey": "Open detail; answers; speakers"
+    },
+    "E03": {
+      "test_id": "e2e/admin/sub-assign",
+      "journey": "Assign to evaluator"
+    },
+    "E04": {
+      "test_id": "e2e/admin/sub-accept",
+      "journey": "Accept creates session + tasks"
+    },
+    "E05": {
+      "test_id": "e2e/admin/sub-reject",
+      "journey": "Reject with reason"
+    },
+    "E06": {
+      "test_id": "e2e/admin/sub-waitlist",
+      "journey": "Waitlist status"
+    },
+    "E07": {
+      "test_id": "e2e/admin/session-direct",
+      "journey": "Direct/sponsor session entry (no CFP)"
+    },
+    "E08": {
+      "test_id": "e2e/admin/sub-bulk",
+      "journey": "Bulk select + preview bulk status change"
+    },
+    "F01": {
+      "test_id": "e2e/eval/queue",
+      "journey": "See only assigned"
+    },
+    "F02": {
+      "test_id": "e2e/eval/score",
+      "journey": "Score criteria + comment; save"
+    },
+    "F03": {
+      "test_id": "e2e/eval/no-decide",
+      "journey": "Cannot accept/reject"
+    },
+    "F04": {
+      "test_id": "e2e/eval/a11y-keyboard",
+      "journey": "Keyboard-only complete score"
+    },
+    "F05": {
+      "test_id": "e2e/eval/export",
+      "journey": "Sort by aggregate score; export CSV of scores/status"
+    },
+    "G01": {
+      "test_id": "e2e/portal/home",
+      "journey": "Land on next incomplete task"
+    },
+    "G02": {
+      "test_id": "e2e/portal/bio",
+      "journey": "Edit bio; save"
+    },
+    "G03": {
+      "test_id": "e2e/portal/headshot",
+      "journey": "Upload headshot; preview"
+    },
+    "G04": {
+      "test_id": "e2e/portal/slides",
+      "journey": "Upload slides"
+    },
+    "G05": {
+      "test_id": "e2e/portal/task-complete",
+      "journey": "Complete task; status flips"
+    },
+    "G06": {
+      "test_id": "e2e/portal/task-overdue",
+      "journey": "Overdue visual state"
+    },
+    "G07": {
+      "test_id": "e2e/portal/session",
+      "journey": "View own session status"
+    },
+    "G08": {
+      "test_id": "e2e/portal/mobile",
+      "journey": "Mobile complete bio+task"
+    },
+    "H01": {
+      "test_id": "e2e/dash/overview",
+      "journey": "Stats + outstanding list"
+    },
+    "H02": {
+      "test_id": "e2e/dash/filter",
+      "journey": "Filter overdue"
+    },
+    "H03": {
+      "test_id": "e2e/dash/drill",
+      "journey": "Drill to speaker"
+    },
+    "H04": {
+      "test_id": "e2e/dash/live",
+      "journey": "Live update after portal complete (same session or poll \u22645s)"
+    },
+    "H05": {
+      "test_id": "e2e/dash/empty",
+      "journey": "Empty state when all clear"
+    },
+    "I01": {
+      "test_id": "e2e/sched/list",
+      "journey": "List view shows sessions"
+    },
+    "I02": {
+      "test_id": "e2e/sched/day",
+      "journey": "Day view"
+    },
+    "I03": {
+      "test_id": "e2e/sched/week",
+      "journey": "Week view"
+    },
+    "I04": {
+      "test_id": "e2e/sched/track",
+      "journey": "Track view"
+    },
+    "I05": {
+      "test_id": "e2e/sched/room",
+      "journey": "Room view"
+    },
+    "I06": {
+      "test_id": "e2e/sched/drag-place",
+      "journey": "Drag place into empty slot"
+    },
+    "I07": {
+      "test_id": "e2e/sched/conflict-speaker",
+      "journey": "Drag causes speaker conflict; blocked with reason"
+    },
+    "I08": {
+      "test_id": "e2e/sched/conflict-room",
+      "journey": "Room overlap conflict"
+    },
+    "I09": {
+      "test_id": "e2e/sched/keyboard",
+      "journey": "Keyboard move alternative"
+    },
+    "I10": {
+      "test_id": "e2e/sched/undo",
+      "journey": "Undo last move"
+    },
+    "I11": {
+      "test_id": "e2e/sched/tray",
+      "journey": "Unscheduled tray"
+    },
+    "I12": {
+      "test_id": "e2e/sched/tz",
+      "journey": "Timezone displayed"
+    },
+    "I13": {
+      "test_id": "e2e/sched/move",
+      "journey": "Move already-placed session to new slot"
+    },
+    "I14": {
+      "test_id": "e2e/sched/unschedule",
+      "journey": "Unschedule back to tray"
+    },
+    "I15": {
+      "test_id": "e2e/sched/stale",
+      "journey": "Stale version conflict shows recovery UI"
+    },
+    "I16": {
+      "test_id": "e2e/sched/persist",
+      "journey": "After place, all five views + reload consistent"
+    },
+    "J01": {
+      "test_id": "e2e/comms/template",
+      "journey": "Create/edit template merge fields"
+    },
+    "J02": {
+      "test_id": "e2e/comms/segment",
+      "journey": "Segment audience; count"
+    },
+    "J03": {
+      "test_id": "e2e/comms/preview",
+      "journey": "Preview all recipients + body"
+    },
+    "J04": {
+      "test_id": "e2e/comms/send-idempotent",
+      "journey": "Send once; second send idempotent"
+    },
+    "J05": {
+      "test_id": "e2e/comms/log",
+      "journey": "Delivery log visible"
+    },
+    "J06": {
+      "test_id": "e2e/comms/ics",
+      "journey": "ICS attach for scheduled session"
+    },
+    "J07": {
+      "test_id": "e2e/comms/authz",
+      "journey": "Role without comms:send cannot send"
+    },
+    "J08": {
+      "test_id": "e2e/comms/preview-required",
+      "journey": "Send without completed preview blocked"
+    },
+    "J09": {
+      "test_id": "e2e/comms/preview-invalidate",
+      "journey": "Edit audience invalidates preview"
+    },
+    "J10": {
+      "test_id": "e2e/comms/ics-update",
+      "journey": "ICS update after reschedule keeps UID bumps SEQUENCE"
+    },
+    "K01": {
+      "test_id": "e2e/keys/create",
+      "journey": "Create key with subset of scopes; secret shown once"
+    },
+    "K02": {
+      "test_id": "e2e/keys/revoke",
+      "journey": "Revoke key"
+    },
+    "K03": {
+      "test_id": "e2e/keys/secret-once",
+      "journey": "Copy prefix only after dismiss"
+    },
+    "K04": {
+      "test_id": "e2e/keys/authz",
+      "journey": "Non-admin cannot open keys"
+    },
+    "K05": {
+      "test_id": "e2e/keys/demo-clamp",
+      "journey": "Judge demo session mints 4h key, uses and revokes it; seeded key revoke blocked"
+    },
+    "L01": {
+      "test_id": "e2e/states/empty-sub",
+      "journey": "Empty list CTA"
+    },
+    "L02": {
+      "test_id": "e2e/states/error",
+      "journey": "Offline/API 500 shows error state not blank"
+    },
+    "L03": {
+      "test_id": "e2e/states/loading",
+      "journey": "Loading skeletons not infinite hang"
+    },
+    "L04": {
+      "test_id": "e2e/states/console-clean",
+      "journey": "No uncaught console errors"
+    },
+    "L05": {
+      "test_id": "e2e/states/large-list",
+      "journey": "150-row seed list paginates or virtualizes usable"
+    },
+    "N01": {
+      "test_id": "e2e/admin/speakers-list",
+      "journey": "List speakers for event"
+    },
+    "N02": {
+      "test_id": "e2e/admin/speakers-filter",
+      "journey": "Search/filter"
+    },
+    "N03": {
+      "test_id": "e2e/admin/speakers-detail",
+      "journey": "Detail: tasks + files"
+    },
+    "N04": {
+      "test_id": "e2e/admin/speakers-files",
+      "journey": "Open headshot/slides metadata"
+    },
+    "O01": {
+      "test_id": "e2e/settings/event",
+      "journey": "Event name/dates/tz"
+    },
+    "O02": {
+      "test_id": "e2e/settings/rooms",
+      "journey": "Rooms CRUD"
+    },
+    "O03": {
+      "test_id": "e2e/settings/tracks",
+      "journey": "Tracks CRUD"
+    },
+    "O04": {
+      "test_id": "e2e/settings/rubric",
+      "journey": "Eval rubric edit"
+    },
+    "O05": {
+      "test_id": "e2e/settings/task-templates",
+      "journey": "Task templates on accept"
+    },
+    "O06": {
+      "test_id": "e2e/settings/airtable-status",
+      "journey": "Airtable projection status read"
+    },
+    "A17": {
+      "test_id": "e2e/public/cfp-draft",
+      "journey": "Save as draft (title-only); resume restores fields; disabled when closed"
+    },
+    "L2-01": {
+      "test_id": "e2e/lumen2/state-sheet",
+      "journey": "Review primitives + state anatomy (`data-testid=l2-state-sheet`)"
+    },
+    "L2-02": {
+      "test_id": "e2e/lumen2/session-expired",
+      "journey": "Session expired \u2192 focused recovery panel (no auth alert in shell)"
+    },
+    "L2-03": {
+      "test_id": "e2e/lumen2/settings-two-pane",
+      "journey": "Two-pane category nav + content region"
+    },
+    "L2-04": {
+      "test_id": "e2e/lumen2/design-preview-public",
+      "journey": "Live public CFP preview depth (hero + form + CTA)"
+    },
+    "L2-05": {
+      "test_id": "e2e/lumen2/settings-a11y-keyboard",
+      "journey": "Keyboard focus journey + 390px usable settings"
+    },
+    "A18": {
+      "test_id": "e2e/public/cfp-multiselect-url",
+      "journey": "Multiselect multi-value + URL field is text (not file)"
+    },
+    "A19": {
+      "test_id": "e2e/public/cfp-copy-clean",
+      "journey": "No operator/debug brand copy (Lumen defaults / raw file ids)"
+    },
+    "D11": {
+      "test_id": "e2e/admin/form-reload",
+      "journey": "Reload builder restores draft after refresh"
+    },
+    "D12": {
+      "test_id": "e2e/admin/form-field-help",
+      "journey": "Field help text, placeholder & character cap render on public CFP with live counter"
+    },
+    "D13": {
+      "test_id": "e2e/admin/form-file-field",
+      "journey": "File field from palette; publish; public PDF upload; admin detail shows working file link"
+    },
+    "D14": {
+      "test_id": "e2e/admin/form-speaker-bounds",
+      "journey": "Form settings speaker min/max (1\u201315) enforced on public CFP"
+    },
+    "E09": {
+      "test_id": "e2e/admin/sub-bulk-commit",
+      "journey": "Bulk preview \u2192 Confirm apply (commit)"
+    },
+    "E10": {
+      "test_id": "e2e/admin/sub-search",
+      "journey": "Search list by title/speaker (`submissions-filter-q`)"
+    },
+    "E11": {
+      "test_id": "e2e/admin/sub-assign-picker",
+      "journey": "Assign via evaluator picker (not raw user id)"
+    },
+    "E12": {
+      "test_id": "e2e/admin/sub-detail-reviews",
+      "journey": "Detail Reviews panel (individual comments)"
+    },
+    "F06": {
+      "test_id": "e2e/eval/proposal-panel",
+      "journey": "Proposal panel shows speakers + answers beside rubric"
+    },
+    "F07": {
+      "test_id": "e2e/eval/queue-nav",
+      "journey": "Next unreviewed + search/filter"
+    },
+    "F08": {
+      "test_id": "e2e/eval/peer-reviews",
+      "journey": "Peer reviews reveal-after-submit"
+    },
+    "F09": {
+      "test_id": "e2e/eval/admin-reviews",
+      "journey": "Expand individual reviewer comments"
+    },
+    "F10": {
+      "test_id": "e2e/eval/abstain",
+      "journey": "Abstain with reason; leaves pending flow; admin rollup counts distinctly + shows reason; aggregate unchanged"
+    },
+    "F11": {
+      "test_id": "e2e/eval/round-close",
+      "journey": "Round deadline in banner; closed round locks scoring server-side + shows closed state"
+    },
+    "F12": {
+      "test_id": "e2e/eval/insights",
+      "journey": "Insights: completion bar, top 10 by aggregate (linked), divergence spread list"
+    },
+    "J11": {
+      "test_id": "e2e/comms/ics-attach-send",
+      "journey": "Send with calendar invite attached from picker"
+    },
+    "B08": {
+      "test_id": "e2e/auth/membership-chooser",
+      "journey": "Multi-membership chooser after exchange \u2192 pick named programme"
+    },
+    "G11": {
+      "test_id": "e2e/portal/section-nav",
+      "journey": "Section nav Home/Profile/Tasks/Sessions active + focus"
+    },
+    "B07": {
+      "test_id": "e2e/public/judge-access",
+      "journey": "Judge access code exchanges for demo role session (4h; body-posted code)"
+    },
+    "G09": {
+      "test_id": "e2e/portal/session-ics",
+      "journey": "Download own session calendar invite (.ics; placed sessions)"
+    },
+    "D15": {
+      "test_id": "e2e/admin/form-per-submitter-limit",
+      "journey": "Form settings per-person cap enforced on public CFP by normalized submitter email; total cap independent"
+    },
+    "D16": {
+      "test_id": "e2e/admin/form-layout-nodes",
+      "journey": "Section + divider layout nodes: builder compose/reorder, reload round-trip, public headings/dividers, no layout answers"
+    },
+    "F13": {
+      "test_id": "e2e/eval/hide-speakers",
+      "journey": "Hide speaker identities: proposal API + evaluator DOM carry no roster tokens; toggle off restores; admin detail complete"
+    },
+    "J12": {
+      "test_id": "e2e/comms/submission-confirmation",
+      "journey": "Submission confirmation lifecycle: public submit \u2192 queued delivery-log job with rendered merge fields; template editable"
+    },
+    "A20": {
+      "test_id": "e2e/public-cfp/speaker-about",
+      "journey": "Expand \"About this speaker\"; bio/company/title seed accepted speaker profile; never overwrites non-empty"
+    },
+    "E13": {
+      "test_id": "e2e/submissions/decision-notify",
+      "journey": "Decision \u2192 notify hand-off: bulk accept exact result set becomes the comms audience; typed template preselected; preview \u2192 idempotent send \u2192 delivery log"
+    },
+    "E14": {
+      "test_id": "e2e/submissions/export-csv",
+      "journey": "Filtered submissions CSV export: stable headers, flattened speakers, answer columns (layout nodes excluded); bytes inspected"
+    },
+    "E15": {
+      "test_id": "e2e/submissions/direct-session-parity",
+      "journey": "Direct/sponsor session dialog parity: repeatable speaker rows + track select; both speakers linked and track chip shown"
+    },
+    "F14": {
+      "test_id": "e2e/eval/bulk-assign",
+      "journey": "Bulk-assign wizard: preview deterministic plan (filters, modes, caps, preserve/replace) then apply; durable assignments match plan; stale re-commit blocked; preserve re-run adds nothing"
+    },
+    "I17": {
+      "test_id": "e2e/schedule/agenda-settings",
+      "journey": "Agenda settings: set day window 10:00\u201316:00 + 30-min interval in settings card; Studio day grid shows 12 slots (10:00\u201315:30); non-drag place snaps to 30-min duration"
+    },
+    "J13": {
+      "test_id": "e2e/comms/ics-picker",
+      "journey": "ICS picker lists actual scheduled sessions (title + time + room); invite carries the placement's real times; reschedule + regenerate bumps SEQUENCE"
+    },
+    "G12": {
+      "test_id": "e2e/portal/task-depth",
+      "journey": "Required task depth: required-first ordering, Required badge, https resource link on task cards (DTO + DOM)"
+    },
+    "N05": {
+      "test_id": "e2e/speakers/complete-on-behalf",
+      "journey": "Complete task on behalf of speaker; portal + readiness update instantly"
+    },
+    "D17": {
+      "test_id": "e2e/admin/form-rich-text",
+      "journey": "Rich welcome (H2/bold/list) + rich_text field authored in builder; publish; public CFP renders authored nodes; rich answer to admin detail + plain-text CSV"
+    },
+    "G13": {
+      "test_id": "e2e/portal/bio-rich",
+      "journey": "Rich bio (bold) edited in portal profile; admin speaker view renders formatting via safe renderer"
+    },
+    "J14": {
+      "test_id": "e2e/comms/template-rich",
+      "journey": "Rich template body (bold + merge token) edited in rich editor; preview shows rendered body; markup-shaped merge value stays escaped text"
+    },
+    "Q01": {
+      "test_id": "e2e/find/palette",
+      "journey": "Open palette, rebuild index, search returns typed hits without console errors"
+    },
+    "Q02": {
+      "test_id": "e2e/portal-lib/form-publish",
+      "journey": "Create portal form, publish, list persists title/fields"
+    },
+    "Q03": {
+      "test_id": "e2e/portal-lib/resource-edit",
+      "journey": "Create resource, select row, save, publish"
+    },
+    "Q04": {
+      "test_id": "e2e/portal-lib/file-request-publish",
+      "journey": "Create + publish file request"
+    },
+    "Q05": {
+      "test_id": "e2e/portal-lib/speaker-list",
+      "journey": "Published forms + resources listed for speaker"
+    },
+    "Q06": {
+      "test_id": "e2e/portal-lib/file-request-fulfill",
+      "journey": "Upload fulfils published file request (fileId linked)"
+    },
+    "Q07": {
+      "test_id": "e2e/embeds/preview-frame",
+      "journey": "Admin embed preview iframe allowed by frame-src self"
+    },
+    "Q08": {
+      "test_id": "e2e/team/invite",
+      "journey": "Add member invite by email + role; roster updates"
+    },
+    "I18": {
+      "test_id": "e2e/sched/tray-filter \u00b7 schedule_lumen2",
+      "journey": "Unscheduled tray search + sort (title/track/status) via schedule-tray-search / schedule-tray-sort"
+    },
+    "J15": {
+      "test_id": "e2e/comms/wizard-gate \u00b7 lumen2 AC-11.2-UI",
+      "journey": "Gated wizard: only active step mounts; Next disabled when step invalid; Send step unreachable without preview"
+    }
   }
- }
 }

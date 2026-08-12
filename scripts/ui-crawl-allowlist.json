@@ -1380,6 +1380,22 @@
       "inv": "Q06",
       "surface": "portal",
       "journey": "Mobile portal file requests"
+    },
+    {
+      "testid": "comms-wizard-next",
+      "inv": "J15"
+    },
+    {
+      "testid": "comms-wizard-back",
+      "inv": "J15"
+    },
+    {
+      "testid": "schedule-tray-search",
+      "inv": "I18"
+    },
+    {
+      "testid": "schedule-tray-sort",
+      "inv": "I18"
     }
   ]
 }
