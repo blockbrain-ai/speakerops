@@ -138,6 +138,22 @@
       "reason": "Progressive disclosure chrome for routing/copy/limits (11.3); D04/D06/D09 controls remain"
     },
     {
+      "testid": "form-wizard-step-*",
+      "reason": "Wave-1 guided wizard step chrome (formbuilder-mock); domain field/publish actions remain D01–D10"
+    },
+    {
+      "testid": "form-wizard-back",
+      "reason": "Wave-1 wizard back chrome; mirrors campaign wizard step chrome pattern"
+    },
+    {
+      "testid": "form-wizard-next",
+      "reason": "Wave-1 wizard next chrome; does not publish or save"
+    },
+    {
+      "testid": "form-preview-as-submitter",
+      "reason": "Alias chrome for builder-view-preview (11.3 D07 preview surface)"
+    },
+    {
       "testid": "admin-docs-link",
       "reason": "External docs link (learn.speakerops.org) — chrome, not a product action"
     },

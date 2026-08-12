@@ -6962,3 +6962,196 @@ input.speakers-page__profile-input,
     justify-content: flex-start;
   }
 }
+
+/* =========================================================================
+ * Wave-1 · Form builder guided wizard rail (owner-approved mock)
+ * Additive: keeps outline-canvas-inspector for e2e; rail guides the journey.
+ * ========================================================================= */
+
+.form-builder__wizard {
+  display: grid;
+  grid-template-columns: minmax(180px, 216px) minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid var(--lumen-border);
+  border-radius: var(--lumen-radius-md);
+  background: var(--lumen-surface);
+  overflow: hidden;
+  box-shadow: var(--lumen-shadow-sm);
+}
+
+.form-builder__wizard-rail {
+  border-right: 1px solid var(--lumen-border);
+  background: var(--lumen-surface);
+  padding: var(--lumen-space-4) var(--lumen-space-3);
+}
+
+.form-builder__wizard-cap {
+  margin: 0 var(--lumen-space-2) var(--lumen-space-3);
+  font-family: var(--lumen-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lumen-text-secondary);
+  font-weight: 700;
+}
+
+.form-builder__wizard-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.form-builder__wizard-step {
+  display: flex;
+  gap: var(--lumen-space-2);
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--lumen-text);
+  font-family: var(--lumen-font);
+}
+
+.form-builder__wizard-step:hover {
+  background: var(--lumen-bg);
+}
+
+.form-builder__wizard-step.is-active {
+  background: var(--lumen-brand-deep);
+  color: var(--lumen-surface);
+}
+
+.form-builder__wizard-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--lumen-brand-soft);
+  color: var(--lumen-brand-deep);
+}
+
+.form-builder__wizard-step.is-active .form-builder__wizard-mark {
+  background: var(--lumen-surface);
+  color: var(--lumen-brand-deep);
+}
+
+.form-builder__wizard-step.is-done:not(.is-active) .form-builder__wizard-mark {
+  background: var(--lumen-brand-soft);
+  color: var(--lumen-brand-deep);
+}
+
+.form-builder__wizard-step-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.form-builder__wizard-step-desc {
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+  color: var(--lumen-text-secondary);
+  line-height: 1.3;
+}
+
+.form-builder__wizard-step.is-active .form-builder__wizard-step-desc {
+  color: var(--lumen-surface);
+  opacity: 0.85;
+}
+
+.form-builder__wizard-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--lumen-bg);
+}
+
+.form-builder__wizard-main .form-builder__workspace--l2 {
+  padding: var(--lumen-space-4);
+  margin: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.form-builder__wizard-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lumen-space-3);
+  padding: var(--lumen-space-3) var(--lumen-space-5);
+  border-top: 1px solid var(--lumen-border);
+  background: var(--lumen-surface);
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+.form-builder__wizard-prog {
+  font-size: 12px;
+  color: var(--lumen-text-secondary);
+}
+
+.form-builder__wizard-nav {
+  margin-left: auto;
+  display: flex;
+  gap: var(--lumen-space-2);
+}
+
+.form-builder__saved-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--lumen-success, var(--lumen-brand-deep));
+  line-height: 1;
+}
+
+.form-builder__saved-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lumen-success, var(--lumen-brand-deep));
+}
+
+[data-wizard-focus="true"] {
+  outline: 2px solid var(--lumen-brand);
+  outline-offset: 4px;
+  border-radius: var(--lumen-radius-md);
+  transition: outline-color 0.3s ease;
+}
+
+@media (max-width: 900px) {
+  .form-builder__wizard {
+    grid-template-columns: 1fr;
+  }
+  .form-builder__wizard-rail {
+    border-right: none;
+    border-bottom: 1px solid var(--lumen-border);
+    padding: var(--lumen-space-3);
+  }
+  .form-builder__wizard-steps {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: var(--lumen-space-2);
+  }
+  .form-builder__wizard-step {
+    flex: none;
+    min-width: 9rem;
+  }
+}

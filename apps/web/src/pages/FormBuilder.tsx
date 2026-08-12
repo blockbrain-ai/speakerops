@@ -103,6 +103,73 @@ type StatusMsg = { kind: "ok" | "error" | "warn"; text: string } | null;
 
 type BuilderView = "build" | "preview" | "publish";
 
+/** Wave-1 guided wizard (owner-approved formbuilder-mock). */
+type WizardStepId =
+  | "setup"
+  | "welcome"
+  | "proposal"
+  | "participants"
+  | "rules"
+  | "settings"
+  | "notifications";
+
+const WIZARD_STEPS: ReadonlyArray<{
+  id: WizardStepId;
+  label: string;
+  desc: string;
+  /** data-testid of the section to scroll into view */
+  targetTestId: string;
+  /** Expand form advanced disclosure when entering this step */
+  needsAdvanced?: boolean;
+}> = [
+  {
+    id: "setup",
+    label: "Setup",
+    desc: "Form identity",
+    targetTestId: "form-create-section",
+  },
+  {
+    id: "welcome",
+    label: "Welcome",
+    desc: "Message & terms",
+    targetTestId: "copy-editor-section",
+    needsAdvanced: true,
+  },
+  {
+    id: "proposal",
+    label: "Proposal",
+    desc: "Questions & routing",
+    targetTestId: "form-builder-workspace",
+  },
+  {
+    id: "participants",
+    label: "Participants",
+    desc: "Speaker roles",
+    targetTestId: "form-settings-panel",
+  },
+  {
+    id: "rules",
+    label: "Rules",
+    desc: "Logic & validation",
+    targetTestId: "rules-editor-section",
+    needsAdvanced: true,
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    desc: "Deadline & limits",
+    targetTestId: "limits-editor-section",
+    needsAdvanced: true,
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    desc: "Confirmation email",
+    targetTestId: "copy-editor-section",
+    needsAdvanced: true,
+  },
+];
+
 function reasonMessage(reasons: ReturnType<typeof publishBlockReasons>): string {
   if (reasons.includes("no_form")) return "Create a form first";
   if (reasons.includes("no_fields")) return "Add at least one field to publish";
@@ -167,6 +234,44 @@ export function FormBuilderPage() {
   const [formAdvancedOpen, setFormAdvancedOpen] = useState(true);
   /** Progressive disclosure: field conditionals in inspector. */
   const [fieldAdvancedOpen, setFieldAdvancedOpen] = useState(true);
+  /**
+   * Wave-1 guided wizard step (mock formbuilder-mock).
+   * Default "proposal" so outline+canvas+inspector e2e stays on the crown step.
+   */
+  const [wizardStep, setWizardStep] = useState<WizardStepId>("proposal");
+
+  const goWizardStep = useCallback(
+    (stepId: WizardStepId) => {
+      const step = WIZARD_STEPS.find((s) => s.id === stepId);
+      if (!step) return;
+      setWizardStep(stepId);
+      setBuilderView("build");
+      if (step.needsAdvanced) setFormAdvancedOpen(true);
+      // Scroll after layout paints (advanced body may open in the same tick).
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const el = document.querySelector(
+            `[data-testid="${step.targetTestId}"]`,
+          );
+          if (el instanceof HTMLElement) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+            el.setAttribute("data-wizard-focus", "true");
+            window.setTimeout(() => {
+              el.removeAttribute("data-wizard-focus");
+            }, 1600);
+          }
+        });
+      });
+    },
+    [],
+  );
+
+  const wizardIndex = WIZARD_STEPS.findIndex((s) => s.id === wizardStep);
+  const wizardPrev = wizardIndex > 0 ? WIZARD_STEPS[wizardIndex - 1] : null;
+  const wizardNext =
+    wizardIndex >= 0 && wizardIndex < WIZARD_STEPS.length - 1
+      ? WIZARD_STEPS[wizardIndex + 1]
+      : null;
 
   const selected = useMemo(
     () => fields.find((f) => f.clientId === selectedClientId) ?? null,
@@ -733,11 +838,19 @@ export function FormBuilderPage() {
       <PageHeader
         eyebrow="Call for proposals"
         title="Form builder"
-        description="Outline, canvas, and inspector — progressive advanced controls. Publish freezes an immutable version."
+        description="Guided wizard — one concern per step. Outline, canvas, and inspector on Proposal. Publish freezes an immutable version."
         data-testid="form-builder-page-header"
         actions={
           form ? (
             <div className="form-builder__header-actions">
+              {saveStatus?.kind === "ok" ? (
+                <span
+                  className="form-builder__saved-pill"
+                  data-testid="form-saved-indicator"
+                >
+                  Saved
+                </span>
+              ) : null}
               <Button
                 type="button"
                 variant="secondary"
@@ -748,6 +861,16 @@ export function FormBuilderPage() {
                 pending={busy && saveStatus === null}
               >
                 Save draft
+              </Button>
+              <Button
+                type="button"
+                variant="quiet"
+                size="sm"
+                data-testid="form-preview-as-submitter"
+                onClick={() => setBuilderView("preview")}
+                disabled={!form}
+              >
+                Preview as submitter
               </Button>
               <Button
                 type="button"
@@ -763,7 +886,7 @@ export function FormBuilderPage() {
                     : reasonMessage(blockReasons)
                 }
               >
-                Publish
+                Publish…
               </Button>
               <Button
                 type="button"
@@ -947,6 +1070,59 @@ export function FormBuilderPage() {
           </nav>
 
           {builderView === "build" ? (
+            <div
+              className="form-builder__wizard"
+              data-testid="form-builder-wizard"
+              data-wizard-step={wizardStep}
+            >
+              <aside
+                className="form-builder__wizard-rail"
+                data-testid="form-builder-wizard-rail"
+                aria-label="Build your form"
+              >
+                <p className="form-builder__wizard-cap">Build your form</p>
+                <ol className="form-builder__wizard-steps">
+                  {WIZARD_STEPS.map((step, i) => {
+                    const done = i < wizardIndex;
+                    const active = step.id === wizardStep;
+                    return (
+                      <li key={step.id}>
+                        <button
+                          type="button"
+                          className={[
+                            "form-builder__wizard-step",
+                            "lumen-focusable",
+                            active ? "is-active" : "",
+                            done ? "is-done" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          data-testid={`form-wizard-step-${step.id}`}
+                          aria-current={active ? "step" : undefined}
+                          onClick={() => goWizardStep(step.id)}
+                        >
+                          <span
+                            className="form-builder__wizard-mark"
+                            aria-hidden
+                          >
+                            {done ? "✓" : i + 1}
+                          </span>
+                          <span className="form-builder__wizard-step-text">
+                            <span className="form-builder__wizard-step-name">
+                              {step.label}
+                            </span>
+                            <span className="form-builder__wizard-step-desc">
+                              {step.desc}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </aside>
+
+              <div className="form-builder__wizard-main">
             <div
               className="form-builder__workspace form-builder__workspace--l2"
               data-testid="form-builder-workspace"
@@ -1556,6 +1732,46 @@ export function FormBuilderPage() {
                   )}
                 </section>
               </aside>
+            </div>
+
+            <footer
+              className="form-builder__wizard-foot"
+              data-testid="form-builder-wizard-foot"
+            >
+              <span className="form-builder__wizard-prog">
+                Step {wizardIndex + 1} of {WIZARD_STEPS.length} ·{" "}
+                {WIZARD_STEPS[wizardIndex]?.label ?? "Proposal"}
+              </span>
+              <div className="form-builder__wizard-nav">
+                <Button
+                  type="button"
+                  variant="quiet"
+                  size="md"
+                  data-testid="form-wizard-back"
+                  disabled={!wizardPrev}
+                  onClick={() =>
+                    wizardPrev ? goWizardStep(wizardPrev.id) : undefined
+                  }
+                >
+                  ← Back
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  data-testid="form-wizard-next"
+                  disabled={!wizardNext}
+                  onClick={() =>
+                    wizardNext ? goWizardStep(wizardNext.id) : undefined
+                  }
+                >
+                  {wizardNext
+                    ? `Next: ${wizardNext.label} →`
+                    : "End of wizard"}
+                </Button>
+              </div>
+            </footer>
+              </div>
             </div>
           ) : null}
 
