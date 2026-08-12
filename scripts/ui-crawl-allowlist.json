@@ -1140,6 +1140,48 @@
       "inv": "H01",
       "surface": "admin",
       "journey": "N7 analytics widget gallery toggle"
+    },
+    {
+      "testid": "nav-portal-forms",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N1 Portal forms nav"
+    },
+    {
+      "testid": "portal-forms-refresh",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N1 portal forms refresh"
+    },
+    {
+      "testid": "portal-form-create",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N1 create portal form"
+    },
+    {
+      "testid": "portal-form-publish",
+      "inv": "D08",
+      "surface": "admin",
+      "journey": "N1 publish portal form"
+    },
+    {
+      "testid": "portal-form-unpublish",
+      "inv": "D08",
+      "surface": "admin",
+      "journey": "N1 unpublish portal form"
+    },
+    {
+      "testid": "portal-form-field-add",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N1 add portal form field"
+    },
+    {
+      "testid": "portal-form-item-*",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N1 select portal form"
     }
   ]
 }

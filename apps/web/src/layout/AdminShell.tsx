@@ -76,6 +76,12 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     icon: "check",
   },
   {
+    path: "/admin/portal-forms",
+    label: "Portal forms",
+    testId: "nav-portal-forms",
+    icon: "file",
+  },
+  {
     path: "/admin/evaluations",
     label: "Evaluations",
     testId: "nav-evaluations",

@@ -76,6 +76,58 @@ export const programmePublications = sqliteTable(
 );
 
 /**
+ * portal_forms — N1 post-acceptance data collection (migration 0040).
+ * Scoped to participation (no Group aggregate).
+ */
+export const portalForms = sqliteTable(
+  "portal_forms",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    title: text("title").notNull(),
+    description: text("description"),
+    scope: text("scope").notNull().default("participation"),
+    status: text("status").notNull().default("draft"),
+    fieldsJson: text("fields_json").notNull().default("[]"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (t) => [
+    index("idx_portal_forms_event_id").on(t.eventId),
+    index("idx_portal_forms_event_status").on(t.eventId, t.status),
+  ],
+);
+
+export const portalFormResponses = sqliteTable(
+  "portal_form_responses",
+  {
+    id: text("id").primaryKey().notNull(),
+    formId: text("form_id")
+      .notNull()
+      .references(() => portalForms.id),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    participationId: text("participation_id").notNull(),
+    answersJson: text("answers_json").notNull().default("{}"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (t) => [
+    index("idx_portal_form_responses_event").on(t.eventId),
+    index("idx_portal_form_responses_participation").on(t.participationId),
+    uniqueIndex("idx_portal_form_responses_form_part").on(
+      t.formId,
+      t.participationId,
+    ),
+  ],
+);
+
+/**
  * audit_events — consequential writes (E3).
  * correlation_id is required so request/CLI entry can be traced.
  */
@@ -1366,6 +1418,8 @@ export const schema = {
   savedViews,
   searchDocuments,
   programmePublications,
+  portalForms,
+  portalFormResponses,
 } as const;
 
 export type SavedView = typeof savedViews.$inferSelect;
@@ -1374,3 +1428,7 @@ export type SearchDocument = typeof searchDocuments.$inferSelect;
 export type NewSearchDocument = typeof searchDocuments.$inferInsert;
 export type ProgrammePublication = typeof programmePublications.$inferSelect;
 export type NewProgrammePublication = typeof programmePublications.$inferInsert;
+export type PortalForm = typeof portalForms.$inferSelect;
+export type NewPortalForm = typeof portalForms.$inferInsert;
+export type PortalFormResponse = typeof portalFormResponses.$inferSelect;
+export type NewPortalFormResponse = typeof portalFormResponses.$inferInsert;

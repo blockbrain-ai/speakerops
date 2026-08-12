@@ -74,6 +74,15 @@ import {
   MagicLinkTestOutbox,
   type AuthStore,
 } from "./modules/auth/store.js";
+import {
+  createPortalFormsAdminRoutes,
+  createPortalFormsSpeakerRoutes,
+} from "./modules/portal-forms/routes.js";
+import {
+  MemoryPortalFormsStore,
+  D1PortalFormsStore,
+  type PortalFormsStore,
+} from "./modules/portal-forms/store.js";
 import type { BootstrapPolicy } from "./modules/auth/commands.js";
 import {
   MemoryEventsStore,
@@ -212,6 +221,8 @@ export type CreateAppOptions = {
   searchStore?: SearchStore;
   /** Inject programme publication store (F7; defaults to in-memory). */
   programmeStore?: ProgrammeStore;
+  /** Inject portal forms store (N1; defaults to in-memory). */
+  portalFormsStore?: PortalFormsStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /**
@@ -306,6 +317,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     options.savedViewsStore ?? new MemorySavedViewsStore();
   const searchStore = options.searchStore ?? new MemorySearchStore();
   const programmeStore = options.programmeStore ?? new MemoryProgrammeStore();
+  const portalFormsStore =
+    options.portalFormsStore ?? new MemoryPortalFormsStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -444,6 +457,29 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       events: eventsStore,
       forms: formsStore,
       keys: keysStore,
+    }),
+  );
+
+  // N1 Portal Forms — admin CRUD under /api/events/:eventId/portal-forms
+  app.route(
+    "/api/events",
+    createPortalFormsAdminRoutes({
+      store: authStore,
+      events: eventsStore,
+      portalForms: portalFormsStore,
+      submissions: submissionsStore,
+      decisions: decisionsStore,
+    }),
+  );
+  // N1 Portal Forms — speaker list + submit under /api/portal/forms*
+  app.route(
+    "/api/portal",
+    createPortalFormsSpeakerRoutes({
+      store: authStore,
+      events: eventsStore,
+      portalForms: portalFormsStore,
+      submissions: submissionsStore,
+      decisions: decisionsStore,
     }),
   );
 
@@ -910,6 +946,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     savedViewsStore: new D1SavedViewsStore(d1),
     searchStore: new D1SearchStore(d1),
     programmeStore: new D1ProgrammeStore(d1),
+    portalFormsStore: new D1PortalFormsStore(d1),
     turnstileSecret,
     demoMode,
     demoAllowlistEnabled,

@@ -52,6 +52,8 @@ export {
   savedViews,
   searchDocuments,
   programmePublications,
+  portalForms,
+  portalFormResponses,
   baselineTables,
   authTables,
   membershipTables,

@@ -39,6 +39,7 @@ import { FilesPage } from "./pages/operator/FilesPage.js";
 import { EmbedConfiguratorPage } from "./pages/operator/EmbedConfigurator.js";
 import { PreviewHubPage } from "./pages/operator/PreviewHub.js";
 import { AnalyticsDashboardPage } from "./pages/operator/AnalyticsDashboard.js";
+import { PortalFormsPage } from "./pages/operator/PortalFormsPage.js";
 import { FormBuilderPage } from "./pages/FormBuilder.js";
 import { EvaluatorQueuePage } from "./pages/EvaluatorQueue.js";
 import { RubricSettingsPage } from "./pages/RubricSettings.js";
@@ -176,6 +177,7 @@ export function AppRoutes() {
         <Route path="/admin/embeds" element={<EmbedConfiguratorPage />} />
         <Route path="/admin/preview" element={<PreviewHubPage />} />
         <Route path="/admin/analytics" element={<AnalyticsDashboardPage />} />
+        <Route path="/admin/portal-forms" element={<PortalFormsPage />} />
         <Route path="/admin/settings" element={<SettingsLayout />}>
           <Route index element={<EventSettingsPage />} />
           <Route path="/admin/settings/design" element={<DesignKitPage />} />

@@ -656,6 +656,27 @@ export {
 } from "./portal.js";
 
 export {
+  PortalFormFieldTypeSchema,
+  type PortalFormFieldType,
+  PortalFormFieldSchema,
+  type PortalFormField,
+  PortalFormStatusSchema,
+  type PortalFormStatus,
+  PortalFormDtoSchema,
+  type PortalFormDto,
+  PortalFormListResponseSchema,
+  type PortalFormListResponse,
+  PortalFormCreateBodySchema,
+  type PortalFormCreateBody,
+  PortalFormUpdateBodySchema,
+  type PortalFormUpdateBody,
+  PortalFormResponseDtoSchema,
+  type PortalFormResponseDto,
+  PortalFormSubmitBodySchema,
+  type PortalFormSubmitBody,
+} from "./portal-forms.js";
+
+export {
   TemplateKeySchema,
   type TemplateKey,
   EmailTemplateSchema,
