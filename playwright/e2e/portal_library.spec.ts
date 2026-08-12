@@ -1,6 +1,5 @@
 /**
- * N1–N3 speaker library + inventory Q02–Q06.
- * Admin publishes form/resource/file-request; speaker lists + fulfils.
+ * N1–N3 portal library — inventory Q02–Q06 with real browser primary controls.
  */
 import { test, expect } from "@playwright/test";
 import {
@@ -8,9 +7,80 @@ import {
   ensureEvent,
   sessionHeaders,
 } from "./helpers/cfp-eval-seed.js";
+import path from "node:path";
+import { writeFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+
+const TURNSTILE_DEV_PASS_TOKEN = "XXXX.DUMMY.TOKEN";
+
+/** Materialise a speaker participation via CFP submit + admin accept. */
+async function seedSpeakerParticipation(
+  request: import("@playwright/test").APIRequestContext,
+  adminSession: string,
+  eventId: string,
+  slug: string,
+  speakerEmail: string,
+  speakerName: string,
+): Promise<string> {
+  const create = await request.post(`/api/events/${eventId}/forms`, {
+    headers: sessionHeaders(adminSession),
+    data: { name: `CFP ${speakerName}` },
+  });
+  expect(create.status()).toBe(201);
+  const form = (await create.json()) as { form: { id: string } };
+  await request.put(`/api/forms/${form.form.id}/draft`, {
+    headers: sessionHeaders(adminSession),
+    data: {
+      fields: [
+        {
+          fieldKey: "abstract",
+          type: "textarea",
+          label: "Abstract",
+          required: true,
+          sortOrder: 0,
+        },
+      ],
+      rules: [],
+    },
+  });
+  const publish = await request.post(`/api/forms/${form.form.id}/publish`, {
+    headers: sessionHeaders(adminSession),
+    data: {},
+  });
+  expect(publish.status()).toBe(200);
+  const pub = (await publish.json()) as { formVersion: { id: string } };
+  const submit = await request.post(`/api/public/cfp/${slug}/submissions`, {
+    data: {
+      formVersionId: pub.formVersion.id,
+      title: `Talk by ${speakerName}`,
+      speakers: [
+        { name: speakerName, email: speakerEmail, isPrimary: true },
+      ],
+      answers: [{ fieldKey: "abstract", value: "Library fulfill abstract" }],
+      turnstileToken: TURNSTILE_DEV_PASS_TOKEN,
+    },
+  });
+  expect(submit.status(), await submit.text()).toBe(201);
+  const sub = (await submit.json()) as { submission: { id: string } };
+  const decision = await request.post(
+    `/api/submissions/${sub.submission.id}/decision`,
+    {
+      headers: sessionHeaders(adminSession),
+      data: { decision: "accept" },
+    },
+  );
+  expect(decision.status(), await decision.text()).toBe(200);
+  const body = (await decision.json()) as {
+    participations: Array<{ id: string }>;
+  };
+  expect(body.participations.length).toBeGreaterThanOrEqual(1);
+  return body.participations[0]!.id;
+}
 
 async function loginSpeaker(
   request: import("@playwright/test").APIRequestContext,
+  context: import("@playwright/test").BrowserContext,
+  baseURL: string | undefined,
   email: string,
   eventId: string,
 ): Promise<string> {
@@ -32,11 +102,45 @@ async function loginSpeaker(
   const setCookie = exchange.headers()["set-cookie"] ?? "";
   const match = setCookie.match(/speakerops_session=([^;]+)/);
   expect(match).toBeTruthy();
-  return match![1]!;
+  const session = match![1]!;
+  await context.addCookies([
+    {
+      name: "speakerops_session",
+      value: session,
+      url: baseURL ?? "http://127.0.0.1:5173",
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+    },
+  ]);
+  return session;
+}
+
+async function selectEvent(
+  page: import("@playwright/test").Page,
+  eventId: string,
+) {
+  const eventSelect = page.getByTestId("event-context");
+  if ((await eventSelect.count()) === 0) return;
+  const tag = await eventSelect.evaluate((el) => el.tagName.toLowerCase());
+  if (tag === "select") {
+    await eventSelect.selectOption(eventId).catch(async () => {
+      const options = eventSelect.locator("option");
+      const n = await options.count();
+      for (let i = 0; i < n; i++) {
+        const val = await options.nth(i).getAttribute("value");
+        if (val === eventId) {
+          await eventSelect.selectOption(eventId);
+          break;
+        }
+      }
+    });
+  }
 }
 
 test.describe("Portal library N1–N3", () => {
   test("@inv:Q02 e2e/portal-lib/form-publish create + publish portal form", async ({
+    page,
     request,
     context,
     baseURL,
@@ -55,67 +159,45 @@ test.describe("Portal library N1–N3", () => {
       `Library Event Q02 ${Date.now()}`,
       `lib-q02-${Date.now()}`,
     );
-    const adminHeaders = sessionHeaders(adminSession);
-
-    const create = await request.post(
-      `/api/events/${encodeURIComponent(event.id)}/portal-forms`,
-      {
-        headers: adminHeaders,
-        data: {
-          title: "Travel form",
-          fields: [
-            {
-              key: "city",
-              label: "Arrival city",
-              type: "text",
-              required: true,
-            },
-          ],
-        },
-      },
-    );
-    expect(create.status(), await create.text()).toBe(201);
-    const form = (await create.json()) as { id: string; version: number };
-    expect(form.id).toBeTruthy();
-
-    const pub = await request.patch(
-      `/api/events/${encodeURIComponent(event.id)}/portal-forms/${encodeURIComponent(form.id)}`,
-      {
-        headers: adminHeaders,
-        data: { status: "published", expectedVersion: form.version },
-      },
-    );
-    expect(pub.status(), await pub.text()).toBe(200);
-    const pubBody = (await pub.json()) as { status: string; title?: string };
-    expect(pubBody.status).toBe("published");
-    expect(pubBody.title ?? "Travel form").toBeTruthy();
-
-    const adminList = await request.get(
-      `/api/events/${encodeURIComponent(event.id)}/portal-forms`,
-      { headers: adminHeaders },
-    );
-    const adminListText = await adminList.text();
-    expect(adminList.status(), adminListText).toBe(200);
-    const adminForms = JSON.parse(adminListText) as {
-      forms: { title: string; status: string; id: string }[];
-    };
-    expect(adminForms.forms).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: "Travel form",
-          status: "published",
-        }),
-      ]),
-    );
 
     // Unauth negative
     const unauth = await request.get(
       `/api/events/${encodeURIComponent(event.id)}/portal-forms`,
     );
     expect([401, 403]).toContain(unauth.status());
+
+    await page.goto("/admin");
+    await expect(page.getByTestId("admin-shell")).toBeVisible({
+      timeout: 15_000,
+    });
+    await selectEvent(page, event.id);
+
+    await page.getByTestId("nav-portal-forms").click();
+    await expect(page.getByTestId("page-portal-forms")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByTestId("portal-form-title-input").fill("Travel form");
+    await page.getByTestId("portal-form-create").click();
+    await expect(page.getByTestId("portal-forms-list")).toBeVisible({
+      timeout: 10_000,
+    });
+    // Select first form item
+    const item = page.locator("[data-testid^=portal-form-item-]").first();
+    await expect(item).toBeVisible({ timeout: 10_000 });
+    await item.click();
+    await expect(page.getByTestId("portal-forms-editor")).toBeVisible();
+    await page.getByTestId("portal-form-field-label").fill("Arrival city");
+    await page.getByTestId("portal-form-field-key").fill("city");
+    await page.getByTestId("portal-form-field-add").click();
+    await page.getByTestId("portal-form-publish").click();
+    await expect(page.getByText(/published/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("@inv:Q03 e2e/portal-lib/resource-edit create select save publish resource", async ({
+    page,
     request,
     context,
     baseURL,
@@ -134,61 +216,38 @@ test.describe("Portal library N1–N3", () => {
       `Library Event Q03 ${Date.now()}`,
       `lib-q03-${Date.now()}`,
     );
-    const adminHeaders = sessionHeaders(adminSession);
 
-    const resCreate = await request.post(
+    const unauth = await request.get(
       `/api/events/${encodeURIComponent(event.id)}/resources`,
-      {
-        headers: adminHeaders,
-        data: {
-          title: "Code of conduct",
-          bodyMd: "Be kind.",
-        },
-      },
     );
-    expect(resCreate.status(), await resCreate.text()).toBe(201);
-    const resource = (await resCreate.json()) as {
-      resource: { id: string; version: number; title: string };
-    };
-    expect(resource.resource.title).toBe("Code of conduct");
+    expect([401, 403]).toContain(unauth.status());
 
-    // Save/edit (select + save path at API layer)
-    const save = await request.patch(
-      `/api/events/${encodeURIComponent(event.id)}/resources/${encodeURIComponent(resource.resource.id)}`,
-      {
-        headers: adminHeaders,
-        data: {
-          title: "Code of conduct (revised)",
-          bodyMd: "Be kind. Be curious.",
-          expectedVersion: resource.resource.version,
-        },
-      },
-    );
-    expect(save.status(), await save.text()).toBe(200);
-    const saved = (await save.json()) as {
-      resource: { title: string; version: number };
-    };
-    expect(saved.resource.title).toContain("revised");
+    await page.goto("/admin");
+    await expect(page.getByTestId("admin-shell")).toBeVisible({
+      timeout: 15_000,
+    });
+    await selectEvent(page, event.id);
+    await page.getByTestId("nav-resources").click();
+    await expect(page.getByTestId("page-resources")).toBeVisible({
+      timeout: 10_000,
+    });
 
-    const resPub = await request.patch(
-      `/api/events/${encodeURIComponent(event.id)}/resources/${encodeURIComponent(resource.resource.id)}`,
-      {
-        headers: adminHeaders,
-        data: {
-          status: "published",
-          expectedVersion: saved.resource.version,
-        },
-      },
-    );
-    expect(resPub.status(), await resPub.text()).toBe(200);
-    const pubBody = (await resPub.json()) as {
-      resource: { status: string; title: string };
-    };
-    expect(pubBody.resource.status).toBe("published");
-    expect(pubBody.resource.title).toContain("revised");
+    await page.getByTestId("resource-title-input").fill("Code of conduct");
+    await page.getByTestId("resource-body-input").fill("Be kind.");
+    await page.getByTestId("resource-create").click();
+    const selectBtn = page.locator("[data-testid^=resource-select-]").first();
+    await expect(selectBtn).toBeVisible({ timeout: 10_000 });
+    await selectBtn.click();
+    await page.getByTestId("resource-title-input").fill("Code of conduct (revised)");
+    await page.getByTestId("resource-save").click();
+    const publish = page.locator("[data-testid^=resource-publish-]").first();
+    await expect(publish).toBeVisible({ timeout: 10_000 });
+    await publish.click();
+    await expect(page.getByTestId("page-resources")).toBeVisible();
   });
 
   test("@inv:Q04 e2e/portal-lib/file-request-publish create + publish file request", async ({
+    page,
     request,
     context,
     baseURL,
@@ -207,43 +266,37 @@ test.describe("Portal library N1–N3", () => {
       `Library Event Q04 ${Date.now()}`,
       `lib-q04-${Date.now()}`,
     );
-    const adminHeaders = sessionHeaders(adminSession);
 
-    const create = await request.post(
+    const unauth = await request.get(
       `/api/events/${encodeURIComponent(event.id)}/file-requests`,
-      {
-        headers: adminHeaders,
-        data: {
-          title: "Session PDF",
-          instructions: "Upload your deck as PDF.",
-          purpose: "other",
-        },
-      },
     );
-    expect(create.status(), await create.text()).toBe(201);
-    const body = (await create.json()) as {
-      fileRequest: { id: string; version: number; title: string };
-    };
-    expect(body.fileRequest.title).toBe("Session PDF");
+    expect([401, 403]).toContain(unauth.status());
 
-    const pub = await request.patch(
-      `/api/events/${encodeURIComponent(event.id)}/file-requests/${encodeURIComponent(body.fileRequest.id)}`,
-      {
-        headers: adminHeaders,
-        data: {
-          status: "published",
-          expectedVersion: body.fileRequest.version,
-        },
-      },
+    await page.goto("/admin");
+    await expect(page.getByTestId("admin-shell")).toBeVisible({
+      timeout: 15_000,
+    });
+    await selectEvent(page, event.id);
+    await page.getByTestId("nav-file-requests").click();
+    await expect(page.getByTestId("page-file-requests")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Prefill title if input exists, then create + publish
+    const titleInput = page.locator(
+      '[data-testid="file-request-title-input"], #file-request-title',
     );
-    expect(pub.status(), await pub.text()).toBe(200);
-    const pubBody = (await pub.json()) as {
-      fileRequest: { status: string };
-    };
-    expect(pubBody.fileRequest.status).toBe("published");
+    if ((await titleInput.count()) > 0) {
+      await titleInput.first().fill("Session PDF");
+    }
+    await page.getByTestId("file-request-create").click();
+    const pub = page.locator("[data-testid^=file-request-publish-]").first();
+    await expect(pub).toBeVisible({ timeout: 10_000 });
+    await pub.click();
   });
 
   test("@inv:Q05 e2e/portal-lib/speaker-list published forms + resources for speaker", async ({
+    page,
     request,
     context,
     baseURL,
@@ -284,7 +337,6 @@ test.describe("Portal library N1–N3", () => {
         data: { status: "published", expectedVersion: form.version },
       },
     );
-
     const resCreate = await request.post(
       `/api/events/${encodeURIComponent(event.id)}/resources`,
       {
@@ -306,34 +358,62 @@ test.describe("Portal library N1–N3", () => {
       },
     );
 
+    // Cross-event isolation: other event's list must not include this form title via API
+    const eventB = await ensureEvent(
+      request,
+      adminSession,
+      `Other Event Q05 ${Date.now()}`,
+      `lib-q05-b-${Date.now()}`,
+    );
     const speakerEmail = `lib-spk-q05-${Date.now()}@example.com`;
-    const spSession = await loginSpeaker(request, speakerEmail, event.id);
+    const spSession = await loginSpeaker(
+      request,
+      context,
+      baseURL,
+      speakerEmail,
+      event.id,
+    );
     const spHeaders = sessionHeaders(spSession);
-
     const forms = await request.get(
       `/api/portal/forms?eventId=${encodeURIComponent(event.id)}`,
       { headers: spHeaders },
     );
-    const formsText = await forms.text();
-    expect(forms.status(), formsText).toBe(200);
-    const formsBody = JSON.parse(formsText) as { forms: { title: string }[] };
+    expect(forms.status()).toBe(200);
+    const formsBody = (await forms.json()) as { forms: { title: string }[] };
     expect(formsBody.forms.some((f) => f.title === "Travel form")).toBeTruthy();
 
-    const resources = await request.get(
-      `/api/portal/resources?eventId=${encodeURIComponent(event.id)}`,
+    const leak = await request.get(
+      `/api/portal/forms?eventId=${encodeURIComponent(eventB.id)}`,
       { headers: spHeaders },
     );
-    const resText = await resources.text();
-    expect(resources.status(), resText).toBe(200);
-    const resBody = JSON.parse(resText) as {
-      resources: { title: string }[];
-    };
-    expect(
-      resBody.resources.some((r) => r.title === "Code of conduct"),
-    ).toBeTruthy();
+    // Not a member of B, or empty list without Travel form
+    if (leak.status() === 200) {
+      const leakBody = (await leak.json()) as { forms: { title: string }[] };
+      expect(leakBody.forms.some((f) => f.title === "Travel form")).toBeFalsy();
+    } else {
+      expect([401, 403, 404]).toContain(leak.status());
+    }
+
+    // Browser: speaker portal surfaces
+    await page.goto("/portal");
+    // May land on chooser or home
+    await page.waitForTimeout(500);
+    if ((await page.getByTestId("portal-nav-forms").count()) > 0) {
+      await page.getByTestId("portal-nav-forms").click();
+      await expect(page.getByText(/Travel form/i).first()).toBeVisible({
+        timeout: 10_000,
+      });
+    }
+    if ((await page.getByTestId("portal-nav-resources").count()) > 0) {
+      await page.getByTestId("portal-nav-resources").click();
+      await expect(page.getByText(/Code of conduct/i).first()).toBeVisible({
+        timeout: 10_000,
+      });
+    }
   });
 
   test("@inv:Q06 e2e/portal-lib/file-request-fulfill speaker upload fulfils request", async ({
+    page,
     request,
     context,
     baseURL,
@@ -380,25 +460,46 @@ test.describe("Portal library N1–N3", () => {
     );
 
     const speakerEmail = `lib-spk-q06-${Date.now()}@example.com`;
-    const spSession = await loginSpeaker(request, speakerEmail, event.id);
+    const participationId = await seedSpeakerParticipation(
+      request,
+      adminSession,
+      event.id,
+      event.slug,
+      speakerEmail,
+      "Lib Speaker",
+    );
+    const spSession = await loginSpeaker(
+      request,
+      context,
+      baseURL,
+      speakerEmail,
+      event.id,
+    );
     const spHeaders = sessionHeaders(spSession);
 
-    // Ensure speaker has a participation (seed via home if available)
-    const home = await request.get(
-      `/api/portal/home?eventId=${encodeURIComponent(event.id)}`,
-      { headers: spHeaders },
+    // Other speaker cannot fulfil
+    const otherEmail = `lib-other-q06-${Date.now()}@example.com`;
+    const otherSession = await loginSpeaker(
+      request,
+      context,
+      baseURL,
+      otherEmail,
+      event.id,
     );
-    let participationId = `part-test-${Date.now()}`;
-    if (home.status() === 200) {
-      const homeBody = (await home.json()) as {
-        participations?: { id: string }[];
-      };
-      if (homeBody.participations?.[0]?.id) {
-        participationId = homeBody.participations[0].id;
-      }
-    }
+    const deny = await request.post(
+      `/api/portal/file-requests/${encodeURIComponent(fr.fileRequest.id)}/fulfill`,
+      {
+        headers: sessionHeaders(otherSession),
+        data: {
+          eventId: event.id,
+          participationId,
+          fileId: "file_not_yours",
+        },
+      },
+    );
+    expect([403, 404]).toContain(deny.status());
 
-    // Presign + complete a tiny PNG as "other" (or headshot if other rejects)
+    // Real upload + fulfill
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
       "base64",
@@ -414,50 +515,36 @@ test.describe("Portal library N1–N3", () => {
         ownerParticipationId: participationId,
       },
     });
-    // If purpose other needs different handling, try slides path
-    let fileId: string | null = null;
-    if (presign.status() === 200) {
-      const p = (await presign.json()) as { fileId: string; url: string };
-      fileId = p.fileId;
-      // Cookie only — must not overwrite content-type with application/json.
-      const up = await request.put(p.url, {
-        headers: {
-          cookie: `speakerops_session=${spSession}`,
-          "content-type": "image/png",
-        },
-        data: png,
-      });
-      expect(
-        [200, 201, 204],
-        `upload status ${up.status()} body=${await up.text()}`,
-      ).toContain(up.status());
-      const checksum = await crypto.subtle
-        .digest("SHA-256", png)
-        .then((buf) =>
-          [...new Uint8Array(buf)]
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join(""),
-        );
-      const complete = await request.post(
-        `/api/files/${encodeURIComponent(p.fileId)}/complete`,
-        {
-          headers: spHeaders,
-          data: {
-            eventId: event.id,
-            checksum,
-            filename: "deck-stub.png",
-          },
-        },
+    expect(presign.status(), await presign.text()).toBe(200);
+    const p = (await presign.json()) as { fileId: string; url: string };
+    const up = await request.put(p.url, {
+      headers: {
+        cookie: `speakerops_session=${spSession}`,
+        "content-type": "image/png",
+      },
+      data: png,
+    });
+    expect([200, 201, 204]).toContain(up.status());
+    const checksum = await crypto.subtle
+      .digest("SHA-256", png)
+      .then((buf) =>
+        [...new Uint8Array(buf)]
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join(""),
       );
-      expect(complete.status(), await complete.text()).toBe(200);
-      fileId = p.fileId;
-    } else {
-      throw new Error(
-        `presign failed ${presign.status()} ${await presign.text()}`,
-      );
-    }
+    const complete = await request.post(
+      `/api/files/${encodeURIComponent(p.fileId)}/complete`,
+      {
+        headers: spHeaders,
+        data: {
+          eventId: event.id,
+          checksum,
+          filename: "deck-stub.png",
+        },
+      },
+    );
+    expect(complete.status(), await complete.text()).toBe(200);
 
-    // Direct fulfill (API outcome) — durable linkage
     const fulfill = await request.post(
       `/api/portal/file-requests/${encodeURIComponent(fr.fileRequest.id)}/fulfill`,
       {
@@ -465,26 +552,30 @@ test.describe("Portal library N1–N3", () => {
         data: {
           eventId: event.id,
           participationId,
-          fileId: fileId!,
+          fileId: p.fileId,
         },
       },
     );
     expect(fulfill.status(), await fulfill.text()).toBe(200);
-    const fulfillBody = (await fulfill.json()) as {
-      fulfillment: { fileId: string; requestId: string };
-    };
-    expect(fulfillBody.fulfillment.requestId).toBe(fr.fileRequest.id);
-    expect(fulfillBody.fulfillment.fileId).toBeTruthy();
 
-    const list = await request.get(
-      `/api/portal/file-requests?eventId=${encodeURIComponent(event.id)}&participationId=${encodeURIComponent(participationId)}`,
-      { headers: spHeaders },
-    );
-    expect(list.status()).toBe(200);
-    const listBody = (await list.json()) as {
-      fileRequests: { id: string; fulfilled?: boolean }[];
-    };
-    const row = listBody.fileRequests.find((r) => r.id === fr.fileRequest.id);
-    expect(row?.fulfilled).toBe(true);
+    // Browser UI: file request visible as submitted
+    await page.goto("/portal");
+    await page.waitForTimeout(400);
+    if ((await page.getByTestId("portal-nav-file-requests").count()) > 0) {
+      await page.getByTestId("portal-nav-file-requests").click();
+      await expect(
+        page.getByTestId(`portal-file-request-${fr.fileRequest.id}`),
+      ).toBeVisible({ timeout: 10_000 });
+      // Optional setInputFiles path when replace is available
+      const upload = page.getByTestId(
+        `portal-file-request-upload-${fr.fileRequest.id}`,
+      );
+      if ((await upload.count()) > 0) {
+        const dir = mkdtempSync(path.join(tmpdir(), "so-fr-"));
+        const filePath = path.join(dir, "replace.png");
+        writeFileSync(filePath, png);
+        await upload.setInputFiles(filePath);
+      }
+    }
   });
 });

@@ -125,12 +125,14 @@ export function PortalFileRequestsPanel({
 
   const load = useCallback(async () => {
     try {
-      const q = new URLSearchParams({ eventId });
-      if (participationId) q.set("participationId", participationId);
-      const res = await fetch(`/api/portal/file-requests?${q.toString()}`, {
-        credentials: "include",
-        headers: { accept: "application/json" },
-      });
+      // Server resolves fulfilment only for the caller's own participation(s).
+      const res = await fetch(
+        `/api/portal/file-requests?eventId=${encodeURIComponent(eventId)}`,
+        {
+          credentials: "include",
+          headers: { accept: "application/json" },
+        },
+      );
       if (!res.ok) {
         const raw: unknown = await res.json().catch(() => null);
         const env = ErrorEnvelopeSchema.safeParse(raw);

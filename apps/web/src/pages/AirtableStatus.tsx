@@ -215,15 +215,16 @@ export function AirtableStatusPage() {
           Accelevents projection
         </h3>
         <p className="page-stub__body" data-testid="accelevents-status-disclose">
-          One-way Accelevents projector is designed (outbox identity map,
-          retries, no dual-write, no request-path calls). It is{" "}
-          <strong>not active</strong> until third-party API credentials are
-          provisioned for this estate. We do not stub or fake live Accelevents
-          writes. D1 remains the system of record; Airtable above is the
-          optional one-way mirror when configured.
+          Accelevents one-way projection is <strong>not implemented</strong> in
+          this estate. We do not stub or fake live Accelevents writes. Shipping
+          it requires third-party API credentials plus a completed projector
+          (outbox identity map, retries, no dual-write, no request-path calls).
+          D1 remains the system of record; Airtable above is the optional
+          one-way mirror when configured.
         </p>
         <p className="eval-queue__muted" data-testid="accelevents-status-state">
-          Status: awaiting credentials (honest disclosure — not a product stub).
+          Status: not implemented (honest disclosure — external residual only
+          when credentials exist and projector ships).
         </p>
       </section>
     </div>

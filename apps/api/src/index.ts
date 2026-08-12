@@ -48,6 +48,11 @@ import {
   onErrorHandler,
 } from "./middleware/errors.js";
 import { securityHeadersMiddleware } from "./middleware/security.js";
+import {
+  CONTENT_SECURITY_POLICY_EMBED,
+  SECURITY_HEADERS,
+  SECURITY_HEADERS_EMBED,
+} from "@speakerops/shared";
 import type { ApiEnv, WorkerBindings } from "./env.js";
 import type { CfpRateLimiter } from "./modules/publicCfp/rateLimit.js";
 import { createAuthRoutes } from "./modules/auth/routes.js";
@@ -511,6 +516,9 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       store: authStore,
       events: eventsStore,
       resources: resourcesStore,
+      design: designStore,
+      decisions: decisionsStore,
+      submissions: submissionsStore,
     }),
   );
 
@@ -1138,6 +1146,39 @@ function isApiOrHealthPath(pathname: string): boolean {
   );
 }
 
+function isEmbedPath(pathname: string): boolean {
+  return pathname === "/embed" || pathname.startsWith("/embed/");
+}
+
+/**
+ * Apply production security headers to Workers Assets responses.
+ * ASSETS.fetch bypasses Hono middleware, so CSP must be layered here or
+ * live HTML has no frame-ancestors / frame-src policy (Codex MUST_FIX).
+ */
+function withAssetSecurityHeaders(
+  pathname: string,
+  assetResponse: Response,
+): Response {
+  const headers = new Headers(assetResponse.headers);
+  const embed = isEmbedPath(pathname);
+  if (embed) {
+    for (const [name, value] of Object.entries(SECURITY_HEADERS_EMBED)) {
+      headers.set(name, value);
+    }
+    headers.delete("X-Frame-Options");
+    headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY_EMBED);
+  } else {
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+      headers.set(name, value);
+    }
+  }
+  return new Response(assetResponse.body, {
+    status: assetResponse.status,
+    statusText: assetResponse.statusText,
+    headers,
+  });
+}
+
 /**
  * Cloudflare Workers default export.
  * - fetch: Hono HTTP (D1-backed stores) + optional SPA ASSETS fallback
@@ -1162,8 +1203,10 @@ export default {
       return app.fetch(request, env, ctx as never);
     }
     // Dogfood SPA: Workers Assets binding (wrangler [assets]).
+    // Layer CSP on the asset response — ASSETS.fetch does not run Hono middleware.
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
-      return env.ASSETS.fetch(request);
+      const assetRes = await env.ASSETS.fetch(request);
+      return withAssetSecurityHeaders(url.pathname, assetRes);
     }
     // No assets binding (workers.dev API-only): still serve API app for unknown paths
     // so Hono can return E4 404 envelopes.

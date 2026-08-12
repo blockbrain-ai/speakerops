@@ -14,7 +14,11 @@ import { z } from "zod";
 import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
 import type { EventsStore } from "../events/store.js";
+import type { DesignStore } from "../design/store.js";
+import type { DecisionsStore } from "../decisions/store.js";
+import type { SubmissionsStore } from "../publicCfp/store.js";
 import { requireRole, requireSession } from "../../middleware/authz.js";
+import { resolveOwnParticipations } from "../portal/commands.js";
 import type { ResourcesStore } from "./store.js";
 
 const StatusSchema = z.enum(["draft", "published", "archived"]);
@@ -62,6 +66,10 @@ export type ResourcesRouteOptions = {
   store: AuthStore;
   events: EventsStore;
   resources: ResourcesStore;
+  /** Optional: required for secure file-request fulfilment (file meta + ownership). */
+  design?: DesignStore;
+  decisions?: DecisionsStore;
+  submissions?: SubmissionsStore;
 };
 
 export function createResourcesRoutes(
@@ -288,7 +296,7 @@ export function createPortalLibraryRoutes(
   options: ResourcesRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, resources } = options;
+  const { store, events, resources, design, decisions, submissions } = options;
 
   app.get("/resources", requireSession(store), async (c) => {
     const eventId = c.req.query("eventId")?.trim();
@@ -324,7 +332,6 @@ export function createPortalLibraryRoutes(
     if (!eventId) {
       return c.json(errorEnvelope("eventId query required", VALIDATION_ERROR), 400);
     }
-    const participationId = c.req.query("participationId")?.trim() || null;
     const user = c.get("user");
     if (!user) {
       return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
@@ -336,10 +343,38 @@ export function createPortalLibraryRoutes(
         403,
       );
     }
+    // Only list fulfilment for the caller's own participation(s) — never
+    // accept an arbitrary participationId query (cross-speaker leak).
+    let ownPartIds: string[] = [];
+    if (decisions && submissions) {
+      const own = await resolveOwnParticipations(
+        {
+          decisions,
+          events,
+          auth: store,
+          submissions,
+          design,
+        },
+        {
+          eventId,
+          userId: user.id,
+          userEmail: user.email,
+          correlationId: c.get("correlationId"),
+        },
+      );
+      ownPartIds = own.map((p) => p.id);
+    }
     const rows = await resources.listFileRequests(eventId);
-    const fulfills = participationId
-      ? await resources.listFulfillments(eventId, { participationId })
-      : [];
+    const fulfills =
+      ownPartIds.length > 0
+        ? (
+            await Promise.all(
+              ownPartIds.map((pid) =>
+                resources.listFulfillments(eventId, { participationId: pid }),
+              ),
+            )
+          ).flat()
+        : [];
     const fulfillByRequest = new Map(fulfills.map((f) => [f.requestId, f]));
     return c.json(
       {
@@ -371,7 +406,7 @@ export function createPortalLibraryRoutes(
   /**
    * POST /file-requests/:requestId/fulfill
    * Speaker associates an uploaded file (purpose=other|headshot|slides) with
-   * a published file request. Idempotent upsert per participation.
+   * a published file request. Ownership + completed upload enforced.
    */
   app.post(
     "/file-requests/:requestId/fulfill",
@@ -383,6 +418,12 @@ export function createPortalLibraryRoutes(
         return c.json(
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,
+        );
+      }
+      if (!design || !decisions || !submissions) {
+        return c.json(
+          errorEnvelope("File fulfilment not configured", "INTERNAL_ERROR"),
+          500,
         );
       }
       let raw: unknown;
@@ -408,12 +449,62 @@ export function createPortalLibraryRoutes(
           403,
         );
       }
+      const own = await resolveOwnParticipations(
+        {
+          decisions,
+          events,
+          auth: store,
+          submissions,
+          design,
+        },
+        {
+          eventId,
+          userId: user.id,
+          userEmail: user.email,
+          correlationId: c.get("correlationId"),
+        },
+      );
+      if (!own.some((p) => p.id === participationId)) {
+        return c.json(
+          errorEnvelope(
+            "Cannot fulfil for another speaker's participation",
+            FORBIDDEN,
+          ),
+          403,
+        );
+      }
       const reqs = await resources.listFileRequests(eventId);
       const req = reqs.find((r) => r.id === requestId);
       if (!req || req.status !== "published") {
         return c.json(errorEnvelope("File request not found", NOT_FOUND), 404);
       }
+      const file = await design.findFile(eventId, fileId);
+      if (!file) {
+        return c.json(errorEnvelope("File not found", NOT_FOUND), 404);
+      }
+      const uploaded =
+        typeof file.uploadState === "number"
+          ? file.uploadState >= 1
+          : Boolean(file.uploaded);
+      if (!uploaded) {
+        return c.json(
+          errorEnvelope("File upload is not complete", VALIDATION_ERROR),
+          400,
+        );
+      }
+      // Owner must match participation when the asset is participation-bound.
+      if (
+        file.ownerParticipationId &&
+        file.ownerParticipationId !== participationId
+      ) {
+        return c.json(
+          errorEnvelope("File is not owned by this participation", FORBIDDEN),
+          403,
+        );
+      }
       const now = new Date().toISOString();
+      const correlationId =
+        c.get("correlationId") ?? c.req.header("x-correlation-id") ?? "unknown";
       const row = await resources.upsertFulfillment({
         id: uuidv7(),
         eventId,
@@ -422,6 +513,23 @@ export function createPortalLibraryRoutes(
         fileId,
         createdAt: now,
         updatedAt: now,
+      });
+      await store.insertAudit({
+        id: uuidv7(),
+        eventId,
+        actorType: "user",
+        actorId: user.id,
+        action: "FileRequest.Fulfill",
+        entityType: "file_request",
+        entityId: requestId,
+        beforeJson: null,
+        afterJson: JSON.stringify({
+          participationId,
+          fileId,
+          fulfillmentId: row.id,
+        }),
+        correlationId,
+        createdAt: now,
       });
       return c.json(
         {
