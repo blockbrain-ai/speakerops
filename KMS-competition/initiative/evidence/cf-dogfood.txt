@@ -2,10 +2,10 @@
 
 Section: 8.6 + 11.9 Cloudflare dogfood deploy
 Workspace: speakerops-build
-Date (UTC): 2026-08-12T05:11:23Z
-Git SHA: 0de055cfe
-Git SHA (full): 0de055cfea36f5fc50b98fad7d3e5c8decb90b6c
-App version: 0.1.0-demo+0de055cfe
+Date (UTC): 2026-08-12T06:01:01Z
+Git SHA: f9aa9b6bd
+Git SHA (full): f9aa9b6bdece4db7791a9650b66806a9c73911d3
+App version: 0.1.0-demo+f9aa9b6bd
 Status: DONE_WITH_EVIDENCE
 
 ## Claim
@@ -40,16 +40,16 @@ wrangler: wrangler.toml [env.dogfood] (binding **names** only)
 |-------|-------|
 | Base URL | https://www.speakerops.org |
 | GET /health HTTP status | 200 |
-| Health body (redacted) | {"ok":true,"version":"0.1.0-demo+0de055cfe"} |
+| Health body (redacted) | {"ok":true,"version":"0.1.0-demo+f9aa9b6bd"} |
 | Worker name | speakerops-demo |
 | Wrangler env | dogfood |
-| Deploy revision (git) | 0de055cfe |
-| App version | 0.1.0-demo+0de055cfe |
+| Deploy revision (git) | f9aa9b6bd |
+| App version | 0.1.0-demo+f9aa9b6bd |
 
 ## Notes
 
 Live dogfood smoke succeeded. S-CF / S-DOGFOOD / BC10 / BC-16 health 200 recorded.
-Deploy revision: 0de055cfe · APP_VERSION: 0.1.0-demo+0de055cfe
+Deploy revision: f9aa9b6bd · APP_VERSION: 0.1.0-demo+f9aa9b6bd
 Binding URL: https://www.speakerops.org
 Next: scripts/with-secrets.sh pnpm test:e2e:phase11-keystone
 
