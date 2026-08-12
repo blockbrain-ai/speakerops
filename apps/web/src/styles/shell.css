@@ -7206,11 +7206,11 @@ input.speakers-page__profile-input,
 .l2-segmented {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--lumen-space-1);
   padding: 2px;
-  border-radius: 8px;
-  background: var(--lumen-surface-muted);
-  border: 1px solid var(--lumen-hairline);
+  border-radius: var(--lumen-radius-sm);
+  background: var(--lumen-brand-soft);
+  border: 1px solid var(--lumen-border);
 }
 .l2-segmented__opt {
   line-height: 1;
@@ -7220,20 +7220,20 @@ input.speakers-page__profile-input,
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--lumen-ink);
+  color: var(--lumen-text);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
 .l2-segmented__opt--active {
-  background: var(--lumen-sage-deep);
+  background: var(--lumen-brand-deep);
   color: var(--lumen-surface);
 }
 .l2-segmented__opt:focus-visible {
-  outline: 2px solid var(--lumen-sage);
+  outline: 2px solid var(--lumen-focus);
   outline-offset: 1px;
 }
 .l2-segmented__opt:disabled {
-  opacity: 0.5;
+  opacity: var(--lumen-disabled-opacity);
   cursor: not-allowed;
 }
