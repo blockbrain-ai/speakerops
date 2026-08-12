@@ -312,13 +312,19 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
     const pkg = JSON.parse(
       readFileSync(join(here, "../../../package.json"), "utf8"),
     ) as { dependencies?: Record<string, string> };
-    const deps = Object.keys(pkg.dependencies ?? {}).sort();
-    expect(deps).toEqual([
+    const depNames = Object.keys(pkg.dependencies ?? {}).sort();
+    expect(depNames).toEqual([
+      // F3: dnd-kit for column manager reorder (core + sortable + utilities).
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+      "@dnd-kit/utilities",
       // F1 (Sage & Honey lock): self-hosted OFL fonts — the ONLY sanctioned
       // font packages (woff2 binaries only; no runtime JS).
       "@fontsource/hanken-grotesk",
       "@fontsource/ibm-plex-mono",
       "@speakerops/shared",
+      // F3: TanStack Table v8 (server-driven DataGrid).
+      "@tanstack/react-table",
       // F2 (rich-text primitive): TipTap v3 on ProseMirror — the ONLY
       // sanctioned editor stack (no CDN, no other editor/UI kits). The set
       // is closed: StarterKit bundles Link + Underline (never re-added as
@@ -348,10 +354,11 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
       true,
     );
     expect(pinned.startsWith("3.")).toBe(true);
-    // Explicit ban list for UI kits / icons / charts / DnD.
+    // Explicit ban list for UI kits / icons / charts / other DnD libs.
     // (@fontsource left the ban list deliberately in F1 — self-hosted fonts
     // are mandated by the locked theme; scope stays limited by the exact
     // dependency assertion above.)
+    // F3 unbans @dnd-kit (exact pins below); keeps other DnD/chart kits banned.
     const banned = [
       "@mui/",
       "chakra",
@@ -364,7 +371,6 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
       "recharts",
       "d3",
       "framer-motion",
-      "@dnd-kit",
       "react-beautiful-dnd",
       "styled-components",
       "@emotion/",
@@ -373,5 +379,11 @@ describe("11.0 AC-11.0-E no new UI runtime deps", () => {
     for (const b of banned) {
       expect(blob.includes(b), `banned dep fragment ${b}`).toBe(false);
     }
+    // F3: exact TanStack Table + dnd-kit set (column manager + grid).
+    const deps = pkg.dependencies ?? {};
+    expect(deps["@tanstack/react-table"]).toMatch(/^8\./);
+    expect(deps["@dnd-kit/core"]).toMatch(/^6\./);
+    expect(deps["@dnd-kit/sortable"]).toMatch(/^10\./);
+    expect(deps["@dnd-kit/utilities"]).toMatch(/^3\./);
   });
 });

@@ -148,11 +148,30 @@ export const SUBMISSION_LIST_MAX_LIMIT = 100 as const;
  * - Response includes `total` (filtered count), `limit`, `offset` so SPA pager
  *   does not drop filters when changing pages
  */
+/** Allowlisted sort fields for Submission.List (F3 server sort). */
+export const SUBMISSION_LIST_SORT_FIELDS = [
+  "title",
+  "status",
+  "category",
+  "submittedAt",
+  "primarySpeakerName",
+] as const;
+export type SubmissionListSortField =
+  (typeof SUBMISSION_LIST_SORT_FIELDS)[number];
+
 export const SubmissionListQuerySchema = z.object({
   status: SubmissionStatusSchema.optional(),
   category: z.string().min(1).max(128).optional(),
-  /** Case-insensitive contains on title or primary speaker name. */
+  /**
+   * Search on title or primary speaker name.
+   * F3: prefer prefix matching for index-usable scans; legacy contains kept
+   * for existing e2e (q=talk) until F5 FTS.
+   */
   q: z.string().min(1).max(200).optional(),
+  /** Server-side sort field (allowlist). Default: submittedAt. */
+  sort: z.enum(SUBMISSION_LIST_SORT_FIELDS).optional(),
+  /** Sort direction. Default: desc for submittedAt, asc otherwise. */
+  sortDir: z.enum(["asc", "desc"]).optional(),
   limit: z.coerce
     .number()
     .int()

@@ -1,7 +1,8 @@
 /**
  * Admin submissions + decisions UI (section 3.5 / S-EVAL + 10.1 + 11.4 S-L2-SUB).
  *
- * Lumen 2: DataTable, toolbar, sticky bulk bar, filter chips, detail hierarchy.
+ * Lumen 2 + F3: DataGrid (TanStack), server sort, density, sticky bulk bar,
+ * filter chips, detail hierarchy.
  *
  * Inventory: E01 list filters · E02 detail · E03 assign · E04 accept
  * · E05 reject · E06 waitlist · E07 direct session · E08 bulk preview/commit
@@ -40,14 +41,25 @@ import {
   EvalReviewsResponseSchema,
   ErrorEnvelopeSchema,
   SUBMISSION_LIST_DEFAULT_LIMIT,
+  SUBMISSIONS_GRID_FIELDS,
+  SavedViewListResponseSchema,
+  SavedViewResponseSchema,
   type SubmissionListItem,
   type SubmissionDetailResponse,
   type BulkDecisionPreviewItem,
   type DecisionValue,
   type EventMember,
   type EvalReviewsResponse,
+  type SavedViewDto,
+  type GridDensity,
+  type SubmissionsGridField,
   RichTextEnvelopeSchema,
 } from "@speakerops/shared";
+import type {
+  ColumnDef,
+  SortingState,
+  VisibilityState,
+} from "@tanstack/react-table";
 import { useEventContext } from "../events/EventContext.js";
 import { RichText } from "../components/richtext/RichText.js";
 import {
@@ -55,12 +67,12 @@ import {
   Badge,
   Button,
   Card,
-  DataTable,
+  ColumnManager,
+  DataGrid,
   EmptyState,
   PageHeader,
   Skeleton,
   type BadgeTone,
-  type DataTableColumn,
 } from "../components/ui/index.js";
 import {
   assignIneligibleReason,
@@ -232,6 +244,23 @@ export function SubmissionsPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [searchQ, setSearchQ] = useState("");
   const [page, setPage] = useState(1);
+  /** F3 server sort (allowlist). */
+  const [sortField, setSortField] = useState<SubmissionsGridField>("submittedAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [density, setDensity] = useState<GridDensity>("comfortable");
+  const [columnOrder, setColumnOrder] = useState<SubmissionsGridField[]>([
+    ...SUBMISSIONS_GRID_FIELDS,
+  ]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => {
+      const vis: VisibilityState = {};
+      for (const f of SUBMISSIONS_GRID_FIELDS) vis[f] = true;
+      return vis;
+    },
+  );
+  const [columnManagerOpen, setColumnManagerOpen] = useState(false);
+  const [savedViews, setSavedViews] = useState<SavedViewDto[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detail, setDetail] = useState<SubmissionDetailResponse | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -292,6 +321,8 @@ export function SubmissionsPage() {
         if (categoryFilter) params.set("category", categoryFilter);
         const qTrim = searchQ.trim();
         if (qTrim) params.set("q", qTrim);
+        params.set("sort", sortField);
+        params.set("sortDir", sortDir);
         params.set("limit", String(SUBMISSION_LIST_DEFAULT_LIMIT));
         params.set("offset", String(offset));
         const qs = params.toString();
@@ -349,14 +380,97 @@ export function SubmissionsPage() {
         }
       }
     },
-    [statusFilter, categoryFilter, searchQ],
+    [statusFilter, categoryFilter, searchQ, sortField, sortDir],
   );
 
   // Reset to page 1 when filters or event change (keep filters when paging)
   useEffect(() => {
     setPage(1);
     setSelected(new Set());
-  }, [statusFilter, categoryFilter, searchQ, activeEventId]);
+  }, [statusFilter, categoryFilter, searchQ, sortField, sortDir, activeEventId]);
+
+  /** Reset grid chrome when event changes (never retain prior event's views). */
+  function resetGridChrome() {
+    setActiveViewId(null);
+    setSortField("submittedAt");
+    setSortDir("desc");
+    setDensity("comfortable");
+    setColumnOrder([...SUBMISSIONS_GRID_FIELDS]);
+    const vis: VisibilityState = {};
+    for (const f of SUBMISSIONS_GRID_FIELDS) vis[f] = true;
+    setColumnVisibility(vis);
+    setStatusFilter("");
+    setCategoryFilter("");
+    setSearchQ("");
+    setColumnManagerOpen(false);
+  }
+
+  function applyViewDefinition(v: SavedViewDto) {
+    if (v.definition.sort) {
+      setSortField(v.definition.sort.field);
+      setSortDir(v.definition.sort.dir);
+    } else {
+      setSortField("submittedAt");
+      setSortDir("desc");
+    }
+    if (v.definition.density) setDensity(v.definition.density);
+    else setDensity("comfortable");
+    if (v.definition.columnOrder?.length) {
+      setColumnOrder(v.definition.columnOrder as SubmissionsGridField[]);
+    } else {
+      setColumnOrder([...SUBMISSIONS_GRID_FIELDS]);
+    }
+    if (v.definition.columns?.length) {
+      const vis: VisibilityState = {};
+      for (const f of SUBMISSIONS_GRID_FIELDS) {
+        vis[f] = v.definition.columns.includes(f);
+      }
+      setColumnVisibility(vis);
+    } else {
+      const vis: VisibilityState = {};
+      for (const f of SUBMISSIONS_GRID_FIELDS) vis[f] = true;
+      setColumnVisibility(vis);
+    }
+    setStatusFilter(v.definition.status ?? "");
+    setCategoryFilter(v.definition.category ?? "");
+    setPage(1);
+  }
+
+  // F3: load saved views for submissions surface
+  useEffect(() => {
+    // Always clear chrome + view list first so a prior event never bleeds.
+    resetGridChrome();
+    setSavedViews([]);
+    if (!activeEventId) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/events/${encodeURIComponent(activeEventId)}/saved-views?surface=submissions`,
+          {
+            credentials: "include",
+            headers: { accept: "application/json" },
+          },
+        );
+        if (cancelled || !res.ok) return;
+        const parsed = SavedViewListResponseSchema.safeParse(await res.json());
+        if (!parsed.success) return;
+        setSavedViews(parsed.data.views);
+        const def = parsed.data.views.find((v) => v.isDefault);
+        if (def) {
+          setActiveViewId(def.id);
+          applyViewDefinition(def);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEventId]);
 
   // Event switch invalidates the decision hand-off audience (cross-event safety).
   useEffect(() => {
@@ -965,56 +1079,102 @@ export function SubmissionsPage() {
     waitlist: "waitlisted",
   };
 
-  const columns: DataTableColumn<SubmissionListItem>[] = [
-    {
-      id: "title",
-      header: "Title",
-      primary: true,
-      cell: (row) => (
-        <>
-          <button
-            type="button"
-            className="l2-table__link lumen-focusable"
-            data-testid={`submission-open-${row.id}`}
-            onClick={() => void openDetail(row.id)}
-          >
-            {row.title}
-          </button>
-          {row.primarySpeakerName ? (
-            <span className="l2-table__secondary">{row.primarySpeakerName}</span>
-          ) : null}
-        </>
-      ),
-    },
-    {
-      id: "status",
-      header: "Status",
-      cell: (row) => (
-        <Badge
-          tone={statusTone(row.status)}
-          showDot
-          data-testid={`submission-status-badge-${row.id}`}
-        >
-          <span
-            data-testid={`submission-status-${row.id}`}
-            data-status={row.status}
-          >
-            {statusDisplayLabel(row.status)}
-          </span>
-        </Badge>
-      ),
-    },
-    {
-      id: "category",
-      header: "Category",
-      cell: (row) => row.category ?? "—",
-    },
-    {
-      id: "speaker",
-      header: "Speaker",
-      cell: (row) => row.primarySpeakerName ?? "—",
-    },
-  ];
+  const sorting: SortingState = useMemo(
+    () => [{ id: sortField, desc: sortDir === "desc" }],
+    [sortField, sortDir],
+  );
+
+  const columns: ColumnDef<SubmissionListItem, unknown>[] = useMemo(
+    () => [
+      {
+        id: "title",
+        accessorKey: "title",
+        header: "Title",
+        enableSorting: true,
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <>
+              <button
+                type="button"
+                className="l2-table__link lumen-focusable"
+                data-testid={`submission-open-${r.id}`}
+                onClick={() => void openDetail(r.id)}
+              >
+                {r.title}
+              </button>
+              {r.primarySpeakerName ? (
+                <span className="l2-table__secondary">
+                  {r.primarySpeakerName}
+                </span>
+              ) : null}
+            </>
+          );
+        },
+      },
+      {
+        id: "status",
+        accessorKey: "status",
+        header: "Status",
+        enableSorting: true,
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <Badge
+              tone={statusTone(r.status)}
+              showDot
+              data-testid={`submission-status-badge-${r.id}`}
+            >
+              <span
+                data-testid={`submission-status-${r.id}`}
+                data-status={r.status}
+              >
+                {statusDisplayLabel(r.status)}
+              </span>
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "category",
+        accessorKey: "category",
+        header: "Category",
+        enableSorting: true,
+        cell: ({ row }) => row.original.category ?? "—",
+      },
+      {
+        id: "primarySpeakerName",
+        accessorKey: "primarySpeakerName",
+        header: "Speaker",
+        enableSorting: true,
+        cell: ({ row }) => row.original.primarySpeakerName ?? "—",
+      },
+      {
+        id: "submittedAt",
+        accessorKey: "submittedAt",
+        header: "Submitted",
+        enableSorting: true,
+        cell: ({ row }) => {
+          const iso = row.original.submittedAt;
+          try {
+            return (
+              <time dateTime={iso} title={iso}>
+                {new Date(iso).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </time>
+            );
+          } catch {
+            return iso;
+          }
+        },
+      },
+    ],
+    // openDetail is stable enough for this page (recreated each render is ok for cell click)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const activeFilters = [
     statusFilter
@@ -1587,11 +1747,28 @@ export function SubmissionsPage() {
                   {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ""}
                 </span>
               </div>
-              <DataTable
+              <DataGrid
                 data-testid="submissions-table"
                 columns={columns}
-                rows={rows}
+                data={rows}
                 getRowId={(r) => r.id}
+                sorting={sorting}
+                onSortingChange={(updater) => {
+                  const next =
+                    typeof updater === "function" ? updater(sorting) : updater;
+                  const first = next[0];
+                  if (!first) return;
+                  const field = first.id as SubmissionsGridField;
+                  if (
+                    (SUBMISSIONS_GRID_FIELDS as readonly string[]).includes(
+                      field,
+                    )
+                  ) {
+                    setSortField(field);
+                    setSortDir(first.desc ? "desc" : "asc");
+                    setPage(1);
+                  }
+                }}
                 selectedIds={selected}
                 onToggleRow={toggleSelect}
                 onToggleAll={(all) => {
@@ -1609,8 +1786,299 @@ export function SubmissionsPage() {
                 wrapAttrs={{
                   "data-total": total,
                   "data-visible": rows.length,
+                  "data-sort": sortField,
+                  "data-sort-dir": sortDir,
                 }}
-                density="comfortable"
+                density={density}
+                columnVisibility={columnVisibility}
+                onColumnVisibilityChange={setColumnVisibility}
+                columnOrder={columnOrder}
+                ariaRowCount={total}
+                onRowActivate={(r) => void openDetail(r.id)}
+                toolbar={
+                  <div
+                    className="submissions-page__grid-toolbar"
+                    data-testid="submissions-grid-toolbar"
+                  >
+                    <label className="submissions-page__density">
+                      Density
+                      <select
+                        className="lumen-focusable"
+                        data-testid="submissions-density"
+                        value={density}
+                        onChange={(e) =>
+                          setDensity(e.target.value as GridDensity)
+                        }
+                      >
+                        <option value="comfortable">Comfortable</option>
+                        <option value="compact">Compact</option>
+                      </select>
+                    </label>
+                    <label className="submissions-page__views">
+                      Saved view
+                      <select
+                        className="lumen-focusable"
+                        data-testid="submissions-saved-views"
+                        value={activeViewId ?? ""}
+                        onChange={(e) => {
+                          const id = e.target.value || null;
+                          setActiveViewId(id);
+                          if (!id) {
+                            // Built-in Default: clear filters/sort/columns to stock.
+                            resetGridChrome();
+                            setPage(1);
+                            return;
+                          }
+                          const v = savedViews.find((x) => x.id === id);
+                          if (!v) return;
+                          applyViewDefinition(v);
+                        }}
+                      >
+                        <option value="">Default</option>
+                        {savedViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                            {v.isDefault ? " ★" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="submissions-page__col-mgr-wrap">
+                      <Button
+                        type="button"
+                        variant="quiet"
+                        size="sm"
+                        data-testid="submissions-columns-toggle"
+                        aria-expanded={columnManagerOpen}
+                        onClick={() => setColumnManagerOpen((o) => !o)}
+                      >
+                        Columns
+                      </Button>
+                      {columnManagerOpen ? (
+                        <ColumnManager
+                          data-testid="submissions-column-manager"
+                          available={[
+                            { id: "title", label: "Title" },
+                            { id: "status", label: "Status" },
+                            { id: "category", label: "Category" },
+                            {
+                              id: "primarySpeakerName",
+                              label: "Speaker",
+                            },
+                            { id: "submittedAt", label: "Submitted" },
+                          ]}
+                          order={columnOrder}
+                          onChange={({ order, visibility }) => {
+                            setColumnOrder(
+                              order.filter((id): id is SubmissionsGridField =>
+                                (
+                                  SUBMISSIONS_GRID_FIELDS as readonly string[]
+                                ).includes(id),
+                              ),
+                            );
+                            setColumnVisibility(visibility);
+                          }}
+                        />
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="quiet"
+                      size="sm"
+                      data-testid="submissions-save-view"
+                      disabled={!activeEventId || busy}
+                      onClick={() => {
+                        if (!activeEventId) return;
+                        void (async () => {
+                          try {
+                            const name = window.prompt(
+                              "Name this view",
+                              "My view",
+                            );
+                            if (!name?.trim()) return;
+                            const visibleCols = columnOrder.filter(
+                              (id) => columnVisibility[id] !== false,
+                            );
+                            const cols =
+                              visibleCols.length > 0
+                                ? visibleCols
+                                : [...SUBMISSIONS_GRID_FIELDS];
+                            const res = await fetch(
+                              `/api/events/${encodeURIComponent(activeEventId)}/saved-views?surface=submissions`,
+                              {
+                                method: "POST",
+                                credentials: "include",
+                                headers: {
+                                  "content-type": "application/json",
+                                  accept: "application/json",
+                                },
+                                body: JSON.stringify({
+                                  name: name.trim(),
+                                  definition: {
+                                    columns: cols,
+                                    columnOrder: cols,
+                                    sort: { field: sortField, dir: sortDir },
+                                    density,
+                                    status: statusFilter || null,
+                                    category: categoryFilter || null,
+                                  },
+                                  isDefault: false,
+                                }),
+                              },
+                            );
+                            if (!res.ok) {
+                              const raw: unknown = await res
+                                .json()
+                                .catch(() => null);
+                              const env = ErrorEnvelopeSchema.safeParse(raw);
+                              setStatus({
+                                kind: "error",
+                                text: env.success
+                                  ? env.data.error
+                                  : `Could not save view (${res.status})`,
+                              });
+                              return;
+                            }
+                            const parsed = SavedViewResponseSchema.safeParse(
+                              await res.json(),
+                            );
+                            if (!parsed.success) {
+                              setStatus({
+                                kind: "error",
+                                text: "Saved view response was unexpected",
+                              });
+                              return;
+                            }
+                            setSavedViews((prev) => [
+                              ...prev,
+                              parsed.data.view,
+                            ]);
+                            setActiveViewId(parsed.data.view.id);
+                            setStatus({
+                              kind: "ok",
+                              text: `Saved view “${parsed.data.view.name}”`,
+                            });
+                          } catch {
+                            setStatus({
+                              kind: "error",
+                              text: "Network error saving view",
+                            });
+                          }
+                        })();
+                      }}
+                    >
+                      Save view
+                    </Button>
+                    {activeViewId ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="quiet"
+                          size="sm"
+                          data-testid="submissions-set-default-view"
+                          disabled={!activeEventId || busy}
+                          onClick={() => {
+                            if (!activeEventId || !activeViewId) return;
+                            const cur = savedViews.find(
+                              (v) => v.id === activeViewId,
+                            );
+                            if (!cur) return;
+                            void (async () => {
+                              try {
+                                const res = await fetch(
+                                  `/api/events/${encodeURIComponent(activeEventId)}/saved-views/${encodeURIComponent(activeViewId)}?surface=submissions`,
+                                  {
+                                    method: "PATCH",
+                                    credentials: "include",
+                                    headers: {
+                                      "content-type": "application/json",
+                                      accept: "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                      isDefault: true,
+                                      expectedVersion: cur.version,
+                                    }),
+                                  },
+                                );
+                                if (!res.ok) {
+                                  setStatus({
+                                    kind: "error",
+                                    text: "Could not set default view",
+                                  });
+                                  return;
+                                }
+                                const parsed = SavedViewResponseSchema.safeParse(
+                                  await res.json(),
+                                );
+                                if (!parsed.success) return;
+                                setSavedViews((prev) =>
+                                  prev.map((v) =>
+                                    v.id === parsed.data.view.id
+                                      ? parsed.data.view
+                                      : { ...v, isDefault: false },
+                                  ),
+                                );
+                                setStatus({
+                                  kind: "ok",
+                                  text: `“${parsed.data.view.name}” is now default`,
+                                });
+                              } catch {
+                                setStatus({
+                                  kind: "error",
+                                  text: "Network error setting default view",
+                                });
+                              }
+                            })();
+                          }}
+                        >
+                          Set default
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="quiet"
+                          size="sm"
+                          data-testid="submissions-delete-view"
+                          disabled={!activeEventId || busy}
+                          onClick={() => {
+                            if (!activeEventId || !activeViewId) return;
+                            void (async () => {
+                              try {
+                                const res = await fetch(
+                                  `/api/events/${encodeURIComponent(activeEventId)}/saved-views/${encodeURIComponent(activeViewId)}?surface=submissions`,
+                                  {
+                                    method: "DELETE",
+                                    credentials: "include",
+                                    headers: { accept: "application/json" },
+                                  },
+                                );
+                                if (!res.ok) {
+                                  setStatus({
+                                    kind: "error",
+                                    text: "Could not delete view",
+                                  });
+                                  return;
+                                }
+                                setSavedViews((prev) =>
+                                  prev.filter((v) => v.id !== activeViewId),
+                                );
+                                resetGridChrome();
+                                setPage(1);
+                                setStatus({ kind: "ok", text: "View deleted" });
+                              } catch {
+                                setStatus({
+                                  kind: "error",
+                                  text: "Network error deleting view",
+                                });
+                              }
+                            })();
+                          }}
+                        >
+                          Delete view
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                }
                 bulkBar={
                   <>
                     <span

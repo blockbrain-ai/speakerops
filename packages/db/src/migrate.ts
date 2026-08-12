@@ -329,3 +329,6 @@ export const API_KEYS_TABLES = ["api_keys"] as const;
 
 /** Projection table names required by section 7.3 AC (S-AIRTABLE). */
 export const PROJECTION_TABLES = ["projection_records"] as const;
+
+/** F3 data-grid saved views (migration 0037). */
+export const GRID_TABLES = ["saved_views"] as const;

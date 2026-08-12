@@ -49,6 +49,7 @@ export {
   speakerBlockReservations,
   apiKeys,
   projectionRecords,
+  savedViews,
   baselineTables,
   authTables,
   membershipTables,
@@ -62,6 +63,7 @@ export {
   scheduleTables,
   apiKeysTables,
   projectionTables,
+  gridTables,
   schema,
   type Organization,
   type NewOrganization,
@@ -186,6 +188,7 @@ export {
   SCHEDULE_TABLES,
   API_KEYS_TABLES,
   PROJECTION_TABLES,
+  GRID_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

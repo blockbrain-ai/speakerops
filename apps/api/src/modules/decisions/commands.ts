@@ -1059,6 +1059,13 @@ export async function listSubmissions(
     status?: SubmissionStatus;
     category?: string;
     q?: string;
+    sort?:
+      | "title"
+      | "status"
+      | "category"
+      | "submittedAt"
+      | "primarySpeakerName";
+    sortDir?: "asc" | "desc";
     limit?: number;
     offset?: number;
   },
@@ -1098,10 +1105,12 @@ export async function listSubmissions(
 
   // Search before paging: title + primary speaker name (case-insensitive).
   const q = input.q?.trim().toLowerCase();
+  // Names needed for speaker search AND for primarySpeakerName sort.
+  const needAllNames = Boolean(q) || input.sort === "primarySpeakerName";
+  const allNames = needAllNames
+    ? await deps.submissions.listPrimarySpeakerNames(rows.map((r) => r.id))
+    : new Map<string, string>();
   if (q) {
-    const allNames = await deps.submissions.listPrimarySpeakerNames(
-      rows.map((r) => r.id),
-    );
     rows = rows.filter((r) => {
       const title = (r.title ?? "").toLowerCase();
       const speaker = (allNames.get(r.id) ?? "").toLowerCase();
@@ -1109,19 +1118,57 @@ export async function listSubmissions(
     });
   }
 
-  // Stable order: newest submitted first (tie-break by id for determinism)
+  // Server-side sort (F3 allowlist). Default: newest submitted first.
+  const sortField = input.sort ?? "submittedAt";
+  const sortDir =
+    input.sortDir ?? (sortField === "submittedAt" ? "desc" : "asc");
+  const dir = sortDir === "asc" ? 1 : -1;
   rows.sort((a, b) => {
-    if (a.submittedAt < b.submittedAt) return 1;
-    if (a.submittedAt > b.submittedAt) return -1;
-    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+    let cmp = 0;
+    switch (sortField) {
+      case "title":
+        cmp = (a.title ?? "").localeCompare(b.title ?? "", undefined, {
+          sensitivity: "base",
+        });
+        break;
+      case "status":
+        cmp = a.status.localeCompare(b.status);
+        break;
+      case "category":
+        cmp = (a.category ?? "").localeCompare(b.category ?? "", undefined, {
+          sensitivity: "base",
+        });
+        break;
+      case "primarySpeakerName":
+        cmp = (allNames.get(a.id) ?? "").localeCompare(
+          allNames.get(b.id) ?? "",
+          undefined,
+          { sensitivity: "base" },
+        );
+        break;
+      case "submittedAt":
+      default:
+        cmp =
+          a.submittedAt < b.submittedAt
+            ? -1
+            : a.submittedAt > b.submittedAt
+              ? 1
+              : 0;
+        break;
+    }
+    if (cmp !== 0) return cmp * dir;
+    // Stable id tie-break (full sort tuple for page boundaries).
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
 
   const total = rows.length;
   const pageRows = rows.slice(offset, offset + limit);
 
-  const nameBySubmission = await deps.submissions.listPrimarySpeakerNames(
-    pageRows.map((r) => r.id),
-  );
+  const nameBySubmission = needAllNames
+    ? allNames
+    : await deps.submissions.listPrimarySpeakerNames(
+        pageRows.map((r) => r.id),
+      );
 
   const items: SubmissionListItem[] = [];
   for (const r of pageRows) {

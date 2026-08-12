@@ -19,6 +19,12 @@ export {
   type DataTableProps,
   type DataTableColumn,
 } from "./DataTable.js";
+export { DataGrid, type DataGridProps } from "./DataGrid.js";
+export {
+  ColumnManager,
+  type ColumnManagerProps,
+  type ColumnManagerItem,
+} from "./ColumnManager.js";
 export { EmptyState, type EmptyStateProps } from "./EmptyState.js";
 export { PageHeader, type PageHeaderProps } from "./PageHeader.js";
 export { Skeleton, type SkeletonProps, type SkeletonVariant } from "./Skeleton.js";

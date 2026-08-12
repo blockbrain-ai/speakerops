@@ -146,11 +146,15 @@ export function createEventDecisionRoutes(
       const qRaw = c.req.query("q") || c.req.query("search");
       const limitRaw = c.req.query("limit");
       const offsetRaw = c.req.query("offset");
+      const sortRaw = c.req.query("sort");
+      const sortDirRaw = c.req.query("sortDir");
 
       const queryParsed = SubmissionListQuerySchema.safeParse({
         status: statusRaw || undefined,
         category: categoryRaw || undefined,
         q: qRaw || undefined,
+        sort: sortRaw || undefined,
+        sortDir: sortDirRaw || undefined,
         limit: limitRaw ?? undefined,
         offset: offsetRaw ?? undefined,
       });
@@ -181,6 +185,8 @@ export function createEventDecisionRoutes(
         status: queryParsed.data.status,
         category: queryParsed.data.category,
         q: queryParsed.data.q,
+        sort: queryParsed.data.sort,
+        sortDir: queryParsed.data.sortDir,
         limit: queryParsed.data.limit ?? SUBMISSION_LIST_DEFAULT_LIMIT,
         offset: queryParsed.data.offset ?? 0,
       });

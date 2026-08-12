@@ -458,6 +458,30 @@
       "journey": "Clear bulk selection (11.4)"
     },
     {
+      "testid": "submissions-columns-toggle",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "F3 column manager toggle (submissions list)"
+    },
+    {
+      "testid": "submissions-save-view",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "F3 save current grid view (submissions list)"
+    },
+    {
+      "testid": "submissions-delete-view",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "F3 delete active saved grid view (submissions list)"
+    },
+    {
+      "testid": "submissions-set-default-view",
+      "inv": "E01",
+      "surface": "admin",
+      "journey": "F3 set active saved view as default (submissions list)"
+    },
+    {
       "testid": "eval-queue-item-*",
       "inv": "F01",
       "surface": "evaluator",

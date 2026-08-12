@@ -1147,6 +1147,41 @@ export const projectionTables = {
   projectionRecords,
 } as const;
 
+/**
+ * saved_views — F3 data-grid primitive (migration 0037).
+ * Per (user, event, surface) grid definitions: columns/order/widths/sort/filters/density.
+ */
+export const savedViews = sqliteTable(
+  "saved_views",
+  {
+    id: text("id").primaryKey().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    surface: text("surface").notNull(),
+    name: text("name").notNull(),
+    definitionJson: text("definition_json").notNull(),
+    isDefault: integer("is_default").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("idx_saved_views_user_event_surface").on(
+      t.userId,
+      t.eventId,
+      t.surface,
+    ),
+  ],
+);
+
+export const gridTables = {
+  savedViews,
+} as const;
+
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Event = typeof events.$inferSelect;
@@ -1278,4 +1313,8 @@ export const schema = {
   speakerBlockReservations,
   apiKeys,
   projectionRecords,
+  savedViews,
 } as const;
+
+export type SavedView = typeof savedViews.$inferSelect;
+export type NewSavedView = typeof savedViews.$inferInsert;
