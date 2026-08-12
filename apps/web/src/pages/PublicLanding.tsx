@@ -157,24 +157,42 @@ export function PublicLandingPage() {
             <div className="public-landing__shot-cap">
               Programme control — Overview
             </div>
-            <div className="public-landing__shot-ph" aria-hidden>
-              Overview dashboard · readiness · risks · next actions
-            </div>
+            <img
+              className="public-landing__shot-img"
+              src="/landing/shot-overview.png"
+              width={1280}
+              height={720}
+              alt="Admin Overview dashboard showing readiness, risks, and next actions for the programme."
+              loading="lazy"
+              decoding="async"
+            />
           </article>
           <div className="public-landing__shots-col">
             <article className="public-landing__shot">
               <div className="public-landing__shot-cap">
                 Drag-and-drop schedule
               </div>
-              <div className="public-landing__shot-ph" aria-hidden>
-                Schedule Studio · conflict-safe
-              </div>
+              <img
+                className="public-landing__shot-img"
+                src="/landing/shot-schedule.png"
+                width={960}
+                height={640}
+                alt="Schedule Studio with conflict-aware placement of sessions into rooms and times."
+                loading="lazy"
+                decoding="async"
+              />
             </article>
             <article className="public-landing__shot">
               <div className="public-landing__shot-cap">Speaker portal</div>
-              <div className="public-landing__shot-ph" aria-hidden>
-                Tasks · bio · calendar
-              </div>
+              <img
+                className="public-landing__shot-img"
+                src="/landing/shot-portal.png"
+                width={960}
+                height={640}
+                alt="Speaker portal showing tasks, profile, and calendar for an accepted speaker."
+                loading="lazy"
+                decoding="async"
+              />
             </article>
           </div>
         </div>

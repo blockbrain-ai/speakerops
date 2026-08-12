@@ -7049,6 +7049,24 @@ input.speakers-page__profile-input,
   border-bottom: 1px solid var(--lumen-border);
 }
 
+/* Product captures (not empty placeholders) */
+.public-landing__shot-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top center;
+  background: var(--lumen-bg);
+  vertical-align: middle;
+}
+
+.public-landing__shot--large .public-landing__shot-img {
+  aspect-ratio: 16 / 11;
+  min-height: 210px;
+}
+
+/* Legacy empty placeholder — kept only if still referenced */
 .public-landing__shot-ph {
   min-height: 90px;
   display: grid;
@@ -7058,10 +7076,6 @@ input.speakers-page__profile-input,
   color: var(--lumen-text-secondary);
   background: var(--lumen-surface-muted, var(--lumen-bg));
   text-align: center;
-}
-
-.public-landing__shot--large .public-landing__shot-ph {
-  min-height: 210px;
 }
 
 .public-landing__pillars {
