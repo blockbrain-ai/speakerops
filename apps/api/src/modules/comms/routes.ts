@@ -100,19 +100,26 @@ export function createEventCommsRoutes(
   options: CommsRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, events, submissions, decisions, comms } = options;
+  const { store, events, submissions, decisions, comms, keys } = options;
   const deps = { comms, events, auth: store, submissions, decisions };
+  const bearerDraft = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["comms:draft"] as const,
+        eventsStore: events,
+      }
+    : {};
 
   /**
    * GET /:eventId/templates — Comms.ListTemplates
-   * Role: admin
+   * Role: admin · Bearer: comms:draft (CLI templates list)
    */
   app.get(
     "/:eventId/templates",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerDraft }),
     async (c) => {
-      const user = c.get("user");
-      if (!user) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(
           errorEnvelope("Authentication required", "UNAUTHORIZED"),
           401,

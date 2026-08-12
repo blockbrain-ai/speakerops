@@ -123,15 +123,27 @@ export function createEventEvalRoutes(
         eventsStore: events,
       }
     : {};
+  /** Team roster — CLI members list accepts members:write OR submissions:read. */
+  const bearerMembersRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["members:write", "submissions:read"] as const,
+        eventsStore: events,
+      }
+    : {};
 
   /**
    * GET /:eventId/members — event roster (admin).
    * Query: role? = evaluator|admin|speaker (default all when omitted).
    * assignmentCount from active eval round (0 if none).
+   * Bearer: members:write | submissions:read (CLI members list).
    */
   app.get(
     "/:eventId/members",
-    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
+    requireRole(store, ["admin"], {
+      eventIdFrom: "param",
+      ...bearerMembersRead,
+    }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const roleRaw = c.req.query("role");

@@ -843,6 +843,63 @@ describe("7.2 CLI01–CLI12 inventory", () => {
     expect(Array.isArray(body.placements)).toBe(true);
     expect(Array.isArray(body.unscheduled)).toBe(true);
   });
+
+  it("comms templates with comms:draft", async () => {
+    const { app, cookie, eventId } = await adminSession(
+      "cli-templates@example.com",
+    );
+    const denyKey = await mintKey(
+      app,
+      cookie,
+      "no-draft",
+      ["events:read"],
+      eventId,
+    );
+    const capDeny = captureIo();
+    setClientFactoryForTests(() => clientFor(app, denyKey.secret));
+    expect(
+      await main(["comms", "templates", "--event", eventId, "--json"], {
+        io: capDeny.io,
+      }),
+    ).toBe(EXIT_AUTHZ);
+
+    const key = await mintKey(
+      app,
+      cookie,
+      "draft",
+      ["comms:draft", "events:read"],
+      eventId,
+    );
+    const cap = captureIo();
+    setClientFactoryForTests(() => clientFor(app, key.secret));
+    const code = await main(
+      ["comms", "templates", "--event", eventId, "--json"],
+      { io: cap.io },
+    );
+    expect(code).toBe(EXIT_OK);
+  });
+
+  it("members list with members:write", async () => {
+    const { app, cookie, eventId } = await adminSession(
+      "cli-members-list@example.com",
+    );
+    const key = await mintKey(
+      app,
+      cookie,
+      "members-list",
+      ["members:write"],
+      eventId,
+    );
+    const cap = captureIo();
+    setClientFactoryForTests(() => clientFor(app, key.secret));
+    const code = await main(
+      ["members", "list", "--event", eventId, "--json"],
+      { io: cap.io },
+    );
+    expect(code).toBe(EXIT_OK);
+    const body = JSON.parse(cap.out) as { members?: unknown[] };
+    expect(Array.isArray(body.members)).toBe(true);
+  });
 });
 
 describe("7.2 OpenAPI HTTP GET /openapi.json", () => {

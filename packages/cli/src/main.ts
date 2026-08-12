@@ -102,7 +102,7 @@ Commands (CLI_INVENTORY.md):
   comms templates --event E [--json]                      comms:draft
   comms draft --template T [--preview] [--json]           CLI09  comms:draft
   comms send --preview-id P [--idempotency-key K]         CLI10  comms:send
-  members list --event E [--role evaluator] [--json]      members:write|events:read
+  members list --event E [--role evaluator] [--json]      members:write|submissions:read
   members invite --event E --email A [--role evaluator]   members:write
   members set-role --event E --user U --role R            members:write
   keys create --name N --scopes s1,s2                     CLI11  keys:admin
