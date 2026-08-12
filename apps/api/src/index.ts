@@ -83,6 +83,12 @@ import {
   D1PortalFormsStore,
   type PortalFormsStore,
 } from "./modules/portal-forms/store.js";
+import { createResourcesRoutes } from "./modules/resources/routes.js";
+import {
+  MemoryResourcesStore,
+  D1ResourcesStore,
+  type ResourcesStore,
+} from "./modules/resources/store.js";
 import type { BootstrapPolicy } from "./modules/auth/commands.js";
 import {
   MemoryEventsStore,
@@ -223,6 +229,8 @@ export type CreateAppOptions = {
   programmeStore?: ProgrammeStore;
   /** Inject portal forms store (N1; defaults to in-memory). */
   portalFormsStore?: PortalFormsStore;
+  /** Inject resources / file-requests store (N2/N3; defaults to in-memory). */
+  resourcesStore?: ResourcesStore;
   /** TURNSTILE_SECRET_KEY for tests (env name only in production). */
   turnstileSecret?: string;
   /**
@@ -319,6 +327,8 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const programmeStore = options.programmeStore ?? new MemoryProgrammeStore();
   const portalFormsStore =
     options.portalFormsStore ?? new MemoryPortalFormsStore();
+  const resourcesStore =
+    options.resourcesStore ?? new MemoryResourcesStore();
   const magicLinkOutbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   // Dev outbox is opt-in only (e2e / tests). Production default export sets false.
   const enableDevOutbox = options.enableDevOutbox === true;
@@ -480,6 +490,16 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
       portalForms: portalFormsStore,
       submissions: submissionsStore,
       decisions: decisionsStore,
+    }),
+  );
+
+  // N2 resources + N3 file requests under /api/events/:eventId/resources|file-requests
+  app.route(
+    "/api/events",
+    createResourcesRoutes({
+      store: authStore,
+      events: eventsStore,
+      resources: resourcesStore,
     }),
   );
 
@@ -947,6 +967,7 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     searchStore: new D1SearchStore(d1),
     programmeStore: new D1ProgrammeStore(d1),
     portalFormsStore: new D1PortalFormsStore(d1),
+    resourcesStore: new D1ResourcesStore(d1),
     turnstileSecret,
     demoMode,
     demoAllowlistEnabled,

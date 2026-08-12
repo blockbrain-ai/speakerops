@@ -10,15 +10,17 @@
 2. **Admin Overview** — programme control (stages, KPIs, charts, Publish programme)  
 3. **Form builder** — guided wizard + rich text  
 4. **Submissions grid** — TanStack DataGrid, saved views, bulk decisions  
-5. **Schedule Studio** — DnD, list/day/week/track/room/**month**/**conflicts**  
+5. **Schedule Studio** — DnD + list/day/week/track/room/**month**/**conflicts**  
 6. **⌘K Find** — permissioned search  
 7. **Public CFP** `/cfp/:slug` — submit + draft + wizard Next/Back  
-8. **Public programme** `/e/:slug/*` — sessions, speakers, agenda, itinerary, gallery (after Publish)  
-9. **Public embeds** `/embed/:slug/*` + admin **Embeds** configurator (copy iframe code)  
-10. **Portal** `/portal` — speaker onboarding (profile, tasks, sessions)  
-11. **Operator** Files / History / Team / Preview hub  
-12. **Analytics** — template gallery widgets on live roll-ups  
-13. **Portal forms** — post-acceptance questionnaires (create → publish → speaker fill API)
+8. **Public programme** `/e/:slug/*` — sessions, speakers, agenda, itinerary, gallery  
+9. **Public embeds** `/embed/:slug/*` + admin Embeds configurator  
+10. **Portal** `/portal` — speaker onboarding  
+11. **Operator** Files / History / Team / Preview  
+12. **Analytics** — widget gallery on live roll-ups  
+13. **Portal forms** — post-acceptance questionnaires (N1)  
+14. **Resources** — event wiki pages (N2)  
+15. **File requests** — reusable request library (N3)
 
 ## Gates (local)
 
@@ -39,24 +41,14 @@ VITE_ROLE_SWITCHER=1 scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
 
 ## Known residuals (honest)
 
-- Public headshot file route (gallery may show initials until private→public serve is wired)  
-- N2 Resources/wiki + sandboxed HTML embeds (not shipped as a first-class CMS)  
-- N3 File Requests entity (portal headshot/slides cover the onboarding file path; reusable request library not full)  
-- N5 Accelevents projection requires third-party API credentials — Airtable one-way status remains; do not stub dual-write  
-- Social links on speaker profile (LinkedIn/X/etc.) need a future additive column  
-- True single-step-visible CFP wizard would need coordinated e2e rewrites (Next/Back chrome shipped; fields remain on-page for e2e safety)  
-- Golden baton is continuity smoke + existing keystone suites (not a single 20-min monolith browser recording)  
-- Learn site is dist-only (Phase 4 C2.5 residual for source+build)
+- Public headshot file route (gallery may show initials)  
+- N2 safe HTML embeds / sandboxed iframe CMS depth  
+- N5 Accelevents projection needs third-party API credentials (Airtable one-way remains)  
+- Social links on speaker profile need a future column  
+- Single-step-visible CFP wizard would need e2e rewrites (Next/Back chrome shipped)  
+- Golden baton is continuity smoke + keystone suites  
+- Learn site dist-only (C2.5 residual)
 
 ## Group decision
 
-No first-class Group aggregate — Person / Participation / Submission only. Portal forms are participation-scoped.
-
-## Recent ship waves
-
-| Wave | SHA prefix | Surfaces |
-|------|------------|----------|
-| F3–F7 | …8b96bc6a5 | Grid, charts, Find, Drawer/Toast, public programme |
-| P5/P7/P8/N6 | 92642dd4f | CFP wizard chrome, settings hub, month/conflicts, Files/History/Team |
-| N4/N6/N7 | adbf35d33 | Embeds, Preview hub, Analytics |
-| N1 | (this wave) | Portal forms builder + D1 0040 |
+No first-class Group aggregate — Person / Participation / Submission only.

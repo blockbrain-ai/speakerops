@@ -54,6 +54,8 @@ export {
   programmePublications,
   portalForms,
   portalFormResponses,
+  portalResources,
+  fileRequests,
   baselineTables,
   authTables,
   membershipTables,

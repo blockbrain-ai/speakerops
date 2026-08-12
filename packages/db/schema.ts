@@ -128,6 +128,49 @@ export const portalFormResponses = sqliteTable(
 );
 
 /**
+ * portal_resources — N2 wiki/resources pages (migration 0041).
+ */
+export const portalResources = sqliteTable(
+  "portal_resources",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    title: text("title").notNull(),
+    bodyMd: text("body_md"),
+    status: text("status").notNull().default("draft"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (t) => [index("idx_portal_resources_event").on(t.eventId, t.status)],
+);
+
+/**
+ * file_requests — N3 reusable file request templates (migration 0041).
+ */
+export const fileRequests = sqliteTable(
+  "file_requests",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    title: text("title").notNull(),
+    instructions: text("instructions"),
+    scope: text("scope").notNull().default("participation"),
+    status: text("status").notNull().default("draft"),
+    purpose: text("purpose").notNull().default("other"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (t) => [index("idx_file_requests_event").on(t.eventId, t.status)],
+);
+
+/**
  * audit_events — consequential writes (E3).
  * correlation_id is required so request/CLI entry can be traced.
  */
@@ -1420,6 +1463,8 @@ export const schema = {
   programmePublications,
   portalForms,
   portalFormResponses,
+  portalResources,
+  fileRequests,
 } as const;
 
 export type SavedView = typeof savedViews.$inferSelect;
@@ -1432,3 +1477,8 @@ export type PortalForm = typeof portalForms.$inferSelect;
 export type NewPortalForm = typeof portalForms.$inferInsert;
 export type PortalFormResponse = typeof portalFormResponses.$inferSelect;
 export type NewPortalFormResponse = typeof portalFormResponses.$inferInsert;
+export type PortalResource = typeof portalResources.$inferSelect;
+export type NewPortalResource = typeof portalResources.$inferInsert;
+export type FileRequest = typeof fileRequests.$inferSelect;
+export type NewFileRequest = typeof fileRequests.$inferInsert;
+

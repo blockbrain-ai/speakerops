@@ -1182,6 +1182,54 @@
       "inv": "D01",
       "surface": "admin",
       "journey": "N1 select portal form"
+    },
+    {
+      "testid": "nav-resources",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N2 Resources nav"
+    },
+    {
+      "testid": "nav-file-requests",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N3 File requests nav"
+    },
+    {
+      "testid": "resources-refresh",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N2 resources refresh"
+    },
+    {
+      "testid": "resource-create",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N2 create resource"
+    },
+    {
+      "testid": "resource-publish-*",
+      "inv": "D08",
+      "surface": "admin",
+      "journey": "N2 publish resource"
+    },
+    {
+      "testid": "file-requests-refresh",
+      "inv": "L2-01",
+      "surface": "admin",
+      "journey": "N3 file requests refresh"
+    },
+    {
+      "testid": "file-request-create",
+      "inv": "D01",
+      "surface": "admin",
+      "journey": "N3 create file request"
+    },
+    {
+      "testid": "file-request-publish-*",
+      "inv": "D08",
+      "surface": "admin",
+      "journey": "N3 publish file request"
     }
   ]
 }

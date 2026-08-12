@@ -61,6 +61,8 @@ describe("1.4 AdminShell", () => {
       "Preview",
       "Analytics",
       "Portal forms",
+      "Resources",
+      "File requests",
       "Evaluations",
       "Speakers",
       "Schedule",

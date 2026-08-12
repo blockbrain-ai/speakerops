@@ -82,6 +82,18 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     icon: "file",
   },
   {
+    path: "/admin/resources",
+    label: "Resources",
+    testId: "nav-resources",
+    icon: "file",
+  },
+  {
+    path: "/admin/file-requests",
+    label: "File requests",
+    testId: "nav-file-requests",
+    icon: "inbox",
+  },
+  {
     path: "/admin/evaluations",
     label: "Evaluations",
     testId: "nav-evaluations",
