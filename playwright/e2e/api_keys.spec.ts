@@ -16,7 +16,6 @@ import { test, expect } from "@playwright/test";
 
 const ADMIN_EMAIL = "e2e-keys-admin@example.com";
 const SPEAKER_EMAIL = "e2e-keys-speaker@example.com";
-const JUDGE_CODE = process.env.E2E_JUDGE_CODE || "e2e-judge-code-local-0000";
 
 async function requestMagicLink(
   request: import("@playwright/test").APIRequestContext,
@@ -276,7 +275,7 @@ test("@inv:K05 e2e/keys/demo-clamp judge demo session mints 4h key, uses and rev
 
   // Judge access mints a demo admin session (4h TTL).
   const mint = await request.post("/api/auth/judge-access", {
-    data: { code: JUDGE_CODE, role: "admin" },
+    data: { role: "admin" },
   });
   expect(mint.status()).toBe(200);
   const mintCookie = mint.headers()["set-cookie"] ?? "";

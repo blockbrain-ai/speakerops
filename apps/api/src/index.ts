@@ -283,8 +283,8 @@ export type CreateAppOptions = {
    */
   enableRoleSwitcher?: boolean;
   /**
-   * Competition judge entry code (JUDGE_ACCESS_CODE secret). Judge-access
-   * route registers only when set together with enableRoleSwitcher.
+   * Legacy JUDGE_ACCESS_CODE. Ignored for route registration — `/judge`
+   * is open whenever enableRoleSwitcher is on.
    */
   judgeAccessCode?: string | null;
   /**
@@ -828,7 +828,7 @@ export function createAppWithAuth(
     enableDevOutbox: options.enableDevOutbox ?? true,
     // Section 8.4 — role switcher on for local e2e / unit tests (opt-out available).
     enableRoleSwitcher: options.enableRoleSwitcher ?? true,
-    // B07 — judge access for local e2e (harness passes a fixed code).
+    // B07 — open judge entry whenever the role switcher is on.
     judgeAccessCode: options.judgeAccessCode ?? null,
     // Open bootstrap for e2e/unit tests only — never production.
     bootstrapPolicy: options.bootstrapPolicy ?? "open",
@@ -1008,13 +1008,9 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     demoAllowlistEventSlugs,
     enableDevOutbox: false,
     enableRoleSwitcher: roleSwitcherEnabled,
-    // Competition judge entry: active only when both the switcher flag and
-    // the JUDGE_ACCESS_CODE secret are set on the dogfood Worker (names only).
-    judgeAccessCode:
-      typeof env.JUDGE_ACCESS_CODE === "string" &&
-      env.JUDGE_ACCESS_CODE.trim().length >= 16
-        ? env.JUDGE_ACCESS_CODE.trim()
-        : null,
+    // Competition judge entry: open whenever the role switcher is on.
+    // JUDGE_ACCESS_CODE is no longer required (legacy secret ignored).
+    judgeAccessCode: null,
     bootstrapPolicy: "controlled",
     // E10 / 8.3 — production session cookies always Secure + HttpOnly + SameSite=Lax
     cookieSecure: true,

@@ -113,9 +113,8 @@ export type AuthRouteOptions = {
   /** Durable magic-link email (encrypt + outbox). Optional. */
   magicLinkMail?: MagicLinkMailDeps | null;
   /**
-   * Competition judge entry code (JUDGE_ACCESS_CODE env name; value is a
-   * secret). POST /api/auth/judge-access registers only when this is set AND
-   * enableRoleSwitcher is true; otherwise the path 404s. Never logged.
+   * Legacy JUDGE_ACCESS_CODE. No longer gates the route (open competition
+   * demo). Kept so older test factories still compile.
    */
   judgeAccessCode?: string | null;
 };
@@ -633,16 +632,12 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
   /**
    * POST /api/auth/judge-access → Auth.JudgeAccess (competition judge entry).
    *
-   * Registered ONLY when enableRoleSwitcher AND a judgeAccessCode are
-   * configured — otherwise the path is absent (404), indistinguishable from
-   * a non-existent route. Server-fixed demo event; the client chooses only
-   * the role label. Constant-time code comparison (both sides SHA-256 hashed
-   * before compare). Mints a 4-hour session (DB row AND cookie share the
-   * TTL). Rate-limited per isolate. Audit event Auth.JudgeAccess on mint.
-   * Failures are generic (401, no reason detail) and never logged with body.
+   * Registered when enableRoleSwitcher is on — no access code. The client
+   * chooses only the role. Mints a 4-hour session (DB row AND cookie share
+   * the TTL). Rate-limited per isolate. Audit Auth.JudgeAccess on mint.
+   * Unseeded persona → generic 401. Optional body `code` is ignored.
    */
-  if (options.enableRoleSwitcher && options.judgeAccessCode) {
-    const judgeCode = options.judgeAccessCode;
+  if (options.enableRoleSwitcher) {
     const JUDGE_SESSION_TTL_SECONDS = 4 * 60 * 60;
     /** Isolate-local limiter: 10 attempts / 5 min per client IP. */
     const judgeLimiter = new Map<string, { count: number; windowStartMs: number }>();
@@ -681,21 +676,6 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         );
       }
 
-      // Constant-time comparison: hash both sides (fixed-length digests) so
-      // compare time is independent of match position or code length.
-      const [suppliedHash, expectedHash] = await Promise.all([
-        hashToken(parsed.data.code),
-        hashToken(judgeCode),
-      ]);
-      let diff = 0;
-      for (let i = 0; i < expectedHash.length; i++) {
-        diff |= suppliedHash.charCodeAt(i) ^ expectedHash.charCodeAt(i);
-      }
-      if (diff !== 0 || suppliedHash.length !== expectedHash.length) {
-        // Generic failure — no distinction between wrong code and other causes.
-        return c.json(errorEnvelope("Invalid access code", UNAUTHORIZED), 401);
-      }
-
       const correlationId = c.get("correlationId");
       // Server-fixed demo event; personas must be pre-seeded (never created).
       const result = await devRoleSwitch(deps, {
@@ -707,8 +687,10 @@ export function createAuthRoutes(options: AuthRouteOptions): Hono<ApiEnv> {
         auditAction: "Auth.JudgeAccess",
       });
       if (!result.ok) {
-        // Persona not seeded / role mismatch — still generic to the caller.
-        return c.json(errorEnvelope("Invalid access code", UNAUTHORIZED), 401);
+        return c.json(
+          errorEnvelope("Demo entry is unavailable", UNAUTHORIZED),
+          401,
+        );
       }
 
       const out = JudgeAccessResponseSchema.safeParse(result.response);

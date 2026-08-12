@@ -53,7 +53,7 @@ Copy names into a local secrets channel or `.env` / `.dev.vars` that is **gitign
 | `SPEAKEROPS_D1_DATABASE_ID` | remote D1 | Real D1 `database_id` when leaving wrangler placeholder |
 | `SPEAKEROPS_R2_BUCKET_NAME` | optional R2 | Override `FILES` bucket name |
 | `ROLE_SWITCHER_ENABLED` | private dogfood only | `"1"` enables role-switch API (default **off**) |
-| `JUDGE_ACCESS_CODE` | shared demo only (secret) | With role switcher on, enables `/judge` entry (4h demo sessions); 404 when unset |
+| `JUDGE_ACCESS_CODE` | unused (legacy) | No longer required. `/judge` is open whenever `ROLE_SWITCHER_ENABLED=1` |
 | `VITE_ROLE_SWITCHER` | private dogfood SPA | `"1"` shows RoleSwitcher chrome (also auto in Vite DEV) |
 | `EMAIL_PROVIDER` | comms drain | `sandbox` (default), `resend`, or `cloudflare` (hosted demo — Cloudflare Email Sending, no attachments) |
 | `RESEND_API_KEY` | Resend provider only | Ignored unless `EMAIL_PROVIDER=resend` |

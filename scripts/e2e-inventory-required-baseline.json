@@ -715,7 +715,7 @@
     },
     "B07": {
       "test_id": "e2e/public/judge-access",
-      "journey": "Judge access code exchanges for demo role session (4h; body-posted code)"
+      "journey": "Open /judge role picker mints 4h demo session (no access code)"
     },
     "G09": {
       "test_id": "e2e/portal/session-ics",

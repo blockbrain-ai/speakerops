@@ -1,15 +1,12 @@
 /**
  * Judge access — competition entry (`/judge`).
  *
- * Exchanges an access code (provided in the competition submission, never in
- * the repo) for a short-lived demo-role session on the shared demo event via
- * POST /api/auth/judge-access (B07). The route is live only on the demo
- * deployment (ROLE_SWITCHER_ENABLED=1 + JUDGE_ACCESS_CODE secret); elsewhere
- * the API 404s and this page explains that access is disabled.
+ * Open demo: pick a role and enter. POST /api/auth/judge-access (B07) mints a
+ * 4-hour demo-persona session on the seeded event. The route is live when
+ * ROLE_SWITCHER_ENABLED=1; elsewhere the API 404s and this page explains that.
  *
- * Security: code posted in the body (never a URL param); generic error copy;
- * sessions expire in ~4 hours; the role switcher chrome allows moving between
- * roles afterwards without re-entering the code.
+ * No access code. Rate-limited on the Worker. Role switcher chrome then
+ * moves between roles without leaving the demo session.
  */
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
@@ -39,7 +36,6 @@ const ROLES: { value: EventRole; label: string; blurb: string }[] = [
 
 export default function JudgeAccessPage() {
   const navigate = useNavigate();
-  const [code, setCode] = useState("");
   const [role, setRole] = useState<EventRole>("admin");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +49,7 @@ export default function JudgeAccessPage() {
       const res = await fetch("/api/auth/judge-access", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code, role }),
+        body: JSON.stringify({ role }),
       });
       if (res.status === 404) {
         setError(
@@ -66,7 +62,7 @@ export default function JudgeAccessPage() {
         return;
       }
       if (!res.ok) {
-        setError("Invalid access code.");
+        setError("Could not enter the demo — try again.");
         return;
       }
       const parsed = JudgeAccessResponseSchema.safeParse(await res.json());
@@ -90,11 +86,11 @@ export default function JudgeAccessPage() {
           <BrandLockup size={24} />
         </div>
         <p className="login-card__overline">SpeakerOps · shared demo</p>
-        <h1 className="login-card__title">Judge access</h1>
+        <h1 className="login-card__title">Enter the demo</h1>
         <p className="login-card__subtitle">
-          Enter the access code from the competition submission to explore the
-          seeded demo event in any role. Sessions last about 4 hours; data is
-          shared between judges and reset periodically.
+          Pick a role and explore the seeded AI Engineer event. No access
+          code. Sessions last about 4 hours; data is shared and reset
+          periodically. Use the role switcher in the top bar to change seats.
         </p>
         <form onSubmit={onSubmit} className="login-form" data-testid="judge-form">
           <fieldset className="login-form__purpose" disabled={busy}>
@@ -117,27 +113,13 @@ export default function JudgeAccessPage() {
               </label>
             ))}
           </fieldset>
-          <label className="login-form__label" htmlFor="judge-code">
-            Access code
-          </label>
-          <input
-            id="judge-code"
-            type="password"
-            autoComplete="off"
-            required
-            minLength={8}
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            data-testid="judge-code"
-            className="login-form__input lumen-focusable"
-          />
           <button
             type="submit"
-            disabled={busy || code.length < 8}
+            disabled={busy}
             data-testid="judge-submit"
             className="login-form__submit lumen-focusable"
           >
-            {busy ? "Checking…" : "Enter demo"}
+            {busy ? "Entering…" : "Enter demo"}
           </button>
           {error ? (
             <p role="alert" className="login-card__status login-card__status--error" data-testid="judge-error">

@@ -10,7 +10,7 @@ Auth: session cookie **or** API key with scopes.
 | `Auth.ExchangeMagicLink` | public | token | Set-Cookie session |
 | `Auth.Logout` | any authed | — | cleared cookie |
 | `Auth.CreateInvite` | admin | email, role, eventId | { inviteId } |
-| `Auth.JudgeAccess` | shared demo only (`ROLE_SWITCHER_ENABLED=1` + `JUDGE_ACCESS_CODE` secret) | code, role (admin\|evaluator\|speaker) | { ok, role, email, eventId, redirectTo } + Set-Cookie 4h session for seeded demo persona on the demo event — constant-time code compare, generic 401, rate-limited, audit `Auth.JudgeAccess`; demo sessions denied `Keys.Create` |
+| `Auth.JudgeAccess` | shared demo only (`ROLE_SWITCHER_ENABLED=1`) | role (admin\|evaluator\|speaker); optional leftover `code` ignored | { ok, role, email, eventId, redirectTo } + Set-Cookie 4h session for seeded demo persona on `evt_dogfood` — no access code; rate-limited; audit `Auth.JudgeAccess`; demo keys expiry-clamped |
 | `Auth.DevRoleSwitch` | dogfood/dev only (`ROLE_SWITCHER_ENABLED=1` / local e2e) | role (admin\|evaluator\|speaker), eventId? | { ok, role, email, eventId, redirectTo } + Set-Cookie session for seeded demo user — **never** registered on public production default; controlled Worker requires existing **admin** session (401 if unauthenticated, 403 if non-admin) |
 
 ## Events & settings

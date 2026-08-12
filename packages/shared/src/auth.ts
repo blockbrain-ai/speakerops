@@ -102,13 +102,14 @@ export type DevRoleSwitchResponse = z.infer<typeof DevRoleSwitchResponseSchema>;
 
 /**
  * Auth.JudgeAccess — competition judge entry (demo deployment only).
- * POST /api/auth/judge-access — registered only when the role switcher is
- * enabled AND JUDGE_ACCESS_CODE is configured; 404 otherwise. The event is
- * server-fixed (demo event); the client chooses only the role label.
+ * POST /api/auth/judge-access — registered when the role switcher is
+ * enabled (404 otherwise). No access code: the client chooses only the
+ * role. Optional leftover `code` is ignored so old clients still work.
  */
 export const JudgeAccessBodySchema = z.object({
-  code: z.string().min(8).max(256),
   role: EventRoleSchema,
+  /** Ignored — kept optional so older clients that still post a code succeed. */
+  code: z.string().max(256).optional(),
 });
 export type JudgeAccessBody = z.infer<typeof JudgeAccessBodySchema>;
 

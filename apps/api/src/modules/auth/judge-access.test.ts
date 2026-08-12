@@ -2,12 +2,11 @@
  * B07 — Auth.JudgeAccess (competition judge entry).
  *
  * Named assertions:
- * - correct code + seeded persona → 200, role session cookie with 4h Max-Age,
+ * - seeded persona + role only → 200, role session cookie with 4h Max-Age,
  *   DB session expiry ≈ 4h (cookie and credential share the TTL)
- * - wrong code → generic 401 (no cause detail)
- * - unseeded persona → generic 401 (indistinguishable from wrong code)
- * - judgeAccessCode unset → route absent (404)
- * - enableRoleSwitcher off → route absent (404) even with a code
+ * - leftover `code` in the body is ignored
+ * - unseeded persona → generic 401
+ * - enableRoleSwitcher off → route absent (404)
  * - rate limit: >10 attempts in window → 429
  * - audit event Auth.JudgeAccess recorded on mint (no token in payload)
  * - shared-demo blast radius: demo Keys.Create is expiry-clamped (≤4h,
@@ -26,8 +25,6 @@ import {
 } from "@speakerops/shared";
 import { createAppWithAuth } from "../../index.js";
 import { requestMagicLink } from "./commands.js";
-
-const JUDGE_CODE = "unit-judge-code-0123456789";
 
 async function seedPersona(
   store: {
@@ -52,17 +49,17 @@ async function seedPersona(
   return user;
 }
 
-function judgeBody(role: string, code: string = JUDGE_CODE) {
+function judgeBody(role: string) {
   return {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code, role }),
+    body: JSON.stringify({ role }),
   };
 }
 
 describe("B07 judge access", () => {
-  it("correct code + seeded persona mints a 4h session (cookie and DB agree)", async () => {
-    const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+  it("open entry + seeded persona mints a 4h session (cookie and DB agree)", async () => {
+    const { app, store } = createAppWithAuth();
     await seedPersona(store, "admin");
 
     const before = Date.now();
@@ -92,52 +89,42 @@ describe("B07 judge access", () => {
     expect(Math.abs(expMs - (before + fourH))).toBeLessThan(60_000);
   });
 
-  it("wrong code and unseeded persona are the same generic 401", async () => {
-    const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+  it("legacy code in the body is ignored when the persona is seeded", async () => {
+    const { app, store } = createAppWithAuth();
     await seedPersona(store, "admin");
+    const res = await app.request("/api/auth/judge-access", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "admin", code: "stale-code-stale-code" }),
+    });
+    expect(res.status).toBe(200);
+  });
 
-    const bad = await app.request(
-      "/api/auth/judge-access",
-      judgeBody("admin", "wrong-code-wrong-code"),
-    );
-    expect(bad.status).toBe(401);
-    const badBody = (await bad.json()) as { error: string };
-
-    // evaluator persona NOT seeded → same failure shape
+  it("unseeded persona is a generic 401", async () => {
+    const { app } = createAppWithAuth();
     const unseeded = await app.request(
       "/api/auth/judge-access",
       judgeBody("evaluator"),
     );
     expect(unseeded.status).toBe(401);
     const unseededBody = (await unseeded.json()) as { error: string };
-    expect(unseededBody.error).toBe(badBody.error);
+    expect(unseededBody.error).toMatch(/unavailable|Invalid/i);
   });
 
-  it("route is absent (404) without a configured code or with switcher off", async () => {
-    const { app: noCode } = createAppWithAuth({});
-    const res1 = await noCode.request(
-      "/api/auth/judge-access",
-      judgeBody("admin"),
-    );
-    expect(res1.status).toBe(404);
-
-    const { app: switcherOff } = createAppWithAuth({
+  it("route is absent (404) when the switcher is off", async () => {
+    const { app } = createAppWithAuth({
       enableRoleSwitcher: false,
-      judgeAccessCode: JUDGE_CODE,
     });
-    const res2 = await switcherOff.request(
-      "/api/auth/judge-access",
-      judgeBody("admin"),
-    );
-    expect(res2.status).toBe(404);
+    const res = await app.request("/api/auth/judge-access", judgeBody("admin"));
+    expect(res.status).toBe(404);
   });
 
   it("rate-limits repeated attempts from one client", async () => {
-    const { app } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+    const { app } = createAppWithAuth();
     let last = 0;
     for (let i = 0; i < 12; i++) {
       const res = await app.request("/api/auth/judge-access", {
-        ...judgeBody("admin", "wrong-code-wrong-code"),
+        ...judgeBody("admin"),
         headers: {
           "content-type": "application/json",
           "cf-connecting-ip": "203.0.113.7",
@@ -149,7 +136,7 @@ describe("B07 judge access", () => {
   });
 
   it("records an Auth.JudgeAccess audit event without the token", async () => {
-    const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+    const { app, store } = createAppWithAuth({});
     await seedPersona(store, "evaluator");
     const res = await app.request(
       "/api/auth/judge-access",
@@ -165,7 +152,7 @@ describe("B07 judge access", () => {
   });
 
   it("demo persona session mints keys with expiry clamped to 4h (shared-demo blast radius)", async () => {
-    const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+    const { app, store } = createAppWithAuth({});
     const demoUser = await seedPersona(store, "admin");
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
     expect(mint.status).toBe(200);
@@ -231,7 +218,7 @@ describe("B07 judge access", () => {
   });
 
   it("demo persona can revoke a demo-created key (audit records demo actor)", async () => {
-    const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+    const { app, store } = createAppWithAuth({});
     const demoUser = await seedPersona(store, "admin");
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
     expect(mint.status).toBe(200);
@@ -270,7 +257,6 @@ describe("B07 judge access", () => {
 
   it("role switch never extends the judge 4h TTL (child session ≤ authorizing session)", async () => {
     const { app, store } = createAppWithAuth({
-      judgeAccessCode: JUDGE_CODE,
       // Controlled path: role switch requires an authorizing admin session.
       roleSwitcherAllowUnauthenticated: false,
     });
@@ -351,9 +337,7 @@ describe("B07 judge access", () => {
   });
 
   it("demo persona cannot revoke seeded (non-demo-created) keys; real admin revoke still works", async () => {
-    const { app, store, outbox } = createAppWithAuth({
-      judgeAccessCode: JUDGE_CODE,
-    });
+    const { app, store, outbox } = createAppWithAuth();
     await seedPersona(store, "admin");
 
     // Real admin via magic link (open bootstrap) creates a real key.
@@ -411,9 +395,7 @@ describe("B07 judge access", () => {
   });
 
   it("bearer keys minted by demo sessions stay demo-bounded (child clamp + seeded revoke 403)", async () => {
-    const { app, store, outbox } = createAppWithAuth({
-      judgeAccessCode: JUDGE_CODE,
-    });
+    const { app, store, outbox } = createAppWithAuth();
     await seedPersona(store, "admin");
 
     // Seeded key from a real admin (target the demo bearer must not revoke).
@@ -491,7 +473,7 @@ describe("B07 judge access", () => {
   });
 
   it("demo key chain cannot outlive its root: 1h parent → child ≤ 1h → grandchild ≤ child", async () => {
-    const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+    const { app, store } = createAppWithAuth({});
     await seedPersona(store, "admin");
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
     expect(mint.status).toBe(200);
@@ -571,7 +553,7 @@ describe("B07 judge access", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
       vi.setSystemTime(t0);
-      const { app, store } = createAppWithAuth({ judgeAccessCode: JUDGE_CODE });
+      const { app, store } = createAppWithAuth({});
       await seedPersona(store, "admin");
       const mint = await app.request(
         "/api/auth/judge-access",
@@ -607,9 +589,7 @@ describe("B07 judge access", () => {
   });
 
   it("concurrent demo creates cannot exceed the active cap (atomic insert, no TOCTOU)", async () => {
-    const { app, store, keys } = createAppWithAuth({
-      judgeAccessCode: JUDGE_CODE,
-    });
+    const { app, store, keys } = createAppWithAuth();
     const demoUser = await seedPersona(store, "admin");
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
     expect(mint.status).toBe(200);
@@ -645,9 +625,7 @@ describe("B07 judge access", () => {
   });
 
   it("create→revoke loops stop at the non-releasing 24h mint cap (100) with its own copy", async () => {
-    const { app, store, keys } = createAppWithAuth({
-      judgeAccessCode: JUDGE_CODE,
-    });
+    const { app, store, keys } = createAppWithAuth();
     const demoUser = await seedPersona(store, "admin");
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
     expect(mint.status).toBe(200);
@@ -710,9 +688,7 @@ describe("B07 judge access", () => {
   });
 
   it("offset-form expiry is normalized to UTC Z and counts as active (no lexical evasion)", async () => {
-    const { app, store, keys } = createAppWithAuth({
-      judgeAccessCode: JUDGE_CODE,
-    });
+    const { app, store, keys } = createAppWithAuth();
     const demoUser = await seedPersona(store, "admin");
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
     expect(mint.status).toBe(200);
@@ -772,9 +748,7 @@ describe("B07 judge access", () => {
   });
 
   it("durable demo mint quota: 25 active demo keys max; revoke frees quota; real admins unaffected", async () => {
-    const { app, store, outbox } = createAppWithAuth({
-      judgeAccessCode: JUDGE_CODE,
-    });
+    const { app, store, outbox } = createAppWithAuth();
     await seedPersona(store, "admin");
     const mint = await app.request("/api/auth/judge-access", judgeBody("admin"));
     expect(mint.status).toBe(200);
