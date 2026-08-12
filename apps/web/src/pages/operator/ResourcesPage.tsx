@@ -22,7 +22,9 @@ export function ResourcesPage() {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const selected = rows.find((r) => r.id === selectedId) ?? null;
 
   const load = useCallback(async () => {
     if (!activeEventId) {
@@ -110,6 +112,45 @@ export function ResourcesPage() {
     }
   }
 
+  async function saveSelected() {
+    if (!activeEventId || !selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(activeEventId)}/resources/${encodeURIComponent(selected.id)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({
+            title: title.trim() || selected.title,
+            bodyMd: body.trim() || null,
+            expectedVersion: selected.version,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const raw: unknown = await res.json().catch(() => null);
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setError(env.success ? env.data.error : `Save failed (${res.status})`);
+        return;
+      }
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function selectResource(r: Resource) {
+    setSelectedId(r.id);
+    setTitle(r.title);
+    setBody(r.bodyMd ?? "");
+  }
+
   return (
     <div data-testid="page-resources" data-section="n2-resources">
       <PageHeader
@@ -155,14 +196,41 @@ export function ResourcesPage() {
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
-            <Button
-              type="button"
-              data-testid="resource-create"
-              disabled={busy || !title.trim()}
-              onClick={() => void create()}
-            >
-              Create resource
-            </Button>
+            <div className="eval-queue__row" style={{ gap: 8, display: "flex" }}>
+              <Button
+                type="button"
+                data-testid="resource-create"
+                disabled={busy || !title.trim() || selectedId != null}
+                onClick={() => void create()}
+              >
+                Create resource
+              </Button>
+              {selectedId ? (
+                <Button
+                  type="button"
+                  data-testid="resource-save"
+                  disabled={busy || !title.trim()}
+                  onClick={() => void saveSelected()}
+                >
+                  Save changes
+                </Button>
+              ) : null}
+              {selectedId ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  data-testid="resource-clear-selection"
+                  disabled={busy}
+                  onClick={() => {
+                    setSelectedId(null);
+                    setTitle("");
+                    setBody("");
+                  }}
+                >
+                  New page
+                </Button>
+              ) : null}
+            </div>
           </div>
           {error ? (
             <p className="eval-queue__muted" data-testid="resources-error">
@@ -195,8 +263,30 @@ export function ResourcesPage() {
             <ul className="portal-forms-list" data-testid="resources-list">
               {rows.map((r) => (
                 <li key={r.id} data-testid={`resource-row-${r.id}`}>
-                  <div className="portal-forms-list__item">
-                    <strong>{r.title}</strong>
+                  <div
+                    className={
+                      selectedId === r.id
+                        ? "portal-forms-list__item is-active"
+                        : "portal-forms-list__item"
+                    }
+                  >
+                    <button
+                      type="button"
+                      className="lumen-focusable"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        font: "inherit",
+                        color: "inherit",
+                      }}
+                      data-testid={`resource-select-${r.id}`}
+                      onClick={() => selectResource(r)}
+                    >
+                      <strong>{r.title}</strong>
+                    </button>
                     <Badge
                       tone={r.status === "published" ? "success" : "warn"}
                     >

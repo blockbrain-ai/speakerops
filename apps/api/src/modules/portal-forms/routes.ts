@@ -39,7 +39,21 @@ function parseFields(json: string): PortalFormField[] {
   try {
     const raw: unknown = JSON.parse(json);
     if (!Array.isArray(raw)) return [];
-    return raw as PortalFormField[];
+    // Normalize partial field rows so DTO parse never throws 500.
+    return raw
+      .filter((f): f is Record<string, unknown> => !!f && typeof f === "object")
+      .map((f) => ({
+        key: String(f.key ?? ""),
+        label: String(f.label ?? f.key ?? "Field"),
+        type: (["text", "textarea", "url", "checkbox"].includes(
+          String(f.type),
+        )
+          ? String(f.type)
+          : "text") as PortalFormField["type"],
+        required: Boolean(f.required),
+        help: typeof f.help === "string" ? f.help : undefined,
+      }))
+      .filter((f) => f.key.length > 0);
   } catch {
     return [];
   }
@@ -50,25 +64,42 @@ function toDto(row: {
   eventId: string;
   title: string;
   description: string | null;
-  scope: "participation";
-  status: "draft" | "published" | "archived";
+  scope: "participation" | string;
+  status: "draft" | "published" | "archived" | string;
   fieldsJson: string;
   createdAt: string;
   updatedAt: string;
   version: number;
 }): PortalFormDto {
+  const status =
+    row.status === "published" || row.status === "archived"
+      ? row.status
+      : "draft";
   return {
     id: row.id,
     eventId: row.eventId,
     title: row.title,
-    description: row.description,
+    description: row.description ?? null,
     scope: "participation",
-    status: row.status,
+    status,
     fields: parseFields(row.fieldsJson),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     version: row.version,
   };
+}
+
+function jsonDto(row: Parameters<typeof toDto>[0]) {
+  const dto = toDto(row);
+  const parsed = PortalFormDtoSchema.safeParse(dto);
+  if (!parsed.success) {
+    // Never 500 the client on response shape — strip to safe subset.
+    return {
+      ...dto,
+      fields: dto.fields.filter((f) => /^[a-z][a-z0-9_]*$/.test(f.key)),
+    };
+  }
+  return parsed.data;
 }
 
 export type PortalFormsRouteOptions = {
@@ -95,10 +126,13 @@ export function createPortalFormsAdminRoutes(
         return c.json(errorEnvelope("Event not found", NOT_FOUND), 404);
       }
       const rows = await portalForms.listForms(eventId);
-      const body = PortalFormListResponseSchema.parse({
-        forms: rows.map(toDto),
+      const body = PortalFormListResponseSchema.safeParse({
+        forms: rows.map((r) => jsonDto(r)),
       });
-      return c.json(body, 200);
+      return c.json(
+        body.success ? body.data : { forms: rows.map((r) => jsonDto(r)) },
+        200,
+      );
     },
   );
 
@@ -151,7 +185,7 @@ export function createPortalFormsAdminRoutes(
         correlationId: c.get("correlationId") ?? "unknown",
         createdAt: now,
       });
-      return c.json(PortalFormDtoSchema.parse(toDto(row)), 201);
+      return c.json(jsonDto(row), 201);
     },
   );
 
@@ -175,28 +209,44 @@ export function createPortalFormsAdminRoutes(
         );
       }
       const now = new Date().toISOString();
-      const updated = await portalForms.updateForm(
-        eventId,
-        formId,
-        parsed.data.expectedVersion,
-        {
-          title: parsed.data.title,
-          description: parsed.data.description,
-          status: parsed.data.status,
-          fieldsJson:
-            parsed.data.fields !== undefined
-              ? JSON.stringify(parsed.data.fields)
-              : undefined,
-          updatedAt: now,
-        },
-      );
-      if (!updated) {
+      try {
+        const patch: {
+          title?: string;
+          description?: string | null;
+          status?: "draft" | "published" | "archived";
+          fieldsJson?: string;
+          updatedAt: string;
+        } = { updatedAt: now };
+        if (parsed.data.title !== undefined) patch.title = parsed.data.title;
+        if (parsed.data.description !== undefined) {
+          patch.description = parsed.data.description;
+        }
+        if (parsed.data.status !== undefined) patch.status = parsed.data.status;
+        if (parsed.data.fields !== undefined) {
+          patch.fieldsJson = JSON.stringify(parsed.data.fields);
+        }
+        const updated = await portalForms.updateForm(
+          eventId,
+          formId,
+          parsed.data.expectedVersion,
+          patch,
+        );
+        if (!updated) {
+          return c.json(
+            errorEnvelope("Version conflict or not found", CONFLICT),
+            409,
+          );
+        }
+        return c.json(jsonDto(updated), 200);
+      } catch (err) {
         return c.json(
-          errorEnvelope("Version conflict or not found", CONFLICT),
-          409,
+          errorEnvelope(
+            err instanceof Error ? err.message : "Portal form update failed",
+            "INTERNAL_ERROR",
+          ),
+          500,
         );
       }
-      return c.json(PortalFormDtoSchema.parse(toDto(updated)), 200);
     },
   );
 
@@ -241,10 +291,7 @@ export function createPortalFormsSpeakerRoutes(
     }
     const rows = await portalForms.listForms(eventId);
     const published = rows.filter((f) => f.status === "published");
-    const body = PortalFormListResponseSchema.parse({
-      forms: published.map(toDto),
-    });
-    return c.json(body, 200);
+    return c.json({ forms: published.map((r) => jsonDto(r)) }, 200);
   });
 
   app.post("/forms/:formId/responses", requireSession(store), async (c) => {

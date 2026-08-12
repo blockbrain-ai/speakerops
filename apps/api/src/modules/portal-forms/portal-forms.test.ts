@@ -1,46 +1,17 @@
 /**
- * N1 portal forms — create / publish / speaker list.
+ * N1 portal forms — create / publish store + HTTP.
  */
 import { describe, it, expect } from "vitest";
 import { createApp } from "../../index.js";
-import {
-  MemoryAuthStore,
-  type AuthStore,
-} from "../auth/store.js";
+import { MemoryAuthStore } from "../auth/store.js";
 import { MemoryEventsStore } from "../events/store.js";
 import { MemoryPortalFormsStore } from "./store.js";
 import { MemoryDecisionsStore } from "../decisions/store.js";
 import { MemorySubmissionsStore } from "../publicCfp/store.js";
 import { uuidv7 } from "@speakerops/shared";
 
-async function adminSession(store: AuthStore, eventId: string) {
-  const userId = uuidv7();
-  const email = `admin-${userId.slice(0, 8)}@example.com`;
-  await store.upsertUser({
-    id: userId,
-    email,
-    displayName: "Admin",
-    createdAt: new Date().toISOString(),
-  });
-  await store.upsertMembership({
-    eventId,
-    userId,
-    role: "admin",
-    createdAt: new Date().toISOString(),
-  });
-  const token = `sess_${uuidv7()}`;
-  await store.insertSession({
-    id: uuidv7(),
-    userId,
-    tokenHash: token, // memory store may hash; tests often use raw depending on impl
-    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-    createdAt: new Date().toISOString(),
-  });
-  return { userId, email, cookie: `session=${token}` };
-}
-
 describe("N1 portal forms", () => {
-  it("admin creates and lists portal form", async () => {
+  it("store create, list, and publish", async () => {
     const auth = new MemoryAuthStore();
     const events = new MemoryEventsStore();
     const portalForms = new MemoryPortalFormsStore();
@@ -59,7 +30,6 @@ describe("N1 portal forms", () => {
       updatedAt: now,
     });
 
-    // Use createApp with injected stores if supported
     const app = createApp({
       authStore: auth,
       eventsStore: events,
@@ -70,7 +40,6 @@ describe("N1 portal forms", () => {
       bootstrapPolicy: "open",
     });
 
-    // Memory session path varies — exercise store directly for unit certainty
     const form = await portalForms.insertForm({
       id: uuidv7(),
       eventId,
@@ -95,8 +64,97 @@ describe("N1 portal forms", () => {
     expect(published?.status).toBe("published");
     expect(published?.version).toBe(2);
 
-    // App boots
     const health = await app.request("http://localhost/health");
     expect(health.status).toBe(200);
+  });
+});
+
+import { createAppWithAuth } from "../../index.js";
+
+describe("N1 portal forms HTTP", () => {
+  it("POST create then PATCH publish returns 200", async () => {
+    const { app, store, events, outbox } = createAppWithAuth({
+      cookieSecure: true,
+    });
+    void outbox;
+    // Admin magic link bootstrap
+    const email = `pf-http-${Date.now()}@example.com`;
+    const ml = await app.request("http://localhost/api/auth/magic-link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, purpose: "admin" }),
+    });
+    expect(ml.status).toBe(200);
+    const links = await store.listMagicLinks?.() ?? [];
+    // use outbox
+    const out = await app.request(
+      `http://localhost/api/auth/dev/outbox?email=${encodeURIComponent(email)}`,
+    );
+    expect(out.status).toBe(200);
+    const outBody = (await out.json()) as { link: { token: string } | null };
+    expect(outBody.link?.token).toBeTruthy();
+    const ex = await app.request("http://localhost/api/auth/exchange", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: outBody.link!.token }),
+    });
+    expect(ex.status).toBe(200);
+    const setCookie = ex.headers.get("set-cookie") ?? "";
+    const m = setCookie.match(/speakerops_session=([^;]+)/);
+    expect(m).toBeTruthy();
+    const cookie = `speakerops_session=${m![1]}`;
+
+    const ev = await app.request("http://localhost/api/events", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+      },
+      body: JSON.stringify({
+        name: "HTTP Portal Form Event",
+        timezone: "UTC",
+        startsAt: "2026-06-01T09:00:00.000Z",
+        endsAt: "2026-06-02T17:00:00.000Z",
+      }),
+    });
+    expect(ev.status).toBe(201);
+    const eventBody = (await ev.json()) as { event: { id: string } };
+    const eventId = eventBody.event.id;
+
+    const create = await app.request(
+      `http://localhost/api/events/${eventId}/portal-forms`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          title: "Travel form",
+          fields: [
+            { key: "city", label: "Arrival city", type: "text", required: true },
+          ],
+        }),
+      },
+    );
+    const createText = await create.text();
+    expect(create.status, createText).toBe(201);
+    const form = JSON.parse(createText) as { id: string; version: number };
+
+    const pub = await app.request(
+      `http://localhost/api/events/${eventId}/portal-forms/${form.id}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          status: "published",
+          expectedVersion: form.version,
+        }),
+      },
+    );
+    const pubText = await pub.text();
+    expect(pub.status, pubText).toBe(200);
+    const published = JSON.parse(pubText) as { status: string; version: number };
+    expect(published.status).toBe("published");
+    expect(published.version).toBe(form.version + 1);
+    void events;
+    void links;
   });
 });

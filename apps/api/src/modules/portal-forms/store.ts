@@ -99,10 +99,19 @@ export class MemoryPortalFormsStore implements PortalFormsStore {
   ): Promise<PortalFormRow | null> {
     const existing = this.forms.get(this.formKey(eventId, formId));
     if (!existing || existing.version !== expectedVersion) return null;
+    // Only apply defined patch keys — never clobber with undefined.
     const next: PortalFormRow = {
       ...existing,
-      ...patch,
       version: existing.version + 1,
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.description !== undefined
+        ? { description: patch.description }
+        : {}),
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+      ...(patch.fieldsJson !== undefined
+        ? { fieldsJson: patch.fieldsJson }
+        : {}),
+      ...(patch.updatedAt !== undefined ? { updatedAt: patch.updatedAt } : {}),
     };
     this.forms.set(this.formKey(eventId, formId), next);
     return { ...next };

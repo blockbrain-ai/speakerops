@@ -9,7 +9,7 @@ import {
 } from "./helpers/cfp-eval-seed.js";
 
 test.describe("Portal library N1–N3", () => {
-  test("admin creates published form; speaker lists it", async ({
+  test("admin creates published form and resource; speaker lists them", async ({
     request,
     context,
     baseURL,
@@ -28,12 +28,13 @@ test.describe("Portal library N1–N3", () => {
       `Library Event ${Date.now()}`,
       `lib-${Date.now()}`,
     );
+    const adminHeaders = sessionHeaders(adminSession);
 
     // Create + publish portal form
     const create = await request.post(
       `/api/events/${encodeURIComponent(event.id)}/portal-forms`,
       {
-        headers: sessionHeaders(adminSession),
+        headers: adminHeaders,
         data: {
           title: "Travel form",
           fields: [
@@ -47,76 +48,100 @@ test.describe("Portal library N1–N3", () => {
         },
       },
     );
-    expect(create.status()).toBe(201);
-    const form = (await create.json()) as {
-      id: string;
-      version: number;
-    };
+    expect(create.status(), await create.text()).toBe(201);
+    const form = (await create.json()) as { id: string; version: number };
+    expect(form.id).toBeTruthy();
+
     const pub = await request.patch(
       `/api/events/${encodeURIComponent(event.id)}/portal-forms/${encodeURIComponent(form.id)}`,
       {
-        headers: sessionHeaders(adminSession),
+        headers: adminHeaders,
         data: { status: "published", expectedVersion: form.version },
       },
     );
-    expect(pub.status()).toBe(200);
+    expect(pub.status(), await pub.text()).toBe(200);
+    const pubBody = (await pub.json()) as { status: string };
+    expect(pubBody.status).toBe("published");
+
+    // Admin list confirms published form is visible
+    const adminList = await request.get(
+      `/api/events/${encodeURIComponent(event.id)}/portal-forms`,
+      { headers: adminHeaders },
+    );
+    const adminListText = await adminList.text();
+    expect(adminList.status(), adminListText).toBe(200);
+    const adminForms = JSON.parse(adminListText) as {
+      forms: { title: string; status: string; id: string }[];
+    };
+    expect(
+      adminForms.forms,
+      `admin list after publish: ${adminListText}`,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "Travel form",
+          status: "published",
+        }),
+      ]),
+    );
 
     // Resource published
     const resCreate = await request.post(
       `/api/events/${encodeURIComponent(event.id)}/resources`,
       {
-        headers: sessionHeaders(adminSession),
+        headers: adminHeaders,
         data: {
           title: "Code of conduct",
           bodyMd: "Be kind.",
         },
       },
     );
-    expect(resCreate.status()).toBe(201);
+    expect(resCreate.status(), await resCreate.text()).toBe(201);
     const resource = (await resCreate.json()) as {
       resource: { id: string; version: number };
     };
     const resPub = await request.patch(
       `/api/events/${encodeURIComponent(event.id)}/resources/${encodeURIComponent(resource.resource.id)}`,
       {
-        headers: sessionHeaders(adminSession),
+        headers: adminHeaders,
         data: {
           status: "published",
           expectedVersion: resource.resource.version,
         },
       },
     );
-    expect(resPub.status()).toBe(200);
+    expect(resPub.status(), await resPub.text()).toBe(200);
 
-    // Speaker session for same event — invite via membership
+    // Speaker session for same event
     const speakerEmail = `lib-spk-${Date.now()}@example.com`;
-    // Magic link speaker with eventId to attach membership
     await request.post("/api/auth/magic-link", {
       data: { email: speakerEmail, purpose: "speaker", eventId: event.id },
     });
     const outbox = await request.get(
       `/api/auth/dev/outbox?email=${encodeURIComponent(speakerEmail)}`,
     );
+    expect(outbox.status()).toBe(200);
     const link = (await outbox.json()) as {
-      link: { token: string };
+      link: { token: string } | null;
     };
+    expect(link.link?.token).toBeTruthy();
     const exchange = await request.post("/api/auth/exchange", {
-      data: { token: link.link.token },
+      data: { token: link.link!.token },
     });
     expect(exchange.status()).toBe(200);
     const setCookie = exchange.headers()["set-cookie"] ?? "";
     const match = setCookie.match(/speakerops_session=([^;]+)/);
     expect(match).toBeTruthy();
-    const speakerSession = match![1]!;
-    const spHeaders = sessionHeaders(speakerSession);
+    const spHeaders = sessionHeaders(match![1]!);
 
     // Speaker sees published forms
     const forms = await request.get(
       `/api/portal/forms?eventId=${encodeURIComponent(event.id)}`,
       { headers: spHeaders },
     );
-    expect(forms.status(), await forms.text()).toBe(200);
-    const formsBody = (await forms.json()) as { forms: { title: string }[] };
+    const formsText = await forms.text();
+    expect(forms.status(), formsText).toBe(200);
+    const formsBody = JSON.parse(formsText) as { forms: { title: string }[] };
     expect(formsBody.forms.some((f) => f.title === "Travel form")).toBeTruthy();
 
     // Speaker sees published resources
@@ -124,8 +149,9 @@ test.describe("Portal library N1–N3", () => {
       `/api/portal/resources?eventId=${encodeURIComponent(event.id)}`,
       { headers: spHeaders },
     );
-    expect(resources.status()).toBe(200);
-    const resBody = (await resources.json()) as {
+    const resText = await resources.text();
+    expect(resources.status(), resText).toBe(200);
+    const resBody = JSON.parse(resText) as {
       resources: { title: string }[];
     };
     expect(

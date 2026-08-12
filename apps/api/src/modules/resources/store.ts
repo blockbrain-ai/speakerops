@@ -90,7 +90,15 @@ export class MemoryResourcesStore implements ResourcesStore {
   ) {
     const cur = this.resources.get(this.rk(eventId, id));
     if (!cur || cur.version !== expectedVersion) return null;
-    const next = { ...cur, ...patch, version: cur.version + 1 };
+    const next: ResourceRow = {
+      ...cur,
+      version: cur.version + 1,
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.bodyMd !== undefined ? { bodyMd: patch.bodyMd } : {}),
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+      ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+      ...(patch.updatedAt !== undefined ? { updatedAt: patch.updatedAt } : {}),
+    };
     this.resources.set(this.rk(eventId, id), next);
     return { ...next };
   }
@@ -120,7 +128,17 @@ export class MemoryResourcesStore implements ResourcesStore {
   ) {
     const cur = this.requests.get(this.rk(eventId, id));
     if (!cur || cur.version !== expectedVersion) return null;
-    const next = { ...cur, ...patch, version: cur.version + 1 };
+    const next: FileRequestRow = {
+      ...cur,
+      version: cur.version + 1,
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.instructions !== undefined
+        ? { instructions: patch.instructions }
+        : {}),
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+      ...(patch.purpose !== undefined ? { purpose: patch.purpose } : {}),
+      ...(patch.updatedAt !== undefined ? { updatedAt: patch.updatedAt } : {}),
+    };
     this.requests.set(this.rk(eventId, id), next);
     return { ...next };
   }
