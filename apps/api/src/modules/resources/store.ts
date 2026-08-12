@@ -8,6 +8,7 @@ import {
   type SpeakerOpsDb,
   portalResources,
   fileRequests,
+  fileRequestFulfillments,
 } from "@speakerops/db";
 
 export type ResourceRow = {
@@ -33,6 +34,16 @@ export type FileRequestRow = {
   createdAt: string;
   updatedAt: string;
   version: number;
+};
+
+export type FileRequestFulfillmentRow = {
+  id: string;
+  eventId: string;
+  requestId: string;
+  participationId: string;
+  fileId: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ResourcesStore = {
@@ -61,14 +72,26 @@ export type ResourcesStore = {
     >,
   ): Promise<FileRequestRow | null>;
   deleteFileRequest(eventId: string, id: string): Promise<boolean>;
+  listFulfillments(
+    eventId: string,
+    opts?: { requestId?: string; participationId?: string },
+  ): Promise<FileRequestFulfillmentRow[]>;
+  upsertFulfillment(
+    row: FileRequestFulfillmentRow,
+  ): Promise<FileRequestFulfillmentRow>;
 };
 
 export class MemoryResourcesStore implements ResourcesStore {
   private resources = new Map<string, ResourceRow>();
   private requests = new Map<string, FileRequestRow>();
+  private fulfillments = new Map<string, FileRequestFulfillmentRow>();
 
   private rk(eventId: string, id: string) {
     return `${eventId}\0${id}`;
+  }
+
+  private fk(requestId: string, participationId: string) {
+    return `${requestId}\0${participationId}`;
   }
 
   async listResources(eventId: string) {
@@ -144,6 +167,33 @@ export class MemoryResourcesStore implements ResourcesStore {
   }
   async deleteFileRequest(eventId: string, id: string) {
     return this.requests.delete(this.rk(eventId, id));
+  }
+
+  async listFulfillments(
+    eventId: string,
+    opts?: { requestId?: string; participationId?: string },
+  ) {
+    return [...this.fulfillments.values()].filter(
+      (f) =>
+        f.eventId === eventId &&
+        (opts?.requestId === undefined || f.requestId === opts.requestId) &&
+        (opts?.participationId === undefined ||
+          f.participationId === opts.participationId),
+    );
+  }
+
+  async upsertFulfillment(row: FileRequestFulfillmentRow) {
+    const key = this.fk(row.requestId, row.participationId);
+    const existing = this.fulfillments.get(key);
+    const next = existing
+      ? {
+          ...existing,
+          fileId: row.fileId,
+          updatedAt: row.updatedAt,
+        }
+      : { ...row };
+    this.fulfillments.set(key, next);
+    return { ...next };
   }
 }
 
@@ -312,5 +362,64 @@ export class D1ResourcesStore implements ResourcesStore {
       .delete(fileRequests)
       .where(and(eq(fileRequests.eventId, eventId), eq(fileRequests.id, id)));
     return true;
+  }
+
+  async listFulfillments(
+    eventId: string,
+    opts?: { requestId?: string; participationId?: string },
+  ) {
+    const rows = await this.db
+      .select()
+      .from(fileRequestFulfillments)
+      .where(eq(fileRequestFulfillments.eventId, eventId));
+    return rows
+      .map((r) => ({
+        id: r.id,
+        eventId: r.eventId,
+        requestId: r.requestId,
+        participationId: r.participationId,
+        fileId: r.fileId,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      }))
+      .filter(
+        (f) =>
+          (opts?.requestId === undefined || f.requestId === opts.requestId) &&
+          (opts?.participationId === undefined ||
+            f.participationId === opts.participationId),
+      );
+  }
+
+  async upsertFulfillment(row: FileRequestFulfillmentRow) {
+    const existing = (
+      await this.listFulfillments(row.eventId, {
+        requestId: row.requestId,
+        participationId: row.participationId,
+      })
+    )[0];
+    if (existing) {
+      await this.db
+        .update(fileRequestFulfillments)
+        .set({
+          fileId: row.fileId,
+          updatedAt: row.updatedAt,
+        })
+        .where(eq(fileRequestFulfillments.id, existing.id));
+      return {
+        ...existing,
+        fileId: row.fileId,
+        updatedAt: row.updatedAt,
+      };
+    }
+    await this.db.insert(fileRequestFulfillments).values({
+      id: row.id,
+      eventId: row.eventId,
+      requestId: row.requestId,
+      participationId: row.participationId,
+      fileId: row.fileId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+    return row;
   }
 }

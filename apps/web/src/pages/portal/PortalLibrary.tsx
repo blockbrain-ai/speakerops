@@ -4,11 +4,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ErrorEnvelopeSchema,
+  FilePresignResponseSchema,
   PortalFormListResponseSchema,
   PortalFormResponseDtoSchema,
   type PortalFormDto,
 } from "@speakerops/shared";
 import { Button } from "../../components/ui/Button.js";
+import { sha256Hex } from "./portal-utils.js";
 
 type ResourceItem = {
   id: string;
@@ -23,6 +25,8 @@ type FileRequestItem = {
   instructions: string | null;
   purpose: string;
   updatedAt: string;
+  fulfilled?: boolean;
+  fileId?: string | null;
 };
 
 export function PortalResourcesPanel({ eventId }: { eventId: string }) {
@@ -107,35 +111,171 @@ export function PortalResourcesPanel({ eventId }: { eventId: string }) {
   );
 }
 
-export function PortalFileRequestsPanel({ eventId }: { eventId: string }) {
+export function PortalFileRequestsPanel({
+  eventId,
+  participationId,
+}: {
+  eventId: string;
+  participationId: string | null;
+}) {
   const [rows, setRows] = useState<FileRequestItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [statusById, setStatusById] = useState<Record<string, string>>({});
+
+  const load = useCallback(async () => {
+    try {
+      const q = new URLSearchParams({ eventId });
+      if (participationId) q.set("participationId", participationId);
+      const res = await fetch(`/api/portal/file-requests?${q.toString()}`, {
+        credentials: "include",
+        headers: { accept: "application/json" },
+      });
+      if (!res.ok) {
+        const raw: unknown = await res.json().catch(() => null);
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setError(env.success ? env.data.error : `Failed (${res.status})`);
+        return;
+      }
+      const body = (await res.json()) as { fileRequests?: FileRequestItem[] };
+      setRows(Array.isArray(body.fileRequests) ? body.fileRequests : []);
+      setError(null);
+    } catch {
+      setError("Network error");
+    }
+  }, [eventId, participationId]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/portal/file-requests?eventId=${encodeURIComponent(eventId)}`,
-          { credentials: "include", headers: { accept: "application/json" } },
-        );
-        if (cancelled) return;
-        if (!res.ok) {
-          const raw: unknown = await res.json().catch(() => null);
-          const env = ErrorEnvelopeSchema.safeParse(raw);
-          setError(env.success ? env.data.error : `Failed (${res.status})`);
-          return;
-        }
-        const body = (await res.json()) as { fileRequests?: FileRequestItem[] };
-        setRows(Array.isArray(body.fileRequests) ? body.fileRequests : []);
-      } catch {
-        if (!cancelled) setError("Network error");
+    void load();
+  }, [load]);
+
+  async function fulfill(requestId: string, file: File) {
+    if (!participationId) {
+      setStatusById((s) => ({
+        ...s,
+        [requestId]: "No participation — cannot upload",
+      }));
+      return;
+    }
+    setBusyId(requestId);
+    setStatusById((s) => ({ ...s, [requestId]: "Uploading…" }));
+    const purpose =
+      file.type === "application/pdf"
+        ? "slides"
+        : file.type.startsWith("image/")
+          ? "headshot"
+          : "other";
+    try {
+      const presignRes = await fetch("/api/files/presign", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          eventId,
+          purpose,
+          mime: file.type || "application/octet-stream",
+          size: file.size,
+          filename: file.name,
+          ownerParticipationId: participationId,
+        }),
+      });
+      const presignRaw: unknown = await presignRes.json().catch(() => null);
+      if (!presignRes.ok) {
+        const env = ErrorEnvelopeSchema.safeParse(presignRaw);
+        setStatusById((s) => ({
+          ...s,
+          [requestId]: env.success
+            ? env.data.error
+            : `Presign failed (${presignRes.status})`,
+        }));
+        setBusyId(null);
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId]);
+      const presign = FilePresignResponseSchema.safeParse(presignRaw);
+      if (!presign.success) {
+        setStatusById((s) => ({
+          ...s,
+          [requestId]: "Unexpected presign response",
+        }));
+        setBusyId(null);
+        return;
+      }
+      const uploadRes = await fetch(presign.data.url, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "content-type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!uploadRes.ok) {
+        setStatusById((s) => ({
+          ...s,
+          [requestId]: `Upload failed (${uploadRes.status})`,
+        }));
+        setBusyId(null);
+        return;
+      }
+      const checksum = await sha256Hex(file);
+      const completeRes = await fetch(
+        `/api/files/${encodeURIComponent(presign.data.fileId)}/complete`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            eventId,
+            checksum,
+            filename: file.name,
+          }),
+        },
+      );
+      if (!completeRes.ok) {
+        const raw: unknown = await completeRes.json().catch(() => null);
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setStatusById((s) => ({
+          ...s,
+          [requestId]: env.success
+            ? env.data.error
+            : `Complete failed (${completeRes.status})`,
+        }));
+        setBusyId(null);
+        return;
+      }
+      const fulfillRes = await fetch(
+        `/api/portal/file-requests/${encodeURIComponent(requestId)}/fulfill`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({
+            eventId,
+            participationId,
+            fileId: presign.data.fileId,
+          }),
+        },
+      );
+      if (!fulfillRes.ok) {
+        const raw: unknown = await fulfillRes.json().catch(() => null);
+        const env = ErrorEnvelopeSchema.safeParse(raw);
+        setStatusById((s) => ({
+          ...s,
+          [requestId]: env.success
+            ? env.data.error
+            : `Fulfill failed (${fulfillRes.status})`,
+        }));
+        setBusyId(null);
+        return;
+      }
+      setStatusById((s) => ({ ...s, [requestId]: "Submitted" }));
+      await load();
+    } catch {
+      setStatusById((s) => ({ ...s, [requestId]: "Network error" }));
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <section
@@ -147,8 +287,8 @@ export function PortalFileRequestsPanel({ eventId }: { eventId: string }) {
         File requests
       </h2>
       <p className="portal-muted">
-        Additional files organisers need. Use Profile for headshot/slides when
-        those tasks are open.
+        Upload the files organisers requested. Headshot and slides tasks still
+        live under Profile when those onboarding tasks are open.
       </p>
       {error ? (
         <p className="portal-status portal-status--error">{error}</p>
@@ -163,8 +303,42 @@ export function PortalFileRequestsPanel({ eventId }: { eventId: string }) {
             <li key={r.id} data-testid={`portal-file-request-${r.id}`}>
               <strong>{r.title}</strong>
               <span className="portal-muted"> · {r.purpose}</span>
+              {r.fulfilled ? (
+                <span
+                  className="portal-muted"
+                  data-testid={`portal-file-request-done-${r.id}`}
+                >
+                  {" "}
+                  · submitted
+                </span>
+              ) : null}
               {r.instructions ? (
                 <p className="portal-muted">{r.instructions}</p>
+              ) : null}
+              <div className="portal-actions" style={{ marginTop: 8 }}>
+                <label className="btn btn--secondary btn--sm">
+                  {busyId === r.id
+                    ? "Uploading…"
+                    : r.fulfilled
+                      ? "Replace file"
+                      : "Upload file"}
+                  <input
+                    type="file"
+                    hidden
+                    disabled={busyId === r.id || !participationId}
+                    data-testid={`portal-file-request-upload-${r.id}`}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (f) void fulfill(r.id, f);
+                    }}
+                  />
+                </label>
+              </div>
+              {statusById[r.id] ? (
+                <p className="portal-muted" data-testid={`portal-file-request-status-${r.id}`}>
+                  {statusById[r.id]}
+                </p>
               ) : null}
             </li>
           ))}

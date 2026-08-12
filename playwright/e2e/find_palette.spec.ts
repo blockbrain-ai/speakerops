@@ -10,7 +10,7 @@ import {
 } from "./helpers/cfp-eval-seed.js";
 
 test.describe("F5 Find palette", () => {
-  test("admin opens Find, rebuilds index, searches without error", async ({
+  test("@inv:Q01 e2e/find/palette admin opens Find, rebuilds index, searches without error", async ({
     page,
     request,
     context,

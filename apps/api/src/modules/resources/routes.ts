@@ -324,6 +324,7 @@ export function createPortalLibraryRoutes(
     if (!eventId) {
       return c.json(errorEnvelope("eventId query required", VALIDATION_ERROR), 400);
     }
+    const participationId = c.req.query("participationId")?.trim() || null;
     const user = c.get("user");
     if (!user) {
       return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
@@ -336,21 +337,106 @@ export function createPortalLibraryRoutes(
       );
     }
     const rows = await resources.listFileRequests(eventId);
+    const fulfills = participationId
+      ? await resources.listFulfillments(eventId, { participationId })
+      : [];
+    const fulfillByRequest = new Map(fulfills.map((f) => [f.requestId, f]));
     return c.json(
       {
         fileRequests: rows
           .filter((r) => r.status === "published")
-          .map((r) => ({
-            id: r.id,
-            title: r.title,
-            instructions: r.instructions,
-            purpose: r.purpose,
-            updatedAt: r.updatedAt,
-          })),
+          .map((r) => {
+            const f = fulfillByRequest.get(r.id);
+            return {
+              id: r.id,
+              title: r.title,
+              instructions: r.instructions,
+              purpose: r.purpose,
+              updatedAt: r.updatedAt,
+              fulfilled: Boolean(f),
+              fileId: f?.fileId ?? null,
+            };
+          }),
       },
       200,
     );
   });
+
+  const FulfillSchema = z.object({
+    eventId: z.string().min(1),
+    participationId: z.string().min(1),
+    fileId: z.string().min(1),
+  });
+
+  /**
+   * POST /file-requests/:requestId/fulfill
+   * Speaker associates an uploaded file (purpose=other|headshot|slides) with
+   * a published file request. Idempotent upsert per participation.
+   */
+  app.post(
+    "/file-requests/:requestId/fulfill",
+    requireSession(store),
+    async (c) => {
+      const requestId = c.req.param("requestId");
+      const user = c.get("user");
+      if (!user) {
+        return c.json(
+          errorEnvelope("Authentication required", "UNAUTHORIZED"),
+          401,
+        );
+      }
+      let raw: unknown;
+      try {
+        raw = await c.req.json();
+      } catch {
+        return c.json(errorEnvelope("Invalid JSON body", VALIDATION_ERROR), 400);
+      }
+      const parsed = FulfillSchema.safeParse(raw);
+      if (!parsed.success) {
+        return c.json(
+          errorEnvelope("Validation failed", VALIDATION_ERROR, {
+            issues: parsed.error.flatten(),
+          }),
+          400,
+        );
+      }
+      const { eventId, participationId, fileId } = parsed.data;
+      const membership = await store.findMembership(eventId, user.id);
+      if (!membership || membership.role !== "speaker") {
+        return c.json(
+          errorEnvelope("Speaker membership required", FORBIDDEN),
+          403,
+        );
+      }
+      const reqs = await resources.listFileRequests(eventId);
+      const req = reqs.find((r) => r.id === requestId);
+      if (!req || req.status !== "published") {
+        return c.json(errorEnvelope("File request not found", NOT_FOUND), 404);
+      }
+      const now = new Date().toISOString();
+      const row = await resources.upsertFulfillment({
+        id: uuidv7(),
+        eventId,
+        requestId,
+        participationId,
+        fileId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return c.json(
+        {
+          fulfillment: {
+            id: row.id,
+            requestId: row.requestId,
+            participationId: row.participationId,
+            fileId: row.fileId,
+            updatedAt: row.updatedAt,
+          },
+        },
+        200,
+      );
+    },
+  );
 
   return app;
 }

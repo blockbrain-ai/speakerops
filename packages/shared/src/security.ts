@@ -11,7 +11,7 @@
  * - default-src 'self' — no open third-party by default
  * - script-src: self + Cloudflare Turnstile widget host
  * - style-src: self; 'unsafe-inline' for React style attrs / Lumen tokens
- * - frame-src: Turnstile challenge iframe only
+ * - frame-src: self (admin embed preview) + Turnstile challenge iframe
  * - frame-ancestors 'none' — clickjacking defense (header form; meta cannot set this)
  * - object-src 'none' — no plugins
  * - upgrade-insecure-requests — HTTPS dogfood
@@ -27,8 +27,29 @@ export const CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
-  "frame-src https://challenges.cloudflare.com",
+  // 'self' enables admin embed configurator same-origin preview iframe (N4).
+  "frame-src 'self' https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "upgrade-insecure-requests",
+].join("; ");
+
+/**
+ * CSP for public embed surfaces (`/embed/*`) — must be framable by third-party
+ * sites (N4) and by the admin same-origin device preview. Intentionally omits
+ * `X-Frame-Options: DENY` (see SECURITY_HEADERS_EMBED).
+ */
+export const CONTENT_SECURITY_POLICY_EMBED = [
+  "default-src 'self'",
+  "script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
+  "frame-src 'self' https://challenges.cloudflare.com",
+  "frame-ancestors *",
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
@@ -53,7 +74,7 @@ export const CONTENT_SECURITY_POLICY_DEV = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' ws: wss: https://challenges.cloudflare.com",
-  "frame-src https://challenges.cloudflare.com",
+  "frame-src 'self' https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -71,6 +92,17 @@ export const SECURITY_HEADERS = {
   "Cross-Origin-Opener-Policy": "same-origin",
   // Phase 10/11: session cookies, draft PII, and API JSON must not be
   // shared-cache stored. Route handlers may still set no-store explicitly.
+  "Cache-Control": "no-store",
+} as const;
+
+/** Embed route headers — framable; no X-Frame-Options DENY. */
+export const SECURITY_HEADERS_EMBED = {
+  "Content-Security-Policy": CONTENT_SECURITY_POLICY_EMBED,
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+  "Cross-Origin-Opener-Policy": "same-origin",
   "Cache-Control": "no-store",
 } as const;
 

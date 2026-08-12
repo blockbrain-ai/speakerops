@@ -2084,7 +2084,10 @@ export function PortalHomePage() {
       portalMode === "review" &&
       activeSection === "portal-file-requests" ? (
         <div className="portal-home-stack">
-          <PortalFileRequestsPanel eventId={home.eventId} />
+          <PortalFileRequestsPanel
+            eventId={home.eventId}
+            participationId={participation?.id ?? null}
+          />
         </div>
       ) : null}
 

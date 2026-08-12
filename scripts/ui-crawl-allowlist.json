@@ -1143,199 +1143,199 @@
     },
     {
       "testid": "nav-portal-forms",
-      "inv": "L2-01",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 Portal forms nav"
     },
     {
       "testid": "portal-forms-refresh",
-      "inv": "L2-01",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 portal forms refresh"
     },
     {
       "testid": "portal-form-create",
-      "inv": "D01",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 create portal form"
     },
     {
       "testid": "portal-form-publish",
-      "inv": "D08",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 publish portal form"
     },
     {
       "testid": "portal-form-unpublish",
-      "inv": "D08",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 unpublish portal form"
     },
     {
       "testid": "portal-form-field-add",
-      "inv": "D01",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 add portal form field"
     },
     {
       "testid": "portal-form-item-*",
-      "inv": "D01",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 select portal form"
     },
     {
       "testid": "nav-resources",
-      "inv": "L2-01",
+      "inv": "Q03",
       "surface": "admin",
       "journey": "N2 Resources nav"
     },
     {
       "testid": "nav-file-requests",
-      "inv": "L2-01",
+      "inv": "Q04",
       "surface": "admin",
       "journey": "N3 File requests nav"
     },
     {
       "testid": "resources-refresh",
-      "inv": "L2-01",
+      "inv": "Q03",
       "surface": "admin",
       "journey": "N2 resources refresh"
     },
     {
       "testid": "resource-create",
-      "inv": "D01",
+      "inv": "Q03",
       "surface": "admin",
       "journey": "N2 create resource"
     },
     {
       "testid": "resource-publish-*",
-      "inv": "D08",
+      "inv": "Q03",
       "surface": "admin",
       "journey": "N2 publish resource"
     },
     {
       "testid": "resource-save",
-      "inv": "D01",
+      "inv": "Q03",
       "surface": "admin",
       "journey": "N2 save selected resource"
     },
     {
       "testid": "resource-clear-selection",
-      "inv": "D01",
+      "inv": "Q03",
       "surface": "admin",
       "journey": "N2 clear resource editor selection"
     },
     {
       "testid": "resource-select-*",
-      "inv": "D01",
+      "inv": "Q03",
       "surface": "admin",
       "journey": "N2 select resource row for edit"
     },
     {
       "testid": "file-requests-refresh",
-      "inv": "L2-01",
+      "inv": "Q04",
       "surface": "admin",
       "journey": "N3 file requests refresh"
     },
     {
       "testid": "file-request-create",
-      "inv": "D01",
+      "inv": "Q04",
       "surface": "admin",
       "journey": "N3 create file request"
     },
     {
       "testid": "file-request-publish-*",
-      "inv": "D08",
+      "inv": "Q04",
       "surface": "admin",
       "journey": "N3 publish file request"
     },
     {
       "testid": "find-reindex",
-      "inv": "L2-01",
+      "inv": "Q01",
       "surface": "admin",
       "journey": "F5 rebuild search index from empty state"
     },
     {
       "testid": "find-reindex-footer",
-      "inv": "L2-01",
+      "inv": "Q01",
       "surface": "admin",
       "journey": "F5 rebuild search index from palette footer"
     },
     {
       "testid": "portal-forms-seed-starter",
-      "inv": "D01",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 seed starter portal form"
     },
     {
       "testid": "resources-seed-starter",
-      "inv": "D01",
+      "inv": "Q03",
       "surface": "admin",
       "journey": "N2 prefill starter resource"
     },
     {
       "testid": "portal-form-delete",
-      "inv": "D01",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 delete portal form"
     },
     {
       "testid": "portal-form-field-remove-*",
-      "inv": "D01",
+      "inv": "Q02",
       "surface": "admin",
       "journey": "N1 remove portal form field"
     },
     {
       "testid": "portal-nav-forms",
-      "inv": "G11",
+      "inv": "Q05",
       "surface": "portal",
       "journey": "Portal forms section nav"
     },
     {
       "testid": "portal-nav-resources",
-      "inv": "G11",
+      "inv": "Q05",
       "surface": "portal",
       "journey": "Portal library nav"
     },
     {
       "testid": "portal-nav-file-requests",
-      "inv": "G11",
+      "inv": "Q06",
       "surface": "portal",
       "journey": "Portal file requests nav"
     },
     {
       "testid": "portal-form-submit",
-      "inv": "G11",
+      "inv": "Q05",
       "surface": "portal",
       "journey": "Portal form submit answers"
     },
     {
       "testid": "portal-form-open-*",
-      "inv": "G11",
+      "inv": "Q05",
       "surface": "portal",
       "journey": "Open portal form"
     },
     {
       "testid": "portal-resource-open-*",
-      "inv": "G11",
+      "inv": "Q05",
       "surface": "portal",
       "journey": "Open portal resource"
     },
     {
       "testid": "portal-bottom-forms",
-      "inv": "G11",
+      "inv": "Q05",
       "surface": "portal",
       "journey": "Mobile portal forms"
     },
     {
       "testid": "portal-bottom-resources",
-      "inv": "G11",
+      "inv": "Q05",
       "surface": "portal",
       "journey": "Mobile portal resources"
     },
     {
       "testid": "portal-bottom-file-requests",
-      "inv": "G11",
+      "inv": "Q06",
       "surface": "portal",
       "journey": "Mobile portal file requests"
     }

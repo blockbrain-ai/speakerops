@@ -171,6 +171,34 @@ export const fileRequests = sqliteTable(
 );
 
 /**
+ * file_request_fulfillments — N3 speaker uploads against a published request
+ * (migration 0043). One fulfillment per (request, participation).
+ */
+export const fileRequestFulfillments = sqliteTable(
+  "file_request_fulfillments",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => fileRequests.id),
+    participationId: text("participation_id").notNull(),
+    fileId: text("file_id").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_file_request_fulfillments_unique").on(
+      t.requestId,
+      t.participationId,
+    ),
+    index("idx_file_request_fulfillments_event").on(t.eventId, t.requestId),
+  ],
+);
+
+/**
  * audit_events — consequential writes (E3).
  * correlation_id is required so request/CLI entry can be traced.
  */
@@ -1467,6 +1495,7 @@ export const schema = {
   portalFormResponses,
   portalResources,
   fileRequests,
+  fileRequestFulfillments,
 } as const;
 
 export type SavedView = typeof savedViews.$inferSelect;
@@ -1483,4 +1512,7 @@ export type PortalResource = typeof portalResources.$inferSelect;
 export type NewPortalResource = typeof portalResources.$inferInsert;
 export type FileRequest = typeof fileRequests.$inferSelect;
 export type NewFileRequest = typeof fileRequests.$inferInsert;
+export type FileRequestFulfillment = typeof fileRequestFulfillments.$inferSelect;
+export type NewFileRequestFulfillment =
+  typeof fileRequestFulfillments.$inferInsert;
 

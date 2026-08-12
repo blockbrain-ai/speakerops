@@ -270,6 +270,20 @@
 
 ---
 
+## Q — Closeout surfaces (Find + portal library N1–N3)
+
+| ID | Role | Surface | Journey | test_id | Negative | Required | Status |
+|----|------|---------|---------|---------|----------|--------|
+| Q01 | admin | Find | Open palette, rebuild index, search returns typed hits without console errors | e2e/find/palette | Empty event shows honest empty state | REQUIRED | PASS |
+| Q02 | admin | Portal forms | Create portal form, publish, list persists title/fields | e2e/portal-lib/form-publish | Unauth 401 | REQUIRED | PASS |
+| Q03 | admin | Resources | Create resource, select row, save, publish | e2e/portal-lib/resource-edit | Unauth 401 | REQUIRED | PASS |
+| Q04 | admin | File requests | Create + publish file request | e2e/portal-lib/file-request-publish | Unauth 401 | REQUIRED | PASS |
+| Q05 | speaker | Portal library | Published forms + resources listed for speaker | e2e/portal-lib/speaker-list | Cross-event isolation | REQUIRED | PASS |
+| Q06 | speaker | File requests | Upload fulfils published file request (fileId linked) | e2e/portal-lib/file-request-fulfill | Other speaker cannot fulfil | REQUIRED | PASS |
+| Q07 | admin | Embeds | Admin embed preview iframe allowed by frame-src self | e2e/embeds/preview-frame | Non-embed routes remain frame-ancestors none | REQUIRED | PASS |
+
+---
+
 ## O — Admin settings journeys (full rows, not cross-refs)
 
 | ID | Role | Surface | Journey | test_id | Negative | Required | Status |

@@ -56,6 +56,7 @@ export {
   portalFormResponses,
   portalResources,
   fileRequests,
+  fileRequestFulfillments,
   baselineTables,
   authTables,
   membershipTables,

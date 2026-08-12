@@ -17,6 +17,7 @@
   "A17",
   "A18",
   "A19",
+  "A20",
   "B01",
   "B02",
   "B03",
@@ -50,6 +51,9 @@
   "D12",
   "D13",
   "D14",
+  "D15",
+  "D16",
+  "D17",
   "E01",
   "E02",
   "E03",
@@ -62,6 +66,9 @@
   "E10",
   "E11",
   "E12",
+  "E13",
+  "E14",
+  "E15",
   "F01",
   "F02",
   "F03",
@@ -74,6 +81,8 @@
   "F10",
   "F11",
   "F12",
+  "F13",
+  "F14",
   "G01",
   "G02",
   "G03",
@@ -84,6 +93,8 @@
   "G08",
   "G09",
   "G11",
+  "G12",
+  "G13",
   "H01",
   "H02",
   "H03",
@@ -105,6 +116,7 @@
   "I14",
   "I15",
   "I16",
+  "I17",
   "J01",
   "J02",
   "J03",
@@ -116,6 +128,9 @@
   "J09",
   "J10",
   "J11",
+  "J12",
+  "J13",
+  "J14",
   "K01",
   "K02",
   "K03",
@@ -123,40 +138,32 @@
   "K05",
   "L01",
   "L02",
+  "L03",
+  "L04",
+  "L05",
   "L2-01",
   "L2-02",
   "L2-03",
   "L2-04",
   "L2-05",
-  "L03",
-  "L04",
-  "L05",
   "N01",
   "N02",
   "N03",
   "N04",
+  "N05",
   "O01",
   "O02",
   "O03",
   "O04",
   "O05",
   "O06",
-  "D15",
-  "D16",
-  "D17",
-  "F13",
-  "J12",
-  "A20",
-  "E13",
-  "E14",
-  "E15",
-  "F14",
-  "I17",
-  "J13",
-  "J14",
-  "G12",
-  "G13",
-  "N05"
+  "Q01",
+  "Q02",
+  "Q03",
+  "Q04",
+  "Q05",
+  "Q06",
+  "Q07"
  ],
  "fingerprints": {
   "A01": {
@@ -774,6 +781,34 @@
   "J14": {
    "test_id": "e2e/comms/template-rich",
    "journey": "Rich template body (bold + merge token) edited in rich editor; preview shows rendered body; markup-shaped merge value stays escaped text"
+  },
+  "Q01": {
+   "test_id": "e2e/find/palette",
+   "journey": "Open palette, rebuild index, search returns typed hits without console errors"
+  },
+  "Q02": {
+   "test_id": "e2e/portal-lib/form-publish",
+   "journey": "Create portal form, publish, list persists title/fields"
+  },
+  "Q03": {
+   "test_id": "e2e/portal-lib/resource-edit",
+   "journey": "Create resource, select row, save, publish"
+  },
+  "Q04": {
+   "test_id": "e2e/portal-lib/file-request-publish",
+   "journey": "Create + publish file request"
+  },
+  "Q05": {
+   "test_id": "e2e/portal-lib/speaker-list",
+   "journey": "Published forms + resources listed for speaker"
+  },
+  "Q06": {
+   "test_id": "e2e/portal-lib/file-request-fulfill",
+   "journey": "Upload fulfils published file request (fileId linked)"
+  },
+  "Q07": {
+   "test_id": "e2e/embeds/preview-frame",
+   "journey": "Admin embed preview iframe allowed by frame-src self"
   }
  }
 }
