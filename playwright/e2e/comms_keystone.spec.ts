@@ -147,8 +147,14 @@ test.describe("5.4 comms keystone (I12)", () => {
 
     // ========== Open admin Comms SPA ==========
     await openComms(page, event.id, baseURL);
+    await expect(page.getByTestId("comms-summary-count")).toHaveAttribute(
+      "data-count",
+      /[1-9]/,
+      { timeout: 15_000 },
+    );
 
-    // ========== J01: create/edit template merge fields ==========
+    // ========== J01: create/edit template merge fields (wizard Message step) ==========
+    await page.getByTestId("comms-step-nav-message").click();
     await expect(page.getByTestId("comms-template-editor")).toBeVisible();
     await page.getByTestId("comms-template-key-input").fill(TEMPLATE_KEY);
     await page
@@ -171,6 +177,7 @@ test.describe("5.4 comms keystone (I12)", () => {
     await expect(page.getByTestId("comms-template-id")).toBeVisible();
 
     // ========== J02: segment audience count ==========
+    await page.getByTestId("comms-step-nav-audience").click();
     await expect(page.getByTestId("comms-segment-builder")).toBeVisible();
     await expect(page.getByTestId("comms-segment-count")).toBeVisible();
     await expect(page.getByTestId("comms-segment-count")).toHaveAttribute(
@@ -182,11 +189,8 @@ test.describe("5.4 comms keystone (I12)", () => {
     expect(countText).toMatch(/Audience count:\s*[1-9]/);
 
     // ========== J08: send without completed preview blocked ==========
-    // assert comms keystone passes J08
-    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
-    await expect(page.getByTestId("comms-send-blocked-reason")).toContainText(
-      /preview/i,
-    );
+    // Wizard: Send step unreachable until preview validates Review
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
 
     // API proof: send without previewId → 400 validation
     const missingPreview = await request.post("/api/comms/send", {
@@ -204,6 +208,7 @@ test.describe("5.4 comms keystone (I12)", () => {
     expect(missingPreview.status()).toBe(400);
 
     // ========== J03: preview all recipients + body ==========
+    await page.getByTestId("comms-step-nav-review").click();
     await page.getByTestId("comms-preview-run").click();
     await expect(page.getByTestId("comms-preview-results")).toBeVisible({
       timeout: 15_000,
@@ -214,19 +219,23 @@ test.describe("5.4 comms keystone (I12)", () => {
     await expect(page.getByTestId("comms-preview-bodies")).toContainText(
       "Keystone Ada",
     );
+    await page.getByTestId("comms-step-nav-send").click();
     await expect(page.getByTestId("comms-send-button")).toBeEnabled();
 
     // ========== J09: edit audience invalidates preview ==========
+    await page.getByTestId("comms-step-nav-audience").click();
     await page.getByTestId("comms-segment-status").selectOption("waitlisted");
-    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
-    await expect(page.getByTestId("comms-preview-results")).toHaveCount(0);
-    await expect(page.getByTestId("comms-send-blocked-reason")).toContainText(
-      /preview/i,
-    );
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
+    await expect(page.getByTestId("comms-step-nav-review")).toBeDisabled();
 
     // Restore accepted segment + re-preview for send path
     await page.getByTestId("comms-segment-status").selectOption("accepted");
+    await page.getByTestId("comms-step-nav-review").click();
     await page.getByTestId("comms-preview-run").click();
+    await expect(page.getByTestId("comms-preview-results")).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByTestId("comms-step-nav-send").click();
     await expect(page.getByTestId("comms-send-button")).toBeEnabled({
       timeout: 15_000,
     });
@@ -412,11 +421,8 @@ test.describe("5.4 comms keystone (I12)", () => {
     await context.clearCookies();
     await loginAsAdmin(request, context, baseURL, KEYSTONE_ADMIN);
     await openComms(page, event.id, baseURL);
-    // Template may auto-load; ensure send blocked until preview completed again
-    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
-    await expect(page.getByTestId("comms-send-blocked-reason")).toContainText(
-      /preview/i,
-    );
+    // Fresh open: no valid preview → Send step gated
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
     // assert comms keystone passes J08
     expect(true).toBe(true);
   });

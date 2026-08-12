@@ -114,6 +114,31 @@ test.describe("Wave 1B — submission confirmation email", () => {
     await expect(recipients).not.toContainText("{{");
 
     // Template is editable in Comms templates (lazily seeded per event).
+    // Exclusive wizard: Message requires a non-empty audience — seed one speaker.
+    const seedSp = await request.post(
+      `/api/events/${encodeURIComponent(event.id)}/sessions/direct`,
+      {
+        headers: sessionHeaders(admin.session),
+        data: {
+          title: `J12 audience seed ${stamp}`,
+          speakers: [
+            { name: "J12 Seed", email: `j12-seed-${stamp}@example.com` },
+          ],
+        },
+      },
+    );
+    expect(seedSp.status(), await seedSp.text()).toBe(201);
+    await page.reload();
+    await expect(page.getByTestId("page-comms")).toBeVisible();
+    await expect(page.getByTestId("comms-summary-count")).toHaveAttribute(
+      "data-count",
+      /[1-9]/,
+      { timeout: 15_000 },
+    );
+    await page.getByTestId("comms-step-nav-message").click();
+    await expect(page.getByTestId("comms-template-editor")).toBeVisible({
+      timeout: 15_000,
+    });
     await page.getByTestId("comms-template-pick-submission_confirmation").click();
     await expect(page.getByTestId("comms-template-key-input")).toHaveValue(
       "submission_confirmation",

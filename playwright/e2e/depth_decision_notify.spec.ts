@@ -140,7 +140,8 @@ test.describe("Wave 2 — decision → notify hand-off", () => {
     );
     await expect(page.getByTestId("comms-summary-notify-mode")).toBeVisible();
     // Lazy-seeded decision template is selected (template id present) and the
-    // editor shows the typed key.
+    // editor shows the typed key — Message step.
+    await page.getByTestId("comms-step-nav-message").click();
     await expect(page.getByTestId("comms-template-id")).toBeVisible({
       timeout: 15_000,
     });
@@ -149,6 +150,7 @@ test.describe("Wave 2 — decision → notify hand-off", () => {
     );
 
     // Preview required — response DTO must list exactly the 3 target speakers.
+    await page.getByTestId("comms-step-nav-review").click();
     const previewWait = page.waitForResponse(
       (r) =>
         r.url().includes("/api/comms/preview") &&
@@ -187,6 +189,7 @@ test.describe("Wave 2 — decision → notify hand-off", () => {
       (r) =>
         r.url().includes("/api/comms/send") && r.request().method() === "POST",
     );
+    await page.getByTestId("comms-step-nav-send").click();
     await page.getByTestId("comms-send-button").click();
     const sendRes = await sendWait;
     expect([200, 201]).toContain(sendRes.status());

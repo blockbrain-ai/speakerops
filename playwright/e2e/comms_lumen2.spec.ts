@@ -310,17 +310,20 @@ test.describe("11.2 comms campaign lumen2", () => {
     await expect(page.getByTestId(pickTestId!)).toBeChecked();
 
     // Preview then invalidate by clearing selection (audience edit)
+    await page.getByTestId("comms-step-nav-review").click();
     await page.getByTestId("comms-preview-run").click();
     await expect(page.getByTestId("comms-preview-results")).toBeVisible({
       timeout: 15_000,
     });
+    await page.getByTestId("comms-step-nav-send").click();
     await expect(page.getByTestId("comms-send-button")).toBeEnabled();
 
+    await page.getByTestId("comms-step-nav-audience").click();
     await page.getByTestId("comms-segment-clear").click();
-    await expect(page.getByTestId("comms-send-button")).toBeDisabled();
-    await expect(page.getByTestId("comms-preview-results")).toHaveCount(0);
-    await expect(page.getByTestId("comms-send-blocked-reason")).toContainText(
-      /preview/i,
+    // Clearing selection invalidates preview → Send step gated again
+    await expect(page.getByTestId("comms-step-nav-send")).toBeDisabled();
+    await expect(page.getByTestId("comms-summary-preview-badge")).toContainText(
+      /No preview|stale/i,
     );
   });
 
