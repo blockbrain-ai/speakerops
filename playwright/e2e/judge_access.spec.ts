@@ -10,6 +10,16 @@
  */
 import { test, expect } from "@playwright/test";
 
+test("judge page logo returns to the public home", async ({ page }) => {
+  await page.goto("/judge");
+  await expect(page.getByTestId("judge-page")).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.getByRole("link", { name: "SpeakerOps home" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("page-landing")).toBeVisible();
+});
+
 test("@inv:B07 e2e/public/judge-access open role entry for demo session", async ({
   page,
   request,

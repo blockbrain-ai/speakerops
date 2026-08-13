@@ -7,7 +7,7 @@
  * Inventory: B01 admin login path · L2-02 session recovery.
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   type MagicLinkPurpose,
   type AuthMembershipOption,
@@ -243,7 +243,13 @@ export function LoginPage() {
       <div className="login-card" data-testid="login-card">
         {/* F1 — Signal mark + wordmark lockup */}
         <div className="login-card__brand">
-          <BrandLockup size={24} />
+          <Link
+            to="/"
+            className="login-card__brand-home lumen-focusable"
+            aria-label="SpeakerOps home"
+          >
+            <BrandLockup size={24} />
+          </Link>
         </div>
         <p className="login-card__overline">SpeakerOps</p>
         <h1 className="login-card__title" data-testid="login-title">

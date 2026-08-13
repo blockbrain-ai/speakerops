@@ -10,7 +10,7 @@ import {
   type ReactNode,
   type MouseEvent,
 } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   MeMembershipsResponseSchema,
   type AuthMembershipOption,
@@ -145,12 +145,18 @@ export function RoleShell({
       <header className="role-shell__header" data-testid="role-shell-header">
         <div className="role-shell__brand">
           {/* F1 — Signal mark beside the product line (portal keeps its warmer identity) */}
-          <div className="role-shell__brand-row">
-            <BrandMark size={18} decorative />
-            <p className="role-shell__product" data-testid="role-shell-product">
-              SpeakerOps
-            </p>
-          </div>
+          <Link
+            to="/"
+            className="role-shell__brand-home lumen-focusable"
+            aria-label="SpeakerOps home"
+          >
+            <div className="role-shell__brand-row">
+              <BrandMark size={18} decorative />
+              <p className="role-shell__product" data-testid="role-shell-product">
+                SpeakerOps
+              </p>
+            </div>
+          </Link>
           <p className="role-shell__overline" data-testid="role-shell-role">
             {roleLabel}
           </p>

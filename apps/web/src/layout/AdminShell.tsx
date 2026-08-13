@@ -282,7 +282,13 @@ export function AdminShell({
       >
         <div className="admin-shell__brand">
           {/* F1 — Signal mark + lowercase wordmark lockup (locked brand) */}
-          <BrandLockup size={22} />
+          <Link
+            to="/"
+            className="admin-shell__brand-home lumen-focusable"
+            aria-label="SpeakerOps home"
+          >
+            <BrandLockup size={22} />
+          </Link>
           <p className="admin-shell__brand-name visually-hidden">SpeakerOps</p>
           <p className="admin-shell__brand-meta">Admin</p>
         </div>

@@ -9,7 +9,7 @@
  * moves between roles without leaving the demo session.
  */
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { BrandLockup } from "../components/ui/BrandMark.js";
 import {
   JudgeAccessResponseSchema,
@@ -83,7 +83,13 @@ export default function JudgeAccessPage() {
       <div className="login-card">
         {/* F1 — Signal mark + wordmark lockup */}
         <div className="login-card__brand">
-          <BrandLockup size={24} />
+          <Link
+            to="/"
+            className="login-card__brand-home lumen-focusable"
+            aria-label="SpeakerOps home"
+          >
+            <BrandLockup size={24} />
+          </Link>
         </div>
         <p className="login-card__overline">SpeakerOps · shared demo</p>
         <h1 className="login-card__title">Enter the demo</h1>
