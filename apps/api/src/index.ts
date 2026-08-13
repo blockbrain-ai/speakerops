@@ -729,6 +729,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     "/api/events",
     createEventProgrammeRoutes({
       store: authStore,
+      keys: keysStore,
       ...programmeDeps,
     }),
   );

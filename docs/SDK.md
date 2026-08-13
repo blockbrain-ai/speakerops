@@ -13,7 +13,14 @@ Use it to **read and write the programme** from another system, or to **project 
 - D1 stays the system of record.
 - Scopes are enforced on the Worker.
 - There are **no inbound webhooks**.
+- The API is **server-side**. There is no `Access-Control-Allow-Origin`. Do not call it from a browser page.
 - Built-in Accelevents projection is implemented but **untested without a live API key** on the hosted demo.
+
+## Runtime
+
+Pass `baseUrl` and `apiKey` explicitly if you are not in Node. The client reads `process.env` only when `process` exists — a bare Worker or browser will not throw.
+
+Bearer is attached **only** when the request URL is the same origin as `baseUrl`. Signed upload URLs and other hosts never receive the key.
 
 ## Install (monorepo)
 
@@ -26,21 +33,10 @@ Then import from the workspace package:
 
 ```ts
 import { SpeakerOps, unwrap } from "@speakerops/sdk";
-```
 
-## Authenticate
-
-Env **names** only — never commit values.
-
-| Name | Purpose |
-|------|---------|
-| `SPEAKEROPS_API_KEY` | Bearer secret (`spk_…`) |
-| `SPEAKEROPS_API_URL` | API base (default `http://127.0.0.1:8787`) |
-
-```ts
 const so = new SpeakerOps({
-  baseUrl: process.env.SPEAKEROPS_API_URL ?? "https://www.speakerops.org",
-  apiKey: process.env.SPEAKEROPS_API_KEY ?? "",
+  baseUrl: "https://www.speakerops.org",
+  apiKey: "spk_…", // never commit
 });
 ```
 
@@ -51,11 +47,15 @@ Public programme reads work with an empty key.
 ```ts
 const events = unwrap(await so.events.list());
 const ready = unwrap(await so.reports.readiness("evt_…"));
-const speakers = unwrap(await so.speakers.list("evt_…"));
-const schedule = unwrap(await so.schedule.list("evt_…"));
 
 // Public published snapshot — no key required
 const programme = unwrap(await so.programme.getPublished("dogfood-2026"));
+
+// Admin / Bearer events:read
+const status = unwrap(await so.programme.status("evt_…"));
+
+// Admin / Bearer events:write
+unwrap(await so.programme.publish("evt_…"));
 ```
 
 `unwrap` throws `SpeakerOpsError` on non-2xx (status + Worker `code` when present).
@@ -76,24 +76,27 @@ Rules for an outbound connection:
 
 In-repo projectors: `apps/api/src/modules/airtable/` and `apps/api/src/modules/accelevents/`.
 
+`integrations.saveAccelevents` takes **`eventUrl` as the Accelevents event slug** (`^[a-zA-Z0-9_-]+$`), not `https://…`.
+
 ## Surface (supported methods)
 
-| Area | Methods |
-|------|---------|
-| Events | `events.list`, `events.get` |
-| Programme | `programme.getPublished`, `programme.projectPublished`, `programme.status`, `programme.publish` |
-| Readiness | `reports.readiness` |
-| Speakers | `speakers.list`, `speakers.get`, `speakers.updateProfile` |
-| Schedule | `schedule.list`, `schedule.place`, `schedule.move`, `schedule.unschedule` |
-| Submissions | `submissions.list`, `submissions.get`, `submissions.assign`, `submissions.decision` |
-| Forms | `forms.list`, `forms.get`, `forms.create`, `forms.publish` |
-| Design | `design.get`, `design.setDraft`, `design.publish` |
-| Integrations | `integrations.status`, `integrations.saveAccelevents`, `integrations.verifyAccelevents` |
-| Airtable | `airtable.status` |
-| Comms | `comms.templates`, `comms.preview`, `comms.send` |
-| Team | `members.list`, `members.invite`, `members.setRole` |
-| Keys / files / eval / OpenAPI | `keys.create`, `files.presign`, `files.complete`, `eval.rollup`, `openapi.get` |
+| Area | Methods | Auth |
+|------|---------|------|
+| Events | `events.list`, `events.get`, `events.create` | events:read / events:write |
+| Programme | `programme.getPublished`, `programme.projectPublished` | public |
+| Programme | `programme.status`, `programme.publish` | events:read / events:write |
+| Readiness | `reports.readiness` | reports:read |
+| Speakers | `speakers.list`, `speakers.get`, `speakers.updateProfile` | speakers:read / write (`expectedVersion` required) |
+| Schedule | `schedule.list`, `schedule.place`, `schedule.move`, `schedule.unschedule` | schedule:read / write |
+| Submissions | `submissions.list`, `submissions.get`, `submissions.assign`, `submissions.decision` | submissions:* / decisions:write |
+| Forms | `forms.list`, `forms.get`, `forms.create`, `forms.updateDraft`, `forms.publish` | cfp:read / write |
+| Design | `design.get`, `design.setDraft`, `design.publish` | design:* (`expectedVersion` required on publish) |
+| Integrations | `integrations.status`, `integrations.saveAccelevents`, `integrations.verifyAccelevents` | integrations:* |
+| Airtable | `airtable.status` | airtable:read |
+| Comms | `comms.templates`, `comms.preview`, `comms.send` | comms:draft / send |
+| Team | `members.list`, `members.invite`, `members.setRole` | members:write |
+| Keys / files / eval / OpenAPI | `keys.list/create/revoke`, `files.presign/upload/complete`, `eval.rollup`, `openapi.get` | keys:admin / files:write |
 
-Escape hatch: `so.request(method, path, options)` or `so.http`.
+Escape hatch: `so.request(method, path, options)` or `so.http`. Cross-origin absolute URLs do **not** get the Bearer header.
 
-The CLI (`@speakerops/cli`) uses this same client. Each supported CLI verb maps to a Worker command — neither the CLI nor the SDK lists every live route. Discover more at `GET /openapi.json` (itself a **subset**).
+The CLI (`@speakerops/cli`) uses this same HTTP client (correlation ids `cli_…`). SDK-constructed clients use `sdk_…`. Each supported verb maps to a Worker command — neither lists every live route. Discover more at `GET /openapi.json` (still a **subset**, now including the public programme + publish/status paths).

@@ -17,7 +17,8 @@ import {
 } from "@speakerops/shared";
 import type { ApiEnv } from "../../env.js";
 import type { AuthStore } from "../auth/store.js";
-import { requireRole } from "../../middleware/authz.js";
+import type { KeysStore } from "../keys/store.js";
+import { actorFromContext, requireRole } from "../../middleware/authz.js";
 import type { ProgrammeCommandDeps } from "./commands.js";
 import {
   getPublicProgramme,
@@ -27,6 +28,8 @@ import {
 
 export type ProgrammeRouteOptions = ProgrammeCommandDeps & {
   store: AuthStore;
+  /** When set, Bearer events:read|write accepted (SDK / CLI). */
+  keys?: KeysStore;
 };
 
 function commandError(
@@ -44,11 +47,25 @@ function commandError(
 
 export function createEventProgrammeRoutes(opts: ProgrammeRouteOptions) {
   const app = new Hono<ApiEnv>();
-  const { store, ...deps } = opts;
+  const { store, keys, ...deps } = opts;
+  const bearerRead = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["events:read", "events:write"] as const,
+        eventsStore: deps.events,
+      }
+    : {};
+  const bearerWrite = keys
+    ? {
+        keysStore: keys,
+        bearerScopes: ["events:write"] as const,
+        eventsStore: deps.events,
+      }
+    : {};
 
   app.get(
     "/:eventId/programme/status",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerRead }),
     async (c) => {
       const eventId = c.req.param("eventId");
       const result = await getProgrammeStatus(deps, eventId);
@@ -59,16 +76,16 @@ export function createEventProgrammeRoutes(opts: ProgrammeRouteOptions) {
 
   app.post(
     "/:eventId/programme/publish",
-    requireRole(store, ["admin"], { eventIdFrom: "param" }),
+    requireRole(store, ["admin"], { eventIdFrom: "param", ...bearerWrite }),
     async (c) => {
       const eventId = c.req.param("eventId");
-      const user = c.get("user");
-      if (!user?.id) {
+      const actor = actorFromContext(c);
+      if (!actor) {
         return c.json(errorEnvelope("Unauthorized", FORBIDDEN), 403);
       }
       const result = await publishProgramme(deps, {
         eventId,
-        userId: user.id,
+        userId: actor.userId,
         correlationId: c.get("correlationId"),
       });
       if (!result.ok) return commandError(c, result);

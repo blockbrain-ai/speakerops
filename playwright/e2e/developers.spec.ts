@@ -31,6 +31,7 @@ test("@inv:X01 e2e/public/developers-page kit loads with honesty and chrome", as
   await expect(honesty).toContainText(/no inbound webhooks/i);
   await expect(honesty).toContainText(/OpenAPI is a subset/i);
   await expect(honesty).toContainText(/untested without a live API key/i);
+  await expect(honesty).toContainText(/server-side only/i);
 
   const cli = page.getByTestId("developers-cli-snippet");
   await expect(cli).toContainText("node packages/cli/dist/main.js");

@@ -118,10 +118,24 @@ export function DevelopersPage() {
           <code>{SDK_SNIPPET}</code>
         </pre>
         <p className="public-dev__prose">
-          Methods cover events, programme, speakers, schedule, submissions,
-          forms, design, integrations, comms, and team. Escape hatch:{" "}
-          <code className="public-dev__inline">so.request(method, path)</code>.
-          Full handbook in the repo: <code className="public-dev__inline">docs/SDK.md</code>.
+          Methods cover events, programme (including Bearer publish/status),
+          speakers, schedule, submissions, forms (including draft), design,
+          integrations, comms, and team.{" "}
+          <code className="public-dev__inline">
+            programme.projectPublished(slug)
+          </code>{" "}
+          is the outbound snapshot. Escape hatch:{" "}
+          <code className="public-dev__inline">so.request(method, path)</code>
+          . Handbook:{" "}
+          <a
+            href="https://github.com/blockbrain-ai/speakerops/blob/section-runner/speakerops/docs/SDK.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="developers-sdk-docs"
+          >
+            docs/SDK.md
+          </a>
+          .
         </p>
       </section>
 
@@ -253,6 +267,10 @@ export function DevelopersPage() {
             Built-in Accelevents projection is implemented but{" "}
             <strong>untested without a live API key</strong> on the hosted
             demo.
+          </li>
+          <li>
+            The API is <strong>server-side only</strong> (no CORS). Call it
+            from Node, a Worker, or your cron — not from a browser page.
           </li>
         </ul>
       </aside>

@@ -44,6 +44,7 @@ export function buildClientFromArgs(args: ParsedArgs): {
       baseUrl,
       apiKey,
       fetchImpl: globalThis.fetch.bind(globalThis),
+      correlationPrefix: "cli",
     }),
   };
 }
@@ -701,6 +702,7 @@ export async function cmdOpenApi(ctx: CommandContext): Promise<CliExitCode> {
     new ApiClient({
       baseUrl: resolveBaseUrl(requireOption(ctx.args, "api-url", ["apiUrl"])),
       apiKey: resolveApiKey(requireOption(ctx.args, "api-key", ["apiKey"])) ?? "",
+      correlationPrefix: "cli",
     });
 
   const result = await client.get("/openapi.json");

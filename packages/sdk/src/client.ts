@@ -1,14 +1,56 @@
 /**
  * First-party SpeakerOps client — typed wrappers over Worker commands.
- * Each method maps to a documented HTTP path. OpenAPI is a subset.
  */
+import {
+  AdminSpeakersListResponseSchema,
+  AdminSpeakerDetailResponseSchema,
+  DecisionRecordBodySchema,
+  DesignGetResponseSchema,
+  DesignPublishBodySchema,
+  DesignPublishResponseSchema,
+  EventCreateBodySchema,
+  EventListResponseSchema,
+  EventResponseSchema,
+  FormCreateResponseSchema,
+  FormListResponseSchema,
+  FormUpdateDraftBodySchema,
+  IntegrationsStatusResponseSchema,
+  KeysCreateBodySchema,
+  KeysCreateResponseSchema,
+  KeysListResponseSchema,
+  KeysRevokeResponseSchema,
+  ProgrammePublishResponseSchema,
+  ProgrammeStatusResponseSchema,
+  PublicProgrammeResponseSchema,
+  ReportsReadinessResponseSchema,
+  SaveAcceleventsBodySchema,
+  ScheduleListResponseSchema,
+  SchedulePlaceBodySchema,
+  SchedulePlaceResponseSchema,
+  SpeakersUpdateProfileBodySchema,
+  SpeakersUpdateProfileResponseSchema,
+  SubmissionAssignBodySchema,
+  SubmissionDetailResponseSchema,
+  SubmissionListResponseSchema,
+  type DecisionRecordBody,
+  type DesignPublishBody,
+  type EventCreateBody,
+  type FormUpdateDraftBody,
+  type KeysCreateBody,
+  type SaveAcceleventsBody,
+  type SchedulePlaceBody,
+  type SpeakersUpdateProfileBody,
+} from "@speakerops/shared";
 import {
   HttpClient,
   resolveApiKey,
   resolveBaseUrl,
+  validationResult,
   type HttpClientConfig,
+  type HttpRequestOptions,
   type HttpResult,
 } from "./http.js";
+import { asResult, type Parseable, type SdkResult } from "./result.js";
 import {
   parsePublishedProgramme,
   toProgrammeProjection,
@@ -21,10 +63,15 @@ export type SpeakerOpsConfig = {
   apiKey?: string;
   fetchImpl?: typeof fetch;
   correlationId?: string;
+  correlationPrefix?: "cli" | "sdk";
 };
 
 function enc(value: string): string {
   return encodeURIComponent(value);
+}
+
+function parsedBody<T>(result: HttpResult, schema: Parseable<T>): SdkResult<T> {
+  return asResult(result, schema);
 }
 
 export class SpeakerOps {
@@ -36,6 +83,7 @@ export class SpeakerOps {
       apiKey: config.apiKey ?? resolveApiKey() ?? "",
       fetchImpl: config.fetchImpl,
       correlationId: config.correlationId,
+      correlationPrefix: config.correlationPrefix ?? "sdk",
     };
     this.http = new HttpClient(cfg);
   }
@@ -43,80 +91,127 @@ export class SpeakerOps {
   request(
     method: string,
     path: string,
-    options?: Parameters<HttpClient["request"]>[2],
+    options?: HttpRequestOptions,
   ): Promise<HttpResult> {
     return this.http.request(method, path, options);
   }
 
   readonly events = {
-    list: () => this.http.get("/api/events"),
-    get: (eventId: string) => this.http.get(`/api/events/${enc(eventId)}`),
+    list: async () =>
+      parsedBody(await this.http.get("/api/events"), EventListResponseSchema),
+    get: async (eventId: string) =>
+      parsedBody(
+        await this.http.get(`/api/events/${enc(eventId)}`),
+        EventResponseSchema,
+      ),
+    create: async (body: EventCreateBody) => {
+      const checked = EventCreateBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(validationResult("Invalid Event.Create body"));
+      }
+      return parsedBody(
+        await this.http.post("/api/events", checked.data),
+        EventResponseSchema,
+      );
+    },
   };
 
   readonly programme = {
     /** Public published snapshot — no API key required. */
-    getPublished: (slug: string) =>
-      this.http.get(`/api/public/programme/${enc(slug)}`),
+    getPublished: async (slug: string) =>
+      parsedBody(
+        await this.http.get(`/api/public/programme/${enc(slug)}`),
+        PublicProgrammeResponseSchema,
+      ),
     /** Fetch + parse + flatten for an outbound projector. */
     projectPublished: async (slug: string): Promise<ProgrammeProjection> => {
       const result = await this.programme.getPublished(slug);
       const body = unwrap(result);
       return toProgrammeProjection(parsePublishedProgramme(body));
     },
-    status: (eventId: string) =>
-      this.http.get(`/api/events/${enc(eventId)}/programme/status`),
-    publish: (eventId: string) =>
-      this.http.post(`/api/events/${enc(eventId)}/programme/publish`, {}),
+    /** Bearer events:read|write or admin session. */
+    status: async (eventId: string) =>
+      parsedBody(
+        await this.http.get(`/api/events/${enc(eventId)}/programme/status`),
+        ProgrammeStatusResponseSchema,
+      ),
+    /** Bearer events:write or admin session. */
+    publish: async (eventId: string) =>
+      parsedBody(
+        await this.http.post(`/api/events/${enc(eventId)}/programme/publish`, {}),
+        ProgrammePublishResponseSchema,
+      ),
   };
 
   readonly reports = {
-    readiness: (eventId: string, opts?: { overdueOnly?: boolean }) =>
-      this.http.get(`/api/events/${enc(eventId)}/readiness`, {
-        overdueOnly: opts?.overdueOnly ? "true" : undefined,
-      }),
+    readiness: async (eventId: string, opts?: { overdueOnly?: boolean }) =>
+      parsedBody(
+        await this.http.get(`/api/events/${enc(eventId)}/readiness`, {
+          overdueOnly: opts?.overdueOnly ? "true" : undefined,
+        }),
+        ReportsReadinessResponseSchema,
+      ),
   };
 
   readonly speakers = {
-    list: (eventId: string, query?: { q?: string; status?: string }) =>
-      this.http.get(`/api/events/${enc(eventId)}/speakers`, query),
-    get: (eventId: string, participationId: string) =>
-      this.http.get(
-        `/api/events/${enc(eventId)}/speakers/${enc(participationId)}`,
+    list: async (eventId: string, query?: { q?: string; status?: string }) =>
+      parsedBody(
+        await this.http.get(`/api/events/${enc(eventId)}/speakers`, query),
+        AdminSpeakersListResponseSchema,
       ),
-    updateProfile: (
+    get: async (eventId: string, participationId: string) =>
+      parsedBody(
+        await this.http.get(
+          `/api/events/${enc(eventId)}/speakers/${enc(participationId)}`,
+        ),
+        AdminSpeakerDetailResponseSchema,
+      ),
+    updateProfile: async (
       eventId: string,
       participationId: string,
-      body: {
-        bio?: string;
-        company?: string;
-        title?: string;
-        headshotFileId?: string;
-        expectedVersion?: number;
-      },
-    ) =>
-      this.http.patch(
-        `/api/events/${enc(eventId)}/speakers/${enc(participationId)}`,
-        body,
-      ),
+      body: SpeakersUpdateProfileBody,
+    ) => {
+      const checked = SpeakersUpdateProfileBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(
+          validationResult(
+            "Invalid Speakers.UpdateProfile body (expectedVersion is required)",
+          ),
+        );
+      }
+      return parsedBody(
+        await this.http.patch(
+          `/api/events/${enc(eventId)}/speakers/${enc(participationId)}`,
+          checked.data,
+        ),
+        SpeakersUpdateProfileResponseSchema,
+      );
+    },
   };
 
   readonly schedule = {
-    list: (eventId: string, view?: string) =>
-      this.http.get(
-        `/api/events/${enc(eventId)}/schedule`,
-        view ? { view } : undefined,
+    list: async (eventId: string, view?: string) =>
+      parsedBody(
+        await this.http.get(
+          `/api/events/${enc(eventId)}/schedule`,
+          view ? { view } : undefined,
+        ),
+        ScheduleListResponseSchema,
       ),
-    place: (
-      eventId: string,
-      body: {
-        sessionId: string;
-        roomId: string;
-        startsAt: string;
-        endsAt: string;
-        expectedVersion?: number;
-      },
-    ) => this.http.post(`/api/events/${enc(eventId)}/schedule/place`, body),
-    move: (
+    place: async (eventId: string, body: SchedulePlaceBody) => {
+      const checked = SchedulePlaceBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(validationResult("Invalid Schedule.Place body"));
+      }
+      return parsedBody(
+        await this.http.post(
+          `/api/events/${enc(eventId)}/schedule/place`,
+          checked.data,
+        ),
+        SchedulePlaceResponseSchema,
+      );
+    },
+    move: async (
       eventId: string,
       body: {
         placementId: string;
@@ -125,8 +220,9 @@ export class SpeakerOps {
         endsAt: string;
         expectedVersion: number;
       },
-    ) => this.http.post(`/api/events/${enc(eventId)}/schedule/move`, body),
-    unschedule: (
+    ) =>
+      this.http.post(`/api/events/${enc(eventId)}/schedule/move`, body),
+    unschedule: async (
       eventId: string,
       body: { placementId: string; expectedVersion: number },
     ) =>
@@ -134,56 +230,117 @@ export class SpeakerOps {
   };
 
   readonly submissions = {
-    list: (
+    list: async (
       eventId: string,
       query?: { status?: string; q?: string; category?: string },
-    ) => this.http.get(`/api/events/${enc(eventId)}/submissions`, query),
-    get: (submissionId: string) =>
-      this.http.get(`/api/submissions/${enc(submissionId)}`),
-    assign: (submissionId: string, body: { userIds: string[] }) =>
-      this.http.post(`/api/submissions/${enc(submissionId)}/assign`, body),
-    decision: (
-      submissionId: string,
-      body: { decision: "accept" | "reject" | "waitlist"; reason?: string },
-    ) => this.http.post(`/api/submissions/${enc(submissionId)}/decision`, body),
+    ) =>
+      parsedBody(
+        await this.http.get(`/api/events/${enc(eventId)}/submissions`, query),
+        SubmissionListResponseSchema,
+      ),
+    get: async (submissionId: string) =>
+      parsedBody(
+        await this.http.get(`/api/submissions/${enc(submissionId)}`),
+        SubmissionDetailResponseSchema,
+      ),
+    assign: async (submissionId: string, body: { userIds: string[] }) => {
+      const checked = SubmissionAssignBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(validationResult("Invalid Submission.Assign body"));
+      }
+      return this.http.post(
+        `/api/submissions/${enc(submissionId)}/assign`,
+        checked.data,
+      );
+    },
+    decision: async (submissionId: string, body: DecisionRecordBody) => {
+      const checked = DecisionRecordBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(validationResult("Invalid Decision.Record body"));
+      }
+      return this.http.post(
+        `/api/submissions/${enc(submissionId)}/decision`,
+        checked.data,
+      );
+    },
   };
 
   readonly forms = {
-    list: (eventId: string) =>
-      this.http.get(`/api/events/${enc(eventId)}/forms`),
-    get: (formId: string) => this.http.get(`/api/forms/${enc(formId)}`),
-    create: (eventId: string, body: { name: string }) =>
-      this.http.post(`/api/events/${enc(eventId)}/forms`, body),
-    publish: (formId: string) =>
+    list: async (eventId: string) =>
+      parsedBody(
+        await this.http.get(`/api/events/${enc(eventId)}/forms`),
+        FormListResponseSchema,
+      ),
+    get: async (formId: string) =>
+      this.http.get(`/api/forms/${enc(formId)}`),
+    create: async (eventId: string, body: { name: string }) =>
+      parsedBody(
+        await this.http.post(`/api/events/${enc(eventId)}/forms`, body),
+        FormCreateResponseSchema,
+      ),
+    updateDraft: async (formId: string, body: FormUpdateDraftBody) => {
+      const checked = FormUpdateDraftBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(validationResult("Invalid Form.UpdateDraft body"));
+      }
+      return this.http.request(
+        "PUT",
+        `/api/forms/${enc(formId)}/draft`,
+        { body: checked.data },
+      );
+    },
+    publish: async (formId: string) =>
       this.http.post(`/api/forms/${enc(formId)}/publish`, {}),
   };
 
   readonly design = {
-    get: (eventId: string) =>
-      this.http.get(`/api/events/${enc(eventId)}/design`),
-    setDraft: (eventId: string, body: unknown) =>
+    get: async (eventId: string) =>
+      parsedBody(
+        await this.http.get(`/api/events/${enc(eventId)}/design`),
+        DesignGetResponseSchema,
+      ),
+    setDraft: async (eventId: string, body: unknown) =>
       this.http.put(`/api/events/${enc(eventId)}/design`, body),
-    publish: (eventId: string, body?: { expectedVersion?: number }) =>
-      this.http.post(`/api/events/${enc(eventId)}/design/publish`, body ?? {}),
+    publish: async (eventId: string, body: DesignPublishBody) => {
+      const checked = DesignPublishBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(
+          validationResult(
+            "Invalid Design.Publish body (expectedVersion is required)",
+          ),
+        );
+      }
+      return parsedBody(
+        await this.http.post(
+          `/api/events/${enc(eventId)}/design/publish`,
+          checked.data,
+        ),
+        DesignPublishResponseSchema,
+      );
+    },
   };
 
   readonly integrations = {
-    status: (eventId: string) =>
-      this.http.get(`/api/events/${enc(eventId)}/integrations`),
-    saveAccelevents: (
-      eventId: string,
-      body: {
-        eventUrl: string;
-        externalEventId: string;
-        enabled: boolean;
-        expectedVersion?: number;
-      },
-    ) =>
-      this.http.put(
-        `/api/events/${enc(eventId)}/integrations/accelevents`,
-        body,
+    status: async (eventId: string) =>
+      parsedBody(
+        await this.http.get(`/api/events/${enc(eventId)}/integrations`),
+        IntegrationsStatusResponseSchema,
       ),
-    verifyAccelevents: (
+    saveAccelevents: async (eventId: string, body: SaveAcceleventsBody) => {
+      const checked = SaveAcceleventsBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(
+          validationResult(
+            "Invalid Accelevents identity (eventUrl is the event slug, not a full URL)",
+          ),
+        );
+      }
+      return this.http.put(
+        `/api/events/${enc(eventId)}/integrations/accelevents`,
+        checked.data,
+      );
+    },
+    verifyAccelevents: async (
       eventId: string,
       body?: { expectedVersion?: number },
     ) =>
@@ -224,12 +381,33 @@ export class SpeakerOps {
   };
 
   readonly keys = {
-    create: (body: { name: string; scopes: string[] }) =>
-      this.http.post("/api/keys", body),
+    list: async () =>
+      parsedBody(await this.http.get("/api/keys"), KeysListResponseSchema),
+    create: async (body: KeysCreateBody) => {
+      const checked = KeysCreateBodySchema.safeParse(body);
+      if (!checked.success) {
+        return asResult(validationResult("Invalid Keys.Create body"));
+      }
+      return parsedBody(
+        await this.http.post("/api/keys", checked.data),
+        KeysCreateResponseSchema,
+      );
+    },
+    revoke: async (keyId: string) =>
+      parsedBody(
+        await this.http.delete(`/api/keys/${enc(keyId)}`),
+        KeysRevokeResponseSchema,
+      ),
   };
 
   readonly files = {
     presign: (body: unknown) => this.http.post("/api/files/presign", body),
+    /** PUT bytes. Bearer is attached only when the URL is the API origin. */
+    upload: (
+      url: string,
+      rawBody: Uint8Array | ArrayBuffer,
+      contentType: string,
+    ) => this.http.request("PUT", url, { rawBody, contentType }),
     complete: (fileId: string, body: unknown) =>
       this.http.post(`/api/files/${enc(fileId)}/complete`, body),
   };

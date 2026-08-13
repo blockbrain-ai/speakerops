@@ -15,7 +15,8 @@
   "files": ["dist"],
   "scripts": {
     "typecheck": "tsc -b --pretty false",
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "test": "vitest run src"
   },
   "dependencies": {
     "@speakerops/shared": "workspace:*"

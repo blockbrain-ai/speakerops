@@ -2,7 +2,7 @@
 
 | Scope | Commands allowed (summary) |
 |-------|----------------------------|
-| `events:read` / `events:write` | Event list/get / create update |
+| `events:read` / `events:write` | Event list/get / create update; **programme status** (read) and **programme publish** (write) |
 | `cfp:read` / `cfp:write` | Forms admin (not public submit) |
 | `submissions:read` / `submissions:write` | List/get/assign |
 | `decisions:write` | Decision.Record — **default deny on new keys** |

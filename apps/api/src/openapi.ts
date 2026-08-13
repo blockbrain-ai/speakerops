@@ -2474,6 +2474,77 @@ export const AIRTABLE_OPENAPI_PATHS = {
 } as const;
 
 /** OpenAPI paths for Integrations hub (Accelevents one-way). */
+/** OpenAPI paths for public + admin programme (P11 / F7 / SDK). */
+export const PROGRAMME_OPENAPI_PATHS = {
+  "/api/public/programme/{slug}": {
+    get: {
+      operationId: "Programme.GetPublic",
+      summary: "Programme.GetPublic",
+      description:
+        "Published programme snapshot (sessions, speakers, agenda). No auth. 404 until published.",
+      tags: ["Programme"],
+      parameters: [
+        {
+          name: "slug",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "Public programme snapshot" },
+        "404": { description: "Not published / unknown slug" },
+      },
+    },
+  },
+  "/api/events/{eventId}/programme/status": {
+    get: {
+      operationId: "Programme.Status",
+      summary: "Programme.Status",
+      description:
+        "Whether this event has a published programme. Session admin or Bearer events:read|write.",
+      tags: ["Programme"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "{ published, publishedAt, version }" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+  "/api/events/{eventId}/programme/publish": {
+    post: {
+      operationId: "Programme.Publish",
+      summary: "Programme.Publish",
+      description:
+        "Publish the current programme snapshot. Session admin or Bearer events:write. Enqueues Accelevents project when configured (E7, not on this request path).",
+      tags: ["Programme"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "{ publishedAt, version, sessionCount, speakerCount }" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden" },
+        "404": { description: "Event not found / no membership" },
+      },
+    },
+  },
+} as const;
+
 export const INTEGRATIONS_OPENAPI_PATHS = {
   "/api/events/{eventId}/integrations": {
     get: {
@@ -2780,6 +2851,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...READINESS_OPENAPI_PATHS,
       ...AIRTABLE_OPENAPI_PATHS,
       ...INTEGRATIONS_OPENAPI_PATHS,
+      ...PROGRAMME_OPENAPI_PATHS,
       ...KEYS_OPENAPI_PATHS,
     },
     tags: [
@@ -2789,6 +2861,11 @@ export function buildOpenApiDocument(): Record<string, unknown> {
           "Session auth; Auth.DevRoleSwitch is dogfood/dev only (8.4 — 404 when flag off)",
       },
       { name: "Event", description: "Event list/create/update (2.3 / CLI01)" },
+      {
+        name: "Programme",
+        description:
+          "Published public snapshot + admin publish/status (P11 / F7 / SDK)",
+      },
       {
         name: "Design",
         description: "Design Kit draft/publish (S-THEME / 2.4 / CLI03–CLI05)",

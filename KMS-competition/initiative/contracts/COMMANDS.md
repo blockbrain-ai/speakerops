@@ -103,6 +103,9 @@ Auth: session cookie **or** API key with scopes.
 | `Integrations.Status` | integrations:read (or airtable:read) | eventId | connections[] (Accelevents card; D1-only, no third-party HTTP) |
 | `Integrations.SaveAccelevents` | integrations:write | eventId, eventUrl, externalEventId, enabled, expectedVersion? | connection |
 | `Integrations.VerifyAccelevents` | integrations:write | eventId, expectedVersion? | { queued: true, connection } — enqueues `accelevents.verify` only |
+| `Programme.Status` | events:read (or events:write) | eventId | { published, publishedAt, version } — session admin **or** Bearer |
+| `Programme.Publish` | events:write | eventId | snapshot counts — session admin **or** Bearer; enqueue AE project off-path |
+| `Programme.GetPublic` | public | slug | published sessions/speakers/agenda — no auth; 404 until published |
 
 ## API keys
 | Command | Scope | Input | Output |
@@ -190,6 +193,9 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/comms/send | Comms.Send |
 | GET | /api/events/:eventId/readiness | Reports.Readiness |
 | GET | /api/events/:eventId/airtable/status | Reports.AirtableStatus |
+| GET | /api/public/programme/:slug | Programme.GetPublic |
+| GET | /api/events/:eventId/programme/status | Programme.Status |
+| POST | /api/events/:eventId/programme/publish | Programme.Publish |
 | GET | /api/events/:eventId/integrations | Integrations.Status |
 | PUT | /api/events/:eventId/integrations/accelevents | Integrations.SaveAccelevents |
 | POST | /api/events/:eventId/integrations/accelevents/verify | Integrations.VerifyAccelevents |

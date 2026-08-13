@@ -1,8 +1,9 @@
 /**
  * Thin HTTPS client for SpeakerOps Worker API.
- * Auth: Authorization: Bearer <SPEAKEROPS_API_KEY>
+ * Auth: Authorization: Bearer <SPEAKEROPS_API_KEY> — same origin only.
  * Scopes are enforced server-side (E8).
  */
+import { readEnv } from "./env.js";
 import {
   exitCodeFromHttp,
   EXIT_NETWORK,
@@ -14,6 +15,20 @@ export type HttpClientConfig = {
   baseUrl: string;
   apiKey: string;
   fetchImpl?: typeof fetch;
+  correlationId?: string;
+  /**
+   * Prefix for generated correlation ids (`cli` or `sdk`).
+   * Ignored when `correlationId` is set.
+   */
+  correlationPrefix?: "cli" | "sdk";
+};
+
+export type HttpRequestOptions = {
+  query?: Record<string, string | undefined>;
+  body?: unknown;
+  rawBody?: Uint8Array | ArrayBuffer | string;
+  contentType?: string;
+  /** Override the client-level correlation id for this request. */
   correlationId?: string;
 };
 
@@ -28,16 +43,30 @@ export type HttpResult = {
 export function resolveBaseUrl(override?: string): string {
   const raw =
     override ??
-    process.env.SPEAKEROPS_API_URL ??
-    process.env.SPEAKEROPS_BASE_URL ??
+    readEnv("SPEAKEROPS_API_URL") ??
+    readEnv("SPEAKEROPS_BASE_URL") ??
     "http://127.0.0.1:8787";
   return raw.replace(/\/+$/, "");
 }
 
 export function resolveApiKey(override?: string): string | null {
-  const key = override ?? process.env.SPEAKEROPS_API_KEY ?? null;
+  const key = override ?? readEnv("SPEAKEROPS_API_KEY") ?? null;
   if (!key || key.trim().length === 0) return null;
   return key.trim();
+}
+
+function newCorrelationId(prefix: "cli" | "sdk"): string {
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${prefix}_${Date.now().toString(36)}_${rand}`;
+}
+
+function sameOrigin(requestUrl: URL, baseUrl: string): boolean {
+  try {
+    const base = new URL(baseUrl.includes("://") ? baseUrl : `http://${baseUrl}`);
+    return requestUrl.origin === base.origin;
+  } catch {
+    return false;
+  }
 }
 
 export class HttpClient {
@@ -52,19 +81,14 @@ export class HttpClient {
     this.fetchImpl = config.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.correlationId =
       config.correlationId ??
-      process.env.SPEAKEROPS_CORRELATION_ID ??
-      `sdk_${Date.now().toString(36)}`;
+      readEnv("SPEAKEROPS_CORRELATION_ID") ??
+      newCorrelationId(config.correlationPrefix ?? "sdk");
   }
 
   async request(
     method: string,
     path: string,
-    options: {
-      query?: Record<string, string | undefined>;
-      body?: unknown;
-      rawBody?: Uint8Array | ArrayBuffer | string;
-      contentType?: string;
-    } = {},
+    options: HttpRequestOptions = {},
   ): Promise<HttpResult> {
     const url = new URL(
       path.startsWith("http")
@@ -77,11 +101,15 @@ export class HttpClient {
       }
     }
 
+    const attachBearer =
+      this.apiKey.length > 0 && sameOrigin(url, this.baseUrl);
+
     const headers: Record<string, string> = {
       accept: "application/json",
-      "x-correlation-id": this.correlationId,
+      "x-correlation-id":
+        options.correlationId ?? this.correlationId,
     };
-    if (this.apiKey.length > 0) {
+    if (attachBearer) {
       headers.authorization = `Bearer ${this.apiKey}`;
     }
 
@@ -176,6 +204,16 @@ export function missingKeyResult(): HttpResult {
         "SPEAKEROPS_API_KEY is required (or pass apiKey). Mint via admin UI or keys create.",
       code: "VALIDATION_ERROR",
     },
+    headers: new Headers(),
+    exitCode: EXIT_VALIDATION,
+    ok: false,
+  };
+}
+
+export function validationResult(error: string): HttpResult {
+  return {
+    status: 0,
+    body: { error, code: "VALIDATION_ERROR" },
     headers: new Headers(),
     exitCode: EXIT_VALIDATION,
     ok: false,

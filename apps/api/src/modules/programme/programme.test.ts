@@ -183,4 +183,78 @@ describe("F7 programme publication", () => {
       stillBody.sessions.some((s) => s.title === "Secret Unpublishable Talk"),
     ).toBe(false);
   });
+
+  it("Bearer events:write can publish; events:read can status; reports-only cannot", async () => {
+    const { app, cookie, eventId } = await adminWithEvent(
+      "prog-bearer@example.com",
+    );
+
+    async function mint(name: string, scopes: string[]) {
+      const res = await app.request("http://localhost/api/keys", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ name, scopes, eventId }),
+      }, env);
+      expect(res.status).toBe(201);
+      return (await res.json()) as { secret: string };
+    }
+
+    const writer = await mint("prog-write", ["events:read", "events:write"]);
+    const reader = await mint("prog-read", ["events:read"]);
+    const reports = await mint("prog-reports", ["reports:read"]);
+
+    const denied = await app.request(
+      `http://localhost/api/events/${eventId}/programme/status`,
+      {
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${reports.secret}`,
+        },
+      },
+      env,
+    );
+    expect(denied.status).toBe(403);
+
+    const status = await app.request(
+      `http://localhost/api/events/${eventId}/programme/status`,
+      {
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${reader.secret}`,
+        },
+      },
+      env,
+    );
+    expect(status.status).toBe(200);
+
+    const pubDenied = await app.request(
+      `http://localhost/api/events/${eventId}/programme/publish`,
+      {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${reader.secret}`,
+        },
+      },
+      env,
+    );
+    expect(pubDenied.status).toBe(403);
+
+    const pub = await app.request(
+      `http://localhost/api/events/${eventId}/programme/publish`,
+      {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${writer.secret}`,
+        },
+      },
+      env,
+    );
+    expect(pub.status).toBe(200);
+    expect(ProgrammePublishResponseSchema.parse(await pub.json()).version).toBeGreaterThan(0);
+  });
 });

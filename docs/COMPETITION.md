@@ -14,7 +14,7 @@ SpeakerOps is a **clean-room Program OS** for AI Engineer program ops — not a 
 
 ## 1. Product one-liner
 
-A calm, fast, open-source **Program OS** that takes an event from conditional CFP through human evaluation, speaker onboarding, templated comms/calendar, conflict-safe scheduling, and a live readiness dashboard — deployed on **Cloudflare**, with support for an optional **one-way** Airtable projection (paused on the hosted demo — no keys configured), operated by humans **and** agents via **CLI + scoped keys**.
+A calm, fast, open-source **Program OS** that takes an event from conditional CFP through human evaluation, speaker onboarding, templated comms/calendar, conflict-safe scheduling, and a live readiness dashboard — deployed on **Cloudflare**, with support for an optional **one-way** Airtable projection (paused on the hosted demo — no keys configured), operated by humans **and** agents via **CLI + scoped keys + the monorepo TypeScript SDK** (`@speakerops/sdk`, documented at `/developers`).
 
 Exit claim: **`dogfood_ready`** — Cloudflare dogfood deploy + full browser E2E green + onboarding docs (human + agent).
 

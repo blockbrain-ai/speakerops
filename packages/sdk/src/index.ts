@@ -4,11 +4,15 @@ export {
   resolveBaseUrl,
   resolveApiKey,
   missingKeyResult,
+  validationResult,
   type HttpClientConfig,
   type ApiClientConfig,
   type HttpResult,
   type ApiResult,
+  type HttpRequestOptions,
 } from "./http.js";
+export { readEnv } from "./env.js";
+export { asResult, type SdkResult } from "./result.js";
 export {
   EXIT_OK,
   EXIT_VALIDATION,

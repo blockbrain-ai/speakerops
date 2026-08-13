@@ -121,19 +121,58 @@ describe("@speakerops/sdk", () => {
     expect(snap.sessions).toEqual([]);
   });
 
-  it("builds speaker update and integrations paths", async () => {
+  it("rejects speaker update without expectedVersion and still builds integrations path", async () => {
     const urls: string[] = [];
     const so = new SpeakerOps({
       baseUrl: "http://127.0.0.1:8787",
       apiKey: "spk_test",
       fetchImpl: async (input) => {
         urls.push(typeof input === "string" ? input : String(input));
-        return jsonResponse(200, {});
+        return jsonResponse(200, { connections: [] });
       },
     });
-    await so.speakers.updateProfile("evt 1", "par/2", { bio: "x" });
-    await so.integrations.status("evt 1");
+    const denied = await so.speakers.updateProfile("evt 1", "par/2", {
+      bio: "x",
+    } as never);
+    expect(denied.ok).toBe(false);
+    expect(urls).toHaveLength(0);
+    const ok = await so.speakers.updateProfile("evt 1", "par/2", {
+      bio: "x",
+      expectedVersion: 1,
+    });
     expect(urls[0]).toContain("/api/events/evt%201/speakers/par%2F2");
+    expect(ok.ok).toBe(false);
+    await so.integrations.status("evt 1");
     expect(urls[1]).toContain("/api/events/evt%201/integrations");
+  });
+
+  it("does not forward Bearer to a different origin", async () => {
+    const headers: string[] = [];
+    const so = new SpeakerOps({
+      baseUrl: "https://www.speakerops.org",
+      apiKey: "spk_secret",
+      fetchImpl: async (_input, init) => {
+        headers.push(new Headers(init?.headers).get("authorization") ?? "");
+        return jsonResponse(200, { ok: true });
+      },
+    });
+    await so.request("GET", "https://example.invalid/collect");
+    expect(headers[0]).toBe("");
+    await so.events.list();
+    expect(headers[1]).toBe("Bearer spk_secret");
+  });
+
+  it("rejects a full URL as an Accelevents eventUrl", async () => {
+    const so = new SpeakerOps({
+      baseUrl: "https://www.speakerops.org",
+      apiKey: "spk_test",
+      fetchImpl: async () => jsonResponse(200, {}),
+    });
+    const result = await so.integrations.saveAccelevents("evt_1", {
+      eventUrl: "https://accelevents.com/my-event",
+      externalEventId: "1",
+      enabled: true,
+    });
+    expect(result.ok).toBe(false);
   });
 });
