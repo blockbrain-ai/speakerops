@@ -1,7 +1,6 @@
 /**
- * Public developer kit (`/developers`) — how to talk to the programme.
+ * Public developer kit (`/developers`) — SDK, CLI, and custom connections.
  *
- * Not a published npm SDK. HTTP + OpenAPI + monorepo CLI + projector contract.
  * Sage & Honey · PublicChrome · Lumen tokens.
  */
 import {
@@ -12,10 +11,10 @@ import {
 
 const PATHS = [
   {
-    href: "#http",
-    testId: "developers-path-http",
-    title: "HTTP API",
-    body: "Mint a scoped key and call the same Worker commands as the admin UI. OpenAPI is the contract.",
+    href: "#sdk",
+    testId: "developers-path-sdk",
+    title: "TypeScript SDK",
+    body: "First-party client in the monorepo. Call Worker commands and project a published programme out.",
     tone: "leaf" as const,
     icon: "{ }",
   },
@@ -23,7 +22,7 @@ const PATHS = [
     href: "#cli",
     testId: "developers-path-cli",
     title: "CLI",
-    body: "The first-party client lives in the monorepo. Each supported verb maps to a Worker command.",
+    body: "Same client, command line. Each supported verb maps to a Worker command.",
     tone: "honey" as const,
     icon: ">_",
   },
@@ -37,36 +36,16 @@ const PATHS = [
   },
 ];
 
-const STARTER = `const base = process.env.SPEAKEROPS_API_URL ?? "http://127.0.0.1:8787";
-const apiKey = process.env.SPEAKEROPS_API_KEY ?? ""; // spk_… never commit
+const SDK_SNIPPET = `import { SpeakerOps, unwrap } from "@speakerops/sdk";
 
-export async function speakerops(
-  method: string,
-  path: string,
-  body?: unknown,
-) {
-  const res = await fetch(\`\${base}\${path}\`, {
-    method,
-    headers: {
-      accept: "application/json",
-      authorization: \`Bearer \${apiKey}\`,
-      ...(body ? { "content-type": "application/json" } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data: unknown = await res.json().catch(() => null);
-  if (!res.ok) {
-    const msg =
-      data && typeof data === "object" && "error" in data
-        ? String((data as { error: unknown }).error)
-        : res.statusText;
-    throw new Error(msg);
-  }
-  return data;
-}
+const so = new SpeakerOps({
+  baseUrl: process.env.SPEAKEROPS_API_URL ?? "https://www.speakerops.org",
+  apiKey: process.env.SPEAKEROPS_API_KEY ?? "", // spk_… never commit
+});
 
-// speakerops("GET", "/api/events")
-`;
+const events = unwrap(await so.events.list());
+const snapshot = await so.programme.projectPublished("your-event-slug");
+// snapshot.speakers / snapshot.sessions → push from your own worker/cron`;
 
 const CLI_SNIPPET = `# From the monorepo root (package is private — not on npm)
 pnpm --filter @speakerops/cli build
@@ -92,9 +71,9 @@ export function DevelopersPage() {
           Connect your tools to the programme.
         </h1>
         <p className="public-landing__lede">
-          SpeakerOps is the system of record. Use the HTTP API or the CLI to
-          run Worker commands — or project a published programme out to a
-          system you already run.
+          SpeakerOps is the system of record. Use the TypeScript SDK or the
+          CLI to run Worker commands — or project a published programme out
+          to a platform you already run.
         </p>
       </section>
 
@@ -120,12 +99,39 @@ export function DevelopersPage() {
       </section>
 
       <section
+        id="sdk"
+        className="public-dev__section"
+        data-testid="developers-sdk"
+      >
+        <p className="public-landing__eyebrow">SDK</p>
+        <h2 className="public-dev__h2">Use the TypeScript client</h2>
+        <p className="public-dev__prose">
+          <code className="public-dev__inline">@speakerops/sdk</code> is the
+          first-party client. It lives in this monorepo and is{" "}
+          <strong>not published to the public npm registry</strong>. Build it,
+          then import it from the workspace:
+        </p>
+        <pre className="public-dev__code" data-testid="developers-sdk-install">
+          <code>{`pnpm --filter @speakerops/sdk build`}</code>
+        </pre>
+        <pre className="public-dev__code" data-testid="developers-starter">
+          <code>{SDK_SNIPPET}</code>
+        </pre>
+        <p className="public-dev__prose">
+          Methods cover events, programme, speakers, schedule, submissions,
+          forms, design, integrations, comms, and team. Escape hatch:{" "}
+          <code className="public-dev__inline">so.request(method, path)</code>.
+          Full handbook in the repo: <code className="public-dev__inline">docs/SDK.md</code>.
+        </p>
+      </section>
+
+      <section
         id="http"
         className="public-dev__section"
         data-testid="developers-http"
       >
         <p className="public-landing__eyebrow">HTTP</p>
-        <h2 className="public-dev__h2">Call the API</h2>
+        <h2 className="public-dev__h2">Or call the API directly</h2>
         <p className="public-dev__prose">
           Authenticate with{" "}
           <code className="public-dev__inline">Authorization: Bearer</code>{" "}
@@ -145,12 +151,6 @@ export function DevelopersPage() {
         <pre className="public-dev__code" data-testid="developers-http-curl">
           <code>{CURL_SNIPPET}</code>
         </pre>
-        <p className="public-dev__prose">
-          Starter transport (copy into your repo). This is not an npm package.
-        </p>
-        <pre className="public-dev__code" data-testid="developers-starter">
-          <code>{STARTER}</code>
-        </pre>
       </section>
 
       <section
@@ -162,9 +162,10 @@ export function DevelopersPage() {
         <h2 className="public-dev__h2">Run the first-party client</h2>
         <p className="public-dev__prose">
           <code className="public-dev__inline">@speakerops/cli</code> is{" "}
-          <strong>private</strong> in the monorepo — not a global npm install.
-          Each supported verb maps to a Worker command. The CLI cannot grant
-          itself extra scopes. Env names only:{" "}
+          <strong>private</strong> in the monorepo and uses{" "}
+          <code className="public-dev__inline">@speakerops/sdk</code> under
+          the hood. Each supported verb maps to a Worker command. Env names
+          only:{" "}
           <code className="public-dev__inline">SPEAKEROPS_API_KEY</code>,{" "}
           <code className="public-dev__inline">SPEAKEROPS_API_URL</code>.
         </p>
@@ -197,8 +198,9 @@ export function DevelopersPage() {
           <article className="public-dev__dir">
             <h3 className="public-dev__h3">Into SpeakerOps</h3>
             <p className="public-dev__prose">
-              Write the programme with HTTP or the CLI. D1 stays the system of
-              record. Prefer least-privilege keys. Default-deny scopes include{" "}
+              Write the programme with the SDK, HTTP, or the CLI. D1 stays the
+              system of record. Prefer least-privilege keys. Default-deny
+              scopes include{" "}
               <code className="public-dev__inline">comms:send</code>,{" "}
               <code className="public-dev__inline">decisions:write</code>, and{" "}
               <code className="public-dev__inline">keys:admin</code>.
@@ -207,11 +209,13 @@ export function DevelopersPage() {
           <article className="public-dev__dir">
             <h3 className="public-dev__h3">Out of SpeakerOps</h3>
             <p className="public-dev__prose">
-              If another system must reflect the programme, build a{" "}
-              <strong>one-way projector</strong>. Enqueue an outbox row from a
-              domain event (profile save, schedule place, programme publish)
-              and drain it on queue or cron. Never call third-party HTTP on the
-              user request path. Never dual-write.
+              Call{" "}
+              <code className="public-dev__inline">
+                programme.projectPublished(slug)
+              </code>{" "}
+              and push the snapshot from <em>your</em> worker or cron. Or copy
+              the in-repo Airtable / Accelevents outbox projectors. Never call
+              third-party HTTP on the SpeakerOps request path. Never dual-write.
             </p>
           </article>
         </div>
@@ -220,10 +224,9 @@ export function DevelopersPage() {
           <code className="public-dev__inline">
             GET /api/public/programme/:slug
           </code>
-          . In-repo patterns: Airtable and Accelevents under{" "}
-          <code className="public-dev__inline">apps/api/src/modules/</code>.
-          Operators enable those at Admin → Settings → Integrations (sign in
-          required — this page does not deep-link the admin shell).
+          . Operators enable built-in projectors at Admin → Settings →
+          Integrations (sign in required — this page does not deep-link the
+          admin shell).
         </p>
       </section>
 
@@ -234,9 +237,9 @@ export function DevelopersPage() {
         <h2 className="public-dev__h2">Honest limits</h2>
         <ul className="public-dev__list">
           <li>
-            There is <strong>no npm SDK</strong> and no{" "}
-            <code className="public-dev__inline">@speakerops/sdk</code>{" "}
-            package. The snippet above is transport only.
+            <code className="public-dev__inline">@speakerops/sdk</code> is
+            the first-party TypeScript SDK. It is{" "}
+            <strong>not published to the public npm registry</strong>.
           </li>
           <li>
             There are <strong>no inbound webhooks</strong>. SpeakerOps does not

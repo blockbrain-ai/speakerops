@@ -14,16 +14,20 @@ test("@inv:X01 e2e/public/developers-page kit loads with honesty and chrome", as
     /connect your tools/i,
   );
   await expect(page.getByTestId("developers-paths")).toBeVisible();
-  await expect(page.getByTestId("developers-path-http")).toBeVisible();
+  await expect(page.getByTestId("developers-path-sdk")).toBeVisible();
   await expect(page.getByTestId("developers-path-cli")).toBeVisible();
   await expect(page.getByTestId("developers-path-connect")).toBeVisible();
+  await expect(page.getByTestId("developers-sdk")).toBeVisible();
   await expect(page.getByTestId("developers-http")).toBeVisible();
   await expect(page.getByTestId("developers-cli")).toBeVisible();
   await expect(page.getByTestId("developers-connect")).toBeVisible();
+  await expect(page.getByTestId("developers-starter")).toContainText(
+    'from "@speakerops/sdk"',
+  );
 
   const honesty = page.getByTestId("developers-honesty");
   await expect(honesty).toBeVisible();
-  await expect(honesty).toContainText(/no npm SDK/i);
+  await expect(honesty).toContainText(/not published to the public npm registry/i);
   await expect(honesty).toContainText(/no inbound webhooks/i);
   await expect(honesty).toContainText(/OpenAPI is a subset/i);
   await expect(honesty).toContainText(/untested without a live API key/i);

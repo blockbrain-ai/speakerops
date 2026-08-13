@@ -90,13 +90,15 @@ for (const dir of [
 const apiDist = join(root, "apps", "api", "dist", "index.js");
 const cliDist = join(root, "packages", "cli", "dist", "main.js");
 console.log(
-  "[test:e2e] building @speakerops/shared + @speakerops/api + @speakerops/cli for e2e…",
+  "[test:e2e] building @speakerops/shared + @speakerops/sdk + @speakerops/api + @speakerops/cli for e2e…",
 );
 const build = spawnSync(
   "pnpm",
   [
     "--filter",
     "@speakerops/shared",
+    "--filter",
+    "@speakerops/sdk",
     "--filter",
     "@speakerops/api",
     "--filter",

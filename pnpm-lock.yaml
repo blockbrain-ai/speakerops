@@ -145,6 +145,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@speakerops/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@speakerops/shared':
         specifier: workspace:*
         version: link:../shared
@@ -165,6 +168,19 @@ importers:
       '@types/sql.js':
         specifier: ^1.4.11
         version: 1.4.11
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
+  packages/sdk:
+    dependencies:
+      '@speakerops/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
       typescript:
         specifier: ^5.5.4
         version: 5.9.3
@@ -1538,7 +1554,7 @@ packages:
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
     engines: {node: ^14.18.0 || >=16.0.0}
     peerDependencies:
-      vite: '>=5.4.21'
+      vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
 
   '@vitest/expect@2.1.9':
     resolution: {integrity: sha512-UJCIkTBenHeKT1TTlKMJWy1laZewsRIzYighyYiJKZreqtdxSos/S1t+ktRMQWu2CKqaarrkeszJx1cgC5tGZw==}

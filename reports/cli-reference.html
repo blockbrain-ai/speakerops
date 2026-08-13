@@ -357,14 +357,14 @@ footer.report-footer code {
     
     <article class="prose card">
 <h1>SpeakerOps CLI</h1>
-<p>Machine-facing admin surface for <strong>S-CLI</strong>. The <code>speakerops</code> binary maps <strong>1:1</strong> to domain commands in <a href="../KMS-competition/initiative/contracts/COMMANDS.md"> C1 </a>. Scopes are enforced <strong>server-side</strong> on the Worker — the CLI never elevates itself (E8).</p>
+<p>Start here on the product host: <strong><code>/developers</code></strong>. TypeScript client: <a href="../docs/SDK.md"> C1 </a> (<code>@speakerops/sdk</code> — the CLI uses that same HTTP client). Each <strong>supported</strong> CLI verb maps to a Worker command in <a href="../KMS-competition/initiative/contracts/COMMANDS.md"> C3 </a> — the CLI is not exhaustive. Scopes are enforced <strong>server-side</strong> on the Worker — the CLI never elevates itself (E8).</p>
 <p><strong>Inventory (proof IDs):</strong> <a href="../KMS-competition/initiative/contracts/CLI_INVENTORY.md"> C0 </a> CLI01–CLI12   <strong>OpenAPI:</strong> <code>GET /openapi.json</code> (local: <code>http://127.0.0.1:8787/openapi.json</code>)   <strong>Package:</strong> <code>@speakerops/cli</code> (<code>packages/cli</code>)   <strong>Agent path:</strong> <a href="agent-setup.html"> C5 </a> (<strong>S-ONB-AGENT</strong>) · Section note: <a href="../docs/sections/9.3-agent-setup.md">9.3</a> · <strong>Docs map:</strong> <a href="../README.md">README</a> · <a href="../docs/sections/9.1-docs-ia.md">9.1 IA</a></p>
 <blockquote><p><strong>Section 9.3:</strong> This runbook is the human + agent CLI reference. Agent-first copy-paste prompt, readiness/design walkthrough, and deny-scope narrative live in <a href="agent-setup.html">AGENT_SETUP.md</a>.</p></blockquote>
 <h2>Install / run</h2>
-<pre><code># From monorepo root (after pnpm install + build)
+<pre><code># From monorepo root (after pnpm install + build).
+# @speakerops/cli is private — the hoisted `pnpm exec speakerops` bin is not reliable.
 pnpm --filter @speakerops/cli build
-pnpm exec speakerops --help
-# or: node packages/cli/dist/main.js --help</code></pre>
+node packages/cli/dist/main.js --help</code></pre>
 <h2>Auth (env <strong>names</strong> only — never commit values)</h2>
 <table><thead><tr><th>Env name</th><th>Purpose</th></tr></thead><tbody><tr><td><code>SPEAKEROPS_API_KEY</code></td><td>Bearer secret (<code>spk_…</code>) minted via admin UI or <code>keys create</code></td></tr><tr><td><code>SPEAKEROPS_API_URL</code></td><td>API base URL (default <code>http://127.0.0.1:8787</code>)</td></tr><tr><td><code>SPEAKEROPS_CORRELATION_ID</code></td><td>Optional fixed correlation id (else CLI generates <code>cli_…</code>)</td></tr></tbody></table>
 <p>Flags: <code>--api-key</code>, <code>--api-url</code> override env for a single invocation.</p>
@@ -470,6 +470,7 @@ speakerops schedule place --event E --session S --room R --start … --end … -
 <ul>
 <li><strong>HTTP:</strong> <code>GET /openapi.json</code> (public discovery document — served by the Worker on the deployed site too, e.g. <code>https://www.speakerops.org/openapi.json</code>)</li>
 <li><strong>Assert:</strong> paths include <code>/api/events</code>, schedule, readiness, design, keys, …</li>
+<li><strong>Honest subset:</strong> the document covers the original command core. Team (<code>members</code> / invites), Find, Resources, File requests, Portal forms, Programme, and Integrations also exist over HTTP/CLI (<code>docs/CLI.md</code> extra verbs + Learn) and may not all appear in <code>/openapi.json</code> yet.</li>
 </ul>
 <h3>Program loop — <code>forms</code> (cfp:read / cfp:write)</h3>
 <pre><code>speakerops forms list --event &lt;eventId&gt; --json
@@ -508,6 +509,17 @@ speakerops eval export --event &lt;eventId&gt; [--sort score_desc]   # CSV on st
 <li>Same audit path as UI: mutations write <code>audit_events</code> with <code>correlationId</code> (and <code>key_id</code> when Bearer).</li>
 </ol>
 <h2>Related docs</h2>
+<h3>Members (Team / Auth.CreateInvite + setMemberRole)</h3>
+<p>Requires API key scope <strong><code>members:write</code></strong> (invite / set-role) or session admin.</p>
+<pre><code>speakerops members list --event &lt;eventId&gt; --json
+speakerops members invite --event &lt;eventId&gt; --email eval@example.com --role evaluator
+speakerops members set-role --event &lt;eventId&gt; --user &lt;userId&gt; --role speaker</code></pre>
+<h3>Schedule list / unschedule</h3>
+<pre><code>speakerops schedule list --event &lt;eventId&gt; --json
+speakerops schedule unschedule --event &lt;eventId&gt; --placement &lt;placementId&gt;</code></pre>
+<h3>Comms templates list</h3>
+<pre><code>speakerops comms templates --event &lt;eventId&gt; --json</code></pre>
+<hr />
 <ul>
 <li><a href="../docs/SECRETS.md"> C0 </a> — env <strong>names</strong> only</li>
 <li><a href="../docs/governance/0.4-domain-map.md"> C0 </a> — domain map + CLI parity</li>
@@ -516,9 +528,9 @@ speakerops eval export --event &lt;eventId&gt; [--sort score_desc]   # CSV on st
 </ul>
     </article>
 
-    <footer class="report-footer" data-generated-at="2026-08-12T05:28:55.706Z" data-git-sha="46c9d839f">
-  <div><strong>Generated:</strong> <time datetime="2026-08-12T05:28:55.706Z">2026-08-12T05:28:55.706Z</time></div>
-  <div><strong>Git SHA:</strong> <code>46c9d839f</code></div>
+    <footer class="report-footer" data-generated-at="2026-08-13T02:51:51.246Z" data-git-sha="4e5a141e7">
+  <div><strong>Generated:</strong> <time datetime="2026-08-13T02:51:51.246Z">2026-08-13T02:51:51.246Z</time></div>
+  <div><strong>Git SHA:</strong> <code>4e5a141e7</code></div>
   <div class="muted">Section 9.5 · pnpm docs:reports · source docs/CLI.md · no secrets in report</div>
 </footer>
   </div>

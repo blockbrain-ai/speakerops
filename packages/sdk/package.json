@@ -1,29 +1,27 @@
 {
-  "name": "@speakerops/cli",
+  "name": "@speakerops/sdk",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": {
-    "speakerops": "./dist/main.js"
-  },
+  "description": "First-party TypeScript client for the SpeakerOps HTTP API. Not published to public npm.",
   "exports": {
     ".": {
-      "types": "./dist/main.d.ts",
-      "import": "./dist/main.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
-  "main": "./dist/main.js",
-  "types": "./dist/main.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": ["dist"],
   "scripts": {
     "typecheck": "tsc -b --pretty false",
     "build": "tsc -b"
   },
   "dependencies": {
-    "@speakerops/sdk": "workspace:*",
     "@speakerops/shared": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^20.14.0",
     "typescript": "^5.5.4"
   }
 }

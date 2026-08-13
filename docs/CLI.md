@@ -1,6 +1,6 @@
 # SpeakerOps CLI
 
-Start here on the product host: **`/developers`**. Each **supported** CLI verb maps to a Worker command in [`COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) — the CLI is not exhaustive. Scopes are enforced **server-side** on the Worker — the CLI never elevates itself (E8).
+Start here on the product host: **`/developers`**. TypeScript client: [`SDK.md`](./SDK.md) (`@speakerops/sdk` — the CLI uses that same HTTP client). Each **supported** CLI verb maps to a Worker command in [`COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) — the CLI is not exhaustive. Scopes are enforced **server-side** on the Worker — the CLI never elevates itself (E8).
 
 **Inventory (proof IDs):** [`CLI_INVENTORY.md`](../KMS-competition/initiative/contracts/CLI_INVENTORY.md) CLI01–CLI12  
 **OpenAPI:** `GET /openapi.json` (local: `http://127.0.0.1:8787/openapi.json`)  

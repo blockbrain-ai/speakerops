@@ -8,7 +8,7 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 
 **Live demo:** <https://www.speakerops.org> · **Entry:** open [`/judge`](https://www.speakerops.org/judge), pick **admin**, **evaluator**, or **speaker**, and enter — **no access code**. The role switcher (top of every shell) moves between roles. Sessions last ~4 hours; the demo is shared and reset periodically; API keys minted in demo sessions expire within at most 4 hours (only demo-created keys can be revoked).
 
-**Developers:** [`/developers`](https://www.speakerops.org/developers) — HTTP API, monorepo CLI, and how to build your own connection. There is no published npm SDK.
+**Developers:** [`/developers`](https://www.speakerops.org/developers) — TypeScript SDK (`@speakerops/sdk` in this monorepo, not on public npm), CLI, and how to project a programme to another platform. Handbook: [`docs/SDK.md`](./docs/SDK.md).
 
 **10-minute happy path:** publish a CFP form (`Admin → CFP/Forms`) → submit it from [`/cfp/dogfood-2026`](https://www.speakerops.org/cfp/dogfood-2026) (or your own form's public link) → assign an evaluator (`Submissions → detail → Assign`) → score it with the proposal panel (`/eval`) → accept (`Submissions → decision`) → speaker portal onboarding (`/portal`) → place the session by drag-and-drop (`Schedule`) → download the `.ics` from the portal → watch `Overview` readiness update. Full feature map: [`docs/COMPETITION.md`](./docs/COMPETITION.md).
 
@@ -47,6 +47,7 @@ pnpm typecheck && pnpm test:ci  # non-watch gates (E5)
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | D1 SoR, projection, auth, CLI model |
 | [`docs/SECURITY.md`](./docs/SECURITY.md) | CSP, cookies, roles, keys |
 | [`docs/CLI.md`](./docs/CLI.md) | `speakerops` command reference |
+| [`docs/SDK.md`](./docs/SDK.md) | TypeScript SDK (`@speakerops/sdk`) |
 | [`docs/OPERATIONS.md`](./docs/OPERATIONS.md) | Deploy, migrate, backup / D1 Time Travel |
 | [`docs/AIRTABLE.md`](./docs/AIRTABLE.md) | One-way projection setup & lag |
 | [`docs/E2E.md`](./docs/E2E.md) | Playwright inventory suite |
