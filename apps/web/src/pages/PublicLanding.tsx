@@ -8,6 +8,7 @@
  */
 import { Link } from "react-router-dom";
 import {
+  GITHUB_REPO_URL,
   LEARN_DOCS_URL,
   PublicChrome,
 } from "../components/public/PublicChrome.js";
@@ -77,7 +78,7 @@ export function PublicLandingPage() {
           Evaluating for Kill-My-SaaS? The judge code drops you into a fully
           seeded live event.{" "}
           <a
-            href="https://github.com/blockbrain-ai/speakerops"
+            href={GITHUB_REPO_URL}
             rel="noopener noreferrer"
             target="_blank"
           >

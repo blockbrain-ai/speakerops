@@ -43,6 +43,13 @@ test("@inv:X01 e2e/public/developers-page kit loads with honesty and chrome", as
     "npm install @speakerops/sdk",
   );
 
+  await expect(page.getByTestId("developers-honesty")).toContainText(
+    /GitHub is the primary source host/i,
+  );
+  await expect(page.getByTestId("developers-honesty")).toContainText(
+    /mirror lives on SmolForge/i,
+  );
+
   await expect(page.getByTestId("developers-nav-docs")).toHaveAttribute(
     "href",
     /learn\.speakerops\.org/,
@@ -105,4 +112,34 @@ test("@inv:X02 e2e/public/developers-nav landing nav and footer route to /develo
   await mobileNav.click();
   await expect(page).toHaveURL(/\/developers/);
   await expect(page.getByTestId("page-developers")).toBeVisible();
+});
+
+test("developers chrome source logos are named and 44px at 390", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/developers");
+  await expect(page.getByTestId("page-developers")).toBeVisible({
+    timeout: 15_000,
+  });
+  const marks = page.getByRole("group", { name: "Source" });
+  const github = marks.getByRole("link", { name: "GitHub" });
+  const forge = marks.getByRole("link", { name: "SmolForge" });
+  await expect(github).toBeVisible();
+  await expect(forge).toBeVisible();
+  await expect(page.getByTestId("developers-nav-github")).toHaveAttribute(
+    "href",
+    "https://github.com/blockbrain-ai/speakerops",
+  );
+  await expect(page.getByTestId("developers-nav-forge")).toHaveAttribute(
+    "href",
+    "https://forge.smol.ai/blockbrain_labs/speakerops",
+  );
+  await expect(page.getByTestId("developers-footer-forge")).toBeVisible();
+  for (const link of [github, forge]) {
+    const box = await link.boundingBox();
+    expect(box, "source mark must have a box").toBeTruthy();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
 });

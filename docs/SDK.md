@@ -6,6 +6,8 @@ The package is **private to this monorepo**. It is **not published to the public
 
 Product overview: **`/developers`**. CLI: [`CLI.md`](./CLI.md).
 
+Source: GitHub is primary (`https://github.com/blockbrain-ai/speakerops`). A public mirror lives on SmolForge (`https://forge.smol.ai/blockbrain_labs/speakerops`). The live site is not on Forge Deploy.
+
 ## What it is for
 
 Use it to **read and write the programme** from another system, or to **project a published programme out** (Airtable, Accelevents, your own CMS).

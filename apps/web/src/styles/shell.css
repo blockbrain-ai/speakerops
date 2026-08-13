@@ -6954,6 +6954,29 @@ input.speakers-page__profile-input,
   color: var(--lumen-brand-deep);
 }
 
+.public-landing__nav-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.public-landing__nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--lumen-text);
+  border-radius: var(--lumen-radius-sm);
+  text-decoration: none;
+}
+
+.public-landing__nav-icon:hover {
+  color: var(--lumen-action);
+}
+
 .public-landing__btn {
   display: inline-flex;
   align-items: center;

@@ -7,12 +7,17 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BrandLockup } from "../ui/BrandMark.js";
+import { Icon } from "../ui/Icon.js";
 
 /** External Learn host — never use same-origin /learn (Worker returns plain 404). */
 export const LEARN_DOCS_URL = "https://learn.speakerops.org";
 /** Machine-readable API surface served by this app. */
 export const OPENAPI_URL = "/openapi.json";
+/** Canonical public source. */
 export const GITHUB_REPO_URL = "https://github.com/blockbrain-ai/speakerops";
+/** Competition source mirror — GitHub remains primary. Live site is not on Forge. */
+export const SMOLFORGE_REPO_URL =
+  "https://forge.smol.ai/blockbrain_labs/speakerops";
 export const LEARN_CLI_URL = `${LEARN_DOCS_URL}/agents/cli-and-keys`;
 
 export type PublicChromeSurface = "landing" | "developers";
@@ -37,17 +42,14 @@ export function PublicChrome({
   return (
     <div className={rootClass} data-testid={rootTestId}>
       <header className="public-landing__bar" data-testid={tid(surface, "topbar")}>
-        {onDevelopers ? (
-          <Link
-            to="/"
-            className="public-landing__brand lumen-focusable"
-            data-testid="developers-brand"
-          >
-            <BrandLockup size={26} />
-          </Link>
-        ) : (
+        <Link
+          to="/"
+          className="public-landing__brand lumen-focusable"
+          aria-label="SpeakerOps home"
+          data-testid={onDevelopers ? "developers-brand" : "landing-brand"}
+        >
           <BrandLockup size={26} />
-        )}
+        </Link>
         <nav className="public-landing__nav" aria-label="Product">
           <Link
             className={`public-landing__nav-link lumen-focusable${onDevelopers ? " is-current" : ""}`}
@@ -66,15 +68,28 @@ export function PublicChrome({
           >
             Docs
           </a>
-          <a
-            className="public-landing__nav-link lumen-focusable"
-            href={GITHUB_REPO_URL}
-            rel="noopener noreferrer"
-            target="_blank"
-            data-testid={tid(surface, "nav-github")}
-          >
-            GitHub
-          </a>
+          <div className="public-landing__nav-marks" role="group" aria-label="Source">
+            <a
+              className="public-landing__nav-icon lumen-focusable"
+              href={GITHUB_REPO_URL}
+              rel="noopener noreferrer"
+              target="_blank"
+              aria-label="GitHub"
+              data-testid={tid(surface, "nav-github")}
+            >
+              <Icon name="github" size="md" decorative />
+            </a>
+            <a
+              className="public-landing__nav-icon lumen-focusable"
+              href={SMOLFORGE_REPO_URL}
+              rel="noopener noreferrer"
+              target="_blank"
+              aria-label="SmolForge"
+              data-testid={tid(surface, "nav-forge")}
+            >
+              <Icon name="forge" size="md" decorative />
+            </a>
+          </div>
           <Link
             className="public-landing__btn public-landing__btn--ghost lumen-focusable"
             to="/login"
@@ -124,6 +139,14 @@ export function PublicChrome({
           data-testid={tid(surface, "footer-github")}
         >
           GitHub
+        </a>
+        <a
+          href={SMOLFORGE_REPO_URL}
+          rel="noopener noreferrer"
+          target="_blank"
+          data-testid={tid(surface, "footer-forge")}
+        >
+          SmolForge
         </a>
       </footer>
     </div>

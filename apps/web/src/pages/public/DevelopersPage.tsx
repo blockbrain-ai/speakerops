@@ -272,6 +272,11 @@ export function DevelopersPage() {
             The API is <strong>server-side only</strong> (no CORS). Call it
             from Node, a Worker, or your cron — not from a browser page.
           </li>
+          <li>
+            <strong>GitHub is the primary source host</strong>. A public
+            mirror lives on SmolForge. The live site stays on Cloudflare — not
+            Forge Deploy.
+          </li>
         </ul>
       </aside>
     </PublicChrome>

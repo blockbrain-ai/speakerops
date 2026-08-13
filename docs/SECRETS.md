@@ -83,6 +83,11 @@
 - `SPEAKEROPS_CORRELATION_ID` — optional fixed correlation id for CLI requests (else CLI generates `cli_…`). Not a secret.
 - CLI command reference: `docs/CLI.md`. OpenAPI: `GET /openapi.json`.
 
+## SmolForge source mirror — names only
+- `SMOLFORGE_TOKEN` — personal access token for the SmolForge CLI (`sf` / `smolforge`) when a session login is not available. **Name only.** Never commit the value; never put it in a remote URL; never log it.
+- `SMOLFORGE_USERNAME` — optional account name for token auth (public: `blockbrain_labs`). Not a secret.
+- GitHub remains the primary remote. SmolForge is a source-only mirror. Do not use these to host the live site on Forge Deploy.
+
 ## Cloudflare dogfood deploy (section 8.6 / S-CF / BC10) — names only
 - `CLOUDFLARE_API_TOKEN` — Wrangler / API auth for dogfood deploy. **Required** by `scripts/deploy-dogfood.sh`. Never commit values; never log the token.
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account scope for wrangler. **Required** by deploy script. Evidence redacts full id (`[REDACTED_ACCOUNT_ID]`).

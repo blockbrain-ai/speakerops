@@ -42,7 +42,10 @@ export type IconName =
   | "align-left"
   | "align-center"
   | "align-right"
-  | "clear-format";
+  | "clear-format"
+  // Public chrome source marks — same 24×24 stroke-1.75 family (not brand-fill).
+  | "github"
+  | "forge";
 
 export type IconSize = "sm" | "md" | "lg";
 
@@ -94,6 +97,11 @@ const PATHS: Record<IconName, string> = {
   "align-center": "M4 6h16M7 10h10M4 14h16M7 18h10",
   "align-right": "M4 6h16M10 10h10M4 14h16M10 18h10",
   "clear-format": "M6 4h12M9 4l-2 16h4M14 14l6 6m0-6l-6 6",
+  // Feather-family GitHub mark (stroke). Official octocat is a filled silhouette.
+  github:
+    "M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22",
+  // Stroke mallet of the SmolForge hammer (official mark is multi-colour fill).
+  forge: "M5 6h14a2 2 0 012 2v3H3V8a2 2 0 012-2zM11 11v8a1 1 0 002 0v-8",
 };
 
 export type IconProps = {

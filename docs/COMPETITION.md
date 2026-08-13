@@ -18,6 +18,8 @@ A calm, fast, open-source **Program OS** that takes an event from conditional CF
 
 Exit claim: **`dogfood_ready`** — Cloudflare dogfood deploy + full browser E2E green + onboarding docs (human + agent).
 
+**Source:** GitHub is primary. A public mirror lives on SmolForge. The live demo is **not** hosted on Forge Deploy.
+
 ---
 
 ## 2. Brief features 1–6 → delivery

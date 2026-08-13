@@ -12,7 +12,7 @@
 | **Product** (after fold) | **PASS_WITH_NITS** | *(empty after residual Bearer templates + members list scopes)* |
 
 Cloudflare email quota: **ignored** (owner).  
-SmolForge: **deferred** (owner).
+SmolForge: **mirrored** (owner override 2026-08-13) — GitHub remains canonical; source-only at `https://forge.smol.ai/blockbrain_labs/speakerops`. Live site stays on Cloudflare.
 
 ## Product MUST_FIX fold
 
@@ -49,7 +49,7 @@ scripts/with-secrets.sh bash scripts/deploy-dogfood.sh
 
 | Item | Why accepted |
 |------|----------------|
-| SmolForge | Owner deferred |
+| SmolForge | Owner override 2026-08-13: source mirror only; GitHub canonical |
 | Email 200/day | Owner ignore |
 | Multi-isolate rate limits | Documented SHOULD; not IDOR |
 | Virus scan stub | Documented residual |
