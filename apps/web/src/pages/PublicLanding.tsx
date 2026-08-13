@@ -178,6 +178,62 @@ export function PublicLandingPage() {
           </article>
         ))}
       </section>
+
+      <section
+        className="public-landing__agents"
+        data-testid="landing-agents"
+        aria-label="CLI and SDK"
+      >
+        <div className="public-landing__agents-copy">
+          <p className="public-landing__eyebrow">Bring your own agent</p>
+          <h2 className="public-landing__agents-title">
+            CLI and SDK. Any agent can run the programme.
+          </h2>
+          <p className="public-landing__agents-lede">
+            The same commands the UI uses are on the command line and in a
+            first-party TypeScript client. Point a scoped key at SpeakerOps
+            and your agent can operate the event — or project a published
+            programme out to tools you already run.
+          </p>
+          <Link
+            className="public-landing__btn public-landing__btn--ghost lumen-focusable"
+            to="/developers"
+            data-testid="landing-agents-developers"
+          >
+            Open the developer kit
+          </Link>
+        </div>
+        <div className="public-landing__agents-cards">
+          <article
+            className="public-landing__pillar public-landing__pillar--honey"
+            data-testid="landing-agent-cli"
+          >
+            <div className="public-landing__pillar-ic" aria-hidden>
+              &gt;_
+            </div>
+            <h3 className="public-landing__pillar-title">CLI</h3>
+            <p className="public-landing__pillar-body">
+              One verb per Worker command. Any agent that can run a shell can
+              list events, publish, schedule, and read readiness — no
+              in-product fleet required.
+            </p>
+          </article>
+          <article
+            className="public-landing__pillar public-landing__pillar--leaf"
+            data-testid="landing-agent-sdk"
+          >
+            <div className="public-landing__pillar-ic" aria-hidden>
+              {"{ }"}
+            </div>
+            <h3 className="public-landing__pillar-title">SDK</h3>
+            <p className="public-landing__pillar-body">
+              TypeScript client in this monorepo (not on public npm). Build
+              your own projector or integration on top. D1 stays the system of
+              record.
+            </p>
+          </article>
+        </div>
+      </section>
     </PublicChrome>
   );
 }

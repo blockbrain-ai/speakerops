@@ -17,6 +17,19 @@ test.describe("public landing front door", () => {
     await expect(page.getByTestId("landing-lifecycle")).toBeVisible();
     await expect(page.getByTestId("landing-pillars")).toBeVisible();
     await expect(page.getByTestId("landing-nav-developers")).toBeVisible();
+    await expect(page.getByTestId("landing-agents")).toBeVisible();
+    await expect(page.getByTestId("landing-agent-cli")).toBeVisible();
+    await expect(page.getByTestId("landing-agent-sdk")).toBeVisible();
+    await expect(page.getByTestId("landing-agents-developers")).toHaveAttribute(
+      "href",
+      /\/developers$/,
+    );
+    await expect(page.getByTestId("landing-agents")).toContainText(
+      /any agent that can run a shell/i,
+    );
+    await expect(page.getByTestId("landing-agent-sdk")).toContainText(
+      /not on public npm/i,
+    );
     await expect(page.getByTestId("landing-sign-in")).toBeVisible();
     await expect(page.getByTestId("landing-judge-access")).toBeVisible();
     const marks = page.getByRole("group", { name: "Source" });
