@@ -357,12 +357,19 @@ test("11.7 must-not evaluator settings nav", async ({
   await page.goto(`${baseURL ?? ""}/admin/settings`, {
     waitUntil: "domcontentloaded",
   });
-  // Forbidden or redirect — never settings shell with privileged nav
-  await expect(page.getByTestId("settings-shell")).toHaveCount(0, {
-    timeout: 10_000,
-  });
+  // Wait out RequireRole probe — loading has no settings-shell, so a
+  // zero-count assertion would pass before Access denied mounts.
+  await expect
+    .poll(
+      async () => {
+        if ((await page.getByTestId("access-denied").count()) > 0) return "denied";
+        if (page.url().includes("/login")) return "login";
+        if ((await page.getByTestId("settings-shell").count()) > 0) return "leaked";
+        return "pending";
+      },
+      { timeout: 15_000 },
+    )
+    .toMatch(/denied|login/);
+  await expect(page.getByTestId("settings-shell")).toHaveCount(0);
   await expect(page.getByTestId("settings-nav-api-keys")).toHaveCount(0);
-  const onLogin = page.url().includes("/login");
-  const denied = await page.getByTestId("access-denied").count();
-  expect(onLogin || denied > 0).toBeTruthy();
 });

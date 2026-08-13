@@ -115,6 +115,9 @@ test.describe("Wave 2 — agenda settings drive grid + API bounds", () => {
     await page.getByTestId("event-agenda-day-start").fill("10:00");
     await page.getByTestId("event-agenda-day-end").fill("16:00");
     await page.getByTestId("event-agenda-interval").selectOption("30");
+    await expect(page.getByTestId("event-agenda-day-start")).toHaveValue("10:00");
+    await expect(page.getByTestId("event-agenda-day-end")).toHaveValue("16:00");
+    await expect(page.getByTestId("event-agenda-interval")).toHaveValue("30");
     await page.getByTestId("event-agenda-save").click();
     await expect(page.getByTestId("event-agenda-status")).toContainText(
       "Agenda settings saved",

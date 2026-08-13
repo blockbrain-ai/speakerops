@@ -325,24 +325,35 @@ test.describe("schedule DnD stuck-ghost regressions", () => {
     await page.mouse.move(sx + 20, sy + 14, { steps: 4 });
     await expect(page.getByTestId("schedule-dnd-ghost")).toBeVisible();
 
-    // Simulate UA/source disconnect: release capture while still armed.
+    // Simulate UA/source disconnect. Playwright's mouse path may not hold
+    // element capture, so also dispatch pointercancel (same product path).
     await page.evaluate(() => {
       const el = document.querySelector(
         '[data-testid^="schedule-tray-item-"][data-draggable="true"]',
       ) as HTMLElement | null;
       if (!el) throw new Error("no tray item");
-      // Prefer the active pointer id from captures if available.
-      try {
-        // release all common ids; browser only acts on held capture
-        for (let id = 0; id < 8; id++) {
-          try {
+      let released = false;
+      for (let id = 0; id < 32; id++) {
+        try {
+          if (el.hasPointerCapture(id)) {
             el.releasePointerCapture(id);
-          } catch {
-            /* not capturing this id */
+            released = true;
           }
+        } catch {
+          /* not capturing this id */
         }
-      } catch {
-        /* ignore */
+      }
+      if (!released) {
+        for (const id of [0, 1, 2]) {
+          window.dispatchEvent(
+            new PointerEvent("pointercancel", {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              pointerId: id,
+            }),
+          );
+        }
       }
     });
 

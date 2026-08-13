@@ -310,7 +310,10 @@ test.describe("Wave 1A — evaluation depth", () => {
       timeout: 15_000,
     });
     await expect(page.getByTestId("rubric-closes-at")).toHaveValue(/2030/);
-    await page.getByTestId("rubric-closes-at").fill("2020-01-01T00:00");
+    const closes = page.getByTestId("rubric-closes-at");
+    await closes.click();
+    await closes.fill("2020-01-01T00:00");
+    await expect(closes).toHaveValue(/^2020-01-01T00:00$/);
     await page.getByTestId("rubric-save").click();
     await expect(page.getByTestId("rubric-status")).toContainText(
       /rubric saved/i,

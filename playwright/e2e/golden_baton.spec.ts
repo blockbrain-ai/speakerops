@@ -14,12 +14,28 @@ test.describe("Phase 4 golden baton continuity", () => {
   }) => {
     // Unauthenticated must not leak admin chrome
     await page.goto("/admin");
-    // Either login wall or session-expired — never raw empty admin without auth
+    // Wait out the initial RequireRole probe ("Checking access…").
+    // Login recovery mounts both session-expired-panel and login-form.
+    await expect
+      .poll(
+        async () => {
+          if ((await page.getByTestId("admin-shell").count()) > 0) return "shell";
+          if (
+            page.url().includes("/login") ||
+            (await page.getByTestId("login-form").count()) > 0 ||
+            (await page.getByTestId("page-login").count()) > 0
+          ) {
+            return "login";
+          }
+          return "pending";
+        },
+        { timeout: 15_000 },
+      )
+      .not.toBe("pending");
     const hasLogin =
+      page.url().includes("/login") ||
       (await page.getByTestId("page-login").count()) > 0 ||
-      (await page.getByTestId("login-form").count()) > 0 ||
-      (await page.locator('[data-testid="page-login"]').count()) > 0 ||
-      page.url().includes("/login");
+      (await page.getByTestId("login-form").count()) > 0;
     const hasShell = (await page.getByTestId("admin-shell").count()) > 0;
     // Dogfood may keep sessions; accept either signed-in shell or login
     expect(hasLogin || hasShell).toBeTruthy();

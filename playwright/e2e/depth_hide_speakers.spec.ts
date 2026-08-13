@@ -109,7 +109,14 @@ test.describe("Wave 1B — hide speaker identities", () => {
     await expect(page.getByTestId("rubric-edit-section")).toBeVisible({
       timeout: 15_000,
     });
+    await expect(page.getByTestId("rubric-edit-section")).toHaveAttribute(
+      "data-ready",
+      "true",
+    );
     await page.getByTestId("rubric-criterion-name-0").fill("Overall");
+    await expect(page.getByTestId("rubric-criterion-name-0")).toHaveValue(
+      "Overall",
+    );
     const hideToggle = page.getByTestId("rubric-hide-speakers");
     await expect(hideToggle).toBeVisible();
     await hideToggle.check();

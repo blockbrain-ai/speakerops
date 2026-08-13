@@ -51,10 +51,12 @@ export function RubricSettingsPage() {
   /** Hide speaker identities from evaluators (Wave 1B; server-side omit). */
   const [hideSpeakers, setHideSpeakers] = useState(false);
   const [roundStatus, setRoundStatus] = useState<"open" | "closed">("open");
+  const [rubricReady, setRubricReady] = useState(false);
 
   const loadRubric = useCallback(async (eventId: string) => {
     setLoadError(null);
     setStatus(null);
+    setRubricReady(false);
     try {
       const res = await fetch(
         `/api/events/${encodeURIComponent(eventId)}/eval/rubric`,
@@ -112,12 +114,16 @@ export function RubricSettingsPage() {
       }
     } catch {
       setLoadError("Network error");
+    } finally {
+      setRubricReady(true);
     }
   }, []);
 
   useEffect(() => {
     if (activeEventId) {
       void loadRubric(activeEventId);
+    } else {
+      setRubricReady(false);
     }
   }, [activeEventId, loadRubric]);
 
@@ -278,10 +284,17 @@ export function RubricSettingsPage() {
         </p>
       ) : null}
 
-      {activeEventId ? (
+      {activeEventId && !rubricReady ? (
+        <p className="eval-queue__muted" data-testid="rubric-loading">
+          Loading rubric…
+        </p>
+      ) : null}
+
+      {activeEventId && rubricReady ? (
         <section
           className="event-settings__card"
           data-testid="rubric-edit-section"
+          data-ready="true"
           aria-labelledby="rubric-edit-heading"
         >
           <h3 id="rubric-edit-heading" className="event-settings__heading">

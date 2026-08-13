@@ -131,6 +131,8 @@ test.describe("Wave 1B — submission confirmation email", () => {
     expect(seedSp.status(), await seedSp.text()).toBe(201);
     await page.reload();
     await expect(page.getByTestId("page-comms")).toBeVisible();
+    // Reload keeps ?surface=history; campaign summary lives on Campaign.
+    await page.getByTestId("comms-surface-campaign").click();
     await expect(page.getByTestId("comms-summary-count")).toHaveAttribute(
       "data-count",
       /[1-9]/,

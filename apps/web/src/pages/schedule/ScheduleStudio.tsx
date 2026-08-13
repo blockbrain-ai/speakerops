@@ -1216,7 +1216,15 @@ export function ScheduleStudioPage() {
       clientY?: number;
     }): EndGestureResult | null => {
       const st = pointerDragRef.current;
-      if (!st || st.pointerId !== opts.pointerId) return null;
+      if (!st) return null;
+      // Up must match the armed pointer. Cancel / lost / escape end whatever
+      // gesture is armed — UA capture-loss and Playwright mouse ids can diverge.
+      if (
+        st.pointerId !== opts.pointerId &&
+        opts.reason === "up"
+      ) {
+        return null;
+      }
 
       const snapshot: EndGestureResult = {
         payload: st.payload,
