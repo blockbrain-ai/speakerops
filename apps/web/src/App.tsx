@@ -60,6 +60,7 @@ import {
   NotFoundPage,
 } from "./routes/placeholders.js";
 import { PublicLandingPage } from "./pages/PublicLanding.js";
+import { DevelopersPage } from "./pages/public/DevelopersPage.js";
 import type { ReactNode } from "react";
 
 /**
@@ -127,6 +128,14 @@ export function AppRoutes() {
         element={
           <BareLayout>
             <PublicLandingPage />
+          </BareLayout>
+        }
+      />
+      <Route
+        path="/developers"
+        element={
+          <BareLayout>
+            <DevelopersPage />
           </BareLayout>
         }
       />

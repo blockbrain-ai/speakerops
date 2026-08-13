@@ -7,12 +7,10 @@
  * Sage & Honey · BrandLockup · Lumen control tokens.
  */
 import { Link } from "react-router-dom";
-import { BrandLockup } from "../components/ui/BrandMark.js";
-
-/** External Learn host — never use same-origin /learn (Worker returns plain 404). */
-const LEARN_DOCS_URL = "https://learn.speakerops.org";
-/** Machine-readable API surface served by this app. */
-const OPENAPI_URL = "/openapi.json";
+import {
+  LEARN_DOCS_URL,
+  PublicChrome,
+} from "../components/public/PublicChrome.js";
 
 const LIFECYCLE = [
   { label: "Call for speakers", tone: "sage" as const },
@@ -46,44 +44,7 @@ const PILLARS = [
 
 export function PublicLandingPage() {
   return (
-    <div className="public-landing" data-testid="page-landing">
-      <header className="public-landing__bar" data-testid="landing-topbar">
-        <BrandLockup size={26} />
-        <nav className="public-landing__nav" aria-label="Product">
-          <a
-            className="public-landing__nav-link lumen-focusable"
-            href={LEARN_DOCS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="landing-nav-docs"
-          >
-            Docs
-          </a>
-          <a
-            className="public-landing__nav-link lumen-focusable"
-            href="https://github.com/blockbrain-ai/speakerops"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            GitHub
-          </a>
-          <Link
-            className="public-landing__btn public-landing__btn--ghost lumen-focusable"
-            to="/login"
-            data-testid="landing-sign-in"
-          >
-            Sign in
-          </Link>
-          <Link
-            className="public-landing__btn public-landing__btn--primary lumen-focusable"
-            to="/judge"
-            data-testid="landing-judge-access"
-          >
-            Judge access
-          </Link>
-        </nav>
-      </header>
-
+    <PublicChrome surface="landing">
       <section className="public-landing__hero" data-testid="landing-hero">
         <p className="public-landing__eyebrow">Open-source speaker operations</p>
         <h1 className="public-landing__title">
@@ -216,36 +177,7 @@ export function PublicLandingPage() {
           </article>
         ))}
       </section>
-
-      <footer className="public-landing__foot" data-testid="landing-footer">
-        <span className="public-landing__fine">
-          Open source · MIT · Cloudflare-native (Workers + D1)
-        </span>
-        <a
-          href={LEARN_DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="landing-footer-docs"
-        >
-          Documentation
-        </a>
-        <a
-          href={OPENAPI_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="landing-footer-api"
-        >
-          API
-        </a>
-        <a
-          href="https://github.com/blockbrain-ai/speakerops"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          GitHub
-        </a>
-      </footer>
-    </div>
+    </PublicChrome>
   );
 }
 

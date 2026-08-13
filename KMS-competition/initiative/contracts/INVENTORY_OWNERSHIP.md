@@ -30,6 +30,7 @@
 | O06 | 7.3 | 7.4 then 8.2 | Airtable status |
 | O07–O08 | closeout | closeout then 8.2 | Integrations hub / Accelevents |
 | Q09 | closeout | closeout then 8.2 | Wiki allowlisted embed |
+| X01–X02 | developers-page | developers-page then 8.2 | Public developers kit |
 
 **API-only / non-browser proof**
 

@@ -1,6 +1,6 @@
 # SpeakerOps CLI
 
-Machine-facing admin surface for **S-CLI**. The `speakerops` binary maps **1:1** to domain commands in [`COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md). Scopes are enforced **server-side** on the Worker — the CLI never elevates itself (E8).
+Start here on the product host: **`/developers`**. Each **supported** CLI verb maps to a Worker command in [`COMMANDS.md`](../KMS-competition/initiative/contracts/COMMANDS.md) — the CLI is not exhaustive. Scopes are enforced **server-side** on the Worker — the CLI never elevates itself (E8).
 
 **Inventory (proof IDs):** [`CLI_INVENTORY.md`](../KMS-competition/initiative/contracts/CLI_INVENTORY.md) CLI01–CLI12  
 **OpenAPI:** `GET /openapi.json` (local: `http://127.0.0.1:8787/openapi.json`)  
@@ -12,10 +12,10 @@ Machine-facing admin surface for **S-CLI**. The `speakerops` binary maps **1:1**
 ## Install / run
 
 ```bash
-# From monorepo root (after pnpm install + build)
+# From monorepo root (after pnpm install + build).
+# @speakerops/cli is private — the hoisted `pnpm exec speakerops` bin is not reliable.
 pnpm --filter @speakerops/cli build
-pnpm exec speakerops --help
-# or: node packages/cli/dist/main.js --help
+node packages/cli/dist/main.js --help
 ```
 
 ## Auth (env **names** only — never commit values)

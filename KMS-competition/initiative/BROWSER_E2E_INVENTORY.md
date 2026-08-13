@@ -303,6 +303,15 @@
 
 ---
 
+## X — Public developers kit
+
+| ID | Role | Surface | Journey | test_id | Negative | Required | Status |
+|----|------|---------|---------|---------|----------|--------|
+| X01 | public | `/developers` | Developers kit loads: h1, path cards, HTTP/CLI/connection sections, honesty (no npm SDK, no inbound webhooks, OpenAPI subset, AE untested); chrome Docs/OpenAPI/CLI Learn/brand work; no admin chrome | e2e/public/developers-page | `/developers` is not Learn 404; no `admin-shell` | REQUIRED | PASS |
+| X02 | public | `/` → `/developers` | Top-nav and footer Developers visible at 1280 and 390; click routes same-origin /developers; no horizontal overflow at 390 | e2e/public/developers-nav | Link is not learn.speakerops.org | REQUIRED | PASS |
+
+---
+
 ## M — Settings coverage matrix (non-counted; maps to inventory IDs)
 
 | Control | Who | Proven by |
@@ -319,6 +328,7 @@
 | Airtable status | admin | O06 |
 | Integrations / Accelevents | admin | O07, O08 |
 | Wiki allowlisted embed | speaker | Q09 |
+| Public developers kit | public | X01, X02 |
 
 ---
 

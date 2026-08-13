@@ -16,6 +16,9 @@ test.describe("public landing front door", () => {
     await expect(page.getByTestId("landing-cta-judge")).toBeVisible();
     await expect(page.getByTestId("landing-lifecycle")).toBeVisible();
     await expect(page.getByTestId("landing-pillars")).toBeVisible();
+    await expect(page.getByTestId("landing-nav-developers")).toBeVisible();
+    await expect(page.getByTestId("landing-sign-in")).toBeVisible();
+    await expect(page.getByTestId("landing-judge-access")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /conference programme|end to end/i,
     );

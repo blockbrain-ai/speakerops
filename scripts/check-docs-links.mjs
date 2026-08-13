@@ -46,7 +46,7 @@ if (badLearn.length) {
 
 // —— Product: known chrome points at external Learn ——
 const mustContainLearn = [
-  "apps/web/src/pages/PublicLanding.tsx",
+  "apps/web/src/components/public/PublicChrome.tsx",
   "apps/web/src/layout/AdminShell.tsx",
   "apps/web/src/layout/RoleShell.tsx",
 ];
@@ -58,12 +58,20 @@ for (const rel of mustContainLearn) {
 }
 notes.push("Product chrome files reference learn.speakerops.org");
 
-// —— Product: landing API is openapi ——
-const landing = readFileSync(join(root, "apps/web/src/pages/PublicLanding.tsx"), "utf8");
-if (!landing.includes("/openapi.json") && !landing.includes("OPENAPI_URL")) {
-  errors.push("PublicLanding missing OpenAPI footer target");
+// —— Product: public chrome API is openapi + Developers route ——
+const chrome = readFileSync(
+  join(root, "apps/web/src/components/public/PublicChrome.tsx"),
+  "utf8",
+);
+if (!chrome.includes("/openapi.json") && !chrome.includes("OPENAPI_URL")) {
+  errors.push("PublicChrome missing OpenAPI footer target");
 } else {
-  notes.push("PublicLanding API → /openapi.json");
+  notes.push("PublicChrome API → /openapi.json");
+}
+if (!chrome.includes("/developers")) {
+  errors.push("PublicChrome missing /developers nav target");
+} else {
+  notes.push("PublicChrome Developers → /developers");
 }
 
 // —— Learn dist internal crawl ——

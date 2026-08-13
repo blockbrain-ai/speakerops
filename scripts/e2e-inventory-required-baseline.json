@@ -169,7 +169,9 @@
     "Q08",
     "Q09",
     "I18",
-    "J15"
+    "J15",
+    "X01",
+    "X02"
   ],
   "fingerprints": {
     "A01": {
@@ -839,6 +841,14 @@
     "J15": {
       "test_id": "e2e/comms/wizard-gate",
       "journey": "Gated wizard: only active step mounts; Next disabled when step invalid; Send step unreachable without preview (`comms-wizard-next`/`comms-wizard-back`)"
+    },
+    "X01": {
+      "test_id": "e2e/public/developers-page",
+      "journey": "Developers kit loads: h1, path cards, HTTP/CLI/connection sections, honesty (no npm SDK, no inbound webhooks, OpenAPI subset, AE untested); chrome Docs/OpenAPI/CLI Learn/brand work; no admin chrome"
+    },
+    "X02": {
+      "test_id": "e2e/public/developers-nav",
+      "journey": "Top-nav and footer Developers visible at 1280 and 390; click routes same-origin /developers; no horizontal overflow at 390"
     }
   }
 }

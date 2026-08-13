@@ -8,6 +8,8 @@ Production-hard **Program OS** for AI Engineer conference operations — CFP →
 
 **Live demo:** <https://www.speakerops.org> · **Entry:** open [`/judge`](https://www.speakerops.org/judge), pick **admin**, **evaluator**, or **speaker**, and enter — **no access code**. The role switcher (top of every shell) moves between roles. Sessions last ~4 hours; the demo is shared and reset periodically; API keys minted in demo sessions expire within at most 4 hours (only demo-created keys can be revoked).
 
+**Developers:** [`/developers`](https://www.speakerops.org/developers) — HTTP API, monorepo CLI, and how to build your own connection. There is no published npm SDK.
+
 **10-minute happy path:** publish a CFP form (`Admin → CFP/Forms`) → submit it from [`/cfp/dogfood-2026`](https://www.speakerops.org/cfp/dogfood-2026) (or your own form's public link) → assign an evaluator (`Submissions → detail → Assign`) → score it with the proposal panel (`/eval`) → accept (`Submissions → decision`) → speaker portal onboarding (`/portal`) → place the session by drag-and-drop (`Schedule`) → download the `.ics` from the portal → watch `Overview` readiness update. Full feature map: [`docs/COMPETITION.md`](./docs/COMPETITION.md).
 
 **Real-entrant loop:** submit the public CFP with your own email; on accept, membership-aware magic-link login gets you into the portal with that identity (no allowlist needed for provisioned members).
