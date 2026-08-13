@@ -26,7 +26,7 @@ CFP → score → accept → portal → comms/calendar → schedule → publish.
 
 ## CLI and SDK — bring your own agent
 
-The UI is one client. The same Worker commands are on a **CLI** and a first-party **TypeScript SDK**. Point any agent that can run a shell at a scoped API key and it can operate the programme — list events, publish, schedule, report readiness — without clicking through the app.
+The UI is one client. The **supported** CLI verbs and the first-party **TypeScript SDK** call the same Worker commands. An agent that can run a shell and hold a scoped API key can operate those verbs without clicking through the app. The CLI is not exhaustive — scopes are enforced on the Worker.
 
 Build on top of it: project a published programme out to Airtable, Accelevents, or your own CMS. D1 stays the system of record. There are no inbound webhooks.
 

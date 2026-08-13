@@ -25,7 +25,7 @@ test.describe("public landing front door", () => {
       /\/developers$/,
     );
     await expect(page.getByTestId("landing-agents")).toContainText(
-      /any agent that can run a shell/i,
+      /CLI is a subset/i,
     );
     await expect(page.getByTestId("landing-agent-sdk")).toContainText(
       /not on public npm/i,

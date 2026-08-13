@@ -82,10 +82,13 @@ test("@inv:X02 e2e/public/developers-nav landing nav and footer route to /develo
   });
   const nav = page.getByTestId("landing-nav-developers");
   const footer = page.getByTestId("landing-footer-developers");
+  const agents = page.getByTestId("landing-agents-developers");
   await expect(nav).toBeVisible();
   await expect(footer).toBeVisible();
+  await expect(agents).toBeVisible();
   await expect(nav).toHaveAttribute("href", /\/developers$/);
   await expect(footer).toHaveAttribute("href", /\/developers$/);
+  await expect(agents).toHaveAttribute("href", /\/developers$/);
   await expect(page.getByTestId("landing-sign-in")).toBeVisible();
   await expect(page.getByTestId("landing-judge-access")).toBeVisible();
   await expect(page.getByTestId("landing-nav-docs")).toBeVisible();
@@ -102,6 +105,7 @@ test("@inv:X02 e2e/public/developers-nav landing nav and footer route to /develo
   const mobileNav = page.getByTestId("landing-nav-developers");
   await expect(mobileNav).toBeVisible();
   await expect(page.getByTestId("landing-footer-developers")).toBeVisible();
+  await expect(page.getByTestId("landing-agents-developers")).toBeVisible();
   const box = await mobileNav.boundingBox();
   expect(box, "Developers nav must have a box").toBeTruthy();
   expect(box!.height).toBeGreaterThanOrEqual(44);

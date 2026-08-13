@@ -848,7 +848,7 @@
     },
     "X02": {
       "test_id": "e2e/public/developers-nav",
-      "journey": "Top-nav and footer Developers visible at 1280 and 390; click routes same-origin /developers; no horizontal overflow at 390"
+      "journey": "Top-nav, footer, and home CLI/SDK Developers CTA visible at 1280 and 390; click routes same-origin /developers; no horizontal overflow at 390"
     }
   }
 }

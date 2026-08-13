@@ -187,13 +187,12 @@ export function PublicLandingPage() {
         <div className="public-landing__agents-copy">
           <p className="public-landing__eyebrow">Bring your own agent</p>
           <h2 className="public-landing__agents-title">
-            CLI and SDK. Any agent can run the programme.
+            CLI and SDK. Drive it from your agent.
           </h2>
           <p className="public-landing__agents-lede">
-            The same commands the UI uses are on the command line and in a
-            first-party TypeScript client. Point a scoped key at SpeakerOps
-            and your agent can operate the event — or project a published
-            programme out to tools you already run.
+            Supported CLI verbs and the TypeScript SDK call the same Worker
+            commands as the UI. Give an agent a scoped key and a shell. The
+            CLI is a subset — not every route.
           </p>
           <Link
             className="public-landing__btn public-landing__btn--ghost lumen-focusable"
@@ -213,9 +212,9 @@ export function PublicLandingPage() {
             </div>
             <h3 className="public-landing__pillar-title">CLI</h3>
             <p className="public-landing__pillar-body">
-              One verb per Worker command. Any agent that can run a shell can
-              list events, publish, schedule, and read readiness — no
-              in-product fleet required.
+              Supported verbs map to Worker commands. An agent with a scoped
+              key can run those from a shell. No in-product fleet. The CLI is
+              not exhaustive.
             </p>
           </article>
           <article
