@@ -40,22 +40,41 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     icon: "inbox",
   },
   {
-    path: "/admin/files",
-    label: "Files",
-    testId: "nav-files",
+    path: "/admin/evaluations",
+    label: "Evaluations",
+    testId: "nav-evaluations",
+    icon: "check",
+  },
+  {
+    path: "/admin/speakers",
+    label: "Speakers",
+    testId: "nav-speakers",
+    icon: "users",
+  },
+  {
+    path: "/admin/schedule",
+    label: "Schedule",
+    testId: "nav-schedule",
+    icon: "calendar",
+  },
+  { path: "/admin/comms", label: "Comms", testId: "nav-comms", icon: "mail" },
+  {
+    path: "/admin/portal-forms",
+    label: "Portal forms",
+    testId: "nav-portal-forms",
     icon: "file",
   },
   {
-    path: "/admin/history",
-    label: "History",
-    testId: "nav-history",
-    icon: "clock",
+    path: "/admin/resources",
+    label: "Resources",
+    testId: "nav-resources",
+    icon: "file",
   },
   {
-    path: "/admin/team",
-    label: "Team",
-    testId: "nav-team",
-    icon: "users",
+    path: "/admin/file-requests",
+    label: "File requests",
+    testId: "nav-file-requests",
+    icon: "inbox",
   },
   {
     path: "/admin/embeds",
@@ -76,42 +95,23 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     icon: "check",
   },
   {
-    path: "/admin/portal-forms",
-    label: "Portal forms",
-    testId: "nav-portal-forms",
-    icon: "file",
-  },
-  {
-    path: "/admin/resources",
-    label: "Resources",
-    testId: "nav-resources",
-    icon: "file",
-  },
-  {
-    path: "/admin/file-requests",
-    label: "File requests",
-    testId: "nav-file-requests",
-    icon: "inbox",
-  },
-  {
-    path: "/admin/evaluations",
-    label: "Evaluations",
-    testId: "nav-evaluations",
-    icon: "check",
-  },
-  {
-    path: "/admin/speakers",
-    label: "Speakers",
-    testId: "nav-speakers",
+    path: "/admin/team",
+    label: "Team",
+    testId: "nav-team",
     icon: "users",
   },
   {
-    path: "/admin/schedule",
-    label: "Schedule",
-    testId: "nav-schedule",
-    icon: "calendar",
+    path: "/admin/files",
+    label: "Files",
+    testId: "nav-files",
+    icon: "file",
   },
-  { path: "/admin/comms", label: "Comms", testId: "nav-comms", icon: "mail" },
+  {
+    path: "/admin/history",
+    label: "History",
+    testId: "nav-history",
+    icon: "clock",
+  },
   {
     path: "/admin/settings",
     label: "Settings",
@@ -119,6 +119,45 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
     icon: "settings",
   },
 ] as const;
+
+const ADMIN_NAV_GROUPS: readonly {
+  id: string;
+  label: string;
+  paths: readonly string[];
+}[] = [
+  {
+    id: "programme",
+    label: "Programme",
+    paths: [
+      "/admin",
+      "/admin/cfp",
+      "/admin/submissions",
+      "/admin/evaluations",
+      "/admin/speakers",
+      "/admin/schedule",
+    ],
+  },
+  {
+    id: "speaker-ops",
+    label: "Speaker ops",
+    paths: [
+      "/admin/comms",
+      "/admin/portal-forms",
+      "/admin/resources",
+      "/admin/file-requests",
+    ],
+  },
+  {
+    id: "publish",
+    label: "Publish",
+    paths: ["/admin/embeds", "/admin/preview", "/admin/analytics"],
+  },
+  {
+    id: "admin",
+    label: "Admin",
+    paths: ["/admin/team", "/admin/files", "/admin/history", "/admin/settings"],
+  },
+];
 
 export type AdminShellProps = {
   children: ReactNode;
@@ -143,7 +182,8 @@ function titleForPath(pathname: string): string {
   if (pathname.startsWith("/admin/settings/rubric")) return "Eval rubric";
   if (pathname.startsWith("/admin/settings/task-templates")) return "Task templates";
   if (pathname.startsWith("/admin/settings/api-keys")) return "API keys";
-  if (pathname.startsWith("/admin/settings/airtable")) return "Airtable status";
+  if (pathname.startsWith("/admin/settings/airtable")) return "Integrations";
+  if (pathname.startsWith("/admin/settings/integrations")) return "Integrations";
   const exact = ADMIN_NAV_ITEMS.find((item) => item.path === pathname);
   if (exact) return exact.label;
   const nested = ADMIN_NAV_ITEMS.find(
@@ -247,23 +287,36 @@ export function AdminShell({
           <p className="admin-shell__brand-meta">Admin</p>
         </div>
         <nav className="admin-shell__nav" data-testid="admin-nav" aria-label="Primary">
-          {ADMIN_NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === "/admin"}
-              className={navLinkClass}
-              data-testid={item.testId}
-              onClick={closeNav}
+          {ADMIN_NAV_GROUPS.map((group) => (
+            <div
+              key={group.id}
+              className="admin-shell__nav-group"
+              data-testid={`admin-nav-group-${group.id}`}
             >
-              <Icon
-                name={item.icon}
-                size="sm"
-                decorative
-                className="admin-shell__nav-icon"
-              />
-              <span className="admin-shell__nav-label">{item.label}</span>
-            </NavLink>
+              <p className="admin-shell__nav-group-label">{group.label}</p>
+              {group.paths.map((path) => {
+                const item = ADMIN_NAV_ITEMS.find((n) => n.path === path);
+                if (!item) return null;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.path === "/admin"}
+                    className={navLinkClass}
+                    data-testid={item.testId}
+                    onClick={closeNav}
+                  >
+                    <Icon
+                      name={item.icon}
+                      size="sm"
+                      decorative
+                      className="admin-shell__nav-icon"
+                    />
+                    <span className="admin-shell__nav-label">{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
           ))}
         </nav>
 

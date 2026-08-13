@@ -30,6 +30,37 @@ export {
 export { HEALTH_OK, type HealthResponse, HealthResponseSchema } from "./health.js";
 
 export {
+  IntegrationProviderSchema,
+  type IntegrationProvider,
+  VerificationStateSchema,
+  type VerificationState,
+  IntegrationConnectionSchema,
+  type IntegrationConnection,
+  IntegrationsStatusResponseSchema,
+  type IntegrationsStatusResponse,
+  SaveAcceleventsBodySchema,
+  type SaveAcceleventsBody,
+  SaveAcceleventsResponseSchema,
+  VerifyAcceleventsBodySchema,
+  type VerifyAcceleventsBody,
+  VerifyAcceleventsResponseSchema,
+  ACCELEVENTS_VERIFY_TOPIC,
+  ACCELEVENTS_PROJECT_TOPIC,
+  AcceleventsOutboxKindSchema,
+  type AcceleventsOutboxKind,
+  AcceleventsOutboxPayloadSchema,
+  type AcceleventsOutboxPayload,
+} from "./integrations.js";
+
+export {
+  parseWikiMarkdown,
+  wikiEmbedSrc,
+  isHttpsHttpUrl,
+  type WikiBlock,
+  type WikiInline,
+} from "./wiki.js";
+
+export {
   RICH_TEXT_SCHEMA_VERSION,
   RICH_TEXT_MAX_DEPTH,
   RICH_TEXT_MAX_NODES,

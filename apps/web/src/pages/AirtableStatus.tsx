@@ -73,9 +73,8 @@ export function AirtableStatusPage() {
       data-testid="airtable-status-page"
       data-section="7.3"
     >
-      <p className="page-stub__overline">Settings · Integrations</p>
-      <h2 className="page-stub__title">Airtable projection</h2>
-      <p className="page-stub__body">
+      <h2 className="event-settings__heading">Airtable projection</h2>
+      <p className="eval-queue__muted">
         One-way mirror status (never SoR). Product mutations succeed while
         Airtable is paused — outbox lags until credentials resume.{" "}
         <Link
@@ -204,29 +203,6 @@ export function AirtableStatusPage() {
           </button>
         </section>
       ) : null}
-
-      <section
-        className="event-settings__card"
-        data-testid="accelevents-status-section"
-        aria-labelledby="accelevents-heading"
-        style={{ marginTop: 24 }}
-      >
-        <h3 id="accelevents-heading" className="event-settings__heading">
-          Accelevents projection
-        </h3>
-        <p className="page-stub__body" data-testid="accelevents-status-disclose">
-          Accelevents one-way projection is <strong>not implemented</strong> in
-          this estate. We do not stub or fake live Accelevents writes. Shipping
-          it requires third-party API credentials plus a completed projector
-          (outbox identity map, retries, no dual-write, no request-path calls).
-          D1 remains the system of record; Airtable above is the optional
-          one-way mirror when configured.
-        </p>
-        <p className="eval-queue__muted" data-testid="accelevents-status-state">
-          Status: not implemented (honest disclosure — external residual only
-          when credentials exist and projector ships).
-        </p>
-      </section>
     </div>
   );
 }

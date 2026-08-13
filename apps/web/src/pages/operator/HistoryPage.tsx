@@ -24,6 +24,7 @@ export function HistoryPage() {
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
 
   const load = useCallback(async () => {
     if (!activeEventId) {
@@ -61,6 +62,17 @@ export function HistoryPage() {
     void load();
   }, [load]);
 
+  const visible = rows.filter((r) => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return true;
+    return (
+      r.action.toLowerCase().includes(needle) ||
+      r.actorId.toLowerCase().includes(needle) ||
+      r.entityType.toLowerCase().includes(needle) ||
+      r.correlationId.toLowerCase().includes(needle)
+    );
+  });
+
   return (
     <div data-testid="page-history" data-section="n6-history">
       <PageHeader
@@ -92,6 +104,18 @@ export function HistoryPage() {
           {loading ? "Loading…" : "No audit events yet."}
         </p>
       ) : (
+        <>
+        <label className="portal-label" htmlFor="history-filter">
+          Filter
+        </label>
+        <input
+          id="history-filter"
+          className="portal-input lumen-focusable"
+          data-testid="history-filter"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Action, actor, entity…"
+        />
         <table className="l2-table" data-testid="history-table">
           <thead>
             <tr>
@@ -103,7 +127,7 @@ export function HistoryPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {visible.map((r) => (
               <tr key={r.id} data-testid={`history-row-${r.id}`}>
                 <td>
                   <time dateTime={r.createdAt}>
@@ -124,6 +148,7 @@ export function HistoryPage() {
             ))}
           </tbody>
         </table>
+        </>
       )}
     </div>
   );

@@ -28,6 +28,8 @@
 | O04 | 3.4 | 3.6 then 8.2 | Rubric settings |
 | O05 | 4.1 | 4.4 then 8.2 | Task templates |
 | O06 | 7.3 | 7.4 then 8.2 | Airtable status |
+| O07–O08 | closeout | closeout then 8.2 | Integrations hub / Accelevents |
+| Q09 | closeout | closeout then 8.2 | Wiki allowlisted embed |
 
 **API-only / non-browser proof**
 

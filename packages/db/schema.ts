@@ -1461,6 +1461,53 @@ export type NewApiKey = typeof apiKeys.$inferInsert;
 export type ProjectionRecord = typeof projectionRecords.$inferSelect;
 export type NewProjectionRecord = typeof projectionRecords.$inferInsert;
 
+export const integrationConnections = sqliteTable(
+  "integration_connections",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    provider: text("provider").notNull(),
+    enabled: integer("enabled").notNull().default(0),
+    eventUrl: text("event_url"),
+    externalEventId: text("external_event_id"),
+    connectionGeneration: integer("connection_generation").notNull().default(1),
+    verificationState: text("verification_state").notNull().default("never"),
+    lastAttemptAt: text("last_attempt_at"),
+    lastVerifiedAt: text("last_verified_at"),
+    lastError: text("last_error"),
+    version: integer("version").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => ({
+    uniq: uniqueIndex("integration_connections_event_provider").on(
+      t.eventId,
+      t.provider,
+    ),
+  }),
+);
+
+export const acceleventsIdentities = sqliteTable(
+  "accelevents_identities",
+  {
+    id: text("id").primaryKey().notNull(),
+    eventId: text("event_id").notNull(),
+    connectionGeneration: integer("connection_generation").notNull(),
+    entityType: text("entity_type").notNull(),
+    internalId: text("internal_id").notNull(),
+    externalId: text("external_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => ({
+    uniq: uniqueIndex("accelevents_identities_unique").on(
+      t.eventId,
+      t.connectionGeneration,
+      t.entityType,
+      t.internalId,
+    ),
+  }),
+);
+
 /** Full schema object for drizzle(..., { schema }). */
 export const schema = {
   organizations,
@@ -1514,6 +1561,8 @@ export const schema = {
   portalResources,
   fileRequests,
   fileRequestFulfillments,
+  integrationConnections,
+  acceleventsIdentities,
 } as const;
 
 export type SavedView = typeof savedViews.$inferSelect;

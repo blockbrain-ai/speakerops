@@ -776,6 +776,18 @@
       "journey": "Refresh Airtable status"
     },
     {
+      "testid": "ae-save",
+      "inv": "O08",
+      "surface": "admin",
+      "journey": "Save Accelevents connection"
+    },
+    {
+      "testid": "ae-verify",
+      "inv": "O07",
+      "surface": "admin",
+      "journey": "Queue Accelevents verification"
+    },
+    {
       "testid": "comms-audience-select-page",
       "inv": "J02",
       "surface": "admin",

@@ -16,7 +16,7 @@ describe("11.7 SettingsShell two-pane", () => {
       "Task templates",
       "Event brand",
       "API keys",
-      "Airtable",
+      "Integrations",
     ]);
   });
 

@@ -534,6 +534,23 @@ describe("1.3 D1 Drizzle baseline migrations", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("0045 creates integration_connections and accelevents_identities", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "speakerops-db-0045-"));
+    const dbPath = join(dir, "test.sqlite");
+    try {
+      const result = await migrate({ dbPath, migrationsDir });
+      expect(result.applied).toContain("0045_integrations.sql");
+      expect(result.tables).toContain("integration_connections");
+      expect(result.tables).toContain("accelevents_identities");
+      const { columns } = await inspectSchema({ dbPath, migrationsDir });
+      expect(columns.integration_connections).toContain("event_url");
+      expect(columns.integration_connections).toContain("connection_generation");
+      expect(columns.accelevents_identities).toContain("external_id");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("1.3 repository eventId scoping stub", () => {

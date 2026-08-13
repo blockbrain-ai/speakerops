@@ -13,6 +13,9 @@
 | `design:read` / `design:write` | Design get/set/publish |
 | `reports:read` | Readiness, exports |
 | `airtable:read` | Projection status |
+| `integrations:read` | Integrations hub status (Accelevents + Airtable cards) |
+| `integrations:write` | Save Accelevents connection + enqueue verify (no request-path HTTP) |
+| `members:write` | Auth.CreateInvite + setMemberRole (Team) — treat as high-risk |
 | `keys:admin` | Mint/revoke — **default deny** |
 
 Browser roles map: admin ⊂ most scopes; evaluator ⊂ score only; speaker ⊂ portal; public ⊂ submit only.

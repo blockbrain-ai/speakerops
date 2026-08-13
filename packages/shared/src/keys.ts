@@ -27,6 +27,10 @@ export const API_SCOPES = [
   "design:write",
   "reports:read",
   "airtable:read",
+  /** Integrations hub read (Accelevents + Airtable status). */
+  "integrations:read",
+  /** Save / queue Accelevents connection + verify (no request-path HTTP). */
+  "integrations:write",
   /** Auth.CreateInvite + setMemberRole (Team admin automation / CLI). */
   "members:write",
   "keys:admin",

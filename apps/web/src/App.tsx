@@ -53,7 +53,7 @@ import { CommsPage } from "./pages/Comms.js";
 import { ScheduleStudioPage } from "./pages/schedule/ScheduleStudio.js";
 import { ReadinessPage } from "./pages/Readiness.js";
 import { ApiKeysPage } from "./pages/ApiKeys.js";
-import { AirtableStatusPage } from "./pages/AirtableStatus.js";
+import { IntegrationsPage } from "./pages/operator/IntegrationsPage.js";
 import { L2StateSheetPage } from "./pages/L2StateSheet.js";
 import {
   BareLayout,
@@ -192,8 +192,12 @@ export function AppRoutes() {
           />
           <Route path="/admin/settings/api-keys" element={<ApiKeysPage />} />
           <Route
+            path="/admin/settings/integrations"
+            element={<IntegrationsPage />}
+          />
+          <Route
             path="/admin/settings/airtable"
-            element={<AirtableStatusPage />}
+            element={<IntegrationsPage />}
           />
           <Route
             path="/admin/settings/l2-state-sheet"

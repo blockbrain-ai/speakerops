@@ -284,6 +284,7 @@
 | Q06 | speaker | File requests | Upload fulfils published file request (fileId linked) | e2e/portal-lib/file-request-fulfill | Other speaker cannot fulfil | REQUIRED | PASS |
 | Q07 | admin | Embeds | Admin embed preview iframe allowed by frame-src self | e2e/embeds/preview-frame | Non-embed routes remain frame-ancestors none | REQUIRED | PASS |
 | Q08 | admin | Team | Add member invite by email + role; roster updates | e2e/team/invite | Last-admin demotion blocked | REQUIRED | PASS |
+| Q09 | speaker | Portal library | Allowlisted wiki embed iframe (YouTube-nocookie src + sandbox) | e2e/portal-lib/wiki-embed | javascript: and unknown hosts stay text | REQUIRED | PASS |
 
 ---
 
@@ -297,6 +298,8 @@
 | O04 | admin | Settings | Eval rubric edit | e2e/settings/rubric | — | REQUIRED | PASS |
 | O05 | admin | Settings | Task templates on accept | e2e/settings/task-templates | — | REQUIRED | PASS |
 | O06 | admin | Settings | Airtable projection status read | e2e/settings/airtable-status | — | REQUIRED | PASS |
+| O07 | admin | Settings | Integrations hub — Accelevents card paused without key | e2e/settings/integrations-paused | Evaluator 403 / unauth 401 | REQUIRED | PASS |
+| O08 | admin | Settings | Save Accelevents event URL + numeric event id | e2e/settings/integrations-save | Malformed URL 400 | REQUIRED | PASS |
 
 ---
 
@@ -314,6 +317,8 @@
 | Design tokens | admin | C03–C10 |
 | API keys | admin | K01–K04 |
 | Airtable status | admin | O06 |
+| Integrations / Accelevents | admin | O07, O08 |
+| Wiki allowlisted embed | speaker | Q09 |
 
 ---
 

@@ -166,6 +166,19 @@ import {
 } from "./modules/airtable/store.js";
 import { createAirtableRoutes } from "./modules/airtable/routes.js";
 import {
+  MemoryIntegrationsStore,
+  D1IntegrationsStore,
+  type IntegrationsStore,
+} from "./modules/accelevents/store.js";
+import { createIntegrationsRoutes } from "./modules/accelevents/routes.js";
+import { enqueueAcceleventsJob } from "./modules/accelevents/enqueue.js";
+import { resolveAcceleventsKey } from "./modules/accelevents/client.js";
+import {
+  processAcceleventsOutbox,
+  type ProcessAcceleventsOutboxResult,
+} from "./workers/acceleventsConsumer.js";
+import type { ProjectSnapshot } from "./modules/accelevents/project.js";
+import {
   MemorySavedViewsStore,
   D1SavedViewsStore,
   type SavedViewsStore,
@@ -230,6 +243,10 @@ export type CreateAppOptions = {
   keysStore?: KeysStore;
   /** Inject Airtable projection store (defaults to in-memory for local/test). */
   airtableStore?: AirtableStore;
+  /** Inject Integrations / Accelevents store (defaults to in-memory). */
+  integrationsStore?: IntegrationsStore;
+  /** Env names only — ACCELEVENTS_API_KEY. Missing = paused, never a throw. */
+  acceleventsEnv?: { ACCELEVENTS_API_KEY?: string };
   /** Inject saved views store (F3; defaults to in-memory for local/test). */
   savedViewsStore?: SavedViewsStore;
   /** Inject search store (F5; defaults to in-memory for local/test). */
@@ -330,6 +347,9 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
   const scheduleStore = options.scheduleStore ?? new MemoryScheduleStore();
   const keysStore = options.keysStore ?? new MemoryKeysStore();
   const airtableStore = options.airtableStore ?? new MemoryAirtableStore();
+  const integrationsStore =
+    options.integrationsStore ?? new MemoryIntegrationsStore();
+  const acceleventsEnv = options.acceleventsEnv ?? {};
   const savedViewsStore =
     options.savedViewsStore ?? new MemorySavedViewsStore();
   const searchStore = options.searchStore ?? new MemorySearchStore();
@@ -684,6 +704,24 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     schedule: scheduleStore,
     listRooms: (eventId: string) => eventsStore.listRooms(eventId),
     listTracks: (eventId: string) => eventsStore.listTracks(eventId),
+    enqueueAccelevents: async (input: {
+      eventId: string;
+      version: number;
+      correlationId: string;
+    }) => {
+      const conn = await integrationsStore.getConnection(
+        input.eventId,
+        "accelevents",
+      );
+      if (!conn?.enabled || !conn.eventUrl || !conn.externalEventId) return;
+      if (!resolveAcceleventsKey(acceleventsEnv)) return;
+      await enqueueAcceleventsJob(integrationsStore, {
+        kind: "project",
+        eventId: input.eventId,
+        programmeVersion: input.version,
+        correlationId: input.correlationId,
+      });
+    },
   };
 
   // F7 — programme publish (admin)
@@ -758,6 +796,18 @@ export function createApp(options: CreateAppOptions = {}): Hono<ApiEnv> {
     }),
   );
 
+  // Integrations hub + Accelevents connection metadata (E7 — no AE HTTP here)
+  app.route(
+    "/api/events",
+    createIntegrationsRoutes({
+      store: authStore,
+      events: eventsStore,
+      integrations: integrationsStore,
+      keys: keysStore,
+      clientEnv: acceleventsEnv,
+    }),
+  );
+
   // Section 7.1 — Keys.List/Create/Revoke + Bearer keys:admin
   app.route(
     "/api/keys",
@@ -797,6 +847,7 @@ export function createAppWithAuth(
   schedule: ScheduleStore;
   keys: KeysStore;
   airtable: AirtableStore;
+  integrations: IntegrationsStore;
   outbox: MagicLinkTestOutbox;
 } {
   const store = options.authStore ?? new MemoryAuthStore();
@@ -810,6 +861,8 @@ export function createAppWithAuth(
   const scheduleStore = options.scheduleStore ?? new MemoryScheduleStore();
   const keysStore = options.keysStore ?? new MemoryKeysStore();
   const airtableStore = options.airtableStore ?? new MemoryAirtableStore();
+  const integrationsStore =
+    options.integrationsStore ?? new MemoryIntegrationsStore();
   const outbox = options.magicLinkOutbox ?? new MagicLinkTestOutbox();
   const app = createApp({
     ...options,
@@ -818,6 +871,7 @@ export function createAppWithAuth(
     designStore: design,
     formsStore: forms,
     submissionsStore: submissions,
+    integrationsStore,
     evalStore,
     decisionsStore,
     commsStore,
@@ -849,6 +903,7 @@ export function createAppWithAuth(
     schedule: scheduleStore,
     keys: keysStore,
     airtable: airtableStore,
+    integrations: integrationsStore,
     outbox,
   };
 }
@@ -996,6 +1051,10 @@ export function createAppFromBindings(env: WorkerBindings): Hono<ApiEnv> {
     scheduleStore: new D1ScheduleStore(d1),
     keysStore: new D1KeysStore(d1),
     airtableStore: new D1AirtableStore(d1),
+    integrationsStore: new D1IntegrationsStore(d1),
+    acceleventsEnv: {
+      ACCELEVENTS_API_KEY: env.ACCELEVENTS_API_KEY,
+    },
     savedViewsStore: new D1SavedViewsStore(d1),
     searchStore: new D1SearchStore(d1),
     programmeStore: new D1ProgrammeStore(d1),
@@ -1098,6 +1157,67 @@ export async function drainAuthMagicLinkOutboxFromEnv(
       cloudflareEmail: env.EMAIL,
     },
     options,
+  );
+}
+
+export async function drainAcceleventsOutboxFromEnv(
+  env: WorkerBindings,
+  options: { correlationId?: string; limit?: number } = {},
+): Promise<ProcessAcceleventsOutboxResult> {
+  void options.correlationId;
+  if (!env.DB) {
+    throw new Error(
+      "Worker binding DB is required to drain accelevents outbox (E1).",
+    );
+  }
+  const d1 = env.DB as D1DatabaseLike;
+  const programme = new D1ProgrammeStore(d1);
+  const decisions = new D1DecisionsStore(d1);
+  const submissions = new D1SubmissionsStore(d1);
+  return processAcceleventsOutbox(
+    {
+      integrations: new D1IntegrationsStore(d1),
+      clientEnv: { ACCELEVENTS_API_KEY: env.ACCELEVENTS_API_KEY },
+      loadSnapshot: async (eventId) => {
+        const pub = await programme.findByEventId(eventId);
+        if (!pub?.snapshotJson) return null;
+        let snap: {
+          event?: { timezone?: string | null };
+          speakers?: Array<{
+            id: string;
+            name: string;
+            title: string | null;
+            company: string | null;
+            bio: string | null;
+            headshotUrl: string | null;
+            roleLabel: string | null;
+          }>;
+          sessions?: ProjectSnapshot["sessions"];
+        };
+        try {
+          snap = JSON.parse(pub.snapshotJson) as typeof snap;
+        } catch {
+          return null;
+        }
+        const parts = await decisions.listParticipationsForEvent(eventId);
+        const emailByPart = new Map<string, string | null>();
+        await Promise.all(
+          parts.map(async (p) => {
+            const person = await submissions.findPersonById(p.personId);
+            emailByPart.set(p.id, person?.email ?? null);
+          }),
+        );
+        return {
+          event: snap.event ?? {},
+          speakers: (snap.speakers ?? []).map((s) => ({
+            ...s,
+            email: emailByPart.get(s.id) ?? null,
+          })),
+          sessions: snap.sessions ?? [],
+        };
+      },
+    },
+    { limit: options.limit },
   );
 }
 
@@ -1351,6 +1471,7 @@ export default {
     await drainAuthMagicLinkOutboxFromEnv(env);
     // S-AIRTABLE: drain projection outbox (pauses safely when key unset)
     await drainAirtableOutboxFromEnv(env, { correlationId });
+    await drainAcceleventsOutboxFromEnv(env, { correlationId });
     await drainSearchIndexFromEnv(env, { limit: 5 });
     for (const msg of batch.messages) {
       msg.ack();
@@ -1366,6 +1487,7 @@ export default {
     await drainCommsOutboxFromEnv(env, { correlationId });
     await drainAuthMagicLinkOutboxFromEnv(env);
     await drainAirtableOutboxFromEnv(env, { correlationId });
+    await drainAcceleventsOutboxFromEnv(env, { correlationId });
     // B3: ≤60s freshness SLA via cron sweep of stale search generations.
     await drainSearchIndexFromEnv(env, { limit: 20 });
   },

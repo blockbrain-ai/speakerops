@@ -6,6 +6,8 @@ import { useMemo, useState } from "react";
 import { useEventContext } from "../../events/EventContext.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Button } from "../../components/ui/Button.js";
+import { Field } from "../../components/ui/Field.js";
+import { SegmentedControl } from "../../components/ui/SegmentedControl.js";
 
 const EMBED_TYPES = [
   { id: "sessions", label: "Session list", path: "sessions" },
@@ -22,6 +24,9 @@ export function EmbedConfiguratorPage() {
   const [embedType, setEmbedType] = useState<EmbedTypeId>("sessions");
   const [height, setHeight] = useState(640);
   const [copied, setCopied] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState<"desktop" | "mobile">(
+    "desktop",
+  );
 
   const slug = activeEvent?.slug?.trim() || "";
   const origin =
@@ -64,22 +69,23 @@ export function EmbedConfiguratorPage() {
       ) : (
         <div className="embeds-config" data-testid="embeds-config">
           <div className="embeds-config__controls">
-            <label className="portal-label" htmlFor="embed-type">
-              Feed type
-            </label>
-            <select
+            <Field
               id="embed-type"
-              className="portal-input lumen-focusable"
-              data-testid="embed-type-select"
-              value={embedType}
-              onChange={(e) => setEmbedType(e.target.value as EmbedTypeId)}
+              as="select"
+              label="Feed type"
+              inputProps={{
+                "data-testid": "embed-type-select",
+                value: embedType,
+                onChange: (e) =>
+                  setEmbedType(e.target.value as EmbedTypeId),
+              }}
             >
               {EMBED_TYPES.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.label}
                 </option>
               ))}
-            </select>
+            </Field>
 
             <label className="portal-label" htmlFor="embed-height">
               Iframe height (px)
@@ -110,14 +116,36 @@ export function EmbedConfiguratorPage() {
           </div>
 
           <div className="embeds-config__preview">
-            <label className="portal-label">Live preview</label>
-            <iframe
-              title={`Embed preview ${selected.label}`}
-              src={embedUrl}
-              className="embeds-config__frame"
-              data-testid="embed-live-preview"
-              height={height}
+            <label className="portal-label">Device preview</label>
+            <SegmentedControl
+              name="embed-preview-width"
+              data-testid="embed-preview-width"
+              value={previewWidth}
+              onChange={(v) =>
+                setPreviewWidth(v === "mobile" ? "mobile" : "desktop")
+              }
+              options={[
+                { value: "desktop", label: "Desktop" },
+                { value: "mobile", label: "Mobile" },
+              ]}
             />
+            <div
+              className={
+                previewWidth === "mobile"
+                  ? "embeds-config__device embeds-config__device--mobile"
+                  : "embeds-config__device embeds-config__device--desktop"
+              }
+              data-testid="embed-preview-device"
+            >
+              <iframe
+                title={`Embed preview ${selected.label}`}
+                src={embedUrl}
+                className="embeds-config__frame"
+                data-testid="embed-live-preview"
+                height={height}
+                width={previewWidth === "mobile" ? 390 : 1024}
+              />
+            </div>
             <label className="portal-label" htmlFor="embed-code">
               Code
             </label>

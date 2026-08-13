@@ -2353,6 +2353,9 @@ export const OPENAPI_COMMANDS = [
   "Schedule.Unschedule",
   "Reports.Readiness",
   "Reports.AirtableStatus",
+  "Integrations.Status",
+  "Integrations.SaveAccelevents",
+  "Integrations.VerifyAccelevents",
   "Keys.List",
   "Keys.Create",
   "Keys.Revoke",
@@ -2465,6 +2468,81 @@ export const AIRTABLE_OPENAPI_PATHS = {
         "401": { description: "Unauthenticated" },
         "403": { description: "Forbidden role or missing airtable:read" },
         "404": { description: "Event not found" },
+      },
+    },
+  },
+} as const;
+
+/** OpenAPI paths for Integrations hub (Accelevents one-way). */
+export const INTEGRATIONS_OPENAPI_PATHS = {
+  "/api/events/{eventId}/integrations": {
+    get: {
+      operationId: "Integrations.Status",
+      summary: "Integrations.Status",
+      description:
+        "D1-backed connection metadata + verificationState. Never calls Accelevents HTTP (E7). Scope: integrations:read or airtable:read.",
+      tags: ["Reports"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "connections[] including accelevents card" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden" },
+        "404": { description: "Event not found" },
+      },
+    },
+  },
+  "/api/events/{eventId}/integrations/accelevents": {
+    put: {
+      operationId: "Integrations.SaveAccelevents",
+      summary: "Integrations.SaveAccelevents",
+      description:
+        "Save event URL + numeric event id + enabled. API key is never accepted in the body. Scope: integrations:write.",
+      tags: ["Reports"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "connection" },
+        "400": { description: "Validation" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden" },
+        "409": { description: "Version conflict" },
+      },
+    },
+  },
+  "/api/events/{eventId}/integrations/accelevents/verify": {
+    post: {
+      operationId: "Integrations.VerifyAccelevents",
+      summary: "Integrations.VerifyAccelevents",
+      description:
+        "Enqueue accelevents.verify (queue/cron performs HTTP). Request path does not call Accelevents. Scope: integrations:write.",
+      tags: ["Reports"],
+      parameters: [
+        {
+          name: "eventId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "{ queued: true, connection }" },
+        "400": { description: "Metadata incomplete" },
+        "401": { description: "Unauthenticated" },
+        "403": { description: "Forbidden" },
+        "409": { description: "Version conflict" },
       },
     },
   },
@@ -2701,6 +2779,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
       ...SCHEDULE_OPENAPI_PATHS,
       ...READINESS_OPENAPI_PATHS,
       ...AIRTABLE_OPENAPI_PATHS,
+      ...INTEGRATIONS_OPENAPI_PATHS,
       ...KEYS_OPENAPI_PATHS,
     },
     tags: [

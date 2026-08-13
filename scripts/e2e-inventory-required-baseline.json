@@ -157,6 +157,8 @@
     "O04",
     "O05",
     "O06",
+    "O07",
+    "O08",
     "Q01",
     "Q02",
     "Q03",
@@ -165,6 +167,7 @@
     "Q06",
     "Q07",
     "Q08",
+    "Q09",
     "I18",
     "J15"
   ],
@@ -609,6 +612,14 @@
       "test_id": "e2e/settings/airtable-status",
       "journey": "Airtable projection status read"
     },
+    "O07": {
+      "test_id": "e2e/settings/integrations-paused",
+      "journey": "Integrations hub — Accelevents card paused without key"
+    },
+    "O08": {
+      "test_id": "e2e/settings/integrations-save",
+      "journey": "Save Accelevents event URL + numeric event id"
+    },
     "A17": {
       "test_id": "e2e/public/cfp-draft",
       "journey": "Save as draft (title-only); resume restores fields; disabled when closed"
@@ -816,6 +827,10 @@
     "Q08": {
       "test_id": "e2e/team/invite",
       "journey": "Add member invite by email + role; roster updates"
+    },
+    "Q09": {
+      "test_id": "e2e/portal-lib/wiki-embed",
+      "journey": "Allowlisted wiki embed iframe (YouTube-nocookie src + sandbox)"
     },
     "I18": {
       "test_id": "e2e/sched/tray-filter",

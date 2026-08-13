@@ -9,7 +9,7 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 # Non-secret public config (names + public version only)
-# Production secrets (TURNSTILE_SECRET_KEY, RESEND_API_KEY, …) → wrangler secret put
+# Production secrets (TURNSTILE_SECRET_KEY, RESEND_API_KEY, ACCELEVENTS_API_KEY, …) → wrangler secret put
 [vars]
 APP_VERSION = "0.1.0"
 # Optional public Turnstile site key may be set at deploy time (not a private secret).

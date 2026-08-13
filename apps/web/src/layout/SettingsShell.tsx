@@ -59,11 +59,11 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: "Scoped machine credentials",
   },
   {
-    path: "/admin/settings/airtable",
-    label: "Airtable",
+    path: "/admin/settings/integrations",
+    label: "Integrations",
     testId: "settings-nav-airtable",
     icon: "external",
-    description: "One-way projection health",
+    description: "One-way Airtable and Accelevents projectors",
   },
 ] as const;
 
@@ -89,7 +89,8 @@ function titleForSettingsPath(pathname: string): string {
   if (pathname.startsWith("/admin/settings/task-templates"))
     return "Task templates";
   if (pathname.startsWith("/admin/settings/api-keys")) return "API keys";
-  if (pathname.startsWith("/admin/settings/airtable")) return "Airtable";
+  if (pathname.startsWith("/admin/settings/airtable")) return "Integrations";
+  if (pathname.startsWith("/admin/settings/integrations")) return "Integrations";
   if (pathname === "/admin/settings" || pathname === "/admin/settings/")
     return "Event";
   return "Settings";

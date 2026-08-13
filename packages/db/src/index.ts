@@ -58,6 +58,8 @@ export {
   portalResources,
   fileRequests,
   fileRequestFulfillments,
+  integrationConnections,
+  acceleventsIdentities,
   baselineTables,
   authTables,
   membershipTables,
@@ -200,6 +202,7 @@ export {
   GRID_TABLES,
   SEARCH_TABLES,
   PROGRAMME_TABLES,
+  INTEGRATION_TABLES,
   type MigrateOptions,
   type MigrateResult,
 } from "./migrate.js";

@@ -52,19 +52,19 @@ Each row is a judged workflow. Production bar is “operate a multi-day tech con
 
 ## 3. Full brief coverage — the honest 9-row matrix
 
-The brief names nine primary feature areas. Six are implemented end-to-end; three are not built, each with the extension point that exists today. We prioritized making the core CFP→readiness loop production-hard over breadth — the judgment call was fewer surfaces, each one correct, tested, and operable.
+The brief names nine primary feature areas. Six programme-loop rows are complete; rows 7–9 shipped as one-way projection, a markdown library with allowlisted embeds, and public/embed programme pages.
 
 | # | Brief feature | Status | Where / extension point |
 |---|---------------|--------|--------------------------|
 | 1 | CFP forms (conditional logic, category routing) | **Implemented** | §2 row 1 |
 | 2 | Speaker portal | **Implemented** | §2 row 2 |
-| 3 | Templated comms + calendar invites | **Implemented** — templates, preview-required idempotent send, delivery log, ICS UID/SEQUENCE, speaker portal `.ics` download. Hosted demo email sends via Cloudflare Email (no attachments); the Resend adapter ships for attachment delivery when configured | §2 row 3 · [portal ICS](../KMS-competition/initiative/contracts/COMMANDS.md) |
+| 3 | Templated comms + calendar invites | **Implemented** — templates, preview-required idempotent send, delivery log, ICS UID/SEQUENCE, speaker portal `.ics` download. **Hosted demo program email is sandbox** (drain does not pass Cloudflare Email credentials; the Cloudflare adapter cannot attach ICS). Calendar proof on dogfood is **Download .ics** in the speaker portal. The Resend adapter ships for mailbox + attachment delivery when configured | §2 row 3 · [portal ICS](../KMS-competition/initiative/contracts/COMMANDS.md) |
 | 4 | Evaluation & scoring (human) | **Implemented** — proposal panel, rubric, peer reviews, deliberation, bulk decisions | §2 row 4 |
 | 5 | Drag-drop schedule + conflict detection (5 views) | **Implemented** | §2 row 5 |
 | 6 | Real-time readiness dashboard | **Implemented** | §2 row 6 |
-| 7 | Accelevents one-way integration | **In build** (constitution Amendment A1, 2026-08-11) — outbox projector on the proven Airtable pattern: idempotent one-way upserts, retries, tombstones, replay; never dual-write | [AIRTABLE.md](./AIRTABLE.md) |
-| 8 | Portal resources/wiki + HTML embeds | **In build** (Amendment A1) — versioned rich-content pages with sandboxed, allowlisted embeds (separate CSP; never in the SPA origin) | — |
-| 9 | Embeddable mobile-friendly gallery/schedule | **In build** (Amendment A1) — Speaker Gallery, Schedule Itinerary, Sessions, Speakers, Agenda as public pages + styled-HTML embeds with device preview & copy-code, from a versioned published-programme read model | — |
+| 7 | Accelevents one-way integration | **Implemented (untested against a live API key)** — outbox projector (speakers + scheduled/published sessions) using the public Accelevents API. Dogfood has no key: projector **pauses**; Settings → Integrations shows that honestly. Never dual-write; D1 stays SoR | [ACCELEVENTS.md](./ACCELEVENTS.md) · Integrations |
+| 8 | Portal resources/wiki + HTML embeds | **Partial** — published markdown library in the speaker portal, plus **allowlisted** sandboxed video/map embeds. Not a full CMS (no version history / audience scoping / arbitrary HTML) | Resources · portal Library |
+| 9 | Embeddable mobile-friendly gallery/schedule | **Shipped** — Sessions / Speakers / Agenda / Itinerary / Gallery as `/e/:slug/*` and `/embed/:slug/*`, configurator with live preview, device widths, and copy-code | Embeds |
 | — | AI-assisted multi-round review (brief: optional) | **Not built** (human single-round evaluation is complete; scoped API keys + CLI give an agent everything needed to draft reviews externally) | [CLI.md](./CLI.md) |
 
 ### Deliberate scope exclusions (product judgment, not brief items)

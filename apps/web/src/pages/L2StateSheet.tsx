@@ -100,7 +100,7 @@ export function L2StateSheetPage() {
       <PageHeader
         eyebrow="Design system"
         title="Lumen 2 state sheet"
-        description="Shared primitives with rest, hover, focus, pressed, disabled, pending, selected, error, empty, and loading states. Tokens live in lumen.css; components consume --lumen-* only."
+        description="Design system reference — not an operator tool. Shared primitives with rest, hover, focus, pressed, disabled, pending, selected, error, empty, and loading states. Tokens live in lumen.css; components consume --lumen-* only."
         data-testid="l2-state-sheet-header"
       />
 

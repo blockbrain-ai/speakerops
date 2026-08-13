@@ -178,6 +178,11 @@ export type WorkerBindings = {
   AIRTABLE_TABLE_TASKS?: string;
   AIRTABLE_TABLE_SCHEDULE?: string;
   AIRTABLE_TABLE_EVENTS?: string;
+  /**
+   * Accelevents API key (header `Key`). Env **name** only (E10).
+   * When unset the projector pauses — Worker must still boot (no throw).
+   */
+  ACCELEVENTS_API_KEY?: string;
 };
 
 import type { MembershipRow } from "./modules/auth/store.js";

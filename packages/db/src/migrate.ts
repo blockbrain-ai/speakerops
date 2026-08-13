@@ -338,3 +338,9 @@ export const SEARCH_TABLES = ["search_documents"] as const;
 
 /** F7 public programme publication gate (migration 0039). */
 export const PROGRAMME_TABLES = ["programme_publications"] as const;
+
+/** Integrations hub + Accelevents identity map (migration 0045). */
+export const INTEGRATION_TABLES = [
+  "integration_connections",
+  "accelevents_identities",
+] as const;

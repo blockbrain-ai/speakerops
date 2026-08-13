@@ -72,6 +72,11 @@
 - Domain commands only insert `outbox_events` topic `airtable.project`; `airtableConsumer` / queue / cron drain upserts by `internal_id` into Airtable + `projection_records`.
 - Status API `GET /api/events/:eventId/airtable/status` is D1-only lag (no Airtable HTTP).
 
+## Accelevents one-way projector — names only
+- `ACCELEVENTS_API_KEY` — Accelevents header `Key` for **drain only**. When unset, drain pauses; Worker still boots. Never on the request path (E7). Never commit values. Never type into the SPA.
+- Event URL + numeric event id are D1 connection metadata, not secrets. There is **no** `ACCELEVENTS_EVENT_URL` env fallback.
+- Topics: `accelevents.verify`, `accelevents.project`. See [`ACCELEVENTS.md`](./ACCELEVENTS.md).
+
 ## CLI / agent (section 7.2) — names only
 - `SPEAKEROPS_API_KEY` — Bearer secret for `speakerops` CLI (`spk_…`). Minted via admin UI / `Keys.Create`; never commit values; never log full secret.
 - `SPEAKEROPS_API_URL` — optional API base URL for CLI (default `http://127.0.0.1:8787`). Not a secret.

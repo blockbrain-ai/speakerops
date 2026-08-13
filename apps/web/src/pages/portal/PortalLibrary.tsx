@@ -10,6 +10,7 @@ import {
   type PortalFormDto,
 } from "@speakerops/shared";
 import { Button } from "../../components/ui/Button.js";
+import { WikiBody } from "../../components/wiki/WikiBody.js";
 import { sha256Hex } from "./portal-utils.js";
 
 type ResourceItem = {
@@ -98,9 +99,7 @@ export function PortalResourcesPanel({ eventId }: { eventId: string }) {
                   className="portal-resource-body"
                   data-testid={`portal-resource-body-${r.id}`}
                 >
-                  <pre className="portal-muted" style={{ whiteSpace: "pre-wrap" }}>
-                    {r.bodyMd || "—"}
-                  </pre>
+                  <WikiBody markdown={r.bodyMd || ""} />
                 </div>
               ) : null}
             </li>

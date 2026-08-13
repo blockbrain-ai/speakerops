@@ -2318,12 +2318,54 @@ textarea.l2-field__control {
   flex-direction: column;
   gap: 10px;
 }
-.embeds-config__frame {
-  width: 100%;
+.embeds-config__device {
+  overflow: auto;
+  max-width: 100%;
   border: 1px solid var(--lumen-border);
   border-radius: 12px;
-  background: var(--lumen-surface);
+  background: var(--lumen-bg);
   margin-bottom: 12px;
+}
+.embeds-config__device--mobile {
+  width: 390px;
+  max-width: 100%;
+}
+.embeds-config__device--desktop {
+  width: 100%;
+}
+.embeds-config__frame {
+  width: 100%;
+  border: 0;
+  background: var(--lumen-surface);
+  display: block;
+}
+.wiki-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.wiki-body__h {
+  margin: 0;
+  font-family: var(--lumen-font);
+  line-height: 1.25;
+}
+.wiki-body__p,
+.wiki-body__ul {
+  margin: 0;
+  line-height: 1.5;
+}
+.wiki-body__pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13px;
+}
+.wiki-body__embed {
+  width: 100%;
+  min-height: 220px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--lumen-bg);
 }
 .preview-hub {
   list-style: none;

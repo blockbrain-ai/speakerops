@@ -27,8 +27,8 @@ export const CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
-  // 'self' enables admin embed configurator same-origin preview iframe (N4).
-  "frame-src 'self' https://challenges.cloudflare.com",
+  // 'self' = admin embed preview; Turnstile; allowlisted wiki players (exact hosts).
+  "frame-src 'self' https://challenges.cloudflare.com https://www.youtube-nocookie.com https://www.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -48,7 +48,7 @@ export const CONTENT_SECURITY_POLICY_EMBED = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
-  "frame-src 'self' https://challenges.cloudflare.com",
+  "frame-src 'self' https://challenges.cloudflare.com https://www.youtube-nocookie.com https://www.google.com",
   "frame-ancestors *",
   "base-uri 'self'",
   "form-action 'self'",
@@ -74,7 +74,7 @@ export const CONTENT_SECURITY_POLICY_DEV = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' ws: wss: https://challenges.cloudflare.com",
-  "frame-src 'self' https://challenges.cloudflare.com",
+  "frame-src 'self' https://challenges.cloudflare.com https://www.youtube-nocookie.com https://www.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

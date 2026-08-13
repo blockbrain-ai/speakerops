@@ -188,6 +188,7 @@ speakerops openapi --json
 
 - **HTTP:** `GET /openapi.json` (public discovery document — served by the Worker on the deployed site too, e.g. `https://www.speakerops.org/openapi.json`)
 - **Assert:** paths include `/api/events`, schedule, readiness, design, keys, …
+- **Honest subset:** the document covers the original command core. Team (`members` / invites), Find, Resources, File requests, Portal forms, Programme, and Integrations also exist over HTTP/CLI (`docs/CLI.md` extra verbs + Learn) and may not all appear in `/openapi.json` yet.
 
 ### Program loop — `forms` (cfp:read / cfp:write)
 

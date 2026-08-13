@@ -100,6 +100,9 @@ Auth: session cookie **or** API key with scopes.
 |---------|-------|-------|--------|
 | `Reports.Readiness` | reports:read | eventId | outstanding[], stats |
 | `Reports.AirtableStatus` | airtable:read | eventId | lag, errors |
+| `Integrations.Status` | integrations:read (or airtable:read) | eventId | connections[] (Accelevents card; D1-only, no third-party HTTP) |
+| `Integrations.SaveAccelevents` | integrations:write | eventId, eventUrl, externalEventId, enabled, expectedVersion? | connection |
+| `Integrations.VerifyAccelevents` | integrations:write | eventId, expectedVersion? | { queued: true, connection } — enqueues `accelevents.verify` only |
 
 ## API keys
 | Command | Scope | Input | Output |
@@ -187,6 +190,9 @@ Examples: `speakerops reports readiness --event E --json` → `Reports.Readiness
 | POST | /api/comms/send | Comms.Send |
 | GET | /api/events/:eventId/readiness | Reports.Readiness |
 | GET | /api/events/:eventId/airtable/status | Reports.AirtableStatus |
+| GET | /api/events/:eventId/integrations | Integrations.Status |
+| PUT | /api/events/:eventId/integrations/accelevents | Integrations.SaveAccelevents |
+| POST | /api/events/:eventId/integrations/accelevents/verify | Integrations.VerifyAccelevents |
 | GET | /api/keys | Keys.List |
 | POST | /api/keys | Keys.Create |
 | DELETE | /api/keys/:keyId | Keys.Revoke |

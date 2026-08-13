@@ -29,6 +29,12 @@ export type ProgrammeCommandDeps = {
   listTracks?: (eventId: string) => Promise<
     Array<{ id: string; name: string; color: string | null }>
   >;
+  /** Optional one-way Accelevents enqueue after a successful publish (E7). */
+  enqueueAccelevents?: (input: {
+    eventId: string;
+    version: number;
+    correlationId: string;
+  }) => Promise<void>;
 };
 
 export type CommandOk<T> = { ok: true; value: T };
@@ -207,7 +213,7 @@ export async function getProgrammeStatus(
 
 export async function publishProgramme(
   deps: ProgrammeCommandDeps,
-  input: { eventId: string; userId: string },
+  input: { eventId: string; userId: string; correlationId?: string },
 ): Promise<CommandOk<ProgrammePublishResponse> | CommandErr> {
   const event = await deps.events.findEventById(input.eventId);
   if (!event) {
@@ -247,6 +253,13 @@ export async function publishProgramme(
       error: "Programme was published concurrently — refresh and retry",
       code: "VALIDATION_ERROR",
     };
+  }
+  if (deps.enqueueAccelevents) {
+    await deps.enqueueAccelevents({
+      eventId: input.eventId,
+      version,
+      correlationId: input.correlationId ?? `programme-publish:${input.eventId}:${version}`,
+    });
   }
   return {
     ok: true,

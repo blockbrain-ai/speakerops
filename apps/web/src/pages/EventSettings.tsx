@@ -546,7 +546,7 @@ export function EventSettingsPage() {
       <p className="page-stub__body">
         Create events, edit name/timezone/dates, and manage rooms and tracks.
         Use the settings categories on the left for brand, rubric, tasks, API
-        keys, and Airtable.
+        keys, and Integrations.
       </p>
       {/* P7 settings hub tiles */}
       <section
@@ -642,7 +642,7 @@ export function EventSettingsPage() {
           className="design-kit__link lumen-focusable"
           data-testid="settings-airtable-link"
         >
-          Airtable status
+          Integrations
         </a>
       </nav>
 

@@ -37,6 +37,7 @@ Policy intent (production):
 
 - `default-src 'self'`
 - Turnstile only at `https://challenges.cloudflare.com` (`script-src` / `frame-src` / `connect-src`)
+- Wiki player allowlist (exact embed hosts, not `*`): `https://www.youtube-nocookie.com` and `https://www.google.com` (`frame-src` on all three CSP constants + Vite meta-align + Worker Assets)
 - Google Fonts CSS/font hosts only
 - `frame-ancestors 'none'` + `X-Frame-Options: DENY` (clickjacking)
 - `object-src 'none'`; `upgrade-insecure-requests`

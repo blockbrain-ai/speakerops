@@ -838,7 +838,7 @@ export function FormBuilderPage() {
       <PageHeader
         eyebrow="Call for proposals"
         title="Form builder"
-        description="Guided wizard — one concern per step. Outline, canvas, and inspector on Proposal. Publish freezes an immutable version."
+        description="Checklist jumps to each concern. Outline, canvas, and inspector on Proposal. Publish freezes an immutable version."
         data-testid="form-builder-page-header"
         actions={
           form ? (
@@ -1078,9 +1078,9 @@ export function FormBuilderPage() {
               <aside
                 className="form-builder__wizard-rail"
                 data-testid="form-builder-wizard-rail"
-                aria-label="Build your form"
+                aria-label="Form checklist"
               >
-                <p className="form-builder__wizard-cap">Build your form</p>
+                <p className="form-builder__wizard-cap">Checklist</p>
                 <ol className="form-builder__wizard-steps">
                   {WIZARD_STEPS.map((step, i) => {
                     const done = i < wizardIndex;
@@ -1767,7 +1767,7 @@ export function FormBuilderPage() {
                 >
                   {wizardNext
                     ? `Next: ${wizardNext.label} →`
-                    : "End of wizard"}
+                    : "End of checklist"}
                 </Button>
               </div>
             </footer>

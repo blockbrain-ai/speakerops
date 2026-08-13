@@ -59,10 +59,27 @@
 .admin-shell__nav {
   display: flex;
   flex-direction: column;
-  gap: var(--lumen-space-1);
+  gap: var(--lumen-space-3);
   padding: var(--lumen-space-3) var(--lumen-space-2);
   flex: 1;
   overflow-y: auto;
+}
+
+.admin-shell__nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumen-space-1);
+}
+
+.admin-shell__nav-group-label {
+  margin: 0;
+  padding: var(--lumen-space-1) var(--lumen-space-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lumen-text-secondary);
+  line-height: 1;
 }
 
 .admin-shell__nav-link {

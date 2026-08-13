@@ -39,12 +39,6 @@ export function FilesPage() {
           headers: { accept: "application/json" },
         },
       );
-      if (res.status === 404) {
-        // Endpoint may not exist yet — fail open with guidance.
-        setFiles([]);
-        setError(null);
-        return;
-      }
       if (!res.ok) {
         const raw: unknown = await res.json().catch(() => null);
         const env = ErrorEnvelopeSchema.safeParse(raw);

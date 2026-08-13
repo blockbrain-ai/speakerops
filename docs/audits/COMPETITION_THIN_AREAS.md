@@ -1,7 +1,7 @@
 # Competition thin areas
 
-**Status:** FINAL (v2 — folded UX feedback)  
-**Date:** 2026-08-10  
+**Status:** HISTORICAL (v2) — **do not treat as current product truth**  
+**Date:** 2026-08-10 · **Banner 2026-08-13:** §1 “evaluators score without the proposal” is **false** — `/eval` loads the proposal panel. Accelevents / wiki / embeds are no longer struck (Amendment A1) and have shipped in later waves. Use `docs/COMPETITION.md` §3.  
 **Process:**
 1. Independent draft → Codex review (**REVISE**) → v1 final (4 ops/handoff items) + Codex **AGREE**
 2. Independent reviewer UX feedback (proposal visibility, deliberation, scale UX, form fidelity) folded into this synthesis

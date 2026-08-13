@@ -69,6 +69,7 @@ export function createEventProgrammeRoutes(opts: ProgrammeRouteOptions) {
       const result = await publishProgramme(deps, {
         eventId,
         userId: user.id,
+        correlationId: c.get("correlationId"),
       });
       if (!result.ok) return commandError(c, result);
       return c.json(ProgrammePublishResponseSchema.parse(result.value), 200);

@@ -141,11 +141,9 @@ test("@inv:O06 e2e/settings/airtable-status Airtable projection status read", as
     timeout: 15_000,
   });
 
-  // Select the created event if switcher present
-  const switcher = page.getByTestId("event-context");
-  if (await switcher.isVisible().catch(() => false)) {
-    await switcher.selectOption(eventId);
-  }
+  const switcher = page.locator("select[data-testid='event-context']");
+  await expect(switcher).toBeVisible({ timeout: 15_000 });
+  await switcher.selectOption(eventId);
 
   await page.getByTestId("settings-airtable-link").click();
   await expect(page.getByTestId("airtable-status-page")).toBeVisible({
