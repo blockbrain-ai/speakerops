@@ -33,6 +33,7 @@ import type { EventsStore } from "../events/store.js";
 import type { SubmissionsStore } from "../publicCfp/store.js";
 import type { DecisionsStore } from "../decisions/store.js";
 import { requireRole, requireSession } from "../../middleware/authz.js";
+import { resolveOwnParticipations } from "../portal/commands.js";
 import type { PortalFormsStore } from "./store.js";
 
 function parseFields(json: string): PortalFormField[] {
@@ -271,7 +272,7 @@ export function createPortalFormsSpeakerRoutes(
   options: PortalFormsRouteOptions,
 ): Hono<ApiEnv> {
   const app = new Hono<ApiEnv>();
-  const { store, portalForms, decisions, submissions } = options;
+  const { store, events, portalForms, decisions, submissions } = options;
 
   app.get("/forms", requireSession(store), async (c) => {
     const eventId = c.req.query("eventId")?.trim();
@@ -286,7 +287,10 @@ export function createPortalFormsSpeakerRoutes(
       return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
     }
     const membership = await store.findMembership(eventId, user.id);
-    if (!membership || membership.role !== "speaker") {
+    if (!membership) {
+      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+    }
+    if (membership.role !== "speaker") {
       return c.json(errorEnvelope("Speaker membership required", FORBIDDEN), 403);
     }
     const rows = await portalForms.listForms(eventId);
@@ -322,30 +326,28 @@ export function createPortalFormsSpeakerRoutes(
     const eventId = part.eventId;
 
     const membership = await store.findMembership(eventId, user.id);
-    if (
-      !membership ||
-      (membership.role !== "speaker" && membership.role !== "admin")
-    ) {
+    if (!membership) {
+      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+    }
+    if (membership.role !== "speaker" && membership.role !== "admin") {
       return c.json(errorEnvelope("Insufficient role", FORBIDDEN), 403);
     }
 
     if (membership.role === "speaker") {
-      const person = await submissions.findPersonById(part.personId);
-      const email =
-        person && "email" in person && typeof person.email === "string"
-          ? person.email
-          : null;
-      if (
-        !email ||
-        email.toLowerCase() !== user.email.toLowerCase()
-      ) {
-        // Also allow if participation is linked to userId
-        if (part.userId !== user.id) {
-          return c.json(
-            errorEnvelope("You do not own this participation", FORBIDDEN),
-            403,
-          );
-        }
+      const own = await resolveOwnParticipations(
+        { decisions, events, auth: store, submissions },
+        {
+          eventId,
+          userId: user.id,
+          userEmail: user.email,
+          correlationId: c.get("correlationId"),
+        },
+      );
+      if (!own.some((p) => p.id === participationId)) {
+        return c.json(
+          errorEnvelope("You do not own this participation", FORBIDDEN),
+          403,
+        );
       }
     }
 

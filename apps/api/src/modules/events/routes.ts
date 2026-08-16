@@ -30,6 +30,7 @@ import {
   NOT_FOUND,
   CONFLICT,
   FORBIDDEN,
+  DEFAULT_ORG_ID,
   type ErrorCode,
 } from "@speakerops/shared";
 import type { ApiEnv } from "../../env.js";
@@ -224,9 +225,58 @@ export function createEventsRoutes(options: EventsRouteOptions): Hono<ApiEnv> {
 
       // Org-scoped Bearer: constrain orgId to the key's organization (E2).
       // Ignore/override body.orgId so a key cannot mint events in another org.
-      const body = apiKey
-        ? { ...parsed.data, orgId: apiKey.orgId }
-        : parsed.data;
+      // Session: pin to orgs the caller already administers. Bootstrap
+      // membership on evt_dogfood (no event row) implies DEFAULT_ORG_ID.
+      let body = parsed.data;
+      if (apiKey) {
+        body = { ...parsed.data, orgId: apiKey.orgId };
+      } else {
+        const memberships = await store.listMembershipsForUser(actor.userId);
+        const adminEventIds = memberships
+          .filter((m) => m.role === "admin")
+          .map((m) => m.eventId);
+        const adminOrgs = new Set<string>();
+        if (adminEventIds.length > 0) {
+          const rows = await eventsStore.listEventsByIds(adminEventIds);
+          for (const r of rows) adminOrgs.add(r.orgId);
+        }
+        const hasAdminMembership = memberships.some((m) => m.role === "admin");
+        // Bootstrap / test fixtures often grant admin on an event id that
+        // has no events row yet (evt_dogfood, seed_*). Treat that as the
+        // default org so first Event.Create still works.
+        if (hasAdminMembership && adminOrgs.size === 0) {
+          adminOrgs.add(DEFAULT_ORG_ID);
+        }
+        if (adminOrgs.size === 0) {
+          return c.json(
+            errorEnvelope("Insufficient authorization to create events", FORBIDDEN),
+            403,
+          );
+        }
+        const requested = parsed.data.orgId?.trim();
+        if (requested) {
+          if (!adminOrgs.has(requested)) {
+            return c.json(
+              errorEnvelope("Cannot create event in another organization", FORBIDDEN, {
+                orgId: requested,
+              }),
+              403,
+            );
+          }
+          body = { ...parsed.data, orgId: requested };
+        } else if (adminOrgs.size === 1) {
+          body = { ...parsed.data, orgId: [...adminOrgs][0] };
+        } else {
+          return c.json(
+            errorEnvelope(
+              "orgId is required when administering multiple organizations",
+              VALIDATION_ERROR,
+              { adminOrgIds: [...adminOrgs] },
+            ),
+            400,
+          );
+        }
+      }
 
       const result = await createEvent(deps, {
         ...body,

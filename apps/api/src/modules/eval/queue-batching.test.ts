@@ -33,6 +33,7 @@ async function seedQueue(opts: {
   evalStore: MemoryEvalStore;
   submissions: MemorySubmissionsStore;
   events: MemoryEventsStore;
+  auth: MemoryAuthStore;
   assignmentCount: number;
 }): Promise<{ eventId: string; evaluatorUserId: string }> {
   const now = "2026-06-01T12:00:00.000Z";
@@ -49,6 +50,11 @@ async function seedQueue(opts: {
     createdAt: now,
     updatedAt: now,
     version: 1,
+  });
+  await opts.auth.upsertMembership({
+    eventId: event.id,
+    userId: evaluatorUserId,
+    role: "evaluator",
   });
   await opts.evalStore.insertRound({
     id: "round_1",
@@ -114,10 +120,12 @@ describe("3.4 getEvalQueue batching", () => {
     const evalStore = new MemoryEvalStore();
     const submissions = new MemorySubmissionsStore();
     const events = new MemoryEventsStore();
+    const auth = new MemoryAuthStore();
     const { evaluatorUserId } = await seedQueue({
       evalStore,
       submissions,
       events,
+      auth,
       assignmentCount: 6,
     });
 
@@ -126,7 +134,7 @@ describe("3.4 getEvalQueue batching", () => {
         eval: evalStore,
         submissions,
         events,
-        auth: new MemoryAuthStore(),
+        auth,
       },
       evaluatorUserId,
     );
@@ -155,10 +163,12 @@ describe("3.4 getEvalQueue batching", () => {
     const evalStore = new MemoryEvalStore();
     const submissions = new MemorySubmissionsStore();
     const events = new MemoryEventsStore();
+    const auth = new MemoryAuthStore();
     const { evaluatorUserId } = await seedQueue({
       evalStore,
       submissions,
       events,
+      auth,
       assignmentCount: 40,
     });
 
@@ -167,7 +177,7 @@ describe("3.4 getEvalQueue batching", () => {
       eval: counting(evalStore, counts),
       submissions: counting(submissions, counts),
       events: counting(events, counts),
-      auth: new MemoryAuthStore(),
+      auth: counting(auth, counts),
     };
 
     const result = await getEvalQueue(deps, evaluatorUserId);
@@ -192,22 +202,24 @@ describe("3.4 getEvalQueue batching", () => {
     const evalStore = new MemoryEvalStore();
     const submissions = new MemorySubmissionsStore();
     const events = new MemoryEventsStore();
+    const auth = new MemoryAuthStore();
     const { eventId, evaluatorUserId } = await seedQueue({
       evalStore,
       submissions,
       events,
+      auth,
       assignmentCount: 4,
     });
 
     const scoped = await getEvalQueue(
-      { eval: evalStore, submissions, events, auth: new MemoryAuthStore() },
+      { eval: evalStore, submissions, events, auth },
       evaluatorUserId,
       { eventId },
     );
     expect(scoped.value.items).toHaveLength(4);
 
     const other = await getEvalQueue(
-      { eval: evalStore, submissions, events, auth: new MemoryAuthStore() },
+      { eval: evalStore, submissions, events, auth },
       evaluatorUserId,
       { eventId: "evt_other" },
     );

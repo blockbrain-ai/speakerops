@@ -72,6 +72,36 @@ export type CommandErr = {
   details?: unknown;
 };
 
+/**
+ * Current evaluator|admin membership on the assignment's event.
+ * Missing membership → 404 (no existence leak). Wrong role → 403.
+ */
+export async function assertCurrentEvalAccess(
+  auth: AuthStore,
+  userId: string,
+  eventId: string,
+): Promise<CommandErr | null> {
+  const membership = await auth.findMembership(eventId, userId);
+  if (!membership) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Assignment not found",
+      code: "NOT_FOUND",
+    };
+  }
+  if (membership.role !== "evaluator" && membership.role !== "admin") {
+    return {
+      ok: false,
+      status: 403,
+      error: "Insufficient role",
+      code: "FORBIDDEN",
+      details: { required: ["evaluator", "admin"], role: membership.role },
+    };
+  }
+  return null;
+}
+
 function asRoundStatus(status: string): EvalRoundStatus {
   return status === "closed" ? "closed" : "open";
 }
@@ -454,6 +484,13 @@ export async function scoreAssignment(
     };
   }
 
+  const access = await assertCurrentEvalAccess(
+    deps.auth,
+    input.actorUserId,
+    round.eventId,
+  );
+  if (access) return access;
+
   // Deadline enforcement: closed rounds accept no further scores (409).
   if (isEvalRoundClosed(round)) {
     return roundClosedError(round);
@@ -607,6 +644,13 @@ export async function abstainAssignment(
       code: "NOT_FOUND",
     };
   }
+
+  const access = await assertCurrentEvalAccess(
+    deps.auth,
+    input.actorUserId,
+    round.eventId,
+  );
+  if (access) return access;
 
   if (isEvalRoundClosed(round)) {
     return roundClosedError(round);
@@ -1284,12 +1328,20 @@ export async function getEvalQueue(
     }),
   );
 
+  const memberships = await deps.auth.listMembershipsForUser(evaluatorUserId);
+  const allowedEventIds = new Set(
+    memberships
+      .filter((m) => m.role === "evaluator" || m.role === "admin")
+      .map((m) => m.eventId),
+  );
+
   for (const a of assignments) {
     const submission = submissionById.get(a.submissionId);
     if (!submission) continue;
     if (filterEventId && submission.eventId !== filterEventId) continue;
     const round = roundById.get(a.roundId);
     if (!round) continue;
+    if (!allowedEventIds.has(round.eventId)) continue;
     if (filterEventId && round.eventId !== filterEventId) continue;
     const event = eventById.get(round.eventId);
     if (!event) continue;
@@ -1353,6 +1405,22 @@ export async function getEvalAssignmentProposal(
     };
   }
 
+  const round = await deps.eval.findRoundById(assignment.roundId);
+  if (!round) {
+    return {
+      ok: false,
+      status: 404,
+      error: "Assignment not found",
+      code: "NOT_FOUND",
+    };
+  }
+  const access = await assertCurrentEvalAccess(
+    deps.auth,
+    evaluatorUserId,
+    round.eventId,
+  );
+  if (access) return access;
+
   const submission = await deps.submissions.findSubmissionById(
     assignment.submissionId,
   );
@@ -1406,8 +1474,7 @@ export async function getEvalAssignmentProposal(
 
   // Wave 1B: when the round hides speaker identities, the roster is omitted
   // from the DTO entirely — the names/emails never leave the server (not CSS).
-  const round = await deps.eval.findRoundById(assignment.roundId);
-  const hideSpeakers = round?.hideSpeakers === true;
+  const hideSpeakers = round.hideSpeakers === true;
 
   const submissionDto = {
     id: submission.id,

@@ -13,6 +13,7 @@ import {
   CFP_MAX_SPEAKERS,
   CFP_FILE_MIME_ALLOWLIST,
   CFP_FILE_MAX_BYTES,
+  invalidFileSignature,
   deriveCategoryFromRules,
   isFieldVisible,
   isInputNode,
@@ -1009,6 +1010,16 @@ export async function uploadCfpFile(
       error: "Declared size does not match content",
       code: "VALIDATION_ERROR",
       details: { declared: input.size, actual: bytes.byteLength },
+    };
+  }
+  const sigErr = invalidFileSignature(bytes, mime);
+  if (sigErr) {
+    return {
+      ok: false,
+      status: 400,
+      error: sigErr,
+      code: "VALIDATION_ERROR",
+      details: { mime },
     };
   }
   if (bytes.byteLength > CFP_FILE_MAX_BYTES) {

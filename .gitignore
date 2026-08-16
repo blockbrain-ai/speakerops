@@ -39,6 +39,7 @@ reports/playwright-run.json
 # reports/e2e-coverage.html is the section 8.5 offline keystone (committed)
 reports/e2e-report-path.txt
 .wrangler-dogfood-override.toml
+.wrangler-demo.local.toml
 
 # Local operator scratch (never commit — may hold magic-link tokens)
 DOGFOOD_FULL_LOGIN.md

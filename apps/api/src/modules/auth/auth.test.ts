@@ -195,6 +195,54 @@ describe("2.1 session auth magic link", () => {
     expect(err.code).toBe(UNAUTHORIZED);
   });
 
+  it("re-issue invalidates the unused prior magic link", async () => {
+    const { app, outbox } = createAppWithAuth();
+    const email = "reissue@example.com";
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, purpose: "speaker" }),
+      },
+      env,
+    );
+    const firstToken = outbox.lastForEmail(email)!.token;
+    await app.request(
+      "http://localhost/api/auth/magic-link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, purpose: "speaker" }),
+      },
+      env,
+    );
+    const secondToken = outbox.lastForEmail(email)!.token;
+    expect(secondToken).not.toBe(firstToken);
+
+    const stale = await app.request(
+      "http://localhost/api/auth/exchange",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: firstToken }),
+      },
+      env,
+    );
+    expect(stale.status).toBe(401);
+
+    const fresh = await app.request(
+      "http://localhost/api/auth/exchange",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: secondToken }),
+      },
+      env,
+    );
+    expect(fresh.status).toBe(200);
+  });
+
   it("assert Set-Cookie contains HttpOnly", async () => {
     const { app, outbox } = createAppWithAuth({ cookieSecure: true });
     const email = "cookie@example.com";

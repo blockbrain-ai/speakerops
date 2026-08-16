@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HexColorSchema } from "./design.js";
 
 /**
  * Event settings DTOs (section 2.3).
@@ -148,7 +149,7 @@ export type TrackDto = z.infer<typeof TrackSchema>;
 /** Track.Upsert body — PUT /api/events/:eventId/tracks/:trackId */
 export const TrackUpsertBodySchema = z.object({
   name: z.string().min(1).max(200),
-  color: z.string().max(32).nullable().optional(),
+  color: HexColorSchema.nullable().optional(),
   expectedVersion: z.number().int().positive().optional(),
 });
 export type TrackUpsertBody = z.infer<typeof TrackUpsertBodySchema>;

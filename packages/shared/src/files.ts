@@ -4,6 +4,7 @@ import {
   FILE_UPLOAD_MAX_BYTES,
   FILE_PRESIGN_TTL_MS,
   LOGO_MIME_ALLOWLIST,
+  SafeUploadFilenameSchema,
 } from "./design.js";
 
 /**
@@ -75,6 +76,67 @@ export function isBlockedUploadMime(mime: string): boolean {
   return (BLOCKED_UPLOAD_MIMES as readonly string[]).includes(m);
 }
 
+/** Full PNG signature (89 50 4E 47 0D 0A 1A 0A). */
+const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
+
+/**
+ * Magic-byte check for declared image/pdf bodies (CFP + authenticated upload).
+ * Returns an error string when the payload does not match `mime`; null if ok
+ * or when `mime` is not a signed type we know how to verify.
+ */
+export function invalidFileSignature(
+  bytes: Uint8Array,
+  mime: string,
+): string | null {
+  const m = mime.trim().toLowerCase();
+  if (m === "image/png") {
+    if (
+      bytes.length < PNG_SIG.length ||
+      PNG_SIG.some((b, i) => bytes[i] !== b)
+    ) {
+      return "PNG body signature invalid";
+    }
+    return null;
+  }
+  if (m === "image/jpeg") {
+    if (
+      bytes.length < 3 ||
+      bytes[0] !== 0xff ||
+      bytes[1] !== 0xd8 ||
+      bytes[2] !== 0xff
+    ) {
+      return "JPEG body signature invalid";
+    }
+    return null;
+  }
+  if (m === "application/pdf") {
+    if (
+      bytes.length < 4 ||
+      bytes[0] !== 0x25 ||
+      bytes[1] !== 0x50 ||
+      bytes[2] !== 0x44 ||
+      bytes[3] !== 0x46
+    ) {
+      return "PDF body signature invalid";
+    }
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Safe Content-Disposition filename token. Hostile CR/LF/" / \\ become
+ * `file`; empty after strip also falls back.
+ */
+export function sanitizeContentDispositionFilename(raw: string): string {
+  const cleaned = raw
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^\.+/, "")
+    .replace(/^_+|_+$/g, "");
+  if (!cleaned || cleaned === "." || cleaned === "..") return "file";
+  return cleaned.slice(0, 180);
+}
+
 /**
  * File.CompleteUpload body — POST /api/files/:fileId/complete
  * Sets content checksum; optional filename for I16 field-flow.
@@ -85,7 +147,7 @@ export const FileCompleteBodySchema = z.object({
   /** Optional event scope hint (validated against file row when present). */
   eventId: z.string().min(1).optional(),
   /** Optional final filename (portal I16: CompleteUpload → file_assets.filename). */
-  filename: z.string().min(1).max(255).optional(),
+  filename: SafeUploadFilenameSchema.optional(),
 });
 export type FileCompleteBody = z.infer<typeof FileCompleteBodySchema>;
 

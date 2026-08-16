@@ -1256,6 +1256,103 @@ describe("3.4 evaluation scoring", () => {
     expect(unauth.status).toBe(401);
   });
 
+  it("demoted evaluator cannot read proposal or abstain", async () => {
+    const shared = createAppWithAuth({ cookieSecure: true });
+    const admin = await magicLinkSession(
+      "admin",
+      "eval-admin-demote@example.com",
+      undefined,
+      shared,
+    );
+    const event = await createEvent(admin.app, admin.cookie, "Demote Event");
+    const evaluator = await magicLinkSession(
+      "evaluator",
+      "eval-demote-owner@example.com",
+      event.id,
+      shared,
+    );
+
+    await admin.app.request(
+      `http://localhost/api/events/${event.id}/eval/rubric`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({
+          criteria: [{ name: "Clarity", maxScore: 5, weight: 1 }],
+        }),
+      },
+      env,
+    );
+    const submissionId = await publishAndSubmit(
+      admin.app,
+      admin.cookie,
+      event.id,
+      event.slug,
+      "Demote Talk",
+    );
+    const assign = await admin.app.request(
+      `http://localhost/api/submissions/${submissionId}/assign`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ userIds: [evaluator.userId] }),
+      },
+      env,
+    );
+    expect(assign.status).toBe(200);
+    const assignmentId = SubmissionAssignResponseSchema.parse(
+      await assign.json(),
+    ).assignments[0]!.id;
+
+    // Mark scored so demotion is allowed (pending-assignment guard).
+    await shared.eval.updateAssignment(assignmentId, {
+      status: "scored",
+      updatedAt: new Date().toISOString(),
+    });
+
+    const demote = await admin.app.request(
+      `http://localhost/api/events/${event.id}/members/${evaluator.userId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: admin.cookie,
+        },
+        body: JSON.stringify({ role: "speaker" }),
+      },
+      env,
+    );
+    expect(demote.status).toBe(200);
+
+    const proposal = await admin.app.request(
+      `http://localhost/api/me/eval-assignments/${assignmentId}/proposal`,
+      { method: "GET", headers: { cookie: evaluator.cookie } },
+      env,
+    );
+    // Still a member (speaker) — wrong-role is 403, not a 404 leak.
+    expect(proposal.status).toBe(403);
+
+    const abstain = await admin.app.request(
+      `http://localhost/api/me/eval-assignments/${assignmentId}/abstain`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: evaluator.cookie,
+        },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    expect(abstain.status).toBe(403);
+  });
+
   it("thin-area: peer reviews reveal-after-submit only", async () => {
     const shared = createAppWithAuth({ cookieSecure: true });
     const admin = await magicLinkSession(

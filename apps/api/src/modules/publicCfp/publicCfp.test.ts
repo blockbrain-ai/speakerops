@@ -648,6 +648,37 @@ describe("3.3 public CFP submit", () => {
     expect(fileBody.mime).toBe("application/pdf");
   });
 
+  it("file upload rejects HTML bytes declared as PNG", async () => {
+    const { app, cookie } = await magicLinkSession("admin-spoof@example.com");
+    const event = await createEvent(app, cookie, "Spoof Event", "spoof-evt");
+    const { formVersionId } = await publishOpenForm(app, cookie, event.id, {
+      fields: [...openFields, FILE_FIELD],
+    });
+    const html = "<html><script>1</script></html>";
+    const spoof = await app.request(
+      `http://localhost/api/public/cfp/${event.slug}/files`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": "corr-file-spoof",
+        },
+        body: JSON.stringify({
+          formVersionId,
+          fieldKey: "supporting_file",
+          filename: "not-a-png.png",
+          mime: "image/png",
+          size: html.length,
+          contentBase64: btoa(html),
+        }),
+      },
+      env,
+    );
+    expect(spoof.status).toBe(400);
+    const err = ErrorEnvelopeSchema.parse(await spoof.json());
+    expect(err.code).toBe(VALIDATION_ERROR);
+  });
+
   it("upload is rejected when the pinned form has no file field or no pin", async () => {
     const { app, cookie } = await magicLinkSession("admin-nofile@example.com");
     const event = await createEvent(app, cookie, "No File Event", "nofile-evt");

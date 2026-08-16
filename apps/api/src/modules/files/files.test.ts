@@ -769,6 +769,54 @@ describe("4.2 R2 file uploads", () => {
     expect(after.r2Key).toBeTruthy();
   });
 
+  it("private File.Get is no-store; PDF is attachment", async () => {
+    const { app, cookie, decisions } = await magicLinkSession(
+      "admin",
+      "admin-getcache@example.com",
+    );
+    const { id: eventId } = await createEvent(app, cookie, "Get Cache");
+    const partId = await seedParticipation(decisions, eventId);
+
+    const presign = await app.request(
+      "http://localhost/api/files/presign",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+          "x-correlation-id": "corr-get-presign",
+        },
+        body: JSON.stringify({
+          eventId,
+          ownerParticipationId: partId,
+          purpose: "slides",
+          mime: "application/pdf",
+          size: MINI_PDF.byteLength,
+          filename: "deck.pdf",
+        }),
+      },
+      env,
+    );
+    expect(presign.status).toBe(200);
+    const p = FilePresignResponseSchema.parse(await presign.json());
+    const upload = await app.request(`http://localhost${p.url}`, {
+      method: "PUT",
+      headers: { "content-type": "application/pdf", cookie },
+      body: MINI_PDF,
+    }, env);
+    expect(upload.status).toBe(200);
+
+    const get = await app.request(`http://localhost/api/files/${p.fileId}`, {
+      headers: { cookie },
+    }, env);
+    expect(get.status).toBe(200);
+    expect(get.headers.get("cache-control")).toBe("no-store");
+    const disp = get.headers.get("content-disposition") ?? "";
+    expect(disp.startsWith("attachment;")).toBe(true);
+    expect(disp).not.toMatch(/[\r\n]/);
+    expect(disp).not.toContain('"x.pdf');
+  });
+
   it("size over 10 MiB rejected at Zod boundary", async () => {
     const { app, cookie, decisions } = await magicLinkSession(
       "admin",

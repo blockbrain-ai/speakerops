@@ -312,7 +312,7 @@ export function createPortalLibraryRoutes(
     }
     const membership = await store.findMembership(eventId, user.id);
     if (!membership) {
-      return c.json(errorEnvelope("Not a member of this event", FORBIDDEN), 403);
+      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
     }
     const rows = await resources.listResources(eventId);
     return c.json(
@@ -340,7 +340,10 @@ export function createPortalLibraryRoutes(
       return c.json(errorEnvelope("Authentication required", "UNAUTHORIZED"), 401);
     }
     const membership = await store.findMembership(eventId, user.id);
-    if (!membership || membership.role !== "speaker") {
+    if (!membership) {
+      return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+    }
+    if (membership.role !== "speaker") {
       return c.json(
         errorEnvelope("Speaker membership required", FORBIDDEN),
         403,
@@ -446,7 +449,10 @@ export function createPortalLibraryRoutes(
       }
       const { eventId, participationId, fileId } = parsed.data;
       const membership = await store.findMembership(eventId, user.id);
-      if (!membership || membership.role !== "speaker") {
+      if (!membership) {
+        return c.json(errorEnvelope("Not found", NOT_FOUND), 404);
+      }
+      if (membership.role !== "speaker") {
         return c.json(
           errorEnvelope("Speaker membership required", FORBIDDEN),
           403,

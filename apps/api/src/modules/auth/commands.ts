@@ -315,6 +315,13 @@ export async function requestMagicLink(
     usedAt: null,
     createdAt,
   });
+  await deps.store.invalidateOtherUnusedMagicLinks({
+    userId: user.id,
+    excludeId: magicId,
+    purpose,
+    eventId: linkEventId,
+    nowIso: createdAt,
+  });
 
   // Membership grants only when purpose was explicitly supplied (or first-admin bootstrap).
   // - open + purpose: purpose → role upsert (e2e dogfood / test-only open policy)
@@ -471,6 +478,13 @@ export async function issueProgramInviteMagicLink(
     expiresAt: expiresAtMinutesFromNow(MAGIC_LINK_TTL_MINUTES, now),
     usedAt: null,
     createdAt,
+  });
+  await deps.store.invalidateOtherUnusedMagicLinks({
+    userId: input.userId,
+    excludeId: magicId,
+    purpose,
+    eventId: input.eventId,
+    nowIso: createdAt,
   });
 
   deps.outbox.capture({

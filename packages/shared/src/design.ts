@@ -107,6 +107,14 @@ export const FILE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 /** Presign URL lifetime; File.Upload rejects after created_at + this TTL. */
 export const FILE_PRESIGN_TTL_MS = 15 * 60 * 1000;
 
+/** Upload filename: letters, digits, dot, underscore, hyphen only. */
+export const SAFE_UPLOAD_FILENAME_RE = /^[A-Za-z0-9._-]{1,255}$/;
+export const SafeUploadFilenameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(SAFE_UPLOAD_FILENAME_RE, "filename must be letters, digits, dot, underscore, or hyphen");
+
 /** File.PresignUpload body — POST /api/files/presign */
 export const FilePresignBodySchema = z
   .object({
@@ -114,7 +122,7 @@ export const FilePresignBodySchema = z
     purpose: FilePurposeSchema,
     mime: z.string().min(1).max(128),
     size: z.number().int().positive().max(FILE_UPLOAD_MAX_BYTES),
-    filename: z.string().min(1).max(255).optional(),
+    filename: SafeUploadFilenameSchema.optional(),
     /**
      * Required for purpose=headshot|slides — binds file_assets.owner_participation_id
      * so Speakers.Get / CompleteUpload can enforce same-speaker ownership.

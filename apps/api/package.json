@@ -21,7 +21,7 @@
   "dependencies": {
     "@speakerops/db": "workspace:*",
     "@speakerops/shared": "workspace:*",
-    "drizzle-orm": "^0.44.2",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.5.0",
     "zod": "^3.23.8"
   },

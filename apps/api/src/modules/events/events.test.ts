@@ -703,7 +703,6 @@ describe("2.3 event settings same-store isolation", () => {
     }
 
     const cookieA = await session("events-org-a2@example.com");
-    const cookieB = await session("events-org-b2@example.com");
 
     const createA = await app.request(
       "http://localhost/api/events",
@@ -717,23 +716,38 @@ describe("2.3 event settings same-store isolation", () => {
     expect(createA.status).toBe(201);
     const eventA = EventResponseSchema.parse(await createA.json()).event;
 
-    const createB = await app.request(
+    const now = new Date().toISOString();
+    await events.ensureOrg({ id: "org_other", name: "Other Org" });
+    const eventB = await events.insertEvent({
+      id: "evt_org_other_iso",
+      orgId: "org_other",
+      name: "Org B Event",
+      slug: "org-b-event",
+      timezone: "UTC",
+      startsAt: null,
+      endsAt: null,
+      settingsJson: null,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    });
+    expect(eventB.orgId).toBe("org_other");
+    expect(eventA.orgId).not.toBe(eventB.orgId);
+
+    const foreign = await app.request(
       "http://localhost/api/events",
       {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: cookieB },
+        headers: { "content-type": "application/json", cookie: cookieA },
         body: JSON.stringify({
-          name: "Org B Event",
+          name: "Should Fail",
           timezone: "UTC",
           orgId: "org_other",
         }),
       },
       env,
     );
-    expect(createB.status).toBe(201);
-    const eventB = EventResponseSchema.parse(await createB.json()).event;
-    expect(eventB.orgId).toBe("org_other");
-    expect(eventA.orgId).not.toBe(eventB.orgId);
+    expect(foreign.status).toBe(403);
 
     // Seed true org-scoped (unscoped) key for default org with events:read
     const { hashToken } = await import("../auth/crypto.js");

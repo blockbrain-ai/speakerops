@@ -17,6 +17,7 @@ import {
   softTintFromBrand,
   mimeAllowlistForPurpose,
   isBlockedUploadMime,
+  invalidFileSignature,
   VIRUS_SCAN_UNSCANNED,
   type DesignTokens,
   type DesignSetDraftBody,
@@ -704,50 +705,23 @@ export async function uploadFileBytes(
 
   // Magic-byte checks for known purposes (defense in depth against content-type spoof)
   const bytes = new Uint8Array(input.body);
-  if (storeMime === "image/png" || purpose === "logo") {
-    const isPng =
-      bytes.length >= 8 &&
-      bytes[0] === 0x89 &&
-      bytes[1] === 0x50 &&
-      bytes[2] === 0x4e &&
-      bytes[3] === 0x47;
-    if (!isPng) {
+  if (purpose === "logo") {
+    const sigErr = invalidFileSignature(bytes, "image/png");
+    if (sigErr) {
       return {
         ok: false,
         status: 400,
-        error:
-          purpose === "logo"
-            ? "Logo body must be a PNG image"
-            : "PNG body signature invalid",
+        error: "Logo body must be a PNG image",
         code: "VALIDATION_ERROR",
       };
     }
-  } else if (storeMime === "image/jpeg") {
-    const isJpeg =
-      bytes.length >= 3 &&
-      bytes[0] === 0xff &&
-      bytes[1] === 0xd8 &&
-      bytes[2] === 0xff;
-    if (!isJpeg) {
+  } else {
+    const sigErr = invalidFileSignature(bytes, storeMime);
+    if (sigErr) {
       return {
         ok: false,
         status: 400,
-        error: "JPEG body signature invalid",
-        code: "VALIDATION_ERROR",
-      };
-    }
-  } else if (storeMime === "application/pdf") {
-    const isPdf =
-      bytes.length >= 4 &&
-      bytes[0] === 0x25 &&
-      bytes[1] === 0x50 &&
-      bytes[2] === 0x44 &&
-      bytes[3] === 0x46;
-    if (!isPdf) {
-      return {
-        ok: false,
-        status: 400,
-        error: "PDF body signature invalid",
+        error: sigErr,
         code: "VALIDATION_ERROR",
       };
     }

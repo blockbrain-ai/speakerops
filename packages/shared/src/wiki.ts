@@ -14,7 +14,16 @@ export type WikiBlock =
   | { type: "pre"; text: string }
   | { type: "embed"; src: string; provider: "youtube" | "maps" };
 
-const YT_WATCH = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/i;
+const YT_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "youtu.be",
+  "www.youtu.be",
+  "www.youtube-nocookie.com",
+  "youtube-nocookie.com",
+]);
+const YT_ID = /^[A-Za-z0-9_-]{6,}$/;
 const MAPS_EMBED = /^https:\/\/www\.google\.com\/maps\/embed(\?|\/)/i;
 
 export function isHttpsHttpUrl(raw: string): URL | null {
@@ -33,12 +42,22 @@ export function wikiEmbedSrc(
 ): { src: string; provider: "youtube" | "maps" } | null {
   const u = isHttpsHttpUrl(raw);
   if (!u) return null;
-  const yt = raw.match(YT_WATCH);
-  if (yt) {
-    return {
-      src: `https://www.youtube-nocookie.com/embed/${yt[1]}`,
-      provider: "youtube",
-    };
+  const host = u.hostname.toLowerCase();
+  if (YT_HOSTS.has(host)) {
+    let id = "";
+    if (host === "youtu.be" || host === "www.youtu.be") {
+      id = u.pathname.split("/").filter(Boolean)[0] ?? "";
+    } else if (u.pathname.includes("/embed/")) {
+      id = u.pathname.split("/embed/")[1]?.split("/")[0] ?? "";
+    } else {
+      id = u.searchParams.get("v") ?? "";
+    }
+    if (YT_ID.test(id)) {
+      return {
+        src: `https://www.youtube-nocookie.com/embed/${id}`,
+        provider: "youtube",
+      };
+    }
   }
   if (MAPS_EMBED.test(u.href) || u.hostname === "www.google.com" && u.pathname.startsWith("/maps/embed")) {
     return { src: u.href, provider: "maps" };

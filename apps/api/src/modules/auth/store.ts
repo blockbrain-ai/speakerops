@@ -7,7 +7,7 @@
  *
  * Tokens are stored only as hashes — callers must hash before insert.
  */
-import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
+import { eq, and, inArray, isNull, ne, sql, desc } from "drizzle-orm";
 import { uuidv7 } from "@speakerops/shared";
 import type { EventRole, MagicLinkPurpose } from "@speakerops/shared";
 import {
@@ -101,6 +101,17 @@ export type AuthStore = {
    * Returns true when this caller won the consume (gates session issuance).
    */
   consumeMagicLink(id: string, usedAt: string): Promise<boolean>;
+  /**
+   * Mark unused sibling magic links used (same user + purpose + event).
+   * `excludeId` is the newly issued row and must stay unused.
+   */
+  invalidateOtherUnusedMagicLinks(input: {
+    userId: string;
+    excludeId: string;
+    purpose: MagicLinkPurpose;
+    eventId: string | null;
+    nowIso: string;
+  }): Promise<number>;
   insertSession(row: SessionRow): Promise<SessionRow>;
   findSessionByTokenHash(tokenHash: string): Promise<SessionRow | null>;
   deleteSessionByTokenHash(tokenHash: string): Promise<boolean>;
@@ -243,6 +254,26 @@ export class MemoryAuthStore implements AuthStore {
     if (!row || row.usedAt) return false;
     this.magicLinks.set(id, { ...row, usedAt });
     return true;
+  }
+
+  async invalidateOtherUnusedMagicLinks(input: {
+    userId: string;
+    excludeId: string;
+    purpose: MagicLinkPurpose;
+    eventId: string | null;
+    nowIso: string;
+  }): Promise<number> {
+    let n = 0;
+    for (const row of this.magicLinks.values()) {
+      if (row.id === input.excludeId) continue;
+      if (row.userId !== input.userId) continue;
+      if (row.purpose !== input.purpose) continue;
+      if ((row.eventId ?? null) !== input.eventId) continue;
+      if (row.usedAt) continue;
+      this.magicLinks.set(row.id, { ...row, usedAt: input.nowIso });
+      n += 1;
+    }
+    return n;
   }
 
   async insertSession(row: SessionRow): Promise<SessionRow> {
@@ -565,6 +596,32 @@ export class D1AuthStore implements AuthStore {
       .where(and(eq(magicLinks.id, id), isNull(magicLinks.usedAt)));
     const changes = d1Changes(result);
     return changes > 0;
+  }
+
+  async invalidateOtherUnusedMagicLinks(input: {
+    userId: string;
+    excludeId: string;
+    purpose: MagicLinkPurpose;
+    eventId: string | null;
+    nowIso: string;
+  }): Promise<number> {
+    const eventMatch =
+      input.eventId === null
+        ? isNull(magicLinks.eventId)
+        : eq(magicLinks.eventId, input.eventId);
+    const result = await this.db
+      .update(magicLinks)
+      .set({ usedAt: input.nowIso })
+      .where(
+        and(
+          eq(magicLinks.userId, input.userId),
+          eq(magicLinks.purpose, input.purpose),
+          eventMatch,
+          isNull(magicLinks.usedAt),
+          ne(magicLinks.id, input.excludeId),
+        ),
+      );
+    return d1Changes(result);
   }
 
   async insertSession(row: SessionRow): Promise<SessionRow> {

@@ -19,6 +19,7 @@ import {
   FileCompleteBodySchema,
   FileCompleteResponseSchema,
   FILE_UPLOAD_MAX_BYTES,
+  sanitizeContentDispositionFilename,
   errorEnvelope,
   VALIDATION_ERROR,
   INTERNAL_ERROR,
@@ -631,13 +632,16 @@ export function createFileRoutes(options: FileRouteOptions): Hono<ApiEnv> {
       return commandError(c, result);
     }
     const { bytes, mime, filename } = result.value;
+    const safeName = sanitizeContentDispositionFilename(filename);
+    const asAttachment =
+      purpose === "other" || mime.trim().toLowerCase() === "application/pdf";
 
     return new Response(bytes, {
       status: 200,
       headers: {
         "content-type": mime,
-        "content-disposition": `inline; filename="${filename.replace(/"/g, "")}"`,
-        "cache-control": "private, max-age=300",
+        "content-disposition": `${asAttachment ? "attachment" : "inline"}; filename="${safeName}"`,
+        "cache-control": "no-store",
       },
     });
   });

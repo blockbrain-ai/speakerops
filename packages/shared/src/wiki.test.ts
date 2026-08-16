@@ -8,6 +8,12 @@ describe("wikiEmbedSrc", () => {
     expect(e?.provider).toBe("youtube");
   });
 
+  it("rejects youtube.com substring on a foreign host", () => {
+    expect(
+      wikiEmbedSrc("https://evil.example/youtube.com/embed/dQw4w9WgXcQ"),
+    ).toBeNull();
+  });
+
   it("rejects javascript: and http", () => {
     expect(wikiEmbedSrc("javascript:alert(1)")).toBeNull();
     expect(wikiEmbedSrc("http://evil.example/x")).toBeNull();

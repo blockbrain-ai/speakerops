@@ -37,6 +37,13 @@ export type ProgrammeCommandDeps = {
   }) => Promise<void>;
 };
 
+function publicTrackColor(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(raw.trim())
+    ? raw.trim()
+    : null;
+}
+
 export type CommandOk<T> = { ok: true; value: T };
 export type CommandErr = {
   ok: false;
@@ -124,7 +131,7 @@ async function composeProgramme(
         description: s.description,
         trackId: s.trackId,
         trackName: track?.name ?? null,
-        trackColor: track?.color ?? null,
+        trackColor: publicTrackColor(track?.color),
         status: s.status,
         speakers: links.map((l) => ({
           participationId: l.participationId,
@@ -182,7 +189,7 @@ async function composeProgramme(
         endsAt: pl.endsAt,
         roomName: room?.name ?? null,
         trackName: track?.name ?? null,
-        trackColor: track?.color ?? null,
+        trackColor: publicTrackColor(track?.color),
         speakerNames: links.map((l) => nameForPart(l.participationId)),
       } satisfies PublicAgendaItem;
     })

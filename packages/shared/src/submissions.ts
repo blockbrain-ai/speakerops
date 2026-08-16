@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FieldKeySchema, FormFieldSchema, FormRuleSchema } from "./forms.js";
+import { SafeUploadFilenameSchema } from "./design.js";
 import { RichTextEnvelopeSchema } from "./richtext.js";
 
 /**
@@ -290,7 +291,7 @@ export const CfpFileUploadBodySchema = z.object({
   formVersionId: z.string().min(1).max(128),
   /** REQUIRED file-typed field this upload answers (must be type "file"). */
   fieldKey: z.string().min(1).max(128),
-  filename: z.string().min(1).max(255),
+  filename: SafeUploadFilenameSchema,
   mime: z.string().min(1).max(128),
   /** Declared size; must match decoded content length. */
   size: z.number().int().positive().max(CFP_FILE_MAX_BYTES),
